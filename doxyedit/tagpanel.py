@@ -100,6 +100,7 @@ class TagPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("doxyedit_tagpanel")
         self._assets: list[Asset] = []
         self._img_dims: dict[str, tuple[int, int]] = {}
         self._rows: dict[str, TagRow] = {}

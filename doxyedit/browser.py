@@ -333,6 +333,7 @@ class AssetBrowser(QWidget):
 
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
+        self.setObjectName("doxyedit_browser")
         self.project = project
         self._selected_ids: set[str] = set()
         self._thumbnails: dict[str, ThumbnailWidget] = {}
@@ -442,10 +443,11 @@ class AssetBrowser(QWidget):
 
         # Scroll area
         self._scroll = QScrollArea()
+        self._scroll.setObjectName("doxyedit_grid_scroll")
         self._scroll.setWidgetResizable(True)
-        # Inherits from theme
 
         self.grid_widget = QWidget()
+        self.grid_widget.setObjectName("doxyedit_grid")
         self.grid_layout = QGridLayout(self.grid_widget)
         self.grid_layout.setSpacing(8)
         self.grid_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
@@ -543,6 +545,8 @@ class AssetBrowser(QWidget):
         self._add_tag_btn.clicked.connect(self._add_custom_tag)
         self._tag_flow.addWidget(self._add_tag_btn)
         self._apply_tag_button_styles()
+        self._tag_flow.invalidate()
+        self._tag_bar_frame.updateGeometry()
 
     def _apply_tag_button_styles(self, font_size: int = None):
         """Apply tag pill styles at the given font size."""
