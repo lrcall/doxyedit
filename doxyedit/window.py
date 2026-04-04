@@ -196,10 +196,8 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
 
         # File ops
-        tb.addAction(QAction("Open", self, shortcut=QKeySequence("Ctrl+O"),
-                     triggered=self._open_project))
-        tb.addAction(QAction("Save", self, shortcut=QKeySequence("Ctrl+S"),
-                     triggered=self._save_project))
+        tb.addAction(QAction("Open", self, triggered=self._open_project))
+        tb.addAction(QAction("Save", self, triggered=self._save_project))
         tb.addSeparator()
 
         # Asset ops
