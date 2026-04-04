@@ -1,5 +1,34 @@
 # DoxyEdit Changelog
 
+## v0.3.1 — 2026-04-04
+
+### Tag Panel Sections
+- Left panel now has 4 clear sections with proper separators:
+  1. Content/Workflow (Page, Character, Sketch, etc.)
+  2. Platform/Size targets (Hero, Banner, Cover, etc.)
+  3. Custom/Project tags (user-added, project-specific)
+  4. Visual/Mood/Dimension (warm, cool, dark, portrait, etc.)
+- Tags insert into their correct section, no more mixing
+
+### Pin Tags
+- Right-click tag → "Pin to top" moves it to the top of its own section
+- Gold left border indicates pinned tags
+- Right-click again to unpin
+
+### Custom Keyboard Shortcuts
+- Right-click tag → "Set Shortcut Key" assigns any single key
+- Custom shortcuts register live and show as [K] in the tag label
+- Works alongside built-in 1-9 shortcuts
+
+### Navigation & Settings
+- Left/Right arrow keys page through thumbnails
+- View > Thumbnails Per Page: choose 50/100/150/200/300/500 (persists)
+
+### Fixes
+- Tag dots now show for all discovered tags (warm, portrait, etc.)
+- Custom tags appear in both tag bar and side panel
+- Wider note and rename dialogs (500px/400px)
+
 ## v0.3.0 — 2026-04-04
 
 ### SAI/SAI2 Shell Thumbnails

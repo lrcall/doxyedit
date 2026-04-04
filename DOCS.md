@@ -1,6 +1,6 @@
 # DoxyEdit Documentation
 
-**Version 0.3** — Art Asset Manager
+**Version 0.3.1** — Art Asset Manager
 
 DoxyEdit is a desktop tool for artists and creators to browse, tag, organize, and export art assets across multiple platforms (Kickstarter, Steam, Patreon, social media).
 
@@ -97,9 +97,17 @@ Shows all tags with checkboxes. Click to apply/remove on selected image(s).
 - Red = image too small
 
 **Right-click a tag to:**
+- **Pin to top** — moves it to the top of its section (gold border)
+- **Set Shortcut Key** — assign any single key as a keyboard shortcut
 - Rename it
 - Hide it from the panel
 - Delete it from all assets
+
+**Tag Panel Sections (top to bottom):**
+1. Content/Workflow — Page, Character, Sketch, Game Asset, etc.
+2. Platform/Size targets — Hero 1024x576, Banner 1600x400, etc.
+3. Custom/Project — user-added tags (hardblush, marty, etc.)
+4. Visual/Mood/Dimension — warm, cool, dark, portrait, landscape, etc.
 
 **Buttons:**
 - **Mark Ignore** — tags selected as ignore
@@ -208,6 +216,7 @@ Each slot shows: name, target size, assigned asset, and status (pending/ready/po
 | Ctrl+= | Increase font size |
 | Ctrl+- | Decrease font size |
 | Ctrl+0 | Reset font size |
+| Left/Right | Page through thumbnails |
 
 ### Project File (.doxyproj.json)
 Human-readable JSON. Can be edited by Claude CLI or by hand.
