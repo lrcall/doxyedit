@@ -1,8 +1,16 @@
 @echo off
+title DoxyEdit Build
 echo === Building DoxyEdit with Nuitka ===
 echo.
-echo Installing Nuitka if needed...
+
+echo Installing/updating dependencies...
 pip install nuitka ordered-set zstandard
+
+echo.
+echo Clearing Nuitka cache to ensure fresh build...
+if exist "run.build" rmdir /s /q "run.build"
+if exist "run.dist" rmdir /s /q "run.dist"
+if exist "run.onefile-build" rmdir /s /q "run.onefile-build"
 
 echo.
 echo Building...
@@ -16,8 +24,18 @@ python -m nuitka ^
     --output-dir=dist ^
     --include-package=doxyedit ^
     --include-module=PIL ^
+    --include-module=psd_tools ^
+    --include-module=numpy ^
     run.py
 
+if errorlevel 1 (
+    echo.
+    echo [!] Build FAILED.
+    pause
+    exit /b 1
+)
+
 echo.
-echo Done! Check dist\DoxyEdit.exe
+echo === Build complete! ===
+echo Output: dist\DoxyEdit.exe
 pause
