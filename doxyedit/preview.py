@@ -5,7 +5,33 @@ from PySide6.QtWidgets import (
     QGraphicsPixmapItem, QPushButton, QHBoxLayout, QApplication,
 )
 from PySide6.QtCore import Qt, QTimer, QPoint, QSize, QRectF
-from PySide6.QtGui import QPixmap, QPainter, QFont, QColor, QKeySequence, QShortcut
+from PySide6.QtGui import QPixmap, QPainter, QFont, QColor, QKeySequence, QShortcut, QImage
+
+
+def _load_pixmap(path: str) -> tuple[QPixmap, int, int]:
+    """Load any supported image as QPixmap, including PSD."""
+    ext = Path(path).suffix.lower()
+    if ext in (".psd", ".psb"):
+        try:
+            from psd_tools import PSDImage
+            psd = PSDImage.open(path)
+            img = psd.composite()
+            if img.mode not in ("RGBA", "RGB"):
+                img = img.convert("RGBA")
+            if img.mode == "RGB":
+                data = img.tobytes("raw", "RGB")
+                qimg = QImage(data, img.width, img.height, img.width * 3,
+                              QImage.Format.Format_RGB888).copy()
+            else:
+                data = img.tobytes("raw", "RGBA")
+                qimg = QImage(data, img.width, img.height, img.width * 4,
+                              QImage.Format.Format_RGBA8888).copy()
+            return QPixmap.fromImage(qimg), psd.width, psd.height
+        except Exception:
+            return QPixmap(), 0, 0
+
+    pm = QPixmap(path)
+    return pm, pm.width(), pm.height()
 
 
 class HoverPreview(QLabel):
@@ -34,7 +60,7 @@ class HoverPreview(QLabel):
         if self._path == image_path and self.isVisible():
             return
         self._path = image_path
-        pm = QPixmap(image_path)
+        pm, _, _ = _load_pixmap(image_path)
         if pm.isNull():
             self.hide()
             return
@@ -81,9 +107,8 @@ class ImagePreviewDialog(QDialog):
         info_bar = QHBoxLayout()
         info_bar.setContentsMargins(12, 8, 12, 4)
 
-        pm = QPixmap(image_path)
+        pm, w, h = _load_pixmap(image_path)
         name = Path(image_path).name
-        w, h = pm.width(), pm.height()
         ratio = f"{w/h:.2f}" if h else "?"
 
         info = QLabel(f"{name}  |  {w} x {h}  |  ratio {ratio}")
