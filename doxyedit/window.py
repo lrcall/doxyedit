@@ -444,16 +444,18 @@ class MainWindow(QMainWindow):
         self.status.showMessage(f"Opened folder: {Path(folder).name} ({n} images)")
 
     def _on_shortcut_changed(self, tag_id: str, key: str):
-        """Register a new keyboard shortcut for a tag."""
+        """Register a new keyboard shortcut for a tag and save to project."""
         from doxyedit.models import TAG_SHORTCUTS
         # Remove any existing shortcut for this key
         for k, v in list(TAG_SHORTCUTS.items()):
             if v == tag_id:
                 del TAG_SHORTCUTS[k]
-        # Remove any tag that had this key
         if key in TAG_SHORTCUTS:
             del TAG_SHORTCUTS[key]
         TAG_SHORTCUTS[key] = tag_id
+        # Save to project
+        self.project.custom_shortcuts[key] = tag_id
+        self._dirty = True
         # Register the shortcut
         shortcut = QShortcut(QKeySequence(key), self)
         shortcut.activated.connect(lambda tid=tag_id: self._toggle_tag_shortcut(tid))
@@ -648,6 +650,10 @@ class MainWindow(QMainWindow):
         self.tag_panel.set_assets([])
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self._update_progress()
+        # Restore project-specific shortcuts
+        for key, tag_id in self.project.custom_shortcuts.items():
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.activated.connect(lambda tid=tag_id: self._toggle_tag_shortcut(tid))
 
     def _open_project(self):
         path, _ = QFileDialog.getOpenFileName(

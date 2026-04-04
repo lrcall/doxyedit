@@ -323,7 +323,8 @@ class Project:
     name: str = "Untitled"
     assets: list[Asset] = field(default_factory=list)
     platforms: list[str] = field(default_factory=lambda: list(PLATFORMS.keys()))
-    custom_tags: list[dict] = field(default_factory=list)  # project-specific tags
+    custom_tags: list[dict] = field(default_factory=list)
+    custom_shortcuts: dict[str, str] = field(default_factory=dict)  # key → tag_id
     notes: str = ""
 
     def get_tags(self) -> dict[str, TagPreset]:
@@ -350,6 +351,7 @@ class Project:
             "notes": self.notes,
             "platforms": self.platforms,
             "custom_tags": self.custom_tags,
+            "custom_shortcuts": self.custom_shortcuts,
             "assets": [asdict(a) for a in self.assets],
         }
         Path(path).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
@@ -362,6 +364,7 @@ class Project:
             notes=raw.get("notes", ""),
             platforms=raw.get("platforms", list(PLATFORMS.keys())),
             custom_tags=raw.get("custom_tags", []),
+            custom_shortcuts=raw.get("custom_shortcuts", {}),
         )
         for a in raw.get("assets", []):
             asset = Asset(
