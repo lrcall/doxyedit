@@ -20,10 +20,11 @@ FITNESS_COLORS = {
 
 class TagRow(QFrame):
     """One tag checkbox with fitness indicator dot."""
-    toggled = Signal(str, bool)  # tag_id, checked
-    hide_requested = Signal(str)  # tag_id
-    delete_requested = Signal(str)  # tag_id
-    rename_requested = Signal(str, str)  # old_tag_id, new_label
+    toggled = Signal(str, bool)
+    hide_requested = Signal(str)
+    delete_requested = Signal(str)
+    rename_requested = Signal(str, str)
+    pin_requested = Signal(str)  # tag_id — pin/unpin to top of section
 
     def __init__(self, tag: TagPreset, parent=None):
         super().__init__(parent)
@@ -89,6 +90,9 @@ class TagRow(QFrame):
     def contextMenuEvent(self, event):
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
+        pin_label = "Unpin from top" if getattr(self, '_pinned', False) else "Pin to top"
+        menu.addAction(pin_label, lambda: self.pin_requested.emit(self.tag.id))
+        menu.addSeparator()
         menu.addAction(f"Rename '{self.tag.label}'", self._request_rename)
         menu.addAction(f"Hide '{self.tag.label}'", lambda: self.hide_requested.emit(self.tag.id))
         menu.addAction(f"Delete '{self.tag.label}' from project", lambda: self.delete_requested.emit(self.tag.id))
@@ -229,6 +233,7 @@ class TagPanel(QWidget):
         row.hide_requested.connect(self._hide_tag)
         row.delete_requested.connect(self._delete_tag)
         row.rename_requested.connect(self._rename_tag)
+        row.pin_requested.connect(self._pin_tag)
         if tag_id in self._hidden_tags:
             row.setVisible(False)
         self._tag_layout.addWidget(row)
@@ -341,6 +346,24 @@ class TagPanel(QWidget):
                 return w, h
         except Exception:
             return 0, 0
+
+    def _pin_tag(self, tag_id: str):
+        """Pin/unpin a tag to the top of its section."""
+        if tag_id not in self._rows:
+            return
+        row = self._rows[tag_id]
+        pinned = getattr(row, '_pinned', False)
+        row._pinned = not pinned
+
+        if row._pinned:
+            # Move to top of layout (index 0)
+            self._tag_layout.removeWidget(row)
+            self._tag_layout.insertWidget(0, row)
+            # Visual indicator
+            row.setStyleSheet("TagRow { border-left: 3px solid rgba(190,149,92,0.7); }")
+        else:
+            # Just remove the visual indicator — stays where it is
+            row.setStyleSheet("TagRow { background: transparent; }")
 
     def _hide_tag(self, tag_id: str):
         self._hidden_tags.add(tag_id)
