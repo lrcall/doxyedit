@@ -331,6 +331,7 @@ class AssetBrowser(QWidget):
         settings = QSettings("DoxyEdit", "DoxyEdit")
         self._thumb_size = int(settings.value("thumb_size", THUMB_SIZE))
         self.hover_preview_enabled = True
+        self._current_font_size = 10
         self._resize_timer = QTimer(self)
         self._resize_timer.setSingleShot(True)
         self._resize_timer.setInterval(150)
@@ -502,8 +503,11 @@ class AssetBrowser(QWidget):
         self._tag_flow.addWidget(self._add_tag_btn)  # keep "+" at end
         self._apply_tag_button_styles()
 
-    def _apply_tag_button_styles(self, font_size: int = 10):
+    def _apply_tag_button_styles(self, font_size: int = None):
         """Apply tag pill styles at the given font size."""
+        if font_size is not None:
+            self._current_font_size = font_size
+        font_size = self._current_font_size
         h = font_size + 14
         for btn, color in self._tag_buttons:
             btn.setFixedHeight(h)
