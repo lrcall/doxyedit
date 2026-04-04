@@ -226,7 +226,7 @@ class ThumbnailWidget(QFrame):
         dim_text = f"{self._dims[0]}x{self._dims[1]}" if self._dims else ""
         dim_label = QLabel(dim_text)
         dim_label.setFont(QFont("Segoe UI", 7))
-        dim_label.setStyleSheet("color: rgba(128,128,128,0.6); margin-top: 5px;")
+        dim_label.setStyleSheet("color: rgba(128,128,128,0.6); margin-top: 8px;")
         dim_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(dim_label)
 

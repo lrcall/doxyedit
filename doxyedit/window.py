@@ -499,7 +499,7 @@ class MainWindow(QMainWindow):
     def _on_asset_preview(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
         if asset:
-            dlg = ImagePreviewDialog(asset.source_path, self)
+            dlg = ImagePreviewDialog(asset.source_path, asset=asset, parent=self)
             dlg.exec()
 
     def _send_to_canvas(self, asset_id: str):
@@ -629,6 +629,9 @@ class MainWindow(QMainWindow):
             self._settings.setValue("last_project", self._project_path)
             self._add_recent_project(self._project_path)
             self.status.showMessage(f"Saved {Path(self._project_path).name}")
+            # Brief green flash on status bar
+            self.status.setStyleSheet("QStatusBar { background: rgba(80,180,80,0.8); }")
+            QTimer.singleShot(800, lambda: self.status.setStyleSheet(""))
         else:
             self._save_project_as()
 

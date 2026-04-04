@@ -390,3 +390,4 @@ class TagPanel(QWidget):
     def _on_notes_changed(self):
         if len(self._assets) == 1:
             self._assets[0].notes = self.notes_edit.toPlainText()
+            self.tags_changed.emit()

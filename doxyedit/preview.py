@@ -1,11 +1,15 @@
-"""Image preview — hover tooltip and full-screen preview dialog."""
+"""Image preview — hover tooltip, full preview with annotation notes."""
 from pathlib import Path
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QLabel, QGraphicsScene, QGraphicsView,
-    QGraphicsPixmapItem, QHBoxLayout, QApplication,
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsScene, QGraphicsView,
+    QGraphicsPixmapItem, QGraphicsRectItem, QGraphicsTextItem,
+    QApplication, QPushButton, QInputDialog,
 )
-from PySide6.QtCore import Qt, QPoint, QRectF, QSettings
-from PySide6.QtGui import QPixmap, QPainter, QFont, QColor, QKeySequence, QShortcut, QTransform
+from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF
+from PySide6.QtGui import (
+    QPixmap, QPainter, QFont, QColor, QKeySequence, QShortcut,
+    QTransform, QPen, QBrush,
+)
 
 from doxyedit.imaging import load_pixmap
 
@@ -64,23 +68,50 @@ class HoverPreview(QLabel):
         self.hide()
 
 
-class ImagePreviewDialog(QDialog):
-    """Full image preview — zoomable, opened on double-click."""
+class NoteRectItem(QGraphicsRectItem):
+    """A draggable note box with text label on the preview."""
 
-    def __init__(self, image_path: str, parent=None):
+    def __init__(self, rect: QRectF, text: str = ""):
+        super().__init__(rect)
+        self.setPen(QPen(QColor(190, 149, 92, 200), 2))
+        self.setBrush(QBrush(QColor(190, 149, 92, 40)))
+        self.setFlags(
+            QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
+            | QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable
+        )
+        self._text_item = QGraphicsTextItem(text, self)
+        self._text_item.setDefaultTextColor(QColor(230, 220, 200))
+        self._text_item.setFont(QFont("Segoe UI", 10))
+        self._text_item.setPos(rect.x() + 4, rect.y() + 2)
+        self.text = text
+
+    def update_text(self, text: str):
+        self.text = text
+        self._text_item.setPlainText(text)
+
+
+class ImagePreviewDialog(QDialog):
+    """Full image preview — zoomable, with annotation notes."""
+
+    def __init__(self, image_path: str, asset=None, parent=None):
         super().__init__(parent)
+        self._asset = asset
         self.setWindowTitle(f"Preview — {Path(image_path).name}")
         self.setMinimumSize(800, 600)
         settings = QSettings("DoxyEdit", "DoxyEdit")
         w_size = settings.value("preview_width", 1100, type=int)
         h_size = settings.value("preview_height", 800, type=int)
         self.resize(w_size, h_size)
-        # Restore position
         px = settings.value("preview_x", -1, type=int)
         py = settings.value("preview_y", -1, type=int)
         if px >= 0 and py >= 0:
             self.move(px, py)
         self.setStyleSheet("QDialog { background: rgba(20,20,20,0.95); }")
+
+        self._annotating = False
+        self._draw_start = None
+        self._temp_rect = None
+        self._notes: list[NoteRectItem] = []
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -99,7 +130,16 @@ class ImagePreviewDialog(QDialog):
         info_bar.addWidget(info)
         info_bar.addStretch()
 
-        hint = QLabel("Scroll to zoom  |  Drag to pan  |  Esc to close")
+        # Note button
+        self._note_btn = QPushButton("Add Note")
+        self._note_btn.setCheckable(True)
+        self._note_btn.setStyleSheet(
+            "QPushButton { padding: 4px 12px; }"
+            "QPushButton:checked { background: rgba(190,149,92,0.5); }")
+        self._note_btn.toggled.connect(self._toggle_note_mode)
+        info_bar.addWidget(self._note_btn)
+
+        hint = QLabel("Scroll to zoom  |  Drag to pan  |  N = note  |  Esc = close")
         hint.setFont(QFont("Segoe UI", 9))
         hint.setStyleSheet("color: rgba(128,128,128,0.5);")
         info_bar.addWidget(hint)
@@ -124,16 +164,90 @@ class ImagePreviewDialog(QDialog):
             self.scene.addItem(item)
             self.scene.setSceneRect(QRectF(pm.rect()))
 
-            # Restore last zoom level, or fit to view on first use
             saved_zoom = settings.value("preview_zoom", 0.0, type=float)
             if saved_zoom > 0:
                 self.view.setTransform(QTransform.fromScale(saved_zoom, saved_zoom))
             else:
                 self.view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
 
+        # Override mouse events for annotation
+        self.view.mousePressEvent = self._view_mouse_press
+        self.view.mouseMoveEvent = self._view_mouse_move
+        self.view.mouseReleaseEvent = self._view_mouse_release
         self.view.wheelEvent = self._wheel_zoom
+
         QShortcut(QKeySequence("Escape"), self, self.close)
         QShortcut(QKeySequence("Ctrl+0"), self, self._fit_to_view)
+        QShortcut(QKeySequence("N"), self, lambda: self._note_btn.toggle())
+        QShortcut(QKeySequence("Delete"), self, self._delete_selected_note)
+
+    def _toggle_note_mode(self, checked):
+        self._annotating = checked
+        if checked:
+            self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
+            self.view.setCursor(Qt.CursorShape.CrossCursor)
+        else:
+            self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+            self.view.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def _view_mouse_press(self, event):
+        if self._annotating and event.button() == Qt.MouseButton.LeftButton:
+            self._draw_start = self.view.mapToScene(event.position().toPoint())
+            self._temp_rect = NoteRectItem(QRectF(self._draw_start, self._draw_start), "")
+            self.scene.addItem(self._temp_rect)
+            return
+        QGraphicsView.mousePressEvent(self.view, event)
+
+    def _view_mouse_move(self, event):
+        if self._annotating and self._draw_start and self._temp_rect:
+            pos = self.view.mapToScene(event.position().toPoint())
+            r = QRectF(self._draw_start, pos).normalized()
+            self._temp_rect.setRect(r)
+            self._temp_rect._text_item.setPos(r.x() + 4, r.y() + 2)
+            return
+        QGraphicsView.mouseMoveEvent(self.view, event)
+
+    def _view_mouse_release(self, event):
+        if self._annotating and self._temp_rect:
+            r = self._temp_rect.rect()
+            if r.width() > 10 and r.height() > 10:
+                # Ask for note text
+                text, ok = QInputDialog.getText(self, "Note", "Enter note:")
+                if ok and text.strip():
+                    self._temp_rect.update_text(text.strip())
+                    self._notes.append(self._temp_rect)
+                    self._save_notes_to_asset()
+                else:
+                    self.scene.removeItem(self._temp_rect)
+            else:
+                self.scene.removeItem(self._temp_rect)
+            self._temp_rect = None
+            self._draw_start = None
+            self._note_btn.setChecked(False)
+            return
+        QGraphicsView.mouseReleaseEvent(self.view, event)
+
+    def _delete_selected_note(self):
+        for item in self.scene.selectedItems():
+            if isinstance(item, NoteRectItem):
+                self.scene.removeItem(item)
+                if item in self._notes:
+                    self._notes.remove(item)
+        self._save_notes_to_asset()
+
+    def _save_notes_to_asset(self):
+        """Save all note annotations to the asset's notes field."""
+        if not self._asset:
+            return
+        note_lines = []
+        for n in self._notes:
+            r = n.rect()
+            note_lines.append(f"[{int(r.x())},{int(r.y())} {int(r.width())}x{int(r.height())}] {n.text}")
+        # Preserve any existing non-annotation notes
+        existing = self._asset.notes
+        existing_lines = [l for l in existing.split("\n") if l.strip() and not l.strip().startswith("[")]
+        all_lines = existing_lines + note_lines
+        self._asset.notes = "\n".join(all_lines)
 
     def _fit_to_view(self):
         self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)

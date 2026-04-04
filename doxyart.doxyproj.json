@@ -1,0 +1,5497 @@
+{
+  "_comment": "DoxyEdit project \u2014 edit with Claude CLI or by hand",
+  "name": "Untitled",
+  "notes": "",
+  "platforms": [
+    "kickstarter",
+    "steam",
+    "patreon",
+    "twitter",
+    "reddit",
+    "instagram",
+    "kickstarter_jp"
+  ],
+  "custom_tags": [
+    {
+      "id": "judy",
+      "label": "Judy",
+      "color": "#387080"
+    }
+  ],
+  "assets": [
+    {
+      "id": "001_0",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\001.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "cool",
+        "detailed",
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "005_1",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\005.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "dark",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "006_2",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\006.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "dark",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "007_3",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\007.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "007_4",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\007.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "008_5",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\008.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "008_6",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\008.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "009_7",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\009.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "009_8",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\009.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "010fill_9",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\010fill.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "06_3_10",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\06_3.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "cool",
+        "detailed",
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "1_11",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "11_00_12",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\11_00.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "11_00_fx_13",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\11_00_fx.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "11SKETCHES_01 fills_14",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\11SKETCHES_01 fills.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch",
+        "warm",
+        "bright",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "1_effect_15",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\1_effect.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "1mmna00013jp-13_16",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\1mmna00013jp-13.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "dark",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "1mmna00013jp-13_fx_17",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\1mmna00013jp-13_fx.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "dark",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "1mmna00013jp-13_fx_18",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\1mmna00013jp-13_fx.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "dark",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "2_19",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "dark",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "205_after_20",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\205_after.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "210647_img1_21",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\210647_img1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "flat",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "222SKETCHES (1)_a_22",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\222SKETCHES (1)_a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch",
+        "warm",
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "222SKETCHES_01_23",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\222SKETCHES_01.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch",
+        "bright",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "23333_24",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\23333.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "detailed",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "23333_color_25",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\23333_color.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "cool",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "23333_sss_26",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\23333_sss.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "detailed",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "2_effect_27",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\2_effect.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "49nitr00338pl_01_28",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\49nitr00338pl_01.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "49nitr00338pl_02_29",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\49nitr00338pl_02.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "49nitr00338pl_06_30",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\49nitr00338pl_06.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adfsasd_31",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adfsasd.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adfsasd_32",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adfsasd.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adsadas_33",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adsadas.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adsasddas_a_34",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adsasddas_a.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adsasddas_a_35",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adsasddas_a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adsasddas_b_36",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adsasddas_b.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adsasddas_b_37",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adsasddas_b.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adsasddas_c_38",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adsasddas_c.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adsasddas_c_39",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adsasddas_c.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adsasddas_d_40",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adsasddas_d.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adsasddas_d_41",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adsasddas_d.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adsdaas_42",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adsdaas.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "flat",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adsdasdsa (2)_43",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adsdasdsa (2).psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "adsdasdsa_44",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\adsdasdsa.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "amongus2_45",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\amongus2.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "cool",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "angls_46",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\angls.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "detailed",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asasa_47",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asasa.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [
+        {
+          "x": 79,
+          "y": 544,
+          "w": 32,
+          "h": 49,
+          "style": "black"
+        },
+        {
+          "x": 70,
+          "y": 540,
+          "w": 84,
+          "h": 60,
+          "style": "pixelate"
+        }
+      ],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asasa_48",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asasa.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdasd_49",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdasd.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdasd_50",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdasd.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdasdsa_51",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdasdsa.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "detailed",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdasdsadsa_52",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdasdsadsa.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdasdsadsa_53",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdasdsadsa.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "detailed",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asddasdas_54",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asddasdas.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsa_55",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsa.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "flat",
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsadas_56",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsadas.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsaddd_57",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsaddd.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsaddd_orange_58",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsaddd_orange.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "flat",
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsaddd_orange2_59",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsaddd_orange2.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsaddd_orange2_60",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsaddd_orange2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsadsa (2)_61",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsadsa (2).psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "detailed",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsadsa_62",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsadsa.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsadsa_63",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsadsa.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "detailed",
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsadsa2_64",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsadsa2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "cool",
+        "bright",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsadsa_color_65",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsadsa_color.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsadsa_full_color_66",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsadsa_full_color.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsadsad_67",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsadsad.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "detailed",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsadsadad_b_68",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsadsadad_b.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsadsadasdasdsaaa_a_69",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsadsadasdasdsaaa_a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "dark",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsadsadsa_70",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsadsadsa.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsd_71",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsd.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "dark",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asdsd_72",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdsd.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "dark",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "aseafadfafafa_flat_73",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\aseafadfafafa_flat.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "asmond_74",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asmond.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "cool",
+        "bright",
+        "detailed",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "back_2_75",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\back_2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "detailed",
+        "tall"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "balysle_fullcolor_76",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\balysle_fullcolor.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "balysle_fullcolor~bak.20190628.172108.0_77",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\balysle_fullcolor~bak.20190628.172108.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "balysle_fullcolor~bak.20190628.172315.0_78",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\balysle_fullcolor~bak.20190628.172315.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "cabb_79",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\cabb.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "cabb_80",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\cabb.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "card_81",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\card.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "cjeyvgll_82",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\cjeyvgll.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "Clipboard_83",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Clipboard.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "detailed",
+        "square",
+        "ignore"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "Clipboard01_84",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Clipboard01.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "bright",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "comicss_2_b_85",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\comicss_2_b.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "COMM SKETCHES 2_a_86",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\COMM SKETCHES 2_a.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch",
+        "warm",
+        "bright",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "COMM SKETCHES 2_a_87",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\COMM SKETCHES 2_a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch",
+        "warm",
+        "bright",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "contact_6000_88",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\contact_6000.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "cool",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "cross_02_89",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\cross_02.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "da_90",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\da.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "da_fx_91",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\da_fx.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "daadfasd_02_92",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\daadfasd_02.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "daisypeach_93",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\daisypeach.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "daki_94",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\daki.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "detailed",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "daki_95",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\daki.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "detailed",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "dddd_1_96",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dddd_1.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "cool",
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "dddd_1_97",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dddd_1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "cool",
+        "landscape"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "ddoooffd_98",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\ddoooffd.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "deggasfs_99",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\deggasfs.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "deggasfs_100",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\deggasfs.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "bright",
+        "portrait"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "designs_101",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\designs.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dev_102",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dev.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "devil_103",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\devil.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Dezjez_treats_new_104",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Dezjez_treats_new.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Dezjez_treats_new_resize_105",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Dezjez_treats_new_resize.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Dezjez_treats_new_resize_2_106",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Dezjez_treats_new_resize_2.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Dezjez_treats_new_resize_3_107",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Dezjez_treats_new_resize_3.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Dezjez_treats_new_resize_4_108",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Dezjez_treats_new_resize_4.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Dezjez_treats_new_resize_a_109",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Dezjez_treats_new_resize_a.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dfadfd_01_110",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dfadfd_01.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Doxy_JUD2_19text_111",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Doxy_JUD2_19text.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Doxy_JUD2_20text_112",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Doxy_JUD2_20text.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_08_Dezzy_Color_113",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_08_Dezzy_Color.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_08_Dezzy_Color~bak.20190326.074053.0_114",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_08_Dezzy_Color~bak.20190326.074053.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_08_text_115",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_08_text.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_09text_116",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_09text.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_10A_text - Copy_117",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_10A_text - Copy.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_10A_text_118",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_10A_text.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_10B_text - Copy_119",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_10B_text - Copy.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_10B_text_120",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_10B_text.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_10btext_121",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_10btext.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_10text_122",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_10text.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_11A_text_123",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_11A_text.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_11atext_124",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_11atext.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_11B_text_125",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_11B_text.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_11btext_126",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_11btext.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_12text_127",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_12text.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_19text_128",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_19text.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_25_text_129",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_25_text.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_25_text_130",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_25_text.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_33_131",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_33.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_33_132",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_33.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_34_133",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_34.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_34_134",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_34.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_35_135",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_35.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_35_136",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_35.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_36_137",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_36.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_36_138",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_36.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_36__139",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_36_.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_37_140",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_37.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_37_141",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_37.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_38_142",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_38.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_39_143",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_39.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_40_144",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_40.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_41_145",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_41.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_42_146",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_42.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_43_147",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_43.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_44_148",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_44.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_45_149",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_45.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JUD3_46_150",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JUD3_46.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JV_003_151",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JV_003.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_JV_003b_152",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_JV_003b.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_TRAS_10_a_flat_153",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_TRAS_10_a_flat.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_TRAS_12~bak.20190326.121055.0_154",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_TRAS_12~bak.20190326.121055.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_TRAS_13_155",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_TRAS_13.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_TRAS_13_156",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_TRAS_13.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_TRAS_13z_157",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_TRAS_13z.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_TRAS_15_158",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_TRAS_15.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_TRAS_15_159",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_TRAS_15.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_TRAS_15_b_160",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_TRAS_15_b.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_TRAS_15_effect_161",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_TRAS_15_effect.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_TRAS_15_effect_162",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_TRAS_15_effect.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "DOXY_TRAS_DAPE_01_effect_163",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\DOXY_TRAS_DAPE_01_effect.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Dsdsad_Dezzy_Color_164",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Dsdsad_Dezzy_Color.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Dsdsad_Dezzy_flat_165",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Dsdsad_Dezzy_flat.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dsfdsfsffddsfs_166",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dsfdsfsffddsfs.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dualdoodle_167",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dualdoodle.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dualdoodle_01_168",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dualdoodle_01.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dualdoodle_01_169",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dualdoodle_01.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dualdoodle_012_170",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dualdoodle_012.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dualdoodle_02_171",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dualdoodle_02.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dualdoodle_02_172",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dualdoodle_02.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dud_173",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dud.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dud2_174",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dud2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dud3_175",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dud3.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dud4_176",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dud4.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "dwfdsafdsfs_177",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\dwfdsafdsfs.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "EeeUASwU4AU4nym (2)_178",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\EeeUASwU4AU4nym (2).psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "EeeUASwU4AU4nym_179",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\EeeUASwU4AU4nym.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "EeeUASwU4AU4nym_180",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\EeeUASwU4AU4nym.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "EJO2jEGUUAEgMQR_a_181",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\EJO2jEGUUAEgMQR_a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "EJO2jEGUUAEgMQR_a_effect_182",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\EJO2jEGUUAEgMQR_a_effect.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "EJO2jEGUUAEgMQR_a_effect_183",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\EJO2jEGUUAEgMQR_a_effect.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "faeriefinal_184",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\faeriefinal.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "final"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "faeries2_185",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\faeries2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "faeries2~bak.20190609.232959.0_186",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\faeries2~bak.20190609.232959.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "faeries2~bak.20190613.074444.0_187",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\faeries2~bak.20190613.074444.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "faeries2~bak.20190613.082406.0_188",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\faeries2~bak.20190613.082406.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "faeries2~bak.20190613.082956.0_189",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\faeries2~bak.20190613.082956.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "faeries2~bak.20190613.083214.0_190",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\faeries2~bak.20190613.083214.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "faeries2~bak.20190613.083446.0_191",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\faeries2~bak.20190613.083446.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "faeries2~bak.20190613.083522.0_192",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\faeries2~bak.20190613.083522.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "femmers_193",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\femmers.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "femmers_194",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\femmers.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "femmers_small_195",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\femmers_small.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "fgo01_a_196",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\fgo01_a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "front_2_197",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\front_2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "gaaggfgf_198",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\gaaggfgf.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "GargoyleSex_1sdfdasfdsfdsfds_199",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\GargoyleSex_1sdfdasfdsfdsfds.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "gnoll_200",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\gnoll.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "gobo3_201",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\gobo3.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "hb_com_202",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\hb_com.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "iowa_203",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\iowa.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "iowa_flat_204",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\iowa_flat.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "iowa_flat_205",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\iowa_flat.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "j82b_fx_206",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\j82b_fx.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "j82b_fx_1_207",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\j82b_fx_1.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "j82b_fx_2_208",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\j82b_fx_2.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Jenni_3_2_209",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Jenni_3_2.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Jenni_3_2_210",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Jenni_3_2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Jenni_3_2_211",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Jenni_3_2.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Jenni_3_3_212",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Jenni_3_3.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "johnnytest_213",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\johnnytest.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Judelewds1_214",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Judelewds1.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Judelewds2_215",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Judelewds2.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Judelewds3_216",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Judelewds3.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Judpull_217",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Judpull.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "judy_comic24_218",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\judy_comic24.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "judy_comic25_219",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\judy_comic25.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "judy_comic26_220",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\judy_comic26.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "judy_comic27_221",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\judy_comic27.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "justbeans_222",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\justbeans.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "kissingboys_223",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\kissingboys.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "kissingboys_ink_224",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\kissingboys_ink.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "kobold_tug_225",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\kobold_tug.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "leggies_226",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\leggies.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "lewdpom_227",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\lewdpom.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "lilith_228",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\lilith.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "lilith_229",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\lilith.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "lilith_ink_230",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\lilith_ink.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "lilith_ink_231",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\lilith_ink.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "mai_232",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\mai.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "mai_233",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\mai.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "marshall_234",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\marshall.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "mart_flat_text_235",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\mart_flat_text.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "marts (2)_236",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\marts (2).psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "marts (2)_a_237",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\marts (2)_a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "marts (2)_b_238",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\marts (2)_b.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "marts (2)_b_239",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\marts (2)_b.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "marts_240",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\marts.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "marts_241",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\marts.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "marty_242",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\marty.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "marty_taylor_clothes_color_243",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\marty_taylor_clothes_color.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "martyfuckeds hard_244",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\martyfuckeds hard.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Martygangbang_245",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Martygangbang.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Martygangbang_effect_246",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Martygangbang_effect.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "martypose-01_247",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\martypose-01.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "martys_248",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\martys.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "martys_249",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\martys.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "mech2 (1)_250",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\mech2 (1).psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "meh_251",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\meh.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "melony_252",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\melony.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "melony_2_filter_253",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\melony_2_filter.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "melony_2_filter_254",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\melony_2_filter.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "merony2_255",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\merony2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "merony2_color_256",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\merony2_color.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "merony2_color_257",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\merony2_color.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "milf_01_258",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\milf_01.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "milf_01_259",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\milf_01.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "milf_01_effect_260",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\milf_01_effect.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "milf_01_effect_261",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\milf_01_effect.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "milfface_262",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\milfface.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "milfs1_263",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\milfs1.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "milfs1_264",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\milfs1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "MilfsxRedboi_265",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\MilfsxRedboi.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "milfy_266",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\milfy.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "miri -femmers_267",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\miri -femmers.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "mnorta1_268",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\mnorta1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "moon_269",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\moon.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "moon2_270",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\moon2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "mooty_271",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\mooty.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "mooty_inks_272",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\mooty_inks.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "mooty_inks_273",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\mooty_inks.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "mysysiter_274",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\mysysiter.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "New Canvas_275",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\New Canvas.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "New Canvas_filter_276",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\New Canvas_filter.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "New Canvas_filter_277",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\New Canvas_filter.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "New Canvasasdasdsadasd_2 fill_278",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\New Canvasasdasdsadasd_2 fill.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "New Canvasasdasdsadasd_2 fill_2_279",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\New Canvasasdasdsadasd_2 fill_2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "New Canvasasdasdsadasd_2 fill_2__280",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\New Canvasasdasdsadasd_2 fill_2_.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "New Canvasasdasdsadasd_2 fill_2_dev_281",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\New Canvasasdasdsadasd_2 fill_2_dev.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "New Canvasasdasdsadasd_2_282",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\New Canvasasdasdsadasd_2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "New Canvasasdasdsadasd_b_283",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\New Canvasasdasdsadasd_b.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "New Canvasasdasdsadasd_b_284",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\New Canvasasdasdsadasd_b.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "New Canvasasdasdsadasd_b_fx_285",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\New Canvasasdasdsadasd_b_fx.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "New Canvasasdasdsadasd_b_fx_286",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\New Canvasasdasdsadasd_b_fx.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "NewCanvas1_287",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\NewCanvas1.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "NewCanvas2_288",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\NewCanvas2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "NewCanvas22_289",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\NewCanvas22.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "NewCanvas2_inks_290",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\NewCanvas2_inks.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "NewCanvas3 - Copy_291",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\NewCanvas3 - Copy.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "NewCanvas3_292",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\NewCanvas3.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "NewCanvas3~bak.20190625.205808.0_293",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\NewCanvas3~bak.20190625.205808.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "newsave_294",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\newsave.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "old2_295",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\old2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "old3_296",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\old3.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "old3_297",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\old3.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "oleana_298",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\oleana.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "oleana_fx_299",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\oleana_fx.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "oleanea_01_a_300",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\oleanea_01_a.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "oleanea_01_b_301",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\oleanea_01_b.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "onta_change_01_302",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\onta_change_01.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "p_002_303",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\p_002.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "p_002_304",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\p_002.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "p_003_305",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\p_003.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "p_003_306",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\p_003.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "p_0032_307",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\p_0032.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "p_004_308",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\p_004.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "p_0041_309",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\p_0041.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "p_0041_310",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\p_0041.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "p_hex_311",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\p_hex.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "p_hex_312",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\p_hex.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "pokemonfutaproject_pass1withlayout_b_cropped_1a_313",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\pokemonfutaproject_pass1withlayout_b_cropped_1a.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "pokemonfutaproject_pass1withlayout_b_cropped_1a_314",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\pokemonfutaproject_pass1withlayout_b_cropped_1a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "pokemonfutaproject_pass1withlayout_b_cropped_1a_lin_315",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\pokemonfutaproject_pass1withlayout_b_cropped_1a_lin.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "pokesluts_Oleana_cropped_01_a_316",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\pokesluts_Oleana_cropped_01_a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "polka_01_317",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\polka_01.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "polka_01_318",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\polka_01.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "polka_01_fx_319",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\polka_01_fx.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "polka_01a_320",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\polka_01a.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "portrait_321",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\portrait.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "pose212_322",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\pose212.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "pose21_b_323",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\pose21_b.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "pose21_b_324",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\pose21_b.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "poses_325",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\poses.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "poses_326",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\poses.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "poses1_327",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\poses1.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "punk_328",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\punk.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "punk_329",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\punk.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "rarity_color_flat_330",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\rarity_color_flat.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "rarity_color_lol_331",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\rarity_color_lol.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "ratgirl_332",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\ratgirl.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "ratgirl_cropped_333",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\ratgirl_cropped.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "ratgirl_cropped2_334",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\ratgirl_cropped2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "ratgirl_cropped~bak.20190427.233933.0_335",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\ratgirl_cropped~bak.20190427.233933.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "ratgirl_cropped~bak.20190428.000312.0_336",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\ratgirl_cropped~bak.20190428.000312.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "ratgirl_cropped~bak.20190428.005215.0_337",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\ratgirl_cropped~bak.20190428.005215.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Reva Diehard - dud_338",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Reva Diehard - dud.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Reva Diehard - martypose-01_339",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Reva Diehard - martypose-01.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "rewards_340",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\rewards.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sadasdas_341",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sadasdas.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sadasdas_02_342",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sadasdas_02.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sample_343",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sample.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "scottishtwitter_seelpaints_344",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\scottishtwitter_seelpaints.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdadasda-02_345",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdadasda-02.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdadasda_346",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdadasda.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdadasda_01_347",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdadasda_01.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdadasda_01_348",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdadasda_01.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdadasda_01_349",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdadasda_01.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdadasda_02_350",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdadasda_02.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdadasda_02_351",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdadasda_02.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdadasda_03_352",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdadasda_03.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdadasda_03_353",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdadasda_03.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdadasda_04_354",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdadasda_04.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdadasda_04_355",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdadasda_04.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdadasda_04_356",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdadasda_04.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdasdsa_357",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdasdsa.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdasdsad_358",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdasdsad.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdasdsada_a_359",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdasdsada_a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdasdsada_a1_360",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdasdsada_a1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdasdsada_b_361",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdasdsada_b.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdasdsada_b_362",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdasdsada_b.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdasdsada_b~bak.20191217.150301.0_363",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdasdsada_b~bak.20191217.150301.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdasdsada_b~bak.20191229.002822.0_364",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdasdsada_b~bak.20191229.002822.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdfdfsdffsfsd_a_365",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdfdfsdffsfsd_a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdfdfsdffsfsd_b_366",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdfdfsdffsfsd_b.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdfdfsdffsfsd_c_367",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdfdfsdffsfsd_c.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdsadasasdsad_a_368",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdsadasasdsad_a.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdsadasasdsad_a_369",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdsadasasdsad_a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdsadasasdsad_b_370",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdsadasasdsad_b.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sdsadasasdsad_b_371",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sdsadasasdsad_b.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "seel thing_02_372",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\seel thing_02.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "seel thing_02_fx_373",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\seel thing_02_fx.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "seel thing_02_fx_374",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\seel thing_02_fx.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "seel thing_02_fx_01_375",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\seel thing_02_fx_01.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Shane Gentry - woops1_376",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Shane Gentry - woops1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sketch2_377",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketch2.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a1_1_378",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a1_1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a2_2 (2)_379",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a2_2 (2).jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a2_2 (2)_380",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a2_2 (2).psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a2_2 (2)_sample_381",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a2_2 (2)_sample.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a2_2_382",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a2_2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a2_2_00_383",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a2_2_00.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a2_2_01_384",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a2_2_01.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a2_2_01_censored_385",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a2_2_01_censored.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a2_2_01_censored_386",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a2_2_01_censored.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a2_4_387",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a2_4.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a2_a (2)_388",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a2_a (2).jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a2_a (2)_389",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a2_a (2).psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a2_a_390",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a2_a.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketches_a2_a_391",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketches_a2_a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "sketycaa_392",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketycaa.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sketycaa_full_393",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sketycaa_full.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sky2_394",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sky2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "smutpage1_395",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\smutpage1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "page"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "smutpage1_effect_396",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\smutpage1_effect.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "page"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "smutpage1~bak.20190609.093949.0_397",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\smutpage1~bak.20190609.093949.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "page"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "Solfan COMM SKETCHES_a_398",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Solfan COMM SKETCHES_a.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "sketch"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "spade13 (1)_399",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\spade13 (1).psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "spade13_400",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\spade13.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "spade13_fx_401",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\spade13_fx.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "squidooo2_402",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\squidooo2.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "squidooo2_403",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\squidooo2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "squidooo2~bak.20191219.205400.0_404",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\squidooo2~bak.20191219.205400.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sscreens3_405",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sscreens3.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "sscreens3_406",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\sscreens3.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "st2_char_female_1_407",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\st2_char_female_1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "character"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "swuidss1_408",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\swuidss1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "swuidss1_a_effect_409",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\swuidss1_a_effect.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "swuidss1_a_effect_410",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\swuidss1_a_effect.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "swuidss1_a_effect_a_411",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\swuidss1_a_effect_a.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "swuidss1_a_effect_a_412",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\swuidss1_a_effect_a.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "swuidss1_a_effect_azz_413",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\swuidss1_a_effect_azz.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "swuidss1_a_effect_azzz_414",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\swuidss1_a_effect_azzz.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "swuidss1_a_effect_b_415",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\swuidss1_a_effect_b.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "swuidss1_a_effect_b_416",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\swuidss1_a_effect_b.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "swuidss1_a_effect_c_417",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\swuidss1_a_effect_c.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "swuidss1_a_effect_c_418",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\swuidss1_a_effect_c.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "taylor 1_419",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\taylor 1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "taylor 1_final_420",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\taylor 1_final.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [
+        "final"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "taylor 4_421",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\taylor 4.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "taylor 5_422",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\taylor 5.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "template111_423",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\template111.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "temppp_424",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\temppp.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Toki_wend_425",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Toki_wend.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "tomorroow_double_426",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\tomorroow_double.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "tomorroow_double_427",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\tomorroow_double.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "tomorroow_double_fx_428",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\tomorroow_double_fx.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "unigan poses_devin2_429",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\unigan poses_devin2.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "unigan poses_devin2_430",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\unigan poses_devin2.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "venita_431",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\venita.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "venita_full_432",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\venita_full.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "venita~bak.20190511.121019.0_433",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\venita~bak.20190511.121019.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "venita~bak.20190511.143643.0_434",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\venita~bak.20190511.143643.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "venita~bak.20190511.143840.0_435",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\venita~bak.20190511.143840.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "venita~bak.20190511.145147.0_436",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\venita~bak.20190511.145147.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "venita~bak.20190511.145258.0_437",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\venita~bak.20190511.145258.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "venita~bak.20190511.145507.0_438",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\venita~bak.20190511.145507.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "venita~bak.20190511.145556.0_439",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\venita~bak.20190511.145556.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "venita~bak.20190511.151330.0_440",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\venita~bak.20190511.151330.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "venita~bak.20190511.152146.0_441",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\venita~bak.20190511.152146.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "venita~bak.20190511.152227.0_442",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\venita~bak.20190511.152227.0.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "vum_443",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\vum.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "vum_444",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\vum.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "vum_1_445",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\vum_1.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "wdfasdfsafasafd_446",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\wdfasdfsafasafd.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "wdfasdfsafasafd_447",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\wdfasdfsafasafd.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "wdfasdfsafasafd_a_448",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\wdfasdfsafasafd_a.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "wdfasdfsafasafd_b_449",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\wdfasdfsafasafd_b.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "wdfasdfsafasafd_c_450",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\wdfasdfsafasafd_c.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "wdfasdfsafasafd_d_451",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\wdfasdfsafasafd_d.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "wdfasdfsafasafdz_452",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\wdfasdfsafasafdz.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Webcam2_003_453",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Webcam2_003.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Webcam2_004_454",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Webcam2_004.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "Wolfskoll_455",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\Wolfskoll.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "woops1_456",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\woops1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "woops_flat1_457",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\woops_flat1.png",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "woops_flat1_458",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\woops_flat1.psd",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "wrfsdfdsadsfadsf_459",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\wrfsdfdsadsfadsf.sai2",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    },
+    {
+      "id": "zzpose21_b_460",
+      "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\zzpose21_b.jpg",
+      "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
+      "starred": 0,
+      "crops": [],
+      "censors": [],
+      "assignments": [],
+      "tags": [],
+      "notes": ""
+    }
+  ]
+}
