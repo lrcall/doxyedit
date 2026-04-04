@@ -10,7 +10,9 @@
       "Bash(python -c ':*)",
       "Bash(pip list:*)",
       "Bash(grep -rn \"rgba\\\\|#[0-9a-fA-F]\\\\{3,6\\\\}\" doxyedit/browser.py doxyedit/tagpanel.py doxyedit/preview.py doxyedit/canvas.py doxyedit/censor.py doxyedit/platforms.py doxyedit/window.py)",
-      "Bash(timeout 8 python -c ':*)"
+      "Bash(timeout 8 python -c ':*)",
+      "Bash(cp:*)",
+      "Bash(rm:*)"
     ]
   }
 }

@@ -261,10 +261,6 @@ class MainWindow(QMainWindow):
         view_menu.addAction("Decrease Font Size", self._font_decrease, QKeySequence("Ctrl+-"))
         view_menu.addAction("Reset Font Size", self._font_reset, QKeySequence("Ctrl+0"))
         view_menu.addSeparator()
-        page_menu = view_menu.addMenu("Thumbnails Per Page")
-        for n in [50, 100, 150, 200, 300, 500]:
-            page_menu.addAction(str(n), lambda size=n: self.browser.set_page_size(size))
-        view_menu.addSeparator()
         theme_menu = view_menu.addMenu("Theme")
         for tid, theme in THEMES.items():
             theme_menu.addAction(theme.name, lambda t=tid: self._apply_theme(t))
