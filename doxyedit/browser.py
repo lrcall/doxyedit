@@ -249,7 +249,7 @@ class ThumbnailWidget(QFrame):
 
     def _toggle_star(self):
         # Cycle: 0 → 1 → 2 → 3 → 4 → 5 → 0
-        self.asset.starred = (self.asset.starred + 1) % 6
+        self.asset.cycle_star()
         self.star_btn.setText("*" if self.asset.starred else ".")
         self._update_star_style()
         self.star_toggled.emit(self.asset.id)
@@ -734,9 +734,9 @@ class AssetBrowser(QWidget):
         folder = QFileDialog.getExistingDirectory(self, "Open Image Folder", last_dir)
         if folder:
             settings.setValue("last_folder", folder)
-            self._import_folder(folder)
+            self.import_folder(folder)
 
-    def _import_folder(self, folder: str):
+    def import_folder(self, folder: str):
         folder_path = Path(folder)
         existing = {a.source_path for a in self.project.assets}
         count = 0
@@ -759,9 +759,9 @@ class AssetBrowser(QWidget):
         files, _ = QFileDialog.getOpenFileNames(
             self, "Add Images", last_dir,
             "Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.svg *.psd);;All Files (*)")
-        self._import_files(files)
+        self.import_files(files)
 
-    def _import_files(self, files: list[str]):
+    def import_files(self, files: list[str]):
         existing = {a.source_path for a in self.project.assets}
         added = 0
         for f in files:
@@ -797,9 +797,9 @@ class AssetBrowser(QWidget):
             elif Path(path).is_file():
                 files.append(path)
         for folder in folders:
-            self._import_folder(folder)
+            self.import_folder(folder)
         if files:
-            self._import_files(files)
+            self.import_files(files)
 
     # --- Context menu ---
 
@@ -842,14 +842,11 @@ class AssetBrowser(QWidget):
         menu.exec(pos)
 
     def _toggle_star(self, asset):
-        asset.starred = (asset.starred + 1) % 6
+        asset.cycle_star()
         self._refresh_grid()
 
     def _toggle_tag(self, asset, tag_id):
-        if tag_id in asset.tags:
-            asset.tags.remove(tag_id)
-        else:
-            asset.tags.append(tag_id)
+        toggle_tags([asset], tag_id)
         self._refresh_grid()
         self.selection_changed.emit(list(self._selected_ids))
 

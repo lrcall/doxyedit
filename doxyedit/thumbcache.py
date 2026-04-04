@@ -1,44 +1,11 @@
-"""Background thumbnail generator — loads and scales images off the main thread.
-
-Supports PSD, PSB (via psd-tools), and all PIL-supported formats.
-Formats PIL can't open are handled with format-specific loaders.
-"""
+"""Background thumbnail generator — loads and scales images off the main thread."""
 from collections import deque
-from pathlib import Path
 from PySide6.QtCore import QThread, Signal, QMutex, QMutexLocker
-from PySide6.QtGui import QPixmap, QImage
-from PIL import Image as PILImage
+from PySide6.QtGui import QPixmap
+
+from doxyedit.imaging import open_for_thumb, pil_to_qpixmap
 
 THUMB_SIZE = 160
-
-# Formats that need special loaders (not plain PIL.open)
-PSD_EXTS = {".psd", ".psb"}
-
-
-def _open_image_for_thumb(path: str, target_size: int = THUMB_SIZE) -> tuple[PILImage.Image, int, int]:
-    """Open an image for thumbnailing. Returns (image, orig_w, orig_h).
-
-    For PSD files, uses the embedded thumbnail only if it's large enough
-    for the requested target_size. Otherwise falls back to full composite.
-    """
-    ext = Path(path).suffix.lower()
-
-    if ext in PSD_EXTS:
-        try:
-            from psd_tools import PSDImage
-            psd = PSDImage.open(path)
-            orig_w, orig_h = psd.width, psd.height
-            # Use embedded thumbnail only if it's big enough
-            thumb = psd.thumbnail()
-            if thumb and max(thumb.size) >= target_size:
-                return thumb, orig_w, orig_h
-            # Full composite for sharp result
-            return psd.composite(), orig_w, orig_h
-        except Exception:
-            pass
-
-    img = PILImage.open(path)
-    return img, img.width, img.height
 
 
 class ThumbWorker(QThread):
@@ -85,19 +52,10 @@ class ThumbWorker(QThread):
 
             asset_id, path, target_size = item
             try:
-                img, orig_w, orig_h = _open_image_for_thumb(path, target_size)
+                from PIL import Image as PILImage
+                img, orig_w, orig_h = open_for_thumb(path, target_size)
                 img.thumbnail((target_size, target_size), PILImage.LANCZOS)
-                if img.mode not in ("RGBA", "RGB"):
-                    img = img.convert("RGBA")
-                if img.mode == "RGB":
-                    data = img.tobytes("raw", "RGB")
-                    qimg = QImage(data, img.width, img.height, img.width * 3,
-                                  QImage.Format.Format_RGB888).copy()
-                else:
-                    data = img.tobytes("raw", "RGBA")
-                    qimg = QImage(data, img.width, img.height, img.width * 4,
-                                  QImage.Format.Format_RGBA8888).copy()
-                pm = QPixmap.fromImage(qimg)
+                pm = pil_to_qpixmap(img)
                 img.close()
                 self.thumb_ready.emit(asset_id, pm, orig_w, orig_h, target_size)
             except Exception:
@@ -105,15 +63,11 @@ class ThumbWorker(QThread):
 
 
 class ThumbCache:
-    """Manages a cache of thumbnails and a background worker to generate them.
-
-    Tracks the size at which each thumbnail was generated. If the requested
-    display size exceeds the cached size, re-generates at higher resolution.
-    """
+    """Manages a cache of thumbnails and a background worker."""
 
     def __init__(self):
         self._pixmaps: dict[str, QPixmap] = {}
-        self._gen_sizes: dict[str, int] = {}  # asset_id → size it was generated at
+        self._gen_sizes: dict[str, int] = {}
         self._dims: dict[str, tuple[int, int]] = {}
         self._worker = ThumbWorker()
         self._worker.start()
@@ -125,22 +79,17 @@ class ThumbCache:
         return self._dims.get(asset_id)
 
     def request(self, asset_id: str, path: str, size: int = THUMB_SIZE):
-        cached_size = self._gen_sizes.get(asset_id, 0)
-        if cached_size >= size:
-            return  # already have a good enough version
+        if self._gen_sizes.get(asset_id, 0) >= size:
+            return
         self._worker.enqueue(asset_id, path, size)
 
     def request_batch(self, items: list[tuple[str, str]], size: int = THUMB_SIZE):
-        needed = []
-        for aid, path in items:
-            cached_size = self._gen_sizes.get(aid, 0)
-            if cached_size < size:
-                needed.append((aid, path, size))
+        needed = [(aid, path, size) for aid, path in items
+                  if self._gen_sizes.get(aid, 0) < size]
         if needed:
             self._worker.enqueue_batch(needed)
 
     def on_ready(self, asset_id: str, pixmap: QPixmap, w: int, h: int, gen_size: int):
-        """Called when worker emits — stores in cache."""
         self._pixmaps[asset_id] = pixmap
         self._gen_sizes[asset_id] = gen_size
         if w and h:

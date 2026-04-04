@@ -180,6 +180,10 @@ class Asset:
     def name(self) -> str:
         return Path(self.source_path).name
 
+    def cycle_star(self):
+        """Cycle star rating: 0 → 1 → 2 → 3 → 4 → 5 → 0."""
+        self.starred = (self.starred + 1) % 6
+
 
 def toggle_tags(assets: list[Asset], tag_id: str) -> bool:
     """Toggle a tag on a list of assets. Returns True if tag was added, False if removed."""

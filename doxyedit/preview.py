@@ -2,44 +2,19 @@
 from pathlib import Path
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QGraphicsScene, QGraphicsView,
-    QGraphicsPixmapItem, QPushButton, QHBoxLayout, QApplication,
+    QGraphicsPixmapItem, QHBoxLayout, QApplication,
 )
-from PySide6.QtCore import Qt, QTimer, QPoint, QSize, QRectF
-from PySide6.QtGui import QPixmap, QPainter, QFont, QColor, QKeySequence, QShortcut, QImage
+from PySide6.QtCore import Qt, QPoint, QRectF
+from PySide6.QtGui import QPixmap, QPainter, QFont, QColor, QKeySequence, QShortcut
 
-
-def _load_pixmap(path: str) -> tuple[QPixmap, int, int]:
-    """Load any supported image as QPixmap, including PSD."""
-    ext = Path(path).suffix.lower()
-    if ext in (".psd", ".psb"):
-        try:
-            from psd_tools import PSDImage
-            psd = PSDImage.open(path)
-            img = psd.composite()
-            if img.mode not in ("RGBA", "RGB"):
-                img = img.convert("RGBA")
-            if img.mode == "RGB":
-                data = img.tobytes("raw", "RGB")
-                qimg = QImage(data, img.width, img.height, img.width * 3,
-                              QImage.Format.Format_RGB888).copy()
-            else:
-                data = img.tobytes("raw", "RGBA")
-                qimg = QImage(data, img.width, img.height, img.width * 4,
-                              QImage.Format.Format_RGBA8888).copy()
-            return QPixmap.fromImage(qimg), psd.width, psd.height
-        except Exception:
-            return QPixmap(), 0, 0
-
-    pm = QPixmap(path)
-    return pm, pm.width(), pm.height()
+from doxyedit.imaging import load_pixmap
 
 
 class HoverPreview(QLabel):
     """Floating preview that appears near the cursor on hover."""
 
-    _instance = None  # singleton — only one hover preview at a time
-
-    PREVIEW_SIZE = 500  # at least 3x typical 160px thumb
+    _instance = None
+    PREVIEW_SIZE = 500
 
     def __init__(self):
         super().__init__(None, Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
@@ -60,7 +35,7 @@ class HoverPreview(QLabel):
         if self._path == image_path and self.isVisible():
             return
         self._path = image_path
-        pm, _, _ = _load_pixmap(image_path)
+        pm, _, _ = load_pixmap(image_path)
         if pm.isNull():
             self.hide()
             return
@@ -72,7 +47,6 @@ class HoverPreview(QLabel):
         self.setPixmap(pm)
         self.adjustSize()
 
-        # Position to the right of cursor, or left if near screen edge
         screen = QApplication.screenAt(global_pos)
         if screen:
             screen_rect = screen.availableGeometry()
@@ -107,7 +81,7 @@ class ImagePreviewDialog(QDialog):
         info_bar = QHBoxLayout()
         info_bar.setContentsMargins(12, 8, 12, 4)
 
-        pm, w, h = _load_pixmap(image_path)
+        pm, w, h = load_pixmap(image_path)
         name = Path(image_path).name
         ratio = f"{w/h:.2f}" if h else "?"
 
@@ -117,7 +91,7 @@ class ImagePreviewDialog(QDialog):
         info_bar.addWidget(info)
         info_bar.addStretch()
 
-        hint = QLabel("Scroll to zoom  |  Middle-click to pan  |  Esc to close")
+        hint = QLabel("Scroll to zoom  |  Drag to pan  |  Esc to close")
         hint.setFont(QFont("Segoe UI", 9))
         hint.setStyleSheet("color: #555;")
         info_bar.addWidget(hint)
@@ -143,10 +117,7 @@ class ImagePreviewDialog(QDialog):
             self.scene.setSceneRect(QRectF(pm.rect()))
             self.view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
 
-        # Override wheel for zoom
         self.view.wheelEvent = self._wheel_zoom
-
-        # Esc to close
         QShortcut(QKeySequence("Escape"), self, self.close)
 
     def _wheel_zoom(self, event):

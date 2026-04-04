@@ -129,15 +129,17 @@ class MainWindow(QMainWindow):
         else:
             last_folder = self._settings.value("last_folder", "")
             if last_folder and Path(last_folder).exists():
-                n = self.browser._import_folder(last_folder)
+                n = self.browser.import_folder(last_folder)
                 if n:
                     self.status.showMessage(f"Reopened folder: {Path(last_folder).name} ({n} images)")
 
     def _apply_theme(self, theme_id: str):
+        from dataclasses import replace
         self._current_theme_id = theme_id
-        theme = THEMES.get(theme_id, THEMES[DEFAULT_THEME])
-        self._theme = theme
-        self.setStyleSheet(generate_stylesheet(theme))
+        base = THEMES.get(theme_id, THEMES[DEFAULT_THEME])
+        # Copy so we don't mutate the global theme dict when changing font size
+        self._theme = replace(base, font_size=getattr(self, '_theme', base).font_size)
+        self.setStyleSheet(generate_stylesheet(self._theme))
         QSettings("DoxyEdit", "DoxyEdit").setValue("theme", theme_id)
 
     def _font_increase(self):
@@ -281,7 +283,7 @@ class MainWindow(QMainWindow):
             files = [u.toLocalFile() for u in mime.urls()
                      if Path(u.toLocalFile()).suffix.lower() in IMAGE_EXTS]
             if files:
-                n = self.browser._import_files(files)
+                n = self.browser.import_files(files)
                 self.status.showMessage(f"Pasted {n} image(s) from clipboard")
                 return
 
