@@ -325,7 +325,8 @@ class AssetBrowser(QWidget):
         self._current_page = 0
         self._filtered_assets: list[Asset] = []
         self._last_clicked_id: str | None = None
-        self._thumb_size = THUMB_SIZE  # dynamic — Ctrl+scroll changes this
+        settings = QSettings("DoxyEdit", "DoxyEdit")
+        self._thumb_size = int(settings.value("thumb_size", THUMB_SIZE))
         self.hover_preview_enabled = True
         self._resize_timer = QTimer(self)
         self._resize_timer.setSingleShot(True)
@@ -872,6 +873,7 @@ class AssetBrowser(QWidget):
                 self._thumb_size = min(320, self._thumb_size + 20)
             else:
                 self._thumb_size = max(80, self._thumb_size - 20)
+            QSettings("DoxyEdit", "DoxyEdit").setValue("thumb_size", self._thumb_size)
             self._rebuild_page()
             event.accept()
             return

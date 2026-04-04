@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QGraphicsPixmapItem, QColorDialog, QMessageBox, QSplitter,
     QWidget, QVBoxLayout, QApplication, QLabel,
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QSettings
 from PySide6.QtGui import (
     QAction, QKeySequence, QColor, QPen, QBrush, QShortcut, QImage,
 )
@@ -34,7 +34,8 @@ class MainWindow(QMainWindow):
         self.resize(1400, 900)
         self._project_path = None
         self.project = Project(name="Untitled")
-        self._current_theme_id = DEFAULT_THEME
+        self._settings = QSettings("DoxyEdit", "DoxyEdit")
+        self._current_theme_id = self._settings.value("theme", DEFAULT_THEME)
         self._apply_theme(self._current_theme_id)
 
         # --- Tabs ---
@@ -111,11 +112,27 @@ class MainWindow(QMainWindow):
         self._progress_timer.timeout.connect(self._update_progress)
         self._progress_timer.start(2000)
 
+        # --- Restore saved state ---
+        saved_font = int(self._settings.value("font_size", 12))
+        if saved_font != 12:
+            self._theme.font_size = saved_font
+            self._apply_font()
+
+        # Auto-load last project on startup
+        last_project = self._settings.value("last_project", "")
+        if last_project and Path(last_project).exists():
+            self.project = Project.load(last_project)
+            self._rebind_project()
+            self._project_path = last_project
+            self.setWindowTitle(f"DoxyEdit — {Path(last_project).name}")
+            self.status.showMessage(f"Restored: {Path(last_project).name}")
+
     def _apply_theme(self, theme_id: str):
         self._current_theme_id = theme_id
         theme = THEMES.get(theme_id, THEMES[DEFAULT_THEME])
         self._theme = theme
         self.setStyleSheet(generate_stylesheet(theme))
+        QSettings("DoxyEdit", "DoxyEdit").setValue("theme", theme_id)
 
     def _font_increase(self):
         self._theme.font_size = min(24, self._theme.font_size + 1)
@@ -133,6 +150,7 @@ class MainWindow(QMainWindow):
         fs = self._theme.font_size
         self.setStyleSheet(generate_stylesheet(self._theme))
         self.browser.update_font_size(fs)
+        QSettings("DoxyEdit", "DoxyEdit").setValue("font_size", fs)
         self.status.showMessage(f"Font size: {fs}px", 2000)
 
     def _build_toolbar(self):
@@ -422,6 +440,7 @@ class MainWindow(QMainWindow):
             self.project = Project.load(path)
             self._rebind_project()
             self._project_path = path
+            self._settings.setValue("last_project", path)
             self.setWindowTitle(f"DoxyEdit — {Path(path).name}")
             self.status.showMessage(f"Opened {Path(path).name}")
 
@@ -442,6 +461,7 @@ class MainWindow(QMainWindow):
             self.project.save(path)
             self._project_path = path
             self._dirty = False
+            self._settings.setValue("last_project", path)
             self.setWindowTitle(f"DoxyEdit — {Path(path).name}")
             self.status.showMessage(f"Saved {Path(path).name}")
 
