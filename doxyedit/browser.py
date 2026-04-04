@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QFileDialog, QFrame, QLineEdit, QComboBox,
     QMenu, QApplication, QSizePolicy,
 )
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, Signal, QTimer, QSettings
 from PySide6.QtGui import QPixmap, QFont, QColor, QCursor
 
 from doxyedit.models import Asset, Project, TAG_PRESETS, toggle_tags
@@ -87,6 +87,28 @@ class FlowLayout(QLayout):
 
 
 from PySide6.QtCore import QRect
+
+
+class FlowWidget(QWidget):
+    """A QWidget that properly respects FlowLayout's heightForWidth."""
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        if self.layout():
+            return self.layout().heightForWidth(width)
+        return super().heightForWidth(width)
+
+    def sizeHint(self):
+        if self.layout():
+            # Return hint based on current width
+            w = self.width() if self.width() > 0 else 400
+            h = self.layout().heightForWidth(w)
+            from PySide6.QtCore import QSize
+            return QSize(w, h)
+        return super().sizeHint()
+
 
 IMAGE_EXTS = {
     ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".svg", ".tiff", ".tif",
@@ -367,10 +389,10 @@ class AssetBrowser(QWidget):
 
         # Row 3: Quick-tag bar — wrapping flow layout so tags don't force width
         from doxyedit.models import TAG_SHORTCUTS
-        self._tag_bar_frame = QFrame()
+        self._tag_bar_frame = FlowWidget()
         self._tag_bar_frame.setStyleSheet(
-            "QFrame { border-bottom: 1px solid rgba(255,255,255,0.08); }")
-        self._tag_bar_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+            "FlowWidget { border-bottom: 1px solid rgba(255,255,255,0.08); }")
+        self._tag_bar_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         self._tag_flow = FlowLayout(self._tag_bar_frame, spacing=4)
         self._tag_flow.setContentsMargins(0, 2, 0, 2)
 
@@ -647,8 +669,11 @@ class AssetBrowser(QWidget):
     # --- Import ---
 
     def _open_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Open Image Folder")
+        settings = QSettings("DoxyEdit", "DoxyEdit")
+        last_dir = settings.value("last_folder", "")
+        folder = QFileDialog.getExistingDirectory(self, "Open Image Folder", last_dir)
         if folder:
+            settings.setValue("last_folder", folder)
             self._import_folder(folder)
 
     def _import_folder(self, folder: str):
@@ -669,9 +694,11 @@ class AssetBrowser(QWidget):
         return count
 
     def _add_images(self):
+        settings = QSettings("DoxyEdit", "DoxyEdit")
+        last_dir = settings.value("last_folder", "")
         files, _ = QFileDialog.getOpenFileNames(
-            self, "Add Images", "",
-            "Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.svg);;All Files (*)")
+            self, "Add Images", last_dir,
+            "Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.svg *.psd);;All Files (*)")
         self._import_files(files)
 
     def _import_files(self, files: list[str]):
