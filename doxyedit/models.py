@@ -75,13 +75,14 @@ TAG_PRESETS: dict[str, TagPreset] = {
 
 # Sized tags — have target dimensions, shown below a separator in the tag panel
 TAG_SIZED: dict[str, TagPreset] = {
-    "hero":      TagPreset("hero",      "Hero / Key Art",  1920, 1080, "16:9", "#9a4f50"),
-    "banner":    TagPreset("banner",    "Banner",          1600, 400,  "4:1",  "#c28d75"),
-    "cover":     TagPreset("cover",     "Cover",           1800, 2700, "2:3",  "#be955c"),
-    "promo":     TagPreset("promo",     "Promo / Ad",      1200, 675,  "16:9", "#7ca1c0"),
-    "thumbnail": TagPreset("thumbnail", "Thumbnail",       1280, 720,  "16:9", "#416aa3"),
-    "icon":      TagPreset("icon",      "Icon / Avatar",   512,  512,  "1:1",  "#68aca9"),
-    "bg":        TagPreset("bg",        "Background",      1920, 1080, "16:9", "#666092"),
+    "hero":         TagPreset("hero",         "Hero",          1024, 576,  "16:9", "#9a4f50"),
+    "banner":       TagPreset("banner",       "Banner",        1600, 400,  "4:1",  "#c28d75"),
+    "cover":        TagPreset("cover",        "Cover",         1800, 2700, "2:3",  "#be955c"),
+    "interior":     TagPreset("interior",     "Interior",      None, None, "",     "#a593a5"),
+    "promo":        TagPreset("promo",        "Promo",         1200, 675,  "16:9", "#7ca1c0"),
+    "tier_card":    TagPreset("tier_card",    "Tier Card",     680,  382,  "16:9", "#416aa3"),
+    "stretch_goal": TagPreset("stretch_goal", "Stretch Goal",  680,  None, "flex", "#68aca9"),
+    "icon":         TagPreset("icon",         "Icon / Avatar", 512,  512,  "1:1",  "#666092"),
 }
 
 # Combined for lookups (content first, sized after)

@@ -11,6 +11,7 @@ THUMB_SIZE = 160
 class ThumbWorker(QThread):
     """Generates thumbnails in a background thread."""
     thumb_ready = Signal(str, QPixmap, int, int, int)
+    visual_tags_ready = Signal(str, list)  # asset_id, list of auto-tag strings
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -54,6 +55,16 @@ class ThumbWorker(QThread):
             try:
                 from PIL import Image as PILImage
                 img, orig_w, orig_h = open_for_thumb(path, target_size)
+
+                # Compute visual tags before thumbnailing (needs full-ish image)
+                try:
+                    from doxyedit.autotag import compute_visual_tags
+                    vtags = compute_visual_tags(img)
+                    if vtags:
+                        self.visual_tags_ready.emit(asset_id, vtags)
+                except Exception:
+                    pass
+
                 img.thumbnail((target_size, target_size), PILImage.LANCZOS)
                 pm = pil_to_qpixmap(img)
                 img.close()
@@ -103,6 +114,9 @@ class ThumbCache:
 
     def connect_ready(self, callback):
         self._worker.thumb_ready.connect(callback)
+
+    def connect_visual_tags(self, callback):
+        self._worker.visual_tags_ready.connect(callback)
 
     def shutdown(self):
         self._worker.stop()

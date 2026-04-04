@@ -101,13 +101,23 @@ class FlowWidget(QWidget):
         return super().heightForWidth(width)
 
     def sizeHint(self):
+        from PySide6.QtCore import QSize
         if self.layout():
-            # Return hint based on current width
             w = self.width() if self.width() > 0 else 400
             h = self.layout().heightForWidth(w)
-            from PySide6.QtCore import QSize
-            return QSize(w, h)
+            return QSize(w, max(h, 30))
         return super().sizeHint()
+
+    def minimumHeight(self):
+        if self.layout():
+            w = self.width() if self.width() > 0 else 400
+            return self.layout().heightForWidth(w)
+        return 30
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Force recalc when width changes — triggers parent layout update
+        self.updateGeometry()
 
 
 IMAGE_EXTS = {
@@ -326,6 +336,7 @@ class AssetBrowser(QWidget):
         self._thumbnails: dict[str, ThumbnailWidget] = {}
         self._thumb_cache = ThumbCache()
         self._thumb_cache.connect_ready(self._on_thumb_ready)
+        self._thumb_cache.connect_visual_tags(self._on_visual_tags)
         self._current_page = 0
         self._filtered_assets: list[Asset] = []
         self._last_clicked_id: str | None = None
@@ -653,6 +664,14 @@ class AssetBrowser(QWidget):
         self._thumb_cache.on_ready(asset_id, pixmap, w, h, gen_size)
         if asset_id in self._thumbnails:
             self._thumbnails[asset_id].set_pixmap(pixmap)
+
+    def _on_visual_tags(self, asset_id: str, vtags: list):
+        """Auto-apply visual property tags from background analysis."""
+        asset = self.project.get_asset(asset_id)
+        if asset:
+            for t in vtags:
+                if t not in asset.tags:
+                    asset.tags.append(t)
 
     # --- Selection: click, ctrl-click, shift-click ---
 
