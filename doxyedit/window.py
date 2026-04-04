@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QGraphicsPixmapItem, QColorDialog, QMessageBox, QSplitter,
     QWidget, QVBoxLayout, QApplication, QLabel,
 )
-from PySide6.QtCore import Qt, QTimer, QSettings
+from PySide6.QtCore import Qt, QTimer, QSettings, QSize
 from PySide6.QtGui import (
     QAction, QKeySequence, QColor, QPen, QBrush, QShortcut, QImage,
 )
@@ -52,19 +52,19 @@ class MainWindow(QMainWindow):
         """)
         self.setCentralWidget(self.tabs)
 
-        # Tab 1: Asset Browser + Tag Panel (splitter)
+        # Tab 1: Left Sidebar (tags+info) | Asset Browser grid
         self.browser = AssetBrowser(self.project)
         self.tag_panel = TagPanel()
-        self.tag_panel.setMinimumWidth(200)
+        self.tag_panel.setMinimumWidth(220)
         self.tag_panel.setMaximumWidth(400)
         self.tag_panel.tags_changed.connect(self._on_data_changed)
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
-        self._browse_split.addWidget(self.browser)
-        self._browse_split.addWidget(self.tag_panel)
-        self._browse_split.setStretchFactor(0, 1)
-        self._browse_split.setStretchFactor(1, 0)
-        self._browse_split.setSizes([900, 280])
+        self._browse_split.addWidget(self.tag_panel)   # left side
+        self._browse_split.addWidget(self.browser)     # right (main area)
+        self._browse_split.setStretchFactor(0, 0)
+        self._browse_split.setStretchFactor(1, 1)
+        self._browse_split.setSizes([260, 1000])
         self.tabs.addTab(self._browse_split, "Assets")
 
         # Tab 2: Canvas Editor
@@ -163,43 +163,52 @@ class MainWindow(QMainWindow):
         self.status.showMessage(f"Font size: {fs}px", 2000)
 
     def _build_toolbar(self):
-        tb = QToolBar("Tools")
+        # Left toolbar — general app actions, always visible
+        tb = QToolBar("Main")
         tb.setMovable(False)
+        tb.setIconSize(QSize(20, 20))
         self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tb)
 
+        # Navigation
+        tb.addAction(QAction("Assets", self, triggered=lambda: self.tabs.setCurrentIndex(0)))
+        tb.addAction(QAction("Canvas", self, triggered=lambda: self.tabs.setCurrentIndex(1)))
+        tb.addAction(QAction("Censor", self, triggered=lambda: self.tabs.setCurrentIndex(2)))
+        tb.addAction(QAction("Platforms", self, triggered=lambda: self.tabs.setCurrentIndex(3)))
+        tb.addSeparator()
+
+        # File ops
+        tb.addAction(QAction("Open", self, shortcut=QKeySequence("Ctrl+O"),
+                     triggered=self._open_project))
+        tb.addAction(QAction("Save", self, shortcut=QKeySequence("Ctrl+S"),
+                     triggered=self._save_project))
+        tb.addSeparator()
+
+        # Asset ops
+        tb.addAction(QAction("+ Folder", self, triggered=lambda: self.browser._open_folder()))
+        tb.addAction(QAction("+ Files", self, triggered=lambda: self.browser._add_images()))
+        tb.addSeparator()
+
+        # Canvas tools (active when on Canvas tab)
         tools = [
             ("Select", Tool.SELECT, "V"),
             ("Text", Tool.TEXT, "T"),
             ("Line", Tool.LINE, "L"),
             ("Box", Tool.BOX, "B"),
-            ("Tag", Tool.TAG, "G"),
+            ("Marker", Tool.TAG, "G"),
         ]
         self._tool_actions = []
         for name, tool, shortcut in tools:
             action = QAction(name, self)
             action.setCheckable(True)
-            action.setShortcut(QKeySequence(shortcut))
             action.triggered.connect(lambda checked, t=tool: self._set_tool(t))
             tb.addAction(action)
             self._tool_actions.append((action, tool))
-
         self._tool_actions[0][0].setChecked(True)
-
         tb.addSeparator()
 
-        add_img = QAction("+ Image", self)
-        add_img.setShortcut(QKeySequence("I"))
-        add_img.triggered.connect(self._add_image_to_canvas)
-        tb.addAction(add_img)
-
-        del_action = QAction("Delete", self)
-        del_action.setShortcut(QKeySequence("Delete"))
-        del_action.triggered.connect(self._delete_selected)
-        tb.addAction(del_action)
-
-        color_action = QAction("Color", self)
-        color_action.triggered.connect(self._change_color)
-        tb.addAction(color_action)
+        tb.addAction(QAction("Delete", self, shortcut=QKeySequence("Delete"),
+                     triggered=self._delete_selected))
+        tb.addAction(QAction("Color", self, triggered=self._change_color))
 
     def _build_menu(self):
         menu = self.menuBar()
