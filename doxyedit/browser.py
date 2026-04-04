@@ -176,7 +176,7 @@ class ThumbnailWidget(QFrame):
         self._browser = browser  # reference to check hover_preview_enabled
         self._thumb_size = thumb_size
         self.selected = False
-        self.setFixedSize(thumb_size + 16, thumb_size + 56)
+        self.setFixedSize(thumb_size + 16, thumb_size + 70)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMouseTracking(True)
         self._hover_timer = QTimer(self)
@@ -677,7 +677,20 @@ class AssetBrowser(QWidget):
         if event.key() == Qt.Key.Key_Right and not self.search_box.hasFocus():
             self._next_page()
             return
+        if event.key() == Qt.Key.Key_A and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self._select_all_visible()
+            return
         super().keyPressEvent(event)
+
+    def _select_all_visible(self):
+        """Select all thumbnails on the current page."""
+        for sid in self._selected_ids:
+            if sid in self._thumbnails:
+                self._thumbnails[sid].set_selected(False)
+        self._selected_ids = set(self._thumbnails.keys())
+        for thumb in self._thumbnails.values():
+            thumb.set_selected(True)
+        self.selection_changed.emit(list(self._selected_ids))
 
     # --- Grid ---
 
@@ -690,14 +703,18 @@ class AssetBrowser(QWidget):
 
     def _rebuild_page(self):
         """Build only the current page of thumbnails."""
-        # Save scroll position
         scroll_pos = self._scroll.verticalScrollBar().value()
+
+        # Suspend repaints during rebuild
+        self.grid_widget.setUpdatesEnabled(False)
 
         # Clear existing
         while self.grid_layout.count():
             child = self.grid_layout.takeAt(0)
             if child.widget():
-                child.widget().deleteLater()
+                w = child.widget()
+                w.setParent(None)
+                w.deleteLater()
         self._thumbnails.clear()
 
         start = self._current_page * self._page_size
@@ -742,7 +759,8 @@ class AssetBrowser(QWidget):
         self.btn_prev.setEnabled(self._current_page > 0)
         self.btn_next.setEnabled(self._current_page < tp - 1)
 
-        # Restore scroll position
+        # Resume repaints and restore scroll
+        self.grid_widget.setUpdatesEnabled(True)
         self._scroll.verticalScrollBar().setValue(scroll_pos)
 
     def _on_thumb_ready(self, asset_id: str, pixmap: QPixmap, w: int, h: int, gen_size: int):
