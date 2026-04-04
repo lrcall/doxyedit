@@ -922,7 +922,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "ignore"
+      ],
       "notes": ""
     },
     {
@@ -967,7 +969,9 @@
       "censors": [],
       "assignments": [],
       "tags": [
-        "ignore"
+        "ignore",
+        "detailed",
+        "square"
       ],
       "notes": ""
     },

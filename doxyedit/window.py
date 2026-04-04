@@ -32,6 +32,15 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("DoxyEdit")
         self.resize(1400, 900)
+        # Restore window geometry
+        self._settings_early = QSettings("DoxyEdit", "DoxyEdit")
+        w = self._settings_early.value("window_width", 1400, type=int)
+        h = self._settings_early.value("window_height", 900, type=int)
+        x = self._settings_early.value("window_x", -1, type=int)
+        y = self._settings_early.value("window_y", -1, type=int)
+        self.resize(w, h)
+        if x >= 0 and y >= 0:
+            self.move(x, y)
         self._project_path = None
         self.project = Project(name="Untitled")
         self._settings = QSettings("DoxyEdit", "DoxyEdit")
@@ -713,5 +722,10 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         if self._dirty and self._project_path:
             self.project.save(self._project_path)
+        # Save window position/size
+        self._settings.setValue("window_width", self.width())
+        self._settings.setValue("window_height", self.height())
+        self._settings.setValue("window_x", self.x())
+        self._settings.setValue("window_y", self.y())
         self.browser.shutdown()
         event.accept()

@@ -559,8 +559,9 @@ class AssetBrowser(QWidget):
             "id": tag_id, "label": name, "color": color,
         })
 
-        self._rebuild_tag_bar()
+        self.rebuild_tag_bar()
         self.tags_modified.emit()
+        self.window().status.showMessage(f"Added tag: {name}", 2000)
 
     def rebuild_tag_bar(self):
         """Rebuild the entire tag bar including the + button."""
@@ -680,7 +681,16 @@ class AssetBrowser(QWidget):
         if event.key() == Qt.Key.Key_A and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self._select_all_visible()
             return
+        if event.key() == Qt.Key.Key_F5:
+            self._force_recache()
+            return
         super().keyPressEvent(event)
+
+    def _force_recache(self):
+        """F5 — clear memory cache and regenerate all visible thumbnails."""
+        self._thumb_cache.clear()
+        self._rebuild_page()
+        self.window().status.showMessage("Recaching thumbnails...", 2000)
 
     def _select_all_visible(self):
         """Select all thumbnails on the current page."""
