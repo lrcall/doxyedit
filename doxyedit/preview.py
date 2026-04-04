@@ -79,8 +79,9 @@ class NoteRectItem(QGraphicsRectItem):
             QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable
         )
-        # Scale font to ~1/8 of rect height, min 14px
-        font_size = max(14, int(rect.height() / 8))
+        # Use UI font size scaled to image space
+        ui_font = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        font_size = max(ui_font, int(rect.height() / 8))
         self._text_item = QGraphicsTextItem(text, self)
         self._text_item.setDefaultTextColor(QColor(255, 240, 210, 240))
         self._text_item.setFont(QFont("Segoe UI", font_size, QFont.Weight.Bold))
