@@ -4,6 +4,7 @@ from PySide6.QtGui import QPixmap, QImage
 from PIL import Image as PILImage
 
 PSD_EXTS = {".psd", ".psb"}
+SHELL_THUMB_EXTS = {".sai", ".sai2", ".clip", ".csp", ".kra", ".xcf", ".ora"}
 
 
 def pil_to_qpixmap(img: PILImage.Image) -> QPixmap:
@@ -52,6 +53,27 @@ def load_pixmap(path: str) -> tuple[QPixmap, int, int]:
     return pm, pm.width(), pm.height()
 
 
+def _make_placeholder(path: str) -> tuple[PILImage.Image, int, int]:
+    """Create a placeholder image for unsupported formats."""
+    size = 256
+    img = PILImage.new("RGBA", (size, size), (50, 50, 55, 255))
+    try:
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(img)
+        ext = Path(path).suffix.upper()
+        name = Path(path).stem
+        # Big extension label
+        draw.text((size // 2, size // 2 - 20), ext, fill=(200, 200, 200, 255), anchor="mm")
+        # Filename below
+        display_name = name[:20] + "..." if len(name) > 20 else name
+        draw.text((size // 2, size // 2 + 15), display_name, fill=(130, 130, 130, 255), anchor="mm")
+        # Border
+        draw.rectangle([2, 2, size - 3, size - 3], outline=(80, 80, 90, 255), width=2)
+    except Exception:
+        pass
+    return img, 0, 0
+
+
 def open_for_thumb(path: str, target_size: int = 160) -> tuple[PILImage.Image, int, int]:
     """Open image for thumbnailing. Uses PSD embedded thumb if large enough."""
     ext = Path(path).suffix.lower()
@@ -64,5 +86,13 @@ def open_for_thumb(path: str, target_size: int = 160) -> tuple[PILImage.Image, i
         except Exception:
             pass
 
-    img = PILImage.open(path)
-    return img, img.width, img.height
+    # For SAI, CLIP, KRA etc — show a labeled placeholder
+    if ext in SHELL_THUMB_EXTS:
+        return _make_placeholder(path)
+
+    # Standard PIL formats
+    try:
+        img = PILImage.open(path)
+        return img, img.width, img.height
+    except Exception:
+        return _make_placeholder(path)

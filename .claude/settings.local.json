@@ -7,7 +7,8 @@
       "Bash(python -c \"from doxyedit.__main__ import main; import sys; sys.argv=['doxyedit','help']; main\\(\\)\")",
       "WebSearch",
       "Bash(xargs wc:*)",
-      "Bash(python -c ':*)"
+      "Bash(python -c ':*)",
+      "Bash(pip list:*)"
     ]
   }
 }
