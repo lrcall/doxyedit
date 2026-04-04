@@ -39,15 +39,16 @@ class TagRow(QFrame):
         layout.setSpacing(4)
 
         # Eye toggle — hide/show images with this tag
-        self.eye_btn = QPushButton("\U0001F441")  # 👁
-        self.eye_btn.setFixedSize(18, 18)
+        self.eye_btn = QPushButton("\u25C9")  # ◉ when visible
+        self.eye_btn.setFixedSize(20, 20)
         self.eye_btn.setCheckable(True)
         self.eye_btn.setChecked(True)  # visible by default
         self.eye_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.eye_btn.setToolTip("Toggle visibility — hide/show images with this tag")
         self.eye_btn.setStyleSheet(
-            "QPushButton { background: transparent; border: none; font-size: 11px; padding: 0; }"
-            "QPushButton:!checked { color: rgba(128,128,128,0.3); }")
-        self.eye_btn.toggled.connect(lambda vis: self.visibility_toggled.emit(self.tag.id, vis))
+            "QPushButton { background: transparent; border: none; font-size: 13px; padding: 0; color: rgba(100,200,100,0.8); }"
+            "QPushButton:!checked { color: rgba(128,128,128,0.25); }")
+        self.eye_btn.toggled.connect(self._on_eye_click)
         layout.addWidget(self.eye_btn)
 
         # Fitness dot
@@ -94,6 +95,10 @@ class TagRow(QFrame):
     def update_fitness(self, img_w: int, img_h: int):
         level = check_fitness(img_w, img_h, self.tag)
         self._set_fitness(level)
+
+    def _on_eye_click(self, visible: bool):
+        self.eye_btn.setText("\u25C9" if visible else "\u25CB")  # ◉ vs ○
+        self.visibility_toggled.emit(self.tag.id, visible)
 
     def set_checked(self, checked: bool, block_signals=True):
         if block_signals:

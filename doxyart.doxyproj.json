@@ -13929,7 +13929,10 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
       "notes": ""
     },
     {
@@ -14228,7 +14231,10 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
       "notes": ""
     },
     {
@@ -14239,7 +14245,10 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
       "notes": ""
     },
     {
@@ -15386,7 +15395,10 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "warm",
+        "square"
+      ],
       "notes": ""
     },
     {
