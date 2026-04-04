@@ -212,7 +212,12 @@ class ImagePreviewDialog(QDialog):
             r = self._temp_rect.rect()
             if r.width() > 10 and r.height() > 10:
                 # Ask for note text
-                text, ok = QInputDialog.getText(self, "Note", "Enter note:")
+                dlg = QInputDialog(self)
+                dlg.setWindowTitle("Note")
+                dlg.setLabelText("Enter note:")
+                dlg.resize(500, 140)
+                ok = dlg.exec()
+                text = dlg.textValue() if ok else ""
                 if ok and text.strip():
                     self._temp_rect.update_text(text.strip())
                     self._notes.append(self._temp_rect)

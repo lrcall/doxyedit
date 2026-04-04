@@ -96,10 +96,15 @@ class TagRow(QFrame):
 
     def _request_rename(self):
         from PySide6.QtWidgets import QInputDialog
-        new_name, ok = QInputDialog.getText(
-            self.window(), "Rename Tag", f"New name for '{self.tag.label}':", text=self.tag.label)
-        if ok and new_name.strip() and new_name.strip() != self.tag.label:
-            self.rename_requested.emit(self.tag.id, new_name.strip())
+        dlg = QInputDialog(self.window())
+        dlg.setWindowTitle("Rename Tag")
+        dlg.setLabelText(f"New name for '{self.tag.label}':")
+        dlg.setTextValue(self.tag.label)
+        dlg.resize(400, 140)
+        if dlg.exec():
+            new_name = dlg.textValue().strip()
+            if new_name and new_name != self.tag.label:
+                self.rename_requested.emit(self.tag.id, new_name)
 
 
 class TagPanel(QWidget):
