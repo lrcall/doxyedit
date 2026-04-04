@@ -58,44 +58,46 @@ def next_tag_color(existing_tags: dict) -> str:
 
 
 # Default tag presets — colors from the Vinik24 palette for visual harmony.
+# Content/workflow tags first, sized/platform tags after the separator.
 TAG_PRESETS: dict[str, TagPreset] = {
-    # --- General use ---
-    "hero":      TagPreset("hero",      "Hero / Key Art",  1920, 1080, "16:9", "#9a4f50"),  # warm red
-    "banner":    TagPreset("banner",    "Banner",          1600, 400,  "4:1",  "#c28d75"),  # tan
-    "cover":     TagPreset("cover",     "Cover",           1800, 2700, "2:3",  "#be955c"),  # gold
-    "promo":     TagPreset("promo",     "Promo / Ad",      1200, 675,  "16:9", "#7ca1c0"),  # blue
-    "thumbnail": TagPreset("thumbnail", "Thumbnail",       1280, 720,  "16:9", "#416aa3"),  # deep blue
-    "icon":      TagPreset("icon",      "Icon / Avatar",   512,  512,  "1:1",  "#68aca9"),  # teal
-    "bg":        TagPreset("bg",        "Background",      1920, 1080, "16:9", "#666092"),  # purple
-    # --- Content types ---
-    "page":      TagPreset("page",      "Page / Panel",    None, None, "",     "#a593a5"),  # lavender
-    "character": TagPreset("character", "Character Art",   None, None, "",     "#c38890"),  # rose
-    "sketch":    TagPreset("sketch",    "Sketch / WIP",    None, None, "",     "#9a9a97"),  # grey
-    "asset":     TagPreset("asset",     "Game Asset",      None, None, "",     "#6eaa78"),  # green
-    "merch":     TagPreset("merch",     "Merch Source",    None, None, "",     "#8b5580"),  # magenta
-    "reference": TagPreset("reference", "Reference",       None, None, "",     "#7e9e99"),  # sage
+    # --- Content types (no size requirement) ---
+    "page":      TagPreset("page",      "Page / Panel",    None, None, "",     "#a593a5"),
+    "character": TagPreset("character", "Character Art",   None, None, "",     "#c38890"),
+    "sketch":    TagPreset("sketch",    "Sketch / WIP",    None, None, "",     "#9a9a97"),
+    "asset":     TagPreset("asset",     "Game Asset",      None, None, "",     "#6eaa78"),
+    "merch":     TagPreset("merch",     "Merch Source",    None, None, "",     "#8b5580"),
+    "reference": TagPreset("reference", "Reference",       None, None, "",     "#7e9e99"),
     # --- Workflow ---
-    "final":     TagPreset("final",     "Final / Approved",None, None, "",     "#93a167"),  # olive green
-    "wip":       TagPreset("wip",       "Work in Progress",None, None, "",     "#9d9f7f"),  # khaki
-    "ignore":    TagPreset("ignore",    "Ignore / Skip",   None, None, "",     "#5d6872"),  # dark grey
+    "final":     TagPreset("final",     "Final / Approved",None, None, "",     "#93a167"),
+    "wip":       TagPreset("wip",       "Work in Progress",None, None, "",     "#9d9f7f"),
+    "ignore":    TagPreset("ignore",    "Ignore / Skip",   None, None, "",     "#5d6872"),
 }
 
-# Keyboard shortcut mapping for tags (shown in tag panel)
+# Sized tags — have target dimensions, shown below a separator in the tag panel
+TAG_SIZED: dict[str, TagPreset] = {
+    "hero":      TagPreset("hero",      "Hero / Key Art",  1920, 1080, "16:9", "#9a4f50"),
+    "banner":    TagPreset("banner",    "Banner",          1600, 400,  "4:1",  "#c28d75"),
+    "cover":     TagPreset("cover",     "Cover",           1800, 2700, "2:3",  "#be955c"),
+    "promo":     TagPreset("promo",     "Promo / Ad",      1200, 675,  "16:9", "#7ca1c0"),
+    "thumbnail": TagPreset("thumbnail", "Thumbnail",       1280, 720,  "16:9", "#416aa3"),
+    "icon":      TagPreset("icon",      "Icon / Avatar",   512,  512,  "1:1",  "#68aca9"),
+    "bg":        TagPreset("bg",        "Background",      1920, 1080, "16:9", "#666092"),
+}
+
+# Combined for lookups (content first, sized after)
+TAG_ALL: dict[str, TagPreset] = {**TAG_PRESETS, **TAG_SIZED}
+
+# Keyboard shortcuts — only for content/workflow tags, not sized ones
 TAG_SHORTCUTS: dict[str, str] = {
-    "1": "hero",
-    "2": "banner",
-    "3": "cover",
-    "4": "promo",
-    "5": "thumbnail",
-    "6": "page",
-    "7": "character",
-    "8": "sketch",
-    "9": "asset",
+    "1": "page",
+    "2": "character",
+    "3": "sketch",
+    "4": "asset",
+    "5": "merch",
+    "6": "reference",
+    "7": "final",
+    "8": "wip",
     "0": "ignore",
-    "F": "final",
-    "W": "wip",
-    "M": "merch",
-    "R": "reference",
 }
 
 
@@ -318,7 +320,7 @@ class Project:
 
     def get_tags(self) -> dict[str, TagPreset]:
         """Get merged tag presets — defaults + any project-custom ones."""
-        tags = dict(TAG_PRESETS)
+        tags = dict(TAG_ALL)
         for ct in self.custom_tags:
             t = TagPreset(
                 id=ct["id"], label=ct.get("label", ct["id"]),

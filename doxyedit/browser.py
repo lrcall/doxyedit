@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QTimer, QSettings
 from PySide6.QtGui import QPixmap, QFont, QColor, QCursor
 
-from doxyedit.models import Asset, Project, TAG_PRESETS, TAG_SHORTCUTS, TagPreset, toggle_tags, next_tag_color, STAR_COLORS
+from doxyedit.models import Asset, Project, TAG_PRESETS, TAG_SIZED, TAG_ALL, TAG_SHORTCUTS, TagPreset, toggle_tags, next_tag_color, STAR_COLORS
 from doxyedit.preview import HoverPreview, ImagePreviewDialog
 from doxyedit.thumbcache import ThumbCache, THUMB_SIZE
 
@@ -200,7 +200,7 @@ class ThumbnailWidget(QFrame):
         tag_row.setContentsMargins(2, 0, 2, 0)
         tag_row.setSpacing(2)
         for tag_id in self.asset.tags[:8]:
-            preset = TAG_PRESETS.get(tag_id)
+            preset = TAG_ALL.get(tag_id)
             if preset:
                 dot = QLabel()
                 dot.setFixedSize(8, 8)
@@ -467,7 +467,7 @@ class AssetBrowser(QWidget):
                 item.widget().deleteLater()
         self._tag_buttons.clear()
 
-        all_tags = dict(TAG_PRESETS)
+        all_tags = dict(TAG_ALL)
         if hasattr(self.project, 'get_tags'):
             all_tags = self.project.get_tags()
 
@@ -837,7 +837,7 @@ class AssetBrowser(QWidget):
                         lambda: self._toggle_star(asset))
 
         tag_menu = menu.addMenu("Quick Tag")
-        for tag_id, preset in TAG_PRESETS.items():
+        for tag_id, preset in TAG_ALL.items():
             checked = tag_id in asset.tags
             label = f"[x] {preset.label}" if checked else f"[ ] {preset.label}"
             tag_menu.addAction(label, lambda tid=tag_id: self._toggle_tag(asset, tid))

@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
 
-from doxyedit.models import Asset, TAG_PRESETS, TAG_SHORTCUTS, TagPreset, check_fitness
+from doxyedit.models import Asset, TAG_PRESETS, TAG_SIZED, TAG_ALL, TAG_SHORTCUTS, TagPreset, check_fitness
 
 
 FITNESS_COLORS = {
@@ -140,7 +140,25 @@ class TagPanel(QWidget):
         tag_layout.setSpacing(2)
         tag_layout.setContentsMargins(0, 0, 0, 0)
 
+        # Content/workflow tags (no size requirements)
         for tag_id, tag in TAG_PRESETS.items():
+            row = TagRow(tag)
+            row.toggled.connect(self._on_tag_toggled)
+            tag_layout.addWidget(row)
+            self._rows[tag_id] = row
+
+        # Separator
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("color: rgba(255,255,255,0.1);")
+        tag_layout.addWidget(sep)
+        sep_label = QLabel("Platform / Size targets")
+        sep_label.setFont(QFont("Segoe UI", 8))
+        sep_label.setStyleSheet("color: rgba(255,255,255,0.3); padding: 2px 4px;")
+        tag_layout.addWidget(sep_label)
+
+        # Sized tags (with dimensions)
+        for tag_id, tag in TAG_SIZED.items():
             row = TagRow(tag)
             row.toggled.connect(self._on_tag_toggled)
             tag_layout.addWidget(row)

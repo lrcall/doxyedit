@@ -12,7 +12,7 @@ from PySide6.QtGui import (
     QAction, QKeySequence, QColor, QPen, QBrush, QShortcut, QImage,
 )
 
-from doxyedit.models import Project, PLATFORMS, TAG_PRESETS, TAG_SHORTCUTS, toggle_tags
+from doxyedit.models import Project, PLATFORMS, TAG_ALL, TAG_SHORTCUTS, toggle_tags
 from doxyedit.canvas import CanvasScene, CanvasView, Tool, EditableTextItem, TagItem
 from doxyedit.browser import AssetBrowser, IMAGE_EXTS
 from doxyedit.themes import THEMES, DEFAULT_THEME, generate_stylesheet, Theme
@@ -267,7 +267,7 @@ class MainWindow(QMainWindow):
         added = toggle_tags(assets, tag_id)
         self.tag_panel.set_assets(assets)
         self._on_data_changed()
-        preset = TAG_PRESETS.get(tag_id)
+        preset = TAG_ALL.get(tag_id)
         label = preset.label if preset else tag_id
         action = "applied" if added else "removed"
         self.status.showMessage(f"Tag '{label}' {action} to {len(assets)} asset(s)", 2000)
