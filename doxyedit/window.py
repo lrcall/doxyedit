@@ -564,6 +564,7 @@ class MainWindow(QMainWindow):
 
     def _rebind_project(self):
         self.browser.project = self.project
+        self.browser._rebuild_tag_bar()  # reload custom tags into tag bar
         self.browser.refresh()
         self.platform_panel.project = self.project
         self.platform_panel.refresh()
