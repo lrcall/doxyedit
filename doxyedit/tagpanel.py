@@ -493,14 +493,16 @@ class TagPanel(QWidget):
         self.tags_changed.emit()
 
     def _delete_tag(self, tag_id: str):
-        """Remove a tag from all assets and hide the row."""
-        # Strip this tag from every asset in the current selection
+        """Remove a tag from all assets and permanently hide the row."""
         for asset in self._assets:
             if tag_id in asset.tags:
                 asset.tags.remove(tag_id)
-        # Hide the row
+        # Permanently hide (persists via hidden_tags)
+        self._hidden_tags.add(tag_id)
         if tag_id in self._rows:
             self._rows[tag_id].setVisible(False)
+        self._btn_show_all.setVisible(len(self._hidden_tags) > 0)
+        self.hidden_changed.emit(list(self._hidden_tags))
         self.tag_deleted.emit(tag_id)
         self.tags_changed.emit()
 
