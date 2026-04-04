@@ -421,6 +421,9 @@ class AssetBrowser(QWidget):
         self._list_view.setUniformItemSizes(False)  # True causes paint artifacts in IconMode
         self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
         self._list_view.setSpacing(4)
+        self._list_view.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
+        self._list_view.setHorizontalScrollMode(QListView.ScrollMode.ScrollPerPixel)
+        self._list_view.verticalScrollBar().setSingleStep(20)
         self._list_view.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
         self._list_view.setMouseTracking(True)
         self._list_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -833,6 +836,9 @@ class AssetBrowser(QWidget):
 
     def wheelEvent(self, event):
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            # Remember focused item
+            current = self._list_view.currentIndex()
+
             delta = event.angleDelta().y()
             if delta > 0:
                 self._thumb_size = min(320, self._thumb_size + 20)
@@ -842,6 +848,11 @@ class AssetBrowser(QWidget):
             self._delegate.thumb_size = self._thumb_size
             self._delegate.invalidate_cache()
             self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
+
+            # Scroll back to focused item
+            if current.isValid():
+                self._list_view.scrollTo(current, QListView.ScrollHint.PositionAtCenter)
+
             event.accept()
             return
         super().wheelEvent(event)
