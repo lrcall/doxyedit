@@ -118,7 +118,7 @@ class MainWindow(QMainWindow):
             self._theme.font_size = saved_font
             self._apply_font()
 
-        # Auto-load last project on startup
+        # Auto-load last project, or re-open last folder if no project
         last_project = self._settings.value("last_project", "")
         if last_project and Path(last_project).exists():
             self.project = Project.load(last_project)
@@ -126,6 +126,12 @@ class MainWindow(QMainWindow):
             self._project_path = last_project
             self.setWindowTitle(f"DoxyEdit — {Path(last_project).name}")
             self.status.showMessage(f"Restored: {Path(last_project).name}")
+        else:
+            last_folder = self._settings.value("last_folder", "")
+            if last_folder and Path(last_folder).exists():
+                n = self.browser._import_folder(last_folder)
+                if n:
+                    self.status.showMessage(f"Reopened folder: {Path(last_folder).name} ({n} images)")
 
     def _apply_theme(self, theme_id: str):
         self._current_theme_id = theme_id

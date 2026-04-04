@@ -15,11 +15,11 @@ THUMB_SIZE = 160
 PSD_EXTS = {".psd", ".psb"}
 
 
-def _open_image_for_thumb(path: str) -> tuple[PILImage.Image, int, int]:
+def _open_image_for_thumb(path: str, target_size: int = THUMB_SIZE) -> tuple[PILImage.Image, int, int]:
     """Open an image for thumbnailing. Returns (image, orig_w, orig_h).
 
-    For PSD files, uses the embedded thumbnail (fast) and reports the
-    actual document size separately. For other formats, opens normally.
+    For PSD files, uses the embedded thumbnail only if it's large enough
+    for the requested target_size. Otherwise falls back to full composite.
     """
     ext = Path(path).suffix.lower()
 
@@ -28,11 +28,11 @@ def _open_image_for_thumb(path: str) -> tuple[PILImage.Image, int, int]:
             from psd_tools import PSDImage
             psd = PSDImage.open(path)
             orig_w, orig_h = psd.width, psd.height
-            # Embedded thumbnail is instant — no compositing needed
+            # Use embedded thumbnail only if it's big enough
             thumb = psd.thumbnail()
-            if thumb:
+            if thumb and max(thumb.size) >= target_size:
                 return thumb, orig_w, orig_h
-            # No embedded thumbnail — full composite (slower but works)
+            # Full composite for sharp result
             return psd.composite(), orig_w, orig_h
         except Exception:
             pass
@@ -85,7 +85,7 @@ class ThumbWorker(QThread):
 
             asset_id, path, target_size = item
             try:
-                img, orig_w, orig_h = _open_image_for_thumb(path)
+                img, orig_w, orig_h = _open_image_for_thumb(path, target_size)
                 img.thumbnail((target_size, target_size), PILImage.LANCZOS)
                 if img.mode not in ("RGBA", "RGB"):
                     img = img.convert("RGBA")

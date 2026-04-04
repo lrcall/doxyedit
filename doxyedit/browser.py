@@ -124,7 +124,7 @@ IMAGE_EXTS = {
     ".exr", ".hdr",          # HDR formats
 }
 PAGE_SIZE = 100  # thumbnails per page
-THUMB_GEN_SIZE = 320  # always generate at max zoom so they're sharp when zooming in
+THUMB_GEN_SIZE = 512  # generate at high res so they're sharp at any zoom level
 
 # Filename patterns → auto-suggest tags on import
 AUTO_TAG_PATTERNS = {
