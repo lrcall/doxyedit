@@ -396,4 +396,19 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
 
         QLabel {{ color: {theme.text_primary}; }}
+
+        QDialog {{
+            background: {theme.bg_main}; color: {theme.text_primary};
+        }}
+        QInputDialog, QMessageBox {{
+            background: {theme.bg_main};
+        }}
+        QInputDialog QLabel, QMessageBox QLabel {{
+            color: {theme.text_primary};
+        }}
+        QInputDialog QLineEdit {{
+            background: {theme.bg_input}; color: {theme.text_primary};
+            border: 1px solid {theme.border}; border-radius: 4px;
+            padding: 5px 10px;
+        }}
     """

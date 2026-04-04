@@ -153,7 +153,7 @@ class TagPanel(QWidget):
         # Tag checkboxes
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        scroll.setStyleSheet("QScrollArea, QScrollArea > QWidget > QWidget { border: none; background: transparent; }")
         tag_widget = QWidget()
         tag_layout = QVBoxLayout(tag_widget)
         tag_layout.setSpacing(2)
