@@ -211,14 +211,15 @@ class ThumbnailWidget(QFrame):
         tag_row.setSpacing(3)
         for tag_id in self.asset.tags[:10]:
             preset = TAG_ALL.get(tag_id)
-            if preset:
-                dot = QLabel()
-                dot.setFixedSize(12, 12)
-                dot.setStyleSheet(
-                    f"background: {preset.color}; border-radius: 6px;"
-                    f" border: 1px solid rgba(0,0,0,0.3);")
-                dot.setToolTip(preset.label)
-                tag_row.addWidget(dot)
+            color = preset.color if preset else VINIK_COLORS[hash(tag_id) % len(VINIK_COLORS)]
+            label = preset.label if preset else tag_id
+            dot = QLabel()
+            dot.setFixedSize(12, 12)
+            dot.setStyleSheet(
+                f"background: {color}; border-radius: 6px;"
+                f" border: 1px solid rgba(0,0,0,0.3);")
+            dot.setToolTip(label)
+            tag_row.addWidget(dot)
         tag_row.addStretch()
         layout.addLayout(tag_row)
 
