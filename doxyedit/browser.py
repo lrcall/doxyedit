@@ -496,16 +496,17 @@ class AssetBrowser(QWidget):
 
     def _add_custom_tag(self):
         """Show a simple dialog to add a new tag."""
-        from PySide6.QtWidgets import QInputDialog
+        from PySide6.QtWidgets import QInputDialog, QMessageBox
         name, ok = QInputDialog.getText(self, "New Tag", "Tag name:")
         if not ok or not name.strip():
             return
         name = name.strip()
         tag_id = name.lower().replace(" ", "_").replace("/", "_")
 
-        # Check if it already exists
         all_tags = self.project.get_tags()
         if tag_id in all_tags:
+            QMessageBox.information(self, "Tag Exists",
+                f"A tag called '{all_tags[tag_id].label}' already exists.")
             return
 
         color = next_tag_color(all_tags)
@@ -513,7 +514,10 @@ class AssetBrowser(QWidget):
             "id": tag_id, "label": name, "color": color,
         })
 
-        # Rebuild all buttons (including "+")
+        self._rebuild_tag_bar()
+
+    def _rebuild_tag_bar(self):
+        """Rebuild the entire tag bar including the + button."""
         self._rebuild_tag_buttons()
         self._add_tag_btn = QPushButton("+")
         self._add_tag_btn.setToolTip("Add a custom tag")

@@ -280,8 +280,9 @@ def generate_stylesheet(theme: Theme) -> str:
         * {{ font-family: "{ff}"; font-size: {f}px; }}
 
         QMainWindow {{ background: {theme.bg_deep}; }}
-        QWidget {{ background: {theme.bg_deep}; color: {theme.text_primary}; }}
-        QFrame {{ background: {theme.bg_deep}; }}
+
+        QSplitter {{ background: {theme.bg_deep}; }}
+        QSplitter > QWidget {{ background: {theme.bg_deep}; }}
 
         QToolBar {{
             background: {theme.bg_raised}; border: none; spacing: 4px; padding: 4px;
