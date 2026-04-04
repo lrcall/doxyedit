@@ -15,23 +15,30 @@ THUMB_SIZE = 160
 PSD_EXTS = {".psd", ".psb"}
 
 
-def _open_image(path: str) -> PILImage.Image:
-    """Open any supported image format and return a PIL Image."""
+def _open_image_for_thumb(path: str) -> tuple[PILImage.Image, int, int]:
+    """Open an image for thumbnailing. Returns (image, orig_w, orig_h).
+
+    For PSD files, uses the embedded thumbnail (fast) and reports the
+    actual document size separately. For other formats, opens normally.
+    """
     ext = Path(path).suffix.lower()
 
     if ext in PSD_EXTS:
         try:
             from psd_tools import PSDImage
             psd = PSDImage.open(path)
-            return psd.composite()
+            orig_w, orig_h = psd.width, psd.height
+            # Embedded thumbnail is instant — no compositing needed
+            thumb = psd.thumbnail()
+            if thumb:
+                return thumb, orig_w, orig_h
+            # No embedded thumbnail — full composite (slower but works)
+            return psd.composite(), orig_w, orig_h
         except Exception:
-            # Fallback — psd-tools might fail on some files
             pass
 
-    # PIL handles most formats, including TGA, BMP, TIFF, ICO, GIF, WebP
-    # For unsupported formats (SAI, CLIP, KRA, XCF) PIL will raise and
-    # we return a placeholder
-    return PILImage.open(path)
+    img = PILImage.open(path)
+    return img, img.width, img.height
 
 
 class ThumbWorker(QThread):
@@ -78,8 +85,7 @@ class ThumbWorker(QThread):
 
             asset_id, path, target_size = item
             try:
-                img = _open_image(path)
-                orig_w, orig_h = img.size
+                img, orig_w, orig_h = _open_image_for_thumb(path)
                 img.thumbnail((target_size, target_size), PILImage.LANCZOS)
                 if img.mode not in ("RGBA", "RGB"):
                     img = img.convert("RGBA")
