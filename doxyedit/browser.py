@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QTimer, QSettings
 from PySide6.QtGui import QPixmap, QFont, QColor, QCursor
 
-from doxyedit.models import Asset, Project, TAG_PRESETS, TAG_SIZED, TAG_ALL, TAG_SHORTCUTS, TagPreset, toggle_tags, next_tag_color, STAR_COLORS
+from doxyedit.models import Asset, Project, TAG_PRESETS, TAG_SIZED, TAG_ALL, TAG_SHORTCUTS, TagPreset, toggle_tags, next_tag_color, STAR_COLORS, VINIK_COLORS
 from doxyedit.preview import HoverPreview, ImagePreviewDialog
 from doxyedit.thumbcache import ThumbCache, THUMB_SIZE
 
@@ -495,19 +495,24 @@ class AssetBrowser(QWidget):
                 w.deleteLater()
         self._tag_buttons.clear()
 
-        all_tags = dict(TAG_ALL)
+        # Content/workflow tags only (no platform/sized tags in the bar)
+        bar_tags = dict(TAG_PRESETS)
+        # Add project custom tags
         if hasattr(self.project, 'get_tags'):
-            all_tags = self.project.get_tags()
-
-        # Discover tags used in assets that aren't in the preset list
+            for tid, preset in self.project.get_tags().items():
+                if tid not in TAG_SIZED:
+                    bar_tags[tid] = preset
+        # Add discovered tags from assets (mood, dimension, etc.)
+        color_idx = 0
         for asset in self.project.assets:
             for t in asset.tags:
-                if t not in all_tags:
-                    color = next_tag_color(all_tags)
-                    all_tags[t] = TagPreset(id=t, label=t, color=color)
+                if t not in bar_tags and t not in TAG_SIZED:
+                    bar_tags[t] = TagPreset(id=t, label=t,
+                        color=VINIK_COLORS[color_idx % len(VINIK_COLORS)])
+                    color_idx += 1
 
         shortcut_reverse = {v: k for k, v in TAG_SHORTCUTS.items()}
-        for tag_id, preset in all_tags.items():
+        for tag_id, preset in bar_tags.items():
             key = shortcut_reverse.get(tag_id, "")
             label = f"{preset.label}" + (f" [{key}]" if key else "")
             btn = QPushButton(label)
