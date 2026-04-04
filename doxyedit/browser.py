@@ -655,6 +655,16 @@ class AssetBrowser(QWidget):
             self._rebuild_page()
             self._scroll.verticalScrollBar().setValue(0)
 
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Left and not self.search_box.hasFocus():
+            self._prev_page()
+            return
+        if event.key() == Qt.Key.Key_Right and not self.search_box.hasFocus():
+            self._next_page()
+            return
+        super().keyPressEvent(event)
+            self._scroll.verticalScrollBar().setValue(0)
+
     # --- Grid ---
 
     def _refresh_grid(self):
