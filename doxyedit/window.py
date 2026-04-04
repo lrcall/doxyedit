@@ -61,6 +61,7 @@ class MainWindow(QMainWindow):
         self.tag_panel.tag_deleted.connect(self._on_tag_deleted)
         self.tag_panel.tag_renamed.connect(self._on_tag_renamed)
         self.tag_panel.shortcut_changed.connect(self._on_shortcut_changed)
+        self.tag_panel.hidden_changed.connect(self._on_hidden_changed)
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
         self._browse_split.addWidget(self.tag_panel)   # left side
@@ -461,6 +462,10 @@ class MainWindow(QMainWindow):
         shortcut.activated.connect(lambda tid=tag_id: self._toggle_tag_shortcut(tid))
         self.status.showMessage(f"Shortcut '{key}' → {tag_id}", 2000)
 
+    def _on_hidden_changed(self, hidden_list):
+        self.project.hidden_tags = hidden_list
+        self._dirty = True
+
     def _on_tags_modified(self):
         """Browser added/removed a custom tag — sync the side panel."""
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
@@ -650,6 +655,9 @@ class MainWindow(QMainWindow):
         self.tag_panel.set_assets([])
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self._update_progress()
+        # Restore hidden tags
+        if self.project.hidden_tags:
+            self.tag_panel.load_hidden_tags(self.project.hidden_tags)
         # Restore project-specific shortcuts
         for key, tag_id in self.project.custom_shortcuts.items():
             shortcut = QShortcut(QKeySequence(key), self)

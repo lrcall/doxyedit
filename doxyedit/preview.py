@@ -73,21 +73,36 @@ class NoteRectItem(QGraphicsRectItem):
 
     def __init__(self, rect: QRectF, text: str = ""):
         super().__init__(rect)
-        self.setPen(QPen(QColor(190, 149, 92, 200), 2))
-        self.setBrush(QBrush(QColor(190, 149, 92, 40)))
+        self.setPen(QPen(QColor(190, 149, 92, 220), 3))
+        self.setBrush(QBrush(QColor(190, 149, 92, 50)))
         self.setFlags(
             QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable
         )
+        # Scale font to ~1/8 of rect height, min 14px
+        font_size = max(14, int(rect.height() / 8))
         self._text_item = QGraphicsTextItem(text, self)
-        self._text_item.setDefaultTextColor(QColor(230, 220, 200))
-        self._text_item.setFont(QFont("Segoe UI", 10))
-        self._text_item.setPos(rect.x() + 4, rect.y() + 2)
+        self._text_item.setDefaultTextColor(QColor(255, 240, 210, 240))
+        self._text_item.setFont(QFont("Segoe UI", font_size, QFont.Weight.Bold))
+        self._text_item.setPos(rect.x() + 8, rect.y() + 6)
+        # Add a dark background behind text for readability
+        self._bg = QGraphicsRectItem(self)
+        self._bg.setBrush(QBrush(QColor(0, 0, 0, 140)))
+        self._bg.setPen(QPen(Qt.PenStyle.NoPen))
+        self._bg.setZValue(-1)
         self.text = text
+        self._update_text_bg()
+
+    def _update_text_bg(self):
+        br = self._text_item.boundingRect()
+        self._bg.setRect(
+            self._text_item.x(), self._text_item.y(),
+            br.width() + 8, br.height() + 4)
 
     def update_text(self, text: str):
         self.text = text
         self._text_item.setPlainText(text)
+        self._update_text_bg()
 
 
 class ImagePreviewDialog(QDialog):

@@ -119,7 +119,8 @@ class TagPanel(QWidget):
     tags_changed = Signal()
     tag_deleted = Signal(str)
     tag_renamed = Signal(str, str, str)
-    shortcut_changed = Signal(str, str)  # tag_id, key
+    shortcut_changed = Signal(str, str)
+    hidden_changed = Signal(list)  # list of hidden tag ids
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -426,12 +427,22 @@ class TagPanel(QWidget):
         if tag_id in self._rows:
             self._rows[tag_id].setVisible(False)
         self._btn_show_all.setVisible(len(self._hidden_tags) > 0)
+        self.hidden_changed.emit(list(self._hidden_tags))
 
     def _show_all_tags(self):
         self._hidden_tags.clear()
         for row in self._rows.values():
             row.setVisible(True)
         self._btn_show_all.setVisible(False)
+        self.hidden_changed.emit([])
+
+    def load_hidden_tags(self, hidden: list[str]):
+        """Restore hidden tags from project."""
+        self._hidden_tags = set(hidden)
+        for tag_id in hidden:
+            if tag_id in self._rows:
+                self._rows[tag_id].setVisible(False)
+        self._btn_show_all.setVisible(len(self._hidden_tags) > 0)
 
     def _rename_tag(self, old_id: str, new_label: str):
         """Rename a tag — updates the label in the row and the checkbox."""

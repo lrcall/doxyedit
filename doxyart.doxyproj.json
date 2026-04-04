@@ -31,8 +31,16 @@
       "id": "peach",
       "label": "Peach",
       "color": "#6f6776"
+    },
+    {
+      "id": "sai_2",
+      "label": "Sai 2",
+      "color": "#c28d75"
     }
   ],
+  "custom_shortcuts": {
+    "B": "background"
+  },
   "assets": [
     {
       "id": "001_0",
@@ -401,7 +409,7 @@
       "censors": [],
       "assignments": [],
       "tags": [],
-      "notes": ""
+      "notes": "[262,59 498x259] cute face"
     },
     {
       "id": "adsadas_33",
@@ -598,7 +606,7 @@
       "id": "asdasd_49",
       "source_path": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --\\asdasd.jpg",
       "source_folder": "G:\\B.D. INC Dropbox\\Team TODO\\-- COMPLETED --",
-      "starred": 0,
+      "starred": 3,
       "crops": [],
       "censors": [],
       "assignments": [],
@@ -690,7 +698,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "variant"
+      ],
       "notes": ""
     },
     {
@@ -701,7 +711,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "variant"
+      ],
       "notes": ""
     },
     {
@@ -712,7 +724,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "variant"
+      ],
       "notes": ""
     },
     {
@@ -723,7 +737,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "variant"
+      ],
       "notes": ""
     },
     {

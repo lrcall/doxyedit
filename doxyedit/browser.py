@@ -992,8 +992,11 @@ class AssetBrowser(QWidget):
         menu.addAction("Copy Path", lambda: QApplication.clipboard().setText(asset.source_path))
         menu.addSeparator()
 
-        menu.addAction("Unstar" if asset.starred > 0 else "Star",
-                        lambda: self._toggle_star(asset))
+        if asset.starred > 0:
+            menu.addAction("Unstar", lambda: self._unstar(asset))
+            menu.addAction("Cycle Star Color", lambda: self._toggle_star(asset))
+        else:
+            menu.addAction("Star", lambda: self._toggle_star(asset))
 
         tag_menu = menu.addMenu("Quick Tag")
 
@@ -1030,6 +1033,10 @@ class AssetBrowser(QWidget):
 
     def _toggle_star(self, asset):
         asset.cycle_star()
+        self._refresh_grid()
+
+    def _unstar(self, asset):
+        asset.starred = 0
         self._refresh_grid()
 
     def _toggle_tag(self, asset, tag_id):
