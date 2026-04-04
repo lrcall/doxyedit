@@ -36,6 +36,17 @@ VINIK_COLORS = [
 ]
 
 
+# Star rating colors (1-5), from Vinik24 palette
+STAR_COLORS = {
+    1: "#be955c",  # gold
+    2: "#7ca1c0",  # blue
+    3: "#6eaa78",  # green
+    4: "#c38890",  # rose
+    5: "#9a4f50",  # red
+}
+STAR_SYMBOLS = {0: ".", 1: "*", 2: "*", 3: "*", 4: "*", 5: "*"}
+
+
 def next_tag_color(existing_tags: dict) -> str:
     """Pick the next Vinik color not yet used by existing tags."""
     used = {t.color for t in existing_tags.values()}
@@ -154,7 +165,7 @@ class Asset:
     id: str = ""
     source_path: str = ""       # original file path
     source_folder: str = ""     # which folder it came from
-    starred: bool = False
+    starred: int = 0  # 0=off, 1-5=color rating
     crops: list[CropRegion] = field(default_factory=list)
     censors: list[CensorRegion] = field(default_factory=list)
     assignments: list[PlatformAssignment] = field(default_factory=list)
@@ -338,7 +349,7 @@ class Project:
                 id=a.get("id", ""),
                 source_path=a.get("source_path", ""),
                 source_folder=a.get("source_folder", ""),
-                starred=a.get("starred", False),
+                starred=int(a.get("starred", 0)) if not isinstance(a.get("starred"), bool) else (1 if a.get("starred") else 0),
                 tags=a.get("tags", []),
                 notes=a.get("notes", ""),
             )

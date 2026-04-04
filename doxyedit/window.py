@@ -289,7 +289,7 @@ class MainWindow(QMainWindow):
             self._progress_label.setText("")
             return
         tagged = sum(1 for a in self.project.assets if a.tags)
-        starred = sum(1 for a in self.project.assets if a.starred)
+        starred = sum(1 for a in self.project.assets if a.starred > 0)
         ignored = sum(1 for a in self.project.assets if "ignore" in a.tags)
         assigned = sum(1 for a in self.project.assets if a.assignments)
 

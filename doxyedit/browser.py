@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QTimer, QSettings
 from PySide6.QtGui import QPixmap, QFont, QColor, QCursor
 
-from doxyedit.models import Asset, Project, TAG_PRESETS, TAG_SHORTCUTS, TagPreset, toggle_tags, next_tag_color
+from doxyedit.models import Asset, Project, TAG_PRESETS, TAG_SHORTCUTS, TagPreset, toggle_tags, next_tag_color, STAR_COLORS
 from doxyedit.preview import HoverPreview, ImagePreviewDialog
 from doxyedit.thumbcache import ThumbCache, THUMB_SIZE
 
@@ -123,7 +123,7 @@ IMAGE_EXTS = {
     ".tga",                  # Targa
     ".exr", ".hdr",          # HDR formats
 }
-PAGE_SIZE = 60  # thumbnails per page
+PAGE_SIZE = 100  # thumbnails per page
 THUMB_GEN_SIZE = 320  # always generate at max zoom so they're sharp when zooming in
 
 # Filename patterns → auto-suggest tags on import
@@ -233,8 +233,8 @@ class ThumbnailWidget(QFrame):
         bottom.addWidget(name_label, 1)
 
         self.star_btn = QPushButton("*" if self.asset.starred else ".")
-        self.star_btn.setFixedSize(20, 20)
-        self.star_btn.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        self.star_btn.setFixedSize(22, 22)
+        self.star_btn.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         self.star_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._update_star_style()
         self.star_btn.clicked.connect(self._toggle_star)
@@ -248,19 +248,22 @@ class ThumbnailWidget(QFrame):
             self.thumb_label.setStyleSheet("background: #2d2d2d; border-radius: 4px;")
 
     def _toggle_star(self):
-        self.asset.starred = not self.asset.starred
+        # Cycle: 0 → 1 → 2 → 3 → 4 → 5 → 0
+        self.asset.starred = (self.asset.starred + 1) % 6
         self.star_btn.setText("*" if self.asset.starred else ".")
         self._update_star_style()
         self.star_toggled.emit(self.asset.id)
 
     def _update_star_style(self):
-        if self.asset.starred:
+        s = self.asset.starred
+        if s and s in STAR_COLORS:
+            color = STAR_COLORS[s]
             self.star_btn.setStyleSheet(
-                "QPushButton { background: transparent; color: #ffd700; border: none; font-size: 14px; }")
+                f"QPushButton {{ background: transparent; color: {color}; border: none; font-size: 14px; }}")
         else:
             self.star_btn.setStyleSheet(
-                "QPushButton { background: transparent; color: #555; border: none; font-size: 14px; }"
-                "QPushButton:hover { color: #ffd700; }")
+                "QPushButton { background: transparent; color: #444; border: none; font-size: 14px; }"
+                "QPushButton:hover { color: #888; }")
 
     def set_selected(self, sel: bool):
         self.selected = sel
@@ -532,7 +535,7 @@ class AssetBrowser(QWidget):
         if query:
             assets = [a for a in assets if query in Path(a.source_path).stem.lower()]
         if self.filter_starred.isChecked():
-            assets = [a for a in assets if a.starred]
+            assets = [a for a in assets if a.starred > 0]
         if self.filter_untagged.isChecked():
             assets = [a for a in assets if not a.tags]
         if self.filter_tagged.isChecked():
@@ -618,7 +621,7 @@ class AssetBrowser(QWidget):
         # Update counts
         total = len(self.project.assets)
         shown = len(self._filtered_assets)
-        starred = sum(1 for a in self.project.assets if a.starred)
+        starred = sum(1 for a in self.project.assets if a.starred > 0)
         tagged = sum(1 for a in self.project.assets if a.tags)
         self.count_label.setText(f"{shown}/{total} shown, {starred} starred, {tagged} tagged")
 
@@ -815,7 +818,7 @@ class AssetBrowser(QWidget):
         menu.addAction("Copy Path", lambda: QApplication.clipboard().setText(asset.source_path))
         menu.addSeparator()
 
-        menu.addAction("Unstar" if asset.starred else "Star",
+        menu.addAction("Unstar" if asset.starred > 0 else "Star",
                         lambda: self._toggle_star(asset))
 
         tag_menu = menu.addMenu("Quick Tag")
@@ -835,7 +838,7 @@ class AssetBrowser(QWidget):
         menu.exec(pos)
 
     def _toggle_star(self, asset):
-        asset.starred = not asset.starred
+        asset.starred = (asset.starred + 1) % 6
         self._refresh_grid()
 
     def _toggle_tag(self, asset, tag_id):
@@ -849,13 +852,13 @@ class AssetBrowser(QWidget):
     def _star_all_selected(self):
         for a in self.project.assets:
             if a.id in self._selected_ids:
-                a.starred = True
+                a.starred = 1
         self._refresh_grid()
 
     def _unstar_all_selected(self):
         for a in self.project.assets:
             if a.id in self._selected_ids:
-                a.starred = False
+                a.starred = 0
         self._refresh_grid()
 
     def _remove_asset(self, asset):
