@@ -124,6 +124,7 @@ IMAGE_EXTS = {
     ".exr", ".hdr",          # HDR formats
 }
 PAGE_SIZE = 60  # thumbnails per page
+THUMB_GEN_SIZE = 320  # always generate at max zoom so they're sharp when zooming in
 
 # Filename patterns → auto-suggest tags on import
 AUTO_TAG_PATTERNS = {
@@ -540,9 +541,9 @@ class AssetBrowser(QWidget):
         ts = self._thumb_size
         cols = max(1, self.width() // (ts + 24)) if self.width() > 0 else 4
 
-        # Request thumbnails at current zoom size
+        # Always generate at max resolution, downscale for display
         batch = [(a.id, a.source_path) for a in page_assets]
-        self._thumb_cache.request_batch(batch, size=ts)
+        self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
 
         for i, asset in enumerate(page_assets):
             pm = self._thumb_cache.get(asset.id)
