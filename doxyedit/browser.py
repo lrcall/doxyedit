@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QTimer, QSettings
 from PySide6.QtGui import QPixmap, QFont, QColor, QCursor
 
-from doxyedit.models import Asset, Project, TAG_PRESETS, toggle_tags
+from doxyedit.models import Asset, Project, TAG_PRESETS, TAG_SHORTCUTS, TagPreset, toggle_tags, next_tag_color
 from doxyedit.preview import HoverPreview, ImagePreviewDialog
 from doxyedit.thumbcache import ThumbCache, THUMB_SIZE
 
@@ -389,7 +389,6 @@ class AssetBrowser(QWidget):
         root.addLayout(row2)
 
         # Row 3: Quick-tag bar — wrapping flow layout so tags don't force width
-        from doxyedit.models import TAG_SHORTCUTS
         self._tag_bar_frame = FlowWidget()
         self._tag_bar_frame.setStyleSheet(
             "FlowWidget { border-bottom: 1px solid rgba(255,255,255,0.08); }")
@@ -398,15 +397,13 @@ class AssetBrowser(QWidget):
         self._tag_flow.setContentsMargins(0, 2, 0, 2)
 
         self._tag_buttons: list[tuple[QPushButton, str]] = []
-        shortcut_reverse = {v: k for k, v in TAG_SHORTCUTS.items()}
-        for tag_id, preset in TAG_PRESETS.items():
-            key = shortcut_reverse.get(tag_id, "")
-            label = f"{preset.label}" + (f" [{key}]" if key else "")
-            btn = QPushButton(label)
-            btn.setToolTip(f"{preset.label} — press [{key}] or click to toggle")
-            btn.clicked.connect(lambda checked, tid=tag_id: self._quick_tag(tid))
-            self._tag_buttons.append((btn, preset.color))
-            self._tag_flow.addWidget(btn)
+        self._rebuild_tag_buttons()
+
+        # "+" button to add custom tags
+        self._add_tag_btn = QPushButton("+")
+        self._add_tag_btn.setToolTip("Add a custom tag")
+        self._add_tag_btn.clicked.connect(self._add_custom_tag)
+        self._tag_flow.addWidget(self._add_tag_btn)
         self._apply_tag_button_styles()
         root.addWidget(self._tag_bar_frame)
 
@@ -455,16 +452,70 @@ class AssetBrowser(QWidget):
 
     # --- Filtering / sorting ---
 
+    def _rebuild_tag_buttons(self):
+        """Build tag pill buttons from current TAG_PRESETS + project custom tags."""
+        # Remove old buttons
+        for btn, _ in self._tag_buttons:
+            self._tag_flow.removeWidget(btn)
+            btn.deleteLater()
+        self._tag_buttons.clear()
+
+        all_tags = dict(TAG_PRESETS)
+        if hasattr(self.project, 'get_tags'):
+            all_tags = self.project.get_tags()
+
+        shortcut_reverse = {v: k for k, v in TAG_SHORTCUTS.items()}
+        for tag_id, preset in all_tags.items():
+            key = shortcut_reverse.get(tag_id, "")
+            label = f"{preset.label}" + (f" [{key}]" if key else "")
+            btn = QPushButton(label)
+            btn.setToolTip(f"{preset.label} — press [{key}] or click" if key else f"{preset.label} — click to toggle")
+            btn.clicked.connect(lambda checked, tid=tag_id: self._quick_tag(tid))
+            self._tag_buttons.append((btn, preset.color))
+            self._tag_flow.addWidget(btn)
+
+    def _add_custom_tag(self):
+        """Show a simple dialog to add a new tag."""
+        from PySide6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "New Tag", "Tag name:")
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+        tag_id = name.lower().replace(" ", "_").replace("/", "_")
+
+        # Check if it already exists
+        all_tags = self.project.get_tags()
+        if tag_id in all_tags:
+            return
+
+        color = next_tag_color(all_tags)
+        self.project.custom_tags.append({
+            "id": tag_id, "label": name, "color": color,
+        })
+
+        # Rebuild buttons
+        self._rebuild_tag_buttons()
+        self._tag_flow.addWidget(self._add_tag_btn)  # keep "+" at end
+        self._apply_tag_button_styles()
+
     def _apply_tag_button_styles(self, font_size: int = 10):
         """Apply tag pill styles at the given font size."""
+        h = font_size + 14
         for btn, color in self._tag_buttons:
-            h = font_size + 14
             btn.setFixedHeight(h)
             btn.setStyleSheet(
                 f"QPushButton {{ background: transparent; color: {color};"
                 f" border: 1px solid {color}; border-radius: {h // 2}px;"
                 f" padding: 2px 8px; font-size: {font_size}px; font-weight: bold; }}"
                 f"QPushButton:hover {{ background: {color}; color: #000; }}")
+        # Style the "+" button
+        self._add_tag_btn.setFixedHeight(h)
+        self._add_tag_btn.setFixedWidth(h)
+        self._add_tag_btn.setStyleSheet(
+            f"QPushButton {{ background: transparent; color: #888;"
+            f" border: 1px dashed #888; border-radius: {h // 2}px;"
+            f" font-size: {font_size + 2}px; font-weight: bold; }}"
+            f"QPushButton:hover {{ color: #fff; border-color: #fff; }}")
 
     def update_font_size(self, font_size: int):
         """Called by the main window when font size changes."""

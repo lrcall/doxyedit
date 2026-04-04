@@ -27,6 +27,25 @@ class TagPreset:
     color: str = "#888888"
 
 
+# Vinik24 color cycle for auto-assigning colors to new tags
+VINIK_COLORS = [
+    "#9a4f50", "#c28d75", "#be955c", "#7ca1c0", "#416aa3",
+    "#68aca9", "#666092", "#a593a5", "#c38890", "#9a9a97",
+    "#6eaa78", "#8b5580", "#7e9e99", "#93a167", "#9d9f7f",
+    "#5d6872", "#387080", "#557064", "#6e6962", "#6f6776",
+]
+
+
+def next_tag_color(existing_tags: dict) -> str:
+    """Pick the next Vinik color not yet used by existing tags."""
+    used = {t.color for t in existing_tags.values()}
+    for c in VINIK_COLORS:
+        if c not in used:
+            return c
+    # All used — cycle from start
+    return VINIK_COLORS[len(existing_tags) % len(VINIK_COLORS)]
+
+
 # Default tag presets — colors from the Vinik24 palette for visual harmony.
 TAG_PRESETS: dict[str, TagPreset] = {
     # --- General use ---
