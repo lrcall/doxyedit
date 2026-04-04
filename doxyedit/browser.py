@@ -400,11 +400,16 @@ class AssetBrowser(QWidget):
         # Row 2: search + sort
         row2 = QHBoxLayout()
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Search by filename...")
+        self.search_box.setPlaceholderText("Search...")
         self.search_box.setClearButtonEnabled(True)
-        # Inherits from theme stylesheet
         self.search_box.textChanged.connect(self._on_filter_changed)
         row2.addWidget(self.search_box, 1)
+
+        self.search_tags_check = QCheckBox("Tags")
+        self.search_tags_check.setChecked(False)
+        self.search_tags_check.setToolTip("Search by tag names instead of filenames")
+        self.search_tags_check.toggled.connect(self._on_search_mode_changed)
+        row2.addWidget(self.search_tags_check)
 
         sort_label = QLabel("Sort:")
         row2.addWidget(sort_label)
@@ -564,11 +569,18 @@ class AssetBrowser(QWidget):
         self._current_page = 0
         self._refresh_grid()
 
+    def _on_search_mode_changed(self, checked):
+        self.search_box.setPlaceholderText("Search by tags..." if checked else "Search...")
+        self._on_filter_changed()
+
     def _compute_filtered(self) -> list[Asset]:
         assets = list(self.project.assets)
         query = self.search_box.text().strip().lower()
         if query:
-            assets = [a for a in assets if query in Path(a.source_path).stem.lower()]
+            if self.search_tags_check.isChecked():
+                assets = [a for a in assets if any(query in t for t in a.tags)]
+            else:
+                assets = [a for a in assets if query in Path(a.source_path).stem.lower()]
         if self.filter_starred.isChecked():
             assets = [a for a in assets if a.starred > 0]
         if self.filter_untagged.isChecked():
