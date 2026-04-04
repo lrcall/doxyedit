@@ -786,7 +786,13 @@ class AssetBrowser(QWidget):
                 self._thumbnails[sid].set_selected(True)
 
     def _quick_tag(self, tag_id: str):
-        """Toggle a tag on all selected assets via the quick-tag bar."""
+        """Toggle a tag on selected assets. Alt+click searches by that tag instead."""
+        modifiers = QApplication.keyboardModifiers()
+        if modifiers & Qt.KeyboardModifier.AltModifier:
+            # Alt+click → search by this tag
+            self.search_tags_check.setChecked(True)
+            self.search_box.setText(tag_id)
+            return
         assets = self.get_selected_assets()
         if not assets:
             return

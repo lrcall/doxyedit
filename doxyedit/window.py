@@ -50,6 +50,7 @@ class MainWindow(QMainWindow):
         self.tag_panel.setMaximumWidth(400)
         self.tag_panel.tags_changed.connect(self._on_data_changed)
         self.tag_panel.tag_deleted.connect(self._on_tag_deleted)
+        self.tag_panel.tag_renamed.connect(self._on_tag_renamed)
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
         self._browse_split.addWidget(self.tag_panel)   # left side
@@ -418,6 +419,23 @@ class MainWindow(QMainWindow):
         self._dirty = True
         self.status.showMessage(f"Deleted tag '{tag_id}' from all assets")
 
+    def _on_tag_renamed(self, old_id: str, new_id: str, new_label: str):
+        """Rename tag across ALL assets."""
+        for asset in self.project.assets:
+            if old_id in asset.tags:
+                asset.tags.remove(old_id)
+                if new_id not in asset.tags:
+                    asset.tags.append(new_id)
+        # Update custom tags
+        for ct in self.project.custom_tags:
+            if isinstance(ct, dict) and ct.get("id") == old_id:
+                ct["id"] = new_id
+                ct["label"] = new_label
+        self.browser._rebuild_tag_bar()
+        self.browser.refresh()
+        self._dirty = True
+        self.status.showMessage(f"Renamed tag '{old_id}' → '{new_label}'")
+
     def _reset_all_tags(self):
         """Nuke all tags from every asset — fresh start."""
         from PySide6.QtWidgets import QMessageBox
@@ -564,11 +582,12 @@ class MainWindow(QMainWindow):
 
     def _rebind_project(self):
         self.browser.project = self.project
-        self.browser._rebuild_tag_bar()  # reload custom tags into tag bar
+        self.browser._rebuild_tag_bar()
         self.browser.refresh()
         self.platform_panel.project = self.project
         self.platform_panel.refresh()
         self.tag_panel.set_assets([])
+        self.tag_panel.refresh_discovered_tags(self.project.assets)
         self._update_progress()
 
     def _open_project(self):
