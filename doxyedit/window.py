@@ -131,7 +131,7 @@ class MainWindow(QMainWindow):
         base = THEMES.get(theme_id, THEMES[DEFAULT_THEME])
         self._theme = replace(base, font_size=getattr(self, '_theme', base).font_size)
         self.setStyleSheet(generate_stylesheet(self._theme))
-        QSettings("DoxyEdit", "DoxyEdit").setValue("theme", theme_id)
+        self._settings.setValue("theme", theme_id)
         # Match Windows title bar to theme
         self._update_title_bar_color()
 
@@ -164,7 +164,7 @@ class MainWindow(QMainWindow):
         fs = self._theme.font_size
         self.setStyleSheet(generate_stylesheet(self._theme))
         self.browser.update_font_size(fs)
-        QSettings("DoxyEdit", "DoxyEdit").setValue("font_size", fs)
+        self._settings.setValue("font_size", fs)
         self.status.showMessage(f"Font size: {fs}px", 2000)
 
     def _build_toolbar(self):
@@ -189,8 +189,8 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
 
         # Asset ops
-        tb.addAction(QAction("+ Folder", self, triggered=lambda: self.browser._open_folder()))
-        tb.addAction(QAction("+ Files", self, triggered=lambda: self.browser._add_images()))
+        tb.addAction(QAction("+ Folder", self, triggered=lambda: self.browser.open_folder_dialog()))
+        tb.addAction(QAction("+ Files", self, triggered=lambda: self.browser.add_images_dialog()))
         tb.addSeparator()
 
         # Canvas tools (active when on Canvas tab)
@@ -318,10 +318,16 @@ class MainWindow(QMainWindow):
         if total == 0:
             self._progress_label.setText("")
             return
-        tagged = sum(1 for a in self.project.assets if a.tags)
-        starred = sum(1 for a in self.project.assets if a.starred > 0)
-        ignored = sum(1 for a in self.project.assets if "ignore" in a.tags)
-        assigned = sum(1 for a in self.project.assets if a.assignments)
+        tagged = starred = ignored = assigned = 0
+        for a in self.project.assets:
+            if a.tags:
+                tagged += 1
+            if a.starred > 0:
+                starred += 1
+            if "ignore" in a.tags:
+                ignored += 1
+            if a.assignments:
+                assigned += 1
 
         parts = [f"{tagged}/{total} tagged"]
         if starred:
@@ -345,47 +351,39 @@ class MainWindow(QMainWindow):
 
     # --- Recent files/folders ---
 
-    def _add_recent_project(self, path: str):
-        recents = self._settings.value("recent_projects", []) or []
-        if not isinstance(recents, list):
-            recents = [recents]
+    def _get_recent(self, key: str) -> list[str]:
+        val = self._settings.value(key, []) or []
+        return val if isinstance(val, list) else [val]
+
+    def _push_recent(self, key: str, path: str):
+        recents = self._get_recent(key)
         if path in recents:
             recents.remove(path)
         recents.insert(0, path)
-        self._settings.setValue("recent_projects", recents[:10])
+        self._settings.setValue(key, recents[:10])
         self._rebuild_recent_menus()
 
+    def _add_recent_project(self, path: str):
+        self._push_recent("recent_projects", path)
+
     def _add_recent_folder(self, folder: str):
-        recents = self._settings.value("recent_folders", []) or []
-        if not isinstance(recents, list):
-            recents = [recents]
-        if folder in recents:
-            recents.remove(folder)
-        recents.insert(0, folder)
-        self._settings.setValue("recent_folders", recents[:10])
-        self._rebuild_recent_menus()
+        self._push_recent("recent_folders", folder)
 
     def _rebuild_recent_menus(self):
         self._recent_projects_menu.clear()
-        recents = self._settings.value("recent_projects", []) or []
-        if not isinstance(recents, list):
-            recents = [recents]
-        for p in recents:
+        for p in self._get_recent("recent_projects"):
             if Path(p).exists():
-                name = Path(p).name
-                self._recent_projects_menu.addAction(name, lambda path=p: self._load_project_from(path))
-        if not recents:
+                self._recent_projects_menu.addAction(
+                    Path(p).name, lambda path=p: self._load_project_from(path))
+        if self._recent_projects_menu.isEmpty():
             self._recent_projects_menu.addAction("(none)").setEnabled(False)
 
         self._recent_folders_menu.clear()
-        folders = self._settings.value("recent_folders", []) or []
-        if not isinstance(folders, list):
-            folders = [folders]
-        for f in folders:
+        for f in self._get_recent("recent_folders"):
             if Path(f).exists():
-                name = Path(f).name
-                self._recent_folders_menu.addAction(name, lambda folder=f: self._open_recent_folder(folder))
-        if not folders:
+                self._recent_folders_menu.addAction(
+                    Path(f).name, lambda folder=f: self._open_recent_folder(folder))
+        if self._recent_folders_menu.isEmpty():
             self._recent_folders_menu.addAction("(none)").setEnabled(False)
 
     def _load_project_from(self, path: str):

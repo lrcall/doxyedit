@@ -359,7 +359,7 @@ class AssetBrowser(QWidget):
 
         # Row 1: import + filters
         toolbar = QHBoxLayout()
-        for label, handler in [("+ Folder", self._open_folder), ("+ Files", self._add_images)]:
+        for label, handler in [("+ Folder", self.open_folder_dialog), ("+ Files", self.add_images_dialog)]:
             btn = QPushButton(label)
             btn.setStyleSheet(self._btn_style())
             btn.clicked.connect(handler)
@@ -759,7 +759,7 @@ class AssetBrowser(QWidget):
 
     # --- Import ---
 
-    def _open_folder(self):
+    def open_folder_dialog(self):
         settings = QSettings("DoxyEdit", "DoxyEdit")
         last_dir = settings.value("last_folder", "")
         folder = QFileDialog.getExistingDirectory(self, "Open Image Folder", last_dir)
@@ -785,7 +785,7 @@ class AssetBrowser(QWidget):
             self._refresh_grid()
         return count
 
-    def _add_images(self):
+    def add_images_dialog(self):
         settings = QSettings("DoxyEdit", "DoxyEdit")
         last_dir = settings.value("last_folder", "")
         files, _ = QFileDialog.getOpenFileNames(

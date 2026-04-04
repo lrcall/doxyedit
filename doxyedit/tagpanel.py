@@ -279,20 +279,19 @@ class TagPanel(QWidget):
             row.setVisible(True)
         self._btn_show_all.setVisible(False)
 
-    def _on_tag_toggled(self, tag_id: str, checked: bool):
+    def _set_tag(self, tag_id: str, checked: bool):
         for asset in self._assets:
             if checked and tag_id not in asset.tags:
                 asset.tags.append(tag_id)
             elif not checked and tag_id in asset.tags:
                 asset.tags.remove(tag_id)
+
+    def _on_tag_toggled(self, tag_id: str, checked: bool):
+        self._set_tag(tag_id, checked)
         self.tags_changed.emit()
 
     def _batch_tag(self, tag_id: str, checked: bool):
-        for asset in self._assets:
-            if checked and tag_id not in asset.tags:
-                asset.tags.append(tag_id)
-            elif not checked and tag_id in asset.tags:
-                asset.tags.remove(tag_id)
+        self._set_tag(tag_id, checked)
         self._rows[tag_id].set_checked(checked)
         self.tags_changed.emit()
 
