@@ -21,6 +21,7 @@ FITNESS_COLORS = {
 class TagRow(QFrame):
     """One tag checkbox with fitness indicator dot."""
     toggled = Signal(str, bool)  # tag_id, checked
+    hide_requested = Signal(str)  # tag_id
 
     def __init__(self, tag: TagPreset, parent=None):
         super().__init__(parent)
@@ -83,6 +84,12 @@ class TagRow(QFrame):
         if block_signals:
             self.checkbox.blockSignals(False)
 
+    def contextMenuEvent(self, event):
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(self)
+        menu.addAction(f"Hide '{self.tag.label}'", lambda: self.hide_requested.emit(self.tag.id))
+        menu.exec(event.globalPos())
+
 
 class TagPanel(QWidget):
     """Tag checklist for the currently selected asset(s)."""
@@ -91,8 +98,9 @@ class TagPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._assets: list[Asset] = []
-        self._img_dims: dict[str, tuple[int, int]] = {}  # cache: asset_id → (w, h)
+        self._img_dims: dict[str, tuple[int, int]] = {}
         self._rows: dict[str, TagRow] = {}
+        self._hidden_tags: set[str] = set()
         self._build()
 
     def _build(self):
@@ -124,10 +132,17 @@ class TagPanel(QWidget):
         btn_ignore.clicked.connect(lambda: self._batch_tag("ignore", True))
         batch_row.addWidget(btn_ignore)
 
-        btn_clear = QPushButton("Clear All Tags")
+        btn_clear = QPushButton("Clear All")
         btn_clear.setStyleSheet(self._btn_style("#663333"))
         btn_clear.clicked.connect(self._clear_all_tags)
         batch_row.addWidget(btn_clear)
+
+        self._btn_show_all = QPushButton("Show All")
+        self._btn_show_all.setStyleSheet(self._btn_style("#333"))
+        self._btn_show_all.clicked.connect(self._show_all_tags)
+        self._btn_show_all.setVisible(False)
+        batch_row.addWidget(self._btn_show_all)
+
         batch_row.addStretch()
         root.addLayout(batch_row)
 
@@ -144,6 +159,7 @@ class TagPanel(QWidget):
         for tag_id, tag in TAG_PRESETS.items():
             row = TagRow(tag)
             row.toggled.connect(self._on_tag_toggled)
+            row.hide_requested.connect(self._hide_tag)
             tag_layout.addWidget(row)
             self._rows[tag_id] = row
 
@@ -161,6 +177,7 @@ class TagPanel(QWidget):
         for tag_id, tag in TAG_SIZED.items():
             row = TagRow(tag)
             row.toggled.connect(self._on_tag_toggled)
+            row.hide_requested.connect(self._hide_tag)
             tag_layout.addWidget(row)
             self._rows[tag_id] = row
 
@@ -256,6 +273,18 @@ class TagPanel(QWidget):
                 return w, h
         except Exception:
             return 0, 0
+
+    def _hide_tag(self, tag_id: str):
+        self._hidden_tags.add(tag_id)
+        if tag_id in self._rows:
+            self._rows[tag_id].setVisible(False)
+        self._btn_show_all.setVisible(len(self._hidden_tags) > 0)
+
+    def _show_all_tags(self):
+        self._hidden_tags.clear()
+        for row in self._rows.values():
+            row.setVisible(True)
+        self._btn_show_all.setVisible(False)
 
     def _on_tag_toggled(self, tag_id: str, checked: bool):
         for asset in self._assets:
