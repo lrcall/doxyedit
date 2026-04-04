@@ -139,7 +139,16 @@ class ImagePreviewDialog(QDialog):
         self._note_btn.toggled.connect(self._toggle_note_mode)
         info_bar.addWidget(self._note_btn)
 
-        hint = QLabel("Scroll to zoom  |  Drag to pan  |  N = note  |  Esc = close")
+        self._view_notes_btn = QPushButton("View Notes")
+        self._view_notes_btn.setCheckable(True)
+        self._view_notes_btn.setChecked(True)
+        self._view_notes_btn.setStyleSheet(
+            "QPushButton { padding: 4px 12px; }"
+            "QPushButton:checked { background: rgba(190,149,92,0.3); }")
+        self._view_notes_btn.toggled.connect(self._toggle_view_notes)
+        info_bar.addWidget(self._view_notes_btn)
+
+        hint = QLabel("Scroll to zoom  |  Drag to pan  |  N = note  |  V = toggle  |  Esc = close")
         hint.setFont(QFont("Segoe UI", 9))
         hint.setStyleSheet("color: rgba(128,128,128,0.5);")
         info_bar.addWidget(hint)
@@ -179,7 +188,31 @@ class ImagePreviewDialog(QDialog):
         QShortcut(QKeySequence("Escape"), self, self.close)
         QShortcut(QKeySequence("Ctrl+0"), self, self._fit_to_view)
         QShortcut(QKeySequence("N"), self, lambda: self._note_btn.toggle())
+        QShortcut(QKeySequence("V"), self, lambda: self._view_notes_btn.toggle())
         QShortcut(QKeySequence("Delete"), self, self._delete_selected_note)
+
+        # Load existing annotations from asset notes
+        self._load_saved_notes()
+
+    def _load_saved_notes(self):
+        """Parse annotation notes from asset.notes and display them."""
+        if not self._asset or not self._asset.notes:
+            return
+        import re
+        pattern = re.compile(r'\[(\d+),(\d+)\s+(\d+)x(\d+)\]\s*(.*)')
+        for line in self._asset.notes.split("\n"):
+            m = pattern.match(line.strip())
+            if m:
+                x, y, w, h = int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
+                text = m.group(5)
+                note = NoteRectItem(QRectF(x, y, w, h), text)
+                self.scene.addItem(note)
+                self._notes.append(note)
+
+    def _toggle_view_notes(self, checked):
+        """Show/hide all annotation notes."""
+        for note in self._notes:
+            note.setVisible(checked)
 
     def _toggle_note_mode(self, checked):
         self._annotating = checked

@@ -26,6 +26,11 @@
       "id": "background",
       "label": "Background",
       "color": "#6e6962"
+    },
+    {
+      "id": "peach",
+      "label": "Peach",
+      "color": "#6f6776"
     }
   ],
   "assets": [
@@ -2016,7 +2021,7 @@
       "censors": [],
       "assignments": [],
       "tags": [],
-      "notes": ""
+      "notes": "[1776,836 2757x2192] Peaches face"
     },
     {
       "id": "EeeUASwU4AU4nym (2)_178",
@@ -2093,7 +2098,8 @@
       "censors": [],
       "assignments": [],
       "tags": [
-        "final"
+        "final",
+        "variant"
       ],
       "notes": ""
     },
@@ -2105,7 +2111,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "variant"
+      ],
       "notes": ""
     },
     {
@@ -2116,7 +2124,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "variant"
+      ],
       "notes": ""
     },
     {
@@ -2127,7 +2137,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "variant"
+      ],
       "notes": ""
     },
     {
@@ -2138,7 +2150,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "variant"
+      ],
       "notes": ""
     },
     {
@@ -2149,7 +2163,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "variant"
+      ],
       "notes": ""
     },
     {
@@ -2160,7 +2176,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "variant"
+      ],
       "notes": ""
     },
     {
@@ -2171,7 +2189,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "variant"
+      ],
       "notes": ""
     },
     {
@@ -2182,7 +2202,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "variant"
+      ],
       "notes": ""
     },
     {
