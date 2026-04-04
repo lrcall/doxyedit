@@ -40,16 +40,7 @@ class MainWindow(QMainWindow):
 
         # --- Tabs ---
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane { border: none; background: #1e1e1e; }
-            QTabBar::tab {
-                background: #252526; color: #888; border: none;
-                padding: 8px 20px; font-size: 12px; font-family: "Segoe UI";
-                min-width: 100px;
-            }
-            QTabBar::tab:selected { background: #1e1e1e; color: #fff; }
-            QTabBar::tab:hover { color: #ccc; }
-        """)
+        # Tab styling inherited from theme
         self.setCentralWidget(self.tabs)
 
         # Tab 1: Left Sidebar (tags+info) | Asset Browser grid

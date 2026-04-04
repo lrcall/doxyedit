@@ -63,7 +63,7 @@ class TagRow(QFrame):
 
         hint_label = QLabel("  ".join(hints) if hints else "any")
         hint_label.setFont(QFont("Segoe UI", 8))
-        hint_label.setStyleSheet("color: #555;")
+        hint_label.setStyleSheet("color: rgba(128,128,128,0.5);")
         layout.addWidget(hint_label)
 
     def _set_fitness(self, level: str):
@@ -110,35 +110,35 @@ class TagPanel(QWidget):
         # Header
         self.header = QLabel("Select an image to tag it")
         self.header.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-        self.header.setStyleSheet("color: #555; padding-bottom: 4px;")
+        self.header.setStyleSheet("color: rgba(128,128,128,0.6); padding-bottom: 4px;")
         self.header.setWordWrap(True)
         root.addWidget(self.header)
 
         self.hint_label = QLabel("Click an image on the left, then check tags below")
         self.hint_label.setFont(QFont("Segoe UI", 9))
-        self.hint_label.setStyleSheet("color: #444; font-style: italic;")
+        self.hint_label.setStyleSheet("color: rgba(128,128,128,0.5); font-style: italic;")
         self.hint_label.setWordWrap(True)
         root.addWidget(self.hint_label)
 
         self.dim_label = QLabel("")
         self.dim_label.setFont(QFont("Segoe UI", 9))
-        self.dim_label.setStyleSheet("color: #888;")
+        self.dim_label.setStyleSheet("color: rgba(128,128,128,0.7);")
         root.addWidget(self.dim_label)
 
         # Batch buttons
         batch_row = QHBoxLayout()
         btn_ignore = QPushButton("Mark Ignore")
-        btn_ignore.setStyleSheet(self._btn_style("#555"))
+        btn_ignore.setStyleSheet(self._btn_style())
         btn_ignore.clicked.connect(lambda: self._batch_tag("ignore", True))
         batch_row.addWidget(btn_ignore)
 
         btn_clear = QPushButton("Clear All")
-        btn_clear.setStyleSheet(self._btn_style("#663333"))
+        btn_clear.setStyleSheet(self._btn_style())
         btn_clear.clicked.connect(self._clear_all_tags)
         batch_row.addWidget(btn_clear)
 
         self._btn_show_all = QPushButton("Show All")
-        self._btn_show_all.setStyleSheet(self._btn_style("#333"))
+        self._btn_show_all.setStyleSheet(self._btn_style())
         self._btn_show_all.clicked.connect(self._show_all_tags)
         self._btn_show_all.setVisible(False)
         batch_row.addWidget(self._btn_show_all)
@@ -188,24 +188,17 @@ class TagPanel(QWidget):
         # Notes
         notes_label = QLabel("Notes:")
         notes_label.setFont(QFont("Segoe UI", 9))
-        notes_label.setStyleSheet("color: #888; padding-top: 8px;")
+        notes_label.setStyleSheet("padding-top: 8px;")
         root.addWidget(notes_label)
 
         self.notes_edit = QTextEdit()
         self.notes_edit.setMaximumHeight(80)
-        self.notes_edit.setStyleSheet(
-            "QTextEdit { background: #2d2d2d; color: #ccc; border: 1px solid #444;"
-            " border-radius: 4px; padding: 4px; font-size: 11px; }"
-        )
+        # Inherits from theme
         self.notes_edit.textChanged.connect(self._on_notes_changed)
         root.addWidget(self.notes_edit)
 
-    def _btn_style(self, bg="#333"):
-        return (
-            f"QPushButton {{ background: {bg}; color: #ccc; border: 1px solid #444;"
-            " border-radius: 4px; padding: 4px 10px; font-size: 11px; }"
-            "QPushButton:hover { background: #444; }"
-        )
+    def _btn_style(self):
+        return "QPushButton { padding: 4px 10px; }"
 
     def set_assets(self, assets: list[Asset]):
         """Set which asset(s) the tag panel is editing."""
@@ -213,7 +206,7 @@ class TagPanel(QWidget):
 
         if not assets:
             self.header.setText("Select an image to tag it")
-            self.header.setStyleSheet("color: #555; padding-bottom: 4px;")
+            self.header.setStyleSheet("color: rgba(128,128,128,0.6); padding-bottom: 4px;")
             self.hint_label.setText("Click an image on the left, then check tags below")
             self.hint_label.show()
             self.dim_label.setText("")
@@ -222,9 +215,9 @@ class TagPanel(QWidget):
             return
 
         # Active state — highlight the panel
-        self.header.setStyleSheet("color: #fff; padding-bottom: 4px;")
+        self.header.setStyleSheet("padding-bottom: 4px;")
         self.hint_label.setText("Check the boxes below to tag this image for use")
-        self.hint_label.setStyleSheet("color: #0078d4; font-style: italic; font-size: 9px;")
+        self.hint_label.setStyleSheet("font-style: italic; font-size: 9px;")
 
         if len(assets) == 1:
             a = assets[0]

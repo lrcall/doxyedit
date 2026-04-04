@@ -195,26 +195,28 @@ class ThumbnailWidget(QFrame):
         self.thumb_label = QLabel()
         self.thumb_label.setFixedSize(self._thumb_size, self._thumb_size)
         self.thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.thumb_label.setStyleSheet("background: rgba(255,255,255,0.05); border-radius: 4px;")
+        self.thumb_label.setStyleSheet("background: rgba(128,128,128,0.1); border-radius: 4px;")
         if pixmap and not pixmap.isNull():
             self.thumb_label.setPixmap(pixmap)
         else:
             self.thumb_label.setText("...")
             self.thumb_label.setStyleSheet(
-                "background: rgba(255,255,255,0.05); border-radius: 4px; color: rgba(255,255,255,0.2); font-size: 18px;"
+                "background: rgba(128,128,128,0.1); border-radius: 4px; color: rgba(128,128,128,0.4); font-size: 18px;"
             )
         layout.addWidget(self.thumb_label)
 
-        # Tag dots
+        # Tag dots — larger with subtle drop shadow
         tag_row = QHBoxLayout()
-        tag_row.setContentsMargins(2, 0, 2, 0)
-        tag_row.setSpacing(2)
-        for tag_id in self.asset.tags[:8]:
+        tag_row.setContentsMargins(2, 1, 2, 1)
+        tag_row.setSpacing(3)
+        for tag_id in self.asset.tags[:10]:
             preset = TAG_ALL.get(tag_id)
             if preset:
                 dot = QLabel()
-                dot.setFixedSize(8, 8)
-                dot.setStyleSheet(f"background: {preset.color}; border-radius: 4px;")
+                dot.setFixedSize(12, 12)
+                dot.setStyleSheet(
+                    f"background: {preset.color}; border-radius: 6px;"
+                    f" border: 1px solid rgba(0,0,0,0.3);")
                 dot.setToolTip(preset.label)
                 tag_row.addWidget(dot)
         tag_row.addStretch()
@@ -255,7 +257,7 @@ class ThumbnailWidget(QFrame):
         """Update thumbnail after async load."""
         if pixmap and not pixmap.isNull():
             self.thumb_label.setPixmap(pixmap)
-            self.thumb_label.setStyleSheet("background: #2d2d2d; border-radius: 4px;")
+            self.thumb_label.setStyleSheet("background: rgba(128,128,128,0.1); border-radius: 4px;")
 
     def _toggle_star(self):
         # Cycle: 0 → 1 → 2 → 3 → 4 → 5 → 0
@@ -272,8 +274,8 @@ class ThumbnailWidget(QFrame):
                 f"QPushButton {{ background: transparent; color: {color}; border: none; font-size: 14px; }}")
         else:
             self.star_btn.setStyleSheet(
-                "QPushButton { background: transparent; color: #444; border: none; font-size: 14px; }"
-                "QPushButton:hover { color: #888; }")
+                "QPushButton { background: transparent; color: rgba(128,128,128,0.4); border: none; font-size: 14px; }"
+                "QPushButton:hover { color: rgba(128,128,128,0.8); }")
 
     def set_selected(self, sel: bool):
         self.selected = sel
@@ -282,11 +284,11 @@ class ThumbnailWidget(QFrame):
     def _update_style(self):
         if self.selected:
             self.setStyleSheet(
-                "ThumbnailWidget { background: #094771; border: 2px solid #0078d4; border-radius: 6px; }")
+                "ThumbnailWidget { background: rgba(100,150,200,0.3); border: 2px solid rgba(100,150,200,0.7); border-radius: 6px; }")
         else:
             self.setStyleSheet(
-                "ThumbnailWidget { background: #252526; border: 2px solid transparent; border-radius: 6px; }"
-                "ThumbnailWidget:hover { border-color: #444; }")
+                "ThumbnailWidget { background: rgba(128,128,128,0.08); border: 2px solid transparent; border-radius: 6px; }"
+                "ThumbnailWidget:hover { border-color: rgba(128,128,128,0.3); }")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -839,10 +841,6 @@ class AssetBrowser(QWidget):
             return
 
         menu = QMenu(self)
-        menu.setStyleSheet(
-            "QMenu { background: #252526; color: #ccc; border: 1px solid #444; }"
-            "QMenu::item:selected { background: #094771; }"
-            "QMenu::separator { background: #444; height: 1px; }")
 
         menu.addAction("Preview", lambda: self.asset_preview.emit(asset_id))
         menu.addAction("Send to Canvas", lambda: self.asset_to_canvas.emit(asset_id))
