@@ -1,0 +1,268 @@
+"""Tag checklist panel — assign use-case tags to selected asset(s) with fitness indicators."""
+from pathlib import Path
+from PIL import Image
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox,
+    QFrame, QScrollArea, QTextEdit, QPushButton,
+)
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFont, QColor
+
+from doxyedit.models import Asset, TAG_PRESETS, TAG_SHORTCUTS, TagPreset, check_fitness
+
+
+FITNESS_COLORS = {
+    "green": "#44cc44",
+    "yellow": "#ffa500",
+    "red": "#ff4444",
+}
+
+
+class TagRow(QFrame):
+    """One tag checkbox with fitness indicator dot."""
+    toggled = Signal(str, bool)  # tag_id, checked
+
+    def __init__(self, tag: TagPreset, parent=None):
+        super().__init__(parent)
+        self.tag = tag
+        self.setStyleSheet("TagRow { background: transparent; }")
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setSpacing(8)
+
+        # Fitness dot
+        self.dot = QLabel()
+        self.dot.setFixedSize(12, 12)
+        self._set_fitness("green")
+        layout.addWidget(self.dot)
+
+        # Checkbox
+        self.checkbox = QCheckBox(tag.label)
+        self.checkbox.setFont(QFont("Segoe UI", 10))
+        self.checkbox.setStyleSheet(f"QCheckBox {{ color: {tag.color}; }}")
+        self.checkbox.toggled.connect(lambda checked: self.toggled.emit(tag.id, checked))
+        layout.addWidget(self.checkbox, 1)
+
+        # Keyboard shortcut hint
+        shortcut_key = ""
+        for k, v in TAG_SHORTCUTS.items():
+            if v == tag.id:
+                shortcut_key = k
+                break
+
+        # Size + shortcut hint
+        hints = []
+        if tag.width and tag.height:
+            hints.append(f"{tag.width}x{tag.height}")
+        elif tag.width:
+            hints.append(f"{tag.width}xflex")
+        if shortcut_key:
+            hints.append(f"[{shortcut_key}]")
+
+        hint_label = QLabel("  ".join(hints) if hints else "any")
+        hint_label.setFont(QFont("Segoe UI", 8))
+        hint_label.setStyleSheet("color: #555;")
+        layout.addWidget(hint_label)
+
+    def _set_fitness(self, level: str):
+        color = FITNESS_COLORS.get(level, "#888")
+        self.dot.setStyleSheet(
+            f"background: {color}; border-radius: 6px; border: 1px solid #333;"
+        )
+        self.dot.setToolTip(f"Fitness: {level}")
+
+    def update_fitness(self, img_w: int, img_h: int):
+        level = check_fitness(img_w, img_h, self.tag)
+        self._set_fitness(level)
+
+    def set_checked(self, checked: bool, block_signals=True):
+        if block_signals:
+            self.checkbox.blockSignals(True)
+        self.checkbox.setChecked(checked)
+        if block_signals:
+            self.checkbox.blockSignals(False)
+
+
+class TagPanel(QWidget):
+    """Tag checklist for the currently selected asset(s)."""
+    tags_changed = Signal()  # emitted when any tag changes
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._assets: list[Asset] = []
+        self._img_dims: dict[str, tuple[int, int]] = {}  # cache: asset_id → (w, h)
+        self._rows: dict[str, TagRow] = {}
+        self._build()
+
+    def _build(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(8, 8, 8, 8)
+
+        # Header
+        self.header = QLabel("Select an image to tag it")
+        self.header.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self.header.setStyleSheet("color: #555; padding-bottom: 4px;")
+        self.header.setWordWrap(True)
+        root.addWidget(self.header)
+
+        self.hint_label = QLabel("Click an image on the left, then check tags below")
+        self.hint_label.setFont(QFont("Segoe UI", 9))
+        self.hint_label.setStyleSheet("color: #444; font-style: italic;")
+        self.hint_label.setWordWrap(True)
+        root.addWidget(self.hint_label)
+
+        self.dim_label = QLabel("")
+        self.dim_label.setFont(QFont("Segoe UI", 9))
+        self.dim_label.setStyleSheet("color: #888;")
+        root.addWidget(self.dim_label)
+
+        # Batch buttons
+        batch_row = QHBoxLayout()
+        btn_ignore = QPushButton("Mark Ignore")
+        btn_ignore.setStyleSheet(self._btn_style("#555"))
+        btn_ignore.clicked.connect(lambda: self._batch_tag("ignore", True))
+        batch_row.addWidget(btn_ignore)
+
+        btn_clear = QPushButton("Clear All Tags")
+        btn_clear.setStyleSheet(self._btn_style("#663333"))
+        btn_clear.clicked.connect(self._clear_all_tags)
+        batch_row.addWidget(btn_clear)
+        batch_row.addStretch()
+        root.addLayout(batch_row)
+
+        # Tag checkboxes
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        tag_widget = QWidget()
+        tag_layout = QVBoxLayout(tag_widget)
+        tag_layout.setSpacing(2)
+        tag_layout.setContentsMargins(0, 0, 0, 0)
+
+        for tag_id, tag in TAG_PRESETS.items():
+            row = TagRow(tag)
+            row.toggled.connect(self._on_tag_toggled)
+            tag_layout.addWidget(row)
+            self._rows[tag_id] = row
+
+        tag_layout.addStretch()
+        scroll.setWidget(tag_widget)
+        root.addWidget(scroll)
+
+        # Notes
+        notes_label = QLabel("Notes:")
+        notes_label.setFont(QFont("Segoe UI", 9))
+        notes_label.setStyleSheet("color: #888; padding-top: 8px;")
+        root.addWidget(notes_label)
+
+        self.notes_edit = QTextEdit()
+        self.notes_edit.setMaximumHeight(80)
+        self.notes_edit.setStyleSheet(
+            "QTextEdit { background: #2d2d2d; color: #ccc; border: 1px solid #444;"
+            " border-radius: 4px; padding: 4px; font-size: 11px; }"
+        )
+        self.notes_edit.textChanged.connect(self._on_notes_changed)
+        root.addWidget(self.notes_edit)
+
+    def _btn_style(self, bg="#333"):
+        return (
+            f"QPushButton {{ background: {bg}; color: #ccc; border: 1px solid #444;"
+            " border-radius: 4px; padding: 4px 10px; font-size: 11px; }"
+            "QPushButton:hover { background: #444; }"
+        )
+
+    def set_assets(self, assets: list[Asset]):
+        """Set which asset(s) the tag panel is editing."""
+        self._assets = assets
+
+        if not assets:
+            self.header.setText("Select an image to tag it")
+            self.header.setStyleSheet("color: #555; padding-bottom: 4px;")
+            self.hint_label.setText("Click an image on the left, then check tags below")
+            self.hint_label.show()
+            self.dim_label.setText("")
+            for row in self._rows.values():
+                row.set_checked(False)
+            return
+
+        # Active state — highlight the panel
+        self.header.setStyleSheet("color: #fff; padding-bottom: 4px;")
+        self.hint_label.setText("Check the boxes below to tag this image for use")
+        self.hint_label.setStyleSheet("color: #0078d4; font-style: italic; font-size: 9px;")
+
+        if len(assets) == 1:
+            a = assets[0]
+            name = Path(a.source_path).stem
+            self.header.setText(name)
+            if a.tags:
+                self.hint_label.setText(f"{len(a.tags)} tag(s) applied — green dot = good fit")
+            else:
+                self.hint_label.setText("No tags yet — check boxes below to assign")
+            w, h = self._get_dims(a)
+            if w and h:
+                ratio = f"{w/h:.2f}" if h else "?"
+                self.dim_label.setText(f"{w} x {h} px  (ratio {ratio})")
+            else:
+                self.dim_label.setText("dimensions unknown")
+
+            # Update fitness dots
+            for tag_id, row in self._rows.items():
+                if w and h:
+                    row.update_fitness(w, h)
+                row.set_checked(tag_id in a.tags)
+
+            self.notes_edit.blockSignals(True)
+            self.notes_edit.setPlainText(a.notes)
+            self.notes_edit.blockSignals(False)
+        else:
+            self.header.setText(f"{len(assets)} assets selected")
+            self.dim_label.setText("batch mode — tags applied to all")
+            # Show intersection of tags
+            common_tags = set(assets[0].tags)
+            for a in assets[1:]:
+                common_tags &= set(a.tags)
+            for tag_id, row in self._rows.items():
+                row.set_checked(tag_id in common_tags)
+            self.notes_edit.blockSignals(True)
+            self.notes_edit.setPlainText("")
+            self.notes_edit.blockSignals(False)
+
+    def _get_dims(self, asset: Asset) -> tuple[int, int]:
+        if asset.id in self._img_dims:
+            return self._img_dims[asset.id]
+        try:
+            with Image.open(asset.source_path) as img:
+                w, h = img.size
+                self._img_dims[asset.id] = (w, h)
+                return w, h
+        except Exception:
+            return 0, 0
+
+    def _on_tag_toggled(self, tag_id: str, checked: bool):
+        for asset in self._assets:
+            if checked and tag_id not in asset.tags:
+                asset.tags.append(tag_id)
+            elif not checked and tag_id in asset.tags:
+                asset.tags.remove(tag_id)
+        self.tags_changed.emit()
+
+    def _batch_tag(self, tag_id: str, checked: bool):
+        for asset in self._assets:
+            if checked and tag_id not in asset.tags:
+                asset.tags.append(tag_id)
+            elif not checked and tag_id in asset.tags:
+                asset.tags.remove(tag_id)
+        self._rows[tag_id].set_checked(checked)
+        self.tags_changed.emit()
+
+    def _clear_all_tags(self):
+        for asset in self._assets:
+            asset.tags.clear()
+        for row in self._rows.values():
+            row.set_checked(False)
+        self.tags_changed.emit()
+
+    def _on_notes_changed(self):
+        if len(self._assets) == 1:
+            self._assets[0].notes = self.notes_edit.toPlainText()
