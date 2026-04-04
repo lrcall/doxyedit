@@ -230,7 +230,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
         # Thumbnail
         pixmap = index.data(ThumbnailModel.ThumbnailRole)
         if pixmap and not pixmap.isNull():
-            cache_key = (id(pixmap), ts)
+            cache_key = (pixmap.cacheKey(), ts)
             if cache_key not in self._scaled_cache:
                 self._scaled_cache[cache_key] = pixmap.scaled(
                     ts, ts, Qt.AspectRatioMode.KeepAspectRatio,
@@ -417,7 +417,7 @@ class AssetBrowser(QWidget):
         self._list_view.setWrapping(True)
         self._list_view.setResizeMode(QListView.ResizeMode.Adjust)
         self._list_view.setMovement(QListView.Movement.Static)
-        self._list_view.setUniformItemSizes(True)
+        self._list_view.setUniformItemSizes(False)  # True causes paint artifacts in IconMode
         self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
         self._list_view.setSpacing(4)
         self._list_view.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
