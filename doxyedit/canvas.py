@@ -85,7 +85,7 @@ class CanvasScene(QGraphicsScene):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSceneRect(QRectF(-2000, -2000, 4000, 4000))
-        self.setBackgroundBrush(QBrush(QColor("#1e1e1e")))
+        self.setBackgroundBrush(QBrush(QColor(40, 40, 40)))
         self.current_tool = Tool.SELECT
         self._draw_start = None
         self._temp_item = None

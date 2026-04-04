@@ -62,10 +62,7 @@ class CensorEditor(QWidget):
 
         self.style_combo = QComboBox()
         self.style_combo.addItems(["black", "blur", "pixelate"])
-        self.style_combo.setStyleSheet(
-            "QComboBox { background: #333; color: #ccc; border: 1px solid #444;"
-            " border-radius: 4px; padding: 4px 8px; }"
-        )
+        # Inherits from theme
         toolbar.addWidget(QLabel("Style:"))
         toolbar.addWidget(self.style_combo)
 
@@ -87,14 +84,14 @@ class CensorEditor(QWidget):
         toolbar.addStretch()
 
         self.info_label = QLabel("No image loaded")
-        self.info_label.setStyleSheet("color: #888;")
+        # Inherits from theme
         toolbar.addWidget(self.info_label)
 
         root.addLayout(toolbar)
 
         # Canvas
         self.scene = QGraphicsScene()
-        self.scene.setBackgroundBrush(QBrush(QColor("#1a1a1a")))
+        self.scene.setBackgroundBrush(QBrush(QColor(40, 40, 40)))
         self.view = QGraphicsView(self.scene)
         self.view.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
         self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
@@ -107,11 +104,7 @@ class CensorEditor(QWidget):
         self.view.mouseReleaseEvent = self._view_mouse_release
 
     def _btn_style(self):
-        return (
-            "QPushButton { background: #333337; color: #ccc; border: 1px solid #444;"
-            " border-radius: 4px; padding: 6px 14px; font-size: 12px; }"
-            "QPushButton:hover { background: #444; }"
-        )
+        return "QPushButton { padding: 6px 14px; }"
 
     def load_asset(self, asset: Asset):
         """Load an asset image into the censor editor."""

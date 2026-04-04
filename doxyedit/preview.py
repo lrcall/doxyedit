@@ -75,7 +75,12 @@ class ImagePreviewDialog(QDialog):
         w_size = settings.value("preview_width", 1100, type=int)
         h_size = settings.value("preview_height", 800, type=int)
         self.resize(w_size, h_size)
-        self.setStyleSheet("QDialog { background: #111; }")
+        # Restore position
+        px = settings.value("preview_x", -1, type=int)
+        py = settings.value("preview_y", -1, type=int)
+        if px >= 0 and py >= 0:
+            self.move(px, py)
+        self.setStyleSheet("QDialog { background: rgba(20,20,20,0.95); }")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -141,6 +146,8 @@ class ImagePreviewDialog(QDialog):
         settings = QSettings("DoxyEdit", "DoxyEdit")
         settings.setValue("preview_width", self.width())
         settings.setValue("preview_height", self.height())
+        settings.setValue("preview_x", self.x())
+        settings.setValue("preview_y", self.y())
         zoom = self.view.transform().m11()
         settings.setValue("preview_zoom", zoom)
         event.accept()

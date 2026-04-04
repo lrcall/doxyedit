@@ -36,24 +36,13 @@ class PlatformPanel(QWidget):
 
         # Summary bar
         self.summary_label = QLabel()
-        self.summary_label.setStyleSheet("color: #aaa; font-size: 12px; padding: 4px;")
+        self.summary_label.setStyleSheet("padding: 4px;")
         root.addWidget(self.summary_label)
 
         # Tree
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["Platform / Slot", "Size", "Asset", "Status", ""])
-        self.tree.setStyleSheet("""
-            QTreeWidget {
-                background: #1e1e1e; color: #ccc; border: none;
-                font-size: 12px; font-family: "Segoe UI";
-            }
-            QTreeWidget::item { padding: 4px; }
-            QTreeWidget::item:selected { background: #094771; }
-            QHeaderView::section {
-                background: #252526; color: #888; border: none;
-                padding: 4px 8px; font-size: 11px;
-            }
-        """)
+        # Inherits tree styling from theme
         header = self.tree.header()
         header.setStretchLastSection(False)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -127,10 +116,7 @@ class PlatformPanel(QWidget):
                 combo = QComboBox()
                 combo.addItems([s.value for s in PostStatus])
                 combo.setCurrentText(status)
-                combo.setStyleSheet(
-                    "QComboBox { background: #333; color: #ccc; border: 1px solid #444;"
-                    " border-radius: 3px; padding: 2px 6px; font-size: 11px; }"
-                )
+                # Inherits from theme
                 combo.currentTextChanged.connect(
                     lambda val, p=pid, s=slot.name: self._set_status(p, s, val)
                 )
