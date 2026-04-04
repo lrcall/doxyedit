@@ -21,6 +21,11 @@
       "id": "variant",
       "label": "Variant",
       "color": "#557064"
+    },
+    {
+      "id": "background",
+      "label": "Background",
+      "color": "#6e6962"
     }
   ],
   "assets": [

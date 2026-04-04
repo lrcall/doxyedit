@@ -1,5 +1,32 @@
 # DoxyEdit Changelog
 
+## v0.6.0 — 2026-04-05
+
+### Performance
+- Grid rebuild wrapped in setUpdatesEnabled (eliminates per-widget repaint flicker)
+- Immediate widget cleanup with setParent(None) during page rebuild
+- Tag changes no longer trigger full grid rebuild (instant tagging)
+- "Cache All" checkbox pre-generates all thumbnails in background
+- F5 force-recache for externally edited images
+- PERFORMANCE.md documents QListView migration roadmap
+
+### Selection & Navigation
+- Ctrl+A selects all thumbnails on current page
+- Left/Right arrow keys page through thumbnails
+
+### Folder Import
+- Asks "Import recursively?" when folder has subfolders
+- Nuitka build script clears cache for fresh builds, includes psd_tools + numpy
+
+### State Persistence
+- Main window position and size saved/restored across sessions
+- All settings persist: theme, font, zoom, page size, window geometry
+
+### Fixes
+- Thumbnail widget height increased to clear dimension/name overlap
+- Regenerated clean single-size 256x256 ICO (was corrupted multi-size)
+- Tag add shows status bar confirmation
+
 ## v0.5.0 — 2026-04-04
 
 Major release consolidating all v0.3.x work.
