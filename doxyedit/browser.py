@@ -342,7 +342,7 @@ class AssetBrowser(QWidget):
         self._filtered_assets: list[Asset] = []
         self._last_clicked_id: str | None = None
         settings = QSettings("DoxyEdit", "DoxyEdit")
-        self._thumb_size = int(settings.value("thumb_size", THUMB_SIZE))
+        self._thumb_size = max(80, min(320, int(settings.value("thumb_size", THUMB_SIZE))))
         self._page_size = int(settings.value("page_size", DEFAULT_PAGE_SIZE))
         self.hover_preview_enabled = True
         self._current_font_size = 10
