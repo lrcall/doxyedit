@@ -847,7 +847,19 @@ class AssetBrowser(QWidget):
         folder = QFileDialog.getExistingDirectory(self, "Open Image Folder", last_dir)
         if folder:
             settings.setValue("last_folder", folder)
-            self.import_folder(folder)
+            # Check if folder has subfolders — if so, ask about recursive
+            from PySide6.QtWidgets import QMessageBox
+            has_subdirs = any(p.is_dir() for p in Path(folder).iterdir())
+            if has_subdirs and not self.recursive_check.isChecked():
+                reply = QMessageBox.question(
+                    self.window(), "Subfolders Found",
+                    f"'{Path(folder).name}' contains subfolders.\n\nImport recursively?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                )
+                recursive = (reply == QMessageBox.StandardButton.Yes)
+            else:
+                recursive = self.recursive_check.isChecked()
+            self.import_folder(folder, recursive=recursive)
             self.folder_opened.emit(folder)
 
     def import_folder(self, folder: str, recursive: bool = None):
