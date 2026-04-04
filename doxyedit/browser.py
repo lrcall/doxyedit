@@ -569,11 +569,13 @@ class AssetBrowser(QWidget):
         if self._current_page > 0:
             self._current_page -= 1
             self._rebuild_page()
+            self._scroll.verticalScrollBar().setValue(0)
 
     def _next_page(self):
         if self._current_page < self._total_pages - 1:
             self._current_page += 1
             self._rebuild_page()
+            self._scroll.verticalScrollBar().setValue(0)
 
     # --- Grid ---
 
@@ -635,8 +637,6 @@ class AssetBrowser(QWidget):
         self.btn_prev.setEnabled(self._current_page > 0)
         self.btn_next.setEnabled(self._current_page < tp - 1)
 
-        # Scroll to top
-        self._scroll.verticalScrollBar().setValue(0)
 
     def _on_thumb_ready(self, asset_id: str, pixmap: QPixmap, w: int, h: int, gen_size: int):
         """Callback from ThumbCache worker — update cache and widget if visible."""

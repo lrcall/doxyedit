@@ -326,7 +326,6 @@ class MainWindow(QMainWindow):
     def _on_data_changed(self):
         self._dirty = True
         self._update_progress()
-        self.browser.refresh()
 
     def _on_asset_selected(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
