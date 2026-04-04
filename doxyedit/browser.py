@@ -14,6 +14,80 @@ from doxyedit.models import Asset, Project, TAG_PRESETS, toggle_tags
 from doxyedit.preview import HoverPreview, ImagePreviewDialog
 from doxyedit.thumbcache import ThumbCache, THUMB_SIZE
 
+from PySide6.QtWidgets import QLayout, QWidgetItem
+
+
+class FlowLayout(QLayout):
+    """Layout that wraps widgets into multiple rows like text word-wrap."""
+
+    def __init__(self, parent=None, spacing=4):
+        super().__init__(parent)
+        self._items: list = []
+        self._spacing = spacing
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, index):
+        if 0 <= index < len(self._items):
+            return self._items[index]
+        return None
+
+    def takeAt(self, index):
+        if 0 <= index < len(self._items):
+            return self._items.pop(index)
+        return None
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._do_layout(rect)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        from PySide6.QtCore import QSize
+        size = QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        m = self.contentsMargins()
+        size += QSize(m.left() + m.right(), m.top() + m.bottom())
+        return size
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._do_layout(QRect(0, 0, width, 0), dry_run=True)
+
+    def _do_layout(self, rect, dry_run=False):
+        from PySide6.QtCore import QRect as QR
+        m = self.contentsMargins()
+        x = rect.x() + m.left()
+        y = rect.y() + m.top()
+        row_height = 0
+        max_width = rect.right() - m.right()
+
+        for item in self._items:
+            w = item.sizeHint().width()
+            h = item.sizeHint().height()
+            if x + w > max_width and x > rect.x() + m.left():
+                x = rect.x() + m.left()
+                y += row_height + self._spacing
+                row_height = 0
+            if not dry_run:
+                item.setGeometry(QR(x, y, w, h))
+            x += w + self._spacing
+            row_height = max(row_height, h)
+
+        return y + row_height - rect.y() + m.bottom()
+
+
+from PySide6.QtCore import QRect
+
 IMAGE_EXTS = {
     ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".svg", ".tiff", ".tif",
     ".psd", ".psb",          # Photoshop
@@ -291,18 +365,15 @@ class AssetBrowser(QWidget):
         row2.addWidget(self.sort_combo)
         root.addLayout(row2)
 
-        # Row 3: Quick-tag bar — visible tag buttons for fast tagging
+        # Row 3: Quick-tag bar — wrapping flow layout so tags don't force width
         from doxyedit.models import TAG_SHORTCUTS
-        tag_bar_frame = QFrame()
-        tag_bar_frame.setStyleSheet(
+        self._tag_bar_frame = QFrame()
+        self._tag_bar_frame.setStyleSheet(
             "QFrame { border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 4px; }")
-        self._tag_bar = QHBoxLayout(tag_bar_frame)
-        self._tag_bar.setContentsMargins(0, 2, 0, 4)
-        self._tag_bar.setSpacing(3)
-        self._tag_hint = QLabel("Tags:")
-        self._tag_bar.addWidget(self._tag_hint)
+        self._tag_flow = FlowLayout(self._tag_bar_frame, spacing=4)
+        self._tag_flow.setContentsMargins(0, 2, 0, 4)
 
-        self._tag_buttons: list[tuple[QPushButton, str]] = []  # (btn, color)
+        self._tag_buttons: list[tuple[QPushButton, str]] = []
         shortcut_reverse = {v: k for k, v in TAG_SHORTCUTS.items()}
         for tag_id, preset in TAG_PRESETS.items():
             key = shortcut_reverse.get(tag_id, "")
@@ -311,10 +382,9 @@ class AssetBrowser(QWidget):
             btn.setToolTip(f"{preset.label} — press [{key}] or click to toggle")
             btn.clicked.connect(lambda checked, tid=tag_id: self._quick_tag(tid))
             self._tag_buttons.append((btn, preset.color))
-            self._tag_bar.addWidget(btn)
+            self._tag_flow.addWidget(btn)
         self._apply_tag_button_styles()
-        self._tag_bar.addStretch()
-        root.addWidget(tag_bar_frame)
+        root.addWidget(self._tag_bar_frame)
 
         # Scroll area
         self._scroll = QScrollArea()
