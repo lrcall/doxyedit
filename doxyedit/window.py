@@ -129,10 +129,24 @@ class MainWindow(QMainWindow):
         from dataclasses import replace
         self._current_theme_id = theme_id
         base = THEMES.get(theme_id, THEMES[DEFAULT_THEME])
-        # Copy so we don't mutate the global theme dict when changing font size
         self._theme = replace(base, font_size=getattr(self, '_theme', base).font_size)
         self.setStyleSheet(generate_stylesheet(self._theme))
         QSettings("DoxyEdit", "DoxyEdit").setValue("theme", theme_id)
+        # Match Windows title bar to theme
+        self._update_title_bar_color()
+
+    def _update_title_bar_color(self):
+        try:
+            import ctypes
+            bg = self._theme.bg_raised
+            r, g, b = int(bg[1:3], 16), int(bg[3:5], 16), int(bg[5:7], 16)
+            hwnd = int(self.winId())
+            color = r | (g << 8) | (b << 16)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, 35, ctypes.byref(ctypes.c_int(color)), ctypes.sizeof(ctypes.c_int)
+            )
+        except Exception:
+            pass
 
     def _font_increase(self):
         self._theme.font_size = min(24, self._theme.font_size + 1)
