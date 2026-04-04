@@ -230,7 +230,7 @@ class ThumbnailWidget(QFrame):
             dim_parts.append(f"[{len(self.asset.tags)}]")
         dim_label = QLabel(" ".join(dim_parts))
         dim_label.setFont(QFont("Segoe UI", 7))
-        dim_label.setStyleSheet("color: #666;")
+        dim_label.setStyleSheet("color: rgba(128,128,128,0.6);")
         dim_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(dim_label)
 
@@ -240,7 +240,7 @@ class ThumbnailWidget(QFrame):
         p = Path(self.asset.source_path)
         name_label = QLabel(f"{p.stem[:16]}{p.suffix}")
         name_label.setFont(QFont("Segoe UI", 8))
-        name_label.setStyleSheet("color: #aaa;")
+        name_label.setStyleSheet("color: rgba(160,160,160,0.9);")
         name_label.setToolTip(self.asset.source_path)
         bottom.addWidget(name_label, 1)
 
@@ -424,7 +424,7 @@ class AssetBrowser(QWidget):
         # Row 3: Quick-tag bar — wrapping flow layout so tags don't force width
         self._tag_bar_frame = FlowWidget()
         self._tag_bar_frame.setStyleSheet(
-            "FlowWidget { border-bottom: 1px solid rgba(255,255,255,0.08); }")
+            "border-bottom: 1px solid rgba(128,128,128,0.15);")
         self._tag_bar_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         self._tag_flow = FlowLayout(self._tag_bar_frame, spacing=4)
         self._tag_flow.setContentsMargins(0, 2, 0, 2)
@@ -461,7 +461,7 @@ class AssetBrowser(QWidget):
         pager.addWidget(self.btn_prev)
 
         self.page_label = QLabel("Page 1 / 1")
-        self.page_label.setStyleSheet("color: #888; font-size: 11px; padding: 0 12px;")
+        self.page_label.setStyleSheet("padding: 0 12px;")
         pager.addWidget(self.page_label)
 
         self.btn_next = QPushButton("Next >")
@@ -511,15 +511,20 @@ class AssetBrowser(QWidget):
     def _add_custom_tag(self):
         """Show a simple dialog to add a new tag."""
         from PySide6.QtWidgets import QInputDialog, QMessageBox
-        name, ok = QInputDialog.getText(self, "New Tag", "Tag name:")
+        parent = self.window()  # use top-level window as parent
+        name, ok = QInputDialog.getText(parent, "New Tag", "Enter tag name:")
         if not ok or not name.strip():
             return
         name = name.strip()
         tag_id = name.lower().replace(" ", "_").replace("/", "_")
 
-        all_tags = self.project.get_tags()
+        try:
+            all_tags = self.project.get_tags()
+        except Exception:
+            all_tags = dict(TAG_ALL)
+
         if tag_id in all_tags:
-            QMessageBox.information(self, "Tag Exists",
+            QMessageBox.information(parent, "Tag Exists",
                 f"A tag called '{all_tags[tag_id].label}' already exists.")
             return
 
@@ -551,15 +556,15 @@ class AssetBrowser(QWidget):
                 f"QPushButton {{ background: transparent; color: {color};"
                 f" border: 1px solid {color}; border-radius: {h // 2}px;"
                 f" padding: 2px 8px; font-size: {font_size}px; font-weight: bold; }}"
-                f"QPushButton:hover {{ background: {color}; color: #000; }}")
+                f"QPushButton:hover {{ background: {color}; color: rgba(0,0,0,0.8); }}")
         # Style the "+" button
         self._add_tag_btn.setFixedHeight(h)
         self._add_tag_btn.setFixedWidth(h)
         self._add_tag_btn.setStyleSheet(
-            f"QPushButton {{ background: transparent; color: #888;"
-            f" border: 1px dashed #888; border-radius: {h // 2}px;"
+            f"QPushButton {{ background: transparent; color: rgba(128,128,128,0.6);"
+            f" border: 1px dashed rgba(128,128,128,0.6); border-radius: {h // 2}px;"
             f" font-size: {font_size + 2}px; font-weight: bold; }}"
-            f"QPushButton:hover {{ color: #fff; border-color: #fff; }}")
+            f"QPushButton:hover {{ color: rgba(200,200,200,0.9); border-color: rgba(200,200,200,0.9); }}")
 
     def update_font_size(self, font_size: int):
         """Called by the main window when font size changes."""

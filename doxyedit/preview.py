@@ -19,7 +19,7 @@ class HoverPreview(QLabel):
     def __init__(self):
         super().__init__(None, Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
         self.setStyleSheet(
-            "QLabel { background: #1a1a1a; border: 2px solid #444; border-radius: 6px; padding: 4px; }"
+            "QLabel { background: rgba(20,20,20,0.95); border: 2px solid rgba(128,128,128,0.3); border-radius: 6px; padding: 4px; }"
         )
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.hide()
@@ -95,13 +95,13 @@ class ImagePreviewDialog(QDialog):
 
         info = QLabel(f"{name}  |  {w} x {h}  |  ratio {ratio}")
         info.setFont(QFont("Segoe UI", 11))
-        info.setStyleSheet("color: #aaa;")
+        info.setStyleSheet("color: rgba(200,200,200,0.8);")
         info_bar.addWidget(info)
         info_bar.addStretch()
 
         hint = QLabel("Scroll to zoom  |  Drag to pan  |  Esc to close")
         hint.setFont(QFont("Segoe UI", 9))
-        hint.setStyleSheet("color: #555;")
+        hint.setStyleSheet("color: rgba(128,128,128,0.5);")
         info_bar.addWidget(hint)
 
         layout.addLayout(info_bar)

@@ -70,7 +70,7 @@ class TagRow(QFrame):
     def _set_fitness(self, level: str):
         color = FITNESS_COLORS.get(level, "#888")
         self.dot.setStyleSheet(
-            f"background: {color}; border-radius: 6px; border: 1px solid #333;"
+            f"background: {color}; border-radius: 6px; border: 1px solid rgba(0,0,0,0.3);"
         )
         self.dot.setToolTip(f"Fitness: {level}")
 
@@ -170,11 +170,11 @@ class TagPanel(QWidget):
         # Separator
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: rgba(255,255,255,0.1);")
+        sep.setStyleSheet("color: rgba(128,128,128,0.2);")
         tag_layout.addWidget(sep)
         sep_label = QLabel("Platform / Size targets")
         sep_label.setFont(QFont("Segoe UI", 8))
-        sep_label.setStyleSheet("color: rgba(255,255,255,0.3); padding: 2px 4px;")
+        sep_label.setStyleSheet("color: rgba(128,128,128,0.4); padding: 2px 4px;")
         tag_layout.addWidget(sep_label)
 
         # Sized tags (with dimensions)

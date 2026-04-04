@@ -89,7 +89,7 @@ class MainWindow(QMainWindow):
         self.status = QStatusBar()
         self.setStatusBar(self.status)
         self._progress_label = QLabel()
-        self._progress_label.setStyleSheet("color: rgba(255,255,255,0.7); font-size: 11px; padding-right: 12px;")
+        self._progress_label.setStyleSheet("padding-right: 12px;")
         self.status.addPermanentWidget(self._progress_label)
         self._update_progress()
         self.status.showMessage("Ready — open a folder or drag images in")
