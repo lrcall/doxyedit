@@ -119,18 +119,21 @@ class MainWindow(QMainWindow):
 
     def _font_increase(self):
         self._theme.font_size = min(24, self._theme.font_size + 1)
-        self.setStyleSheet(generate_stylesheet(self._theme))
-        self.status.showMessage(f"Font size: {self._theme.font_size}px", 2000)
+        self._apply_font()
 
     def _font_decrease(self):
         self._theme.font_size = max(8, self._theme.font_size - 1)
-        self.setStyleSheet(generate_stylesheet(self._theme))
-        self.status.showMessage(f"Font size: {self._theme.font_size}px", 2000)
+        self._apply_font()
 
     def _font_reset(self):
         self._theme.font_size = 12
+        self._apply_font()
+
+    def _apply_font(self):
+        fs = self._theme.font_size
         self.setStyleSheet(generate_stylesheet(self._theme))
-        self.status.showMessage("Font size reset to 12px", 2000)
+        self.browser.update_font_size(fs)
+        self.status.showMessage(f"Font size: {fs}px", 2000)
 
     def _build_toolbar(self):
         tb = QToolBar("Tools")

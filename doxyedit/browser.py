@@ -299,24 +299,20 @@ class AssetBrowser(QWidget):
         self._tag_bar = QHBoxLayout(tag_bar_frame)
         self._tag_bar.setContentsMargins(0, 2, 0, 4)
         self._tag_bar.setSpacing(3)
-        tag_hint = QLabel("Tags:")
-        tag_hint.setFont(QFont("Segoe UI", 9))
-        self._tag_bar.addWidget(tag_hint)
+        self._tag_hint = QLabel("Tags:")
+        self._tag_bar.addWidget(self._tag_hint)
 
+        self._tag_buttons: list[tuple[QPushButton, str]] = []  # (btn, color)
         shortcut_reverse = {v: k for k, v in TAG_SHORTCUTS.items()}
         for tag_id, preset in TAG_PRESETS.items():
             key = shortcut_reverse.get(tag_id, "")
             label = f"{preset.label}" + (f" [{key}]" if key else "")
             btn = QPushButton(label)
-            btn.setFixedHeight(24)
-            btn.setStyleSheet(
-                f"QPushButton {{ background: transparent; color: {preset.color};"
-                f" border: 1px solid {preset.color}; border-radius: 10px;"
-                f" padding: 2px 8px; font-size: 10px; font-weight: bold; }}"
-                f"QPushButton:hover {{ background: {preset.color}; color: #000; }}")
             btn.setToolTip(f"{preset.label} — press [{key}] or click to toggle")
             btn.clicked.connect(lambda checked, tid=tag_id: self._quick_tag(tid))
+            self._tag_buttons.append((btn, preset.color))
             self._tag_bar.addWidget(btn)
+        self._apply_tag_button_styles()
         self._tag_bar.addStretch()
         root.addWidget(tag_bar_frame)
 
@@ -364,6 +360,21 @@ class AssetBrowser(QWidget):
         return btn
 
     # --- Filtering / sorting ---
+
+    def _apply_tag_button_styles(self, font_size: int = 10):
+        """Apply tag pill styles at the given font size."""
+        for btn, color in self._tag_buttons:
+            h = font_size + 14
+            btn.setFixedHeight(h)
+            btn.setStyleSheet(
+                f"QPushButton {{ background: transparent; color: {color};"
+                f" border: 1px solid {color}; border-radius: {h // 2}px;"
+                f" padding: 2px 8px; font-size: {font_size}px; font-weight: bold; }}"
+                f"QPushButton:hover {{ background: {color}; color: #000; }}")
+
+    def update_font_size(self, font_size: int):
+        """Called by the main window when font size changes."""
+        self._apply_tag_button_styles(font_size)
 
     def _on_filter_changed(self, *_):
         self._current_page = 0
