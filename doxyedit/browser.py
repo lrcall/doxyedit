@@ -396,6 +396,12 @@ class AssetBrowser(QWidget):
         self.hover_check.toggled.connect(lambda v: setattr(self, 'hover_preview_enabled', v))
         toolbar.addWidget(self.hover_check)
 
+        self.cache_all_check = QCheckBox("Cache All")
+        self.cache_all_check.setChecked(False)
+        self.cache_all_check.setToolTip("Generate thumbnails for ALL images, not just the current page")
+        self.cache_all_check.toggled.connect(self._on_cache_all_toggled)
+        toolbar.addWidget(self.cache_all_check)
+
         toolbar.addStretch()
 
         self.count_label = QLabel("0 assets")
@@ -592,6 +598,14 @@ class AssetBrowser(QWidget):
     def update_font_size(self, font_size: int):
         """Called by the main window when font size changes."""
         self._apply_tag_button_styles(font_size)
+
+    def _on_cache_all_toggled(self, checked):
+        if checked:
+            batch = [(a.id, a.source_path) for a in self.project.assets]
+            self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
+            from PySide6.QtWidgets import QApplication
+            self.window().status.showMessage(
+                f"Caching all {len(batch)} thumbnails in background...", 3000)
 
     def _on_filter_changed(self, *_):
         self._current_page = 0
