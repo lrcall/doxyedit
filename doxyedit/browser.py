@@ -240,10 +240,9 @@ class ThumbnailWidget(QFrame):
         name_label.setToolTip(self.asset.source_path)
         bottom.addWidget(name_label, 1)
 
-        self.star_btn = QPushButton("*" if self.asset.starred else ".")
+        self.star_btn = QPushButton("\u2605" if self.asset.starred else "\u2606")
         self.star_btn.setObjectName("star_btn")
-        self.star_btn.setFixedSize(22, 22)
-        self.star_btn.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.star_btn.setFixedSize(24, 24)
         self.star_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._update_star_style()
         self.star_btn.clicked.connect(self._toggle_star)
@@ -259,7 +258,7 @@ class ThumbnailWidget(QFrame):
     def _toggle_star(self):
         # Cycle: 0 → 1 → 2 → 3 → 4 → 5 → 0
         self.asset.cycle_star()
-        self.star_btn.setText("*" if self.asset.starred else ".")
+        self.star_btn.setText("\u2605" if self.asset.starred else "\u2606")
         self._update_star_style()
         self.star_toggled.emit(self.asset.id)
 
@@ -268,11 +267,11 @@ class ThumbnailWidget(QFrame):
         if s and s in STAR_COLORS:
             color = STAR_COLORS[s]
             self.star_btn.setStyleSheet(
-                f"#star_btn {{ background: transparent; color: {color}; border: none; font-size: 16px; }}")
+                f"#star_btn {{ background: transparent; color: {color}; border: none; font-size: 18px; padding: 0; }}")
         else:
             self.star_btn.setStyleSheet(
-                "#star_btn { background: transparent; color: rgba(160,160,160,0.5); border: none; font-size: 16px; }"
-                "#star_btn:hover { color: rgba(200,200,200,0.8); }")
+                "#star_btn { background: transparent; color: rgba(150,150,150,0.6); border: none; font-size: 18px; padding: 0; }"
+                "#star_btn:hover { color: rgba(220,220,220,0.9); }")
 
     def set_selected(self, sel: bool):
         self.selected = sel
@@ -913,10 +912,27 @@ class AssetBrowser(QWidget):
                         lambda: self._toggle_star(asset))
 
         tag_menu = menu.addMenu("Quick Tag")
-        for tag_id, preset in TAG_ALL.items():
+
+        # Content tags
+        for tag_id, preset in TAG_PRESETS.items():
             checked = tag_id in asset.tags
             label = f"[x] {preset.label}" if checked else f"[ ] {preset.label}"
             tag_menu.addAction(label, lambda tid=tag_id: self._toggle_tag(asset, tid))
+
+        tag_menu.addSeparator()
+
+        # Platform/sized tags
+        for tag_id, preset in TAG_SIZED.items():
+            checked = tag_id in asset.tags
+            label = f"[x] {preset.label}" if checked else f"[ ] {preset.label}"
+            tag_menu.addAction(label, lambda tid=tag_id: self._toggle_tag(asset, tid))
+
+        # Discovered + custom tags
+        extra_tags = set(asset.tags) - set(TAG_PRESETS) - set(TAG_SIZED)
+        if extra_tags:
+            tag_menu.addSeparator()
+            for t in sorted(extra_tags):
+                tag_menu.addAction(f"[x] {t}", lambda tid=t: self._toggle_tag(asset, tid))
 
         menu.addSeparator()
         n = len(self._selected_ids)
