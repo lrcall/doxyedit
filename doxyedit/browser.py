@@ -14,7 +14,19 @@ from doxyedit.models import Asset, Project, TAG_PRESETS, toggle_tags
 from doxyedit.preview import HoverPreview, ImagePreviewDialog
 from doxyedit.thumbcache import ThumbCache, THUMB_SIZE
 
-IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".svg", ".tiff", ".tif"}
+IMAGE_EXTS = {
+    ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".svg", ".tiff", ".tif",
+    ".psd", ".psb",          # Photoshop
+    ".sai", ".sai2",         # PaintTool SAI
+    ".clip", ".csp",         # Clip Studio Paint
+    ".kra",                  # Krita
+    ".xcf",                  # GIMP
+    ".ora",                  # OpenRaster
+    ".ico", ".cur",          # Icons
+    ".dds",                  # DirectDraw
+    ".tga",                  # Targa
+    ".exr", ".hdr",          # HDR formats
+}
 PAGE_SIZE = 60  # thumbnails per page
 
 # Filename patterns → auto-suggest tags on import

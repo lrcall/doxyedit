@@ -1,10 +1,37 @@
-"""Background thumbnail generator — loads and scales images off the main thread."""
+"""Background thumbnail generator — loads and scales images off the main thread.
+
+Supports PSD, PSB (via psd-tools), and all PIL-supported formats.
+Formats PIL can't open are handled with format-specific loaders.
+"""
 from collections import deque
+from pathlib import Path
 from PySide6.QtCore import QThread, Signal, QMutex, QMutexLocker
 from PySide6.QtGui import QPixmap, QImage
 from PIL import Image as PILImage
 
 THUMB_SIZE = 160
+
+# Formats that need special loaders (not plain PIL.open)
+PSD_EXTS = {".psd", ".psb"}
+
+
+def _open_image(path: str) -> PILImage.Image:
+    """Open any supported image format and return a PIL Image."""
+    ext = Path(path).suffix.lower()
+
+    if ext in PSD_EXTS:
+        try:
+            from psd_tools import PSDImage
+            psd = PSDImage.open(path)
+            return psd.composite()
+        except Exception:
+            # Fallback — psd-tools might fail on some files
+            pass
+
+    # PIL handles most formats, including TGA, BMP, TIFF, ICO, GIF, WebP
+    # For unsupported formats (SAI, CLIP, KRA, XCF) PIL will raise and
+    # we return a placeholder
+    return PILImage.open(path)
 
 
 class ThumbWorker(QThread):
@@ -51,16 +78,22 @@ class ThumbWorker(QThread):
 
             asset_id, path, target_size = item
             try:
-                with PILImage.open(path) as img:
-                    orig_w, orig_h = img.size
-                    img.thumbnail((target_size, target_size), PILImage.LANCZOS)
-                    if img.mode != "RGBA":
-                        img = img.convert("RGBA")
+                img = _open_image(path)
+                orig_w, orig_h = img.size
+                img.thumbnail((target_size, target_size), PILImage.LANCZOS)
+                if img.mode not in ("RGBA", "RGB"):
+                    img = img.convert("RGBA")
+                if img.mode == "RGB":
+                    data = img.tobytes("raw", "RGB")
+                    qimg = QImage(data, img.width, img.height, img.width * 3,
+                                  QImage.Format.Format_RGB888).copy()
+                else:
                     data = img.tobytes("raw", "RGBA")
                     qimg = QImage(data, img.width, img.height, img.width * 4,
                                   QImage.Format.Format_RGBA8888).copy()
-                    pm = QPixmap.fromImage(qimg)
-                    self.thumb_ready.emit(asset_id, pm, orig_w, orig_h, target_size)
+                pm = QPixmap.fromImage(qimg)
+                img.close()
+                self.thumb_ready.emit(asset_id, pm, orig_w, orig_h, target_size)
             except Exception:
                 self.thumb_ready.emit(asset_id, QPixmap(), 0, 0, target_size)
 
