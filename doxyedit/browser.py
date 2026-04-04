@@ -383,6 +383,11 @@ class AssetBrowser(QWidget):
 
         toolbar.addSpacing(8)
 
+        self.recursive_check = QCheckBox("Recursive")
+        self.recursive_check.setChecked(False)
+        self.recursive_check.setToolTip("Import subfolders when opening a folder")
+        toolbar.addWidget(self.recursive_check)
+
         self.hover_check = QCheckBox("Hover Preview")
         self.hover_check.setChecked(True)
         self.hover_check.toggled.connect(lambda v: setattr(self, 'hover_preview_enabled', v))
@@ -826,16 +831,22 @@ class AssetBrowser(QWidget):
             self.import_folder(folder)
             self.folder_opened.emit(folder)
 
-    def import_folder(self, folder: str):
+    def import_folder(self, folder: str, recursive: bool = None):
+        if recursive is None:
+            recursive = self.recursive_check.isChecked()
         folder_path = Path(folder)
         existing = {a.source_path for a in self.project.assets}
         count = 0
-        for f in sorted(folder_path.iterdir()):
-            if f.suffix.lower() in IMAGE_EXTS and str(f) not in existing:
+        if recursive:
+            files = sorted(folder_path.rglob("*"))
+        else:
+            files = sorted(folder_path.iterdir())
+        for f in files:
+            if f.is_file() and f.suffix.lower() in IMAGE_EXTS and str(f) not in existing:
                 self.project.assets.append(Asset(
                     id=f.stem + "_" + str(len(self.project.assets)),
                     source_path=str(f),
-                    source_folder=str(folder_path),
+                    source_folder=str(f.parent),
                     tags=auto_suggest_tags(f.stem),
                 ))
                 count += 1
