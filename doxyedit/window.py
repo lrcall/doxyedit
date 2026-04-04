@@ -306,14 +306,38 @@ class MainWindow(QMainWindow):
 
         # Try file URLs
         if mime.hasUrls():
-            files = [u.toLocalFile() for u in mime.urls()
-                     if Path(u.toLocalFile()).suffix.lower() in IMAGE_EXTS]
+            files = []
+            folders = []
+            for u in mime.urls():
+                p = u.toLocalFile()
+                if Path(p).is_dir():
+                    folders.append(p)
+                elif Path(p).suffix.lower() in IMAGE_EXTS:
+                    files.append(p)
+            total = 0
+            for folder in folders:
+                total += self.browser.import_folder(folder)
             if files:
-                n = self.browser.import_files(files)
-                self.status.showMessage(f"Pasted {n} image(s) from clipboard")
+                total += self.browser.import_files(files)
+            if total:
+                self.status.showMessage(f"Pasted {total} image(s) from clipboard")
                 return
 
-        self.status.showMessage("No image in clipboard", 2000)
+        # Try plain text — might be a file path or folder path
+        if mime.hasText():
+            text = mime.text().strip().strip('"')
+            p = Path(text)
+            if p.is_dir():
+                n = self.browser.import_folder(str(p))
+                self.status.showMessage(f"Imported folder: {p.name} ({n} images)")
+                return
+            elif p.is_file():
+                if p.suffix.lower() in IMAGE_EXTS:
+                    n = self.browser.import_files([str(p)])
+                    self.status.showMessage(f"Imported: {p.name}")
+                    return
+
+        self.status.showMessage("No image or path in clipboard", 2000)
 
     # --- Progress counter ---
 
