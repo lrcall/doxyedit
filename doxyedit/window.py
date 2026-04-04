@@ -213,7 +213,7 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
 
         tb.addAction(QAction("Delete", self, shortcut=QKeySequence("Delete"),
-                     triggered=self._delete_selected))
+                     triggered=self._handle_delete))
         tb.addAction(QAction("Color", self, triggered=self._change_color))
 
     def _build_menu(self):
@@ -506,10 +506,25 @@ class MainWindow(QMainWindow):
             self.tabs.setCurrentWidget(self.view)
             self.status.showMessage(f"Added to canvas: {Path(path).name}")
 
-    def _delete_selected(self):
-        for item in self.scene.selectedItems():
-            self.scene.removeItem(item)
-        self.status.showMessage("Deleted selected items")
+    def _handle_delete(self):
+        """Delete key — context-aware. Assets tab: soft-delete. Canvas: remove items."""
+        if self.tabs.currentIndex() == 0:
+            # Assets tab — tag selected as "ignore" (soft delete)
+            assets = self.browser.get_selected_assets()
+            if not assets:
+                return
+            for a in assets:
+                if "ignore" not in a.tags:
+                    a.tags.append("ignore")
+            self.browser.refresh()
+            self._dirty = True
+            n = len(assets)
+            self.status.showMessage(f"Marked {n} asset(s) as ignored (Delete)")
+        else:
+            # Canvas/other tabs — remove selected items
+            for item in self.scene.selectedItems():
+                self.scene.removeItem(item)
+            self.status.showMessage("Deleted selected items")
 
     def _change_color(self):
         items = self.scene.selectedItems()
