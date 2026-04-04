@@ -1,6 +1,6 @@
 # DoxyEdit Documentation
 
-**Version 0.2** — Art Asset Manager
+**Version 0.3** — Art Asset Manager
 
 DoxyEdit is a desktop tool for artists and creators to browse, tag, organize, and export art assets across multiple platforms (Kickstarter, Steam, Patreon, social media).
 
@@ -43,7 +43,8 @@ The primary workspace. Left sidebar has the tag panel, main area shows the thumb
 
 **Browsing:**
 - **Ctrl+Scroll** — zoom thumbnails (80px to 320px)
-- **Double-click** — open full zoomable preview (Scroll to zoom, Drag to pan, Esc to close)
+- **Double-click** — open full zoomable preview (Scroll to zoom, Drag to pan, N = add note, Esc to close)
+- **Recursive** checkbox — when checked, + Folder imports subfolders too
 - **Hover** — shows larger preview popup (toggle with "Hover Preview" checkbox)
 - Pages of 100 thumbnails — use Prev/Next or page indicator at bottom
 
@@ -65,6 +66,7 @@ The primary workspace. Left sidebar has the tag panel, main area shows the thumb
 
 ### Quick-Tag Bar (top of grid)
 Colored pill buttons for fast tagging. Click to toggle on selected images.
+Shows content/workflow tags and discovered tags (not platform/size tags).
 - **Alt+Click** a tag button — searches by that tag
 - **+** button — add a custom tag
 
@@ -150,6 +152,21 @@ Free-form annotation surface for composing layouts.
 - **Middle-click + drag** to pan
 - **Delete** to remove selected items
 - **Color** button to change selected item's color
+
+---
+
+## Preview Annotations
+
+In the double-click preview dialog, you can draw annotation notes directly on the image:
+
+1. Press **N** or click **Add Note** button
+2. Drag a rectangle on the image
+3. Type your note text in the dialog
+4. Note is saved to the asset's notes field
+5. **Delete** key removes selected notes
+6. **Ctrl+0** to fit image to view
+
+Notes are stored as text coordinates in the asset's notes field and persist with the project.
 
 ---
 

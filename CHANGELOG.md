@@ -1,5 +1,54 @@
 # DoxyEdit Changelog
 
+## v0.3.0 — 2026-04-04
+
+### SAI/SAI2 Shell Thumbnails
+- SAI and SAI2 files now show real thumbnails via Windows Shell API (requires SaiThumbs installed)
+- Unsupported formats show styled placeholder with extension and filename
+- Shell thumbnail integration works for CLIP, KRA, XCF if shell extensions are installed
+
+### Disk Thumbnail Cache
+- Thumbnails cached as PNGs in `~/.doxyedit/thumbcache/`
+- Keyed by file path + modification time — changed files auto-regenerate
+- Second launch of a 600-image project loads near-instantly
+
+### Preview Annotations
+- Press N or click "Add Note" in preview to draw annotation boxes on images
+- Type note text after drawing, saved to asset's notes field
+- Delete key removes selected annotations
+- Annotations persist with the project
+
+### Tag System Improvements
+- Custom tags now appear in both the tag bar AND the side panel immediately
+- Tag bar excludes platform/size tags (Hero, Banner, etc.) — they're side panel only
+- All discovered tags (auto visual properties, custom) show in the tag bar
+- Right-click tag to rename it across all assets
+- Quick Tag context menu now shows all tags in sections with separators
+- Notes field changes now mark project dirty (saves properly)
+
+### UI Polish
+- Star uses unicode ★/☆ characters at 18px — visible on all themes
+- Resolution text moved down 8px to clear thumbnail overlap
+- Green flash on status bar when saving (visual feedback)
+- Recursive checkbox for folder imports (scans subfolders)
+- Ctrl+V accepts plain text file/folder paths from clipboard
+- File extension shown in thumbnail labels (e.g. "art.psd" not "art")
+- Search supports glob patterns (*.png, hero_*)
+- Dialog boxes (New Tag, etc.) themed properly
+- Tag panel scroll area transparent (theme shows through)
+- App icon (Vinik-themed) in title bar and taskbar
+- Full DOCS.md documentation
+
+### Theme Coverage
+- Object-name-based selectors for reliable theming
+- Grid area, scroll areas, dialogs all pick up active theme
+- Removed all remaining hardcoded hex colors (rgba throughout)
+
+### Code Quality
+- Extracted _rebuild_tag_bar for consistent tag bar updates
+- Robust get_tags handles corrupt custom_tags gracefully
+- setParent(None) for immediate widget cleanup in FlowLayout
+
 ## v0.2.0 — 2026-04-04
 
 ### PSD & Format Support
