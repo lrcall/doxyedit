@@ -467,9 +467,11 @@ class MainWindow(QMainWindow):
         if key in TAG_SHORTCUTS:
             del TAG_SHORTCUTS[key]
         TAG_SHORTCUTS[key] = tag_id
-        # Save to project
+        # Save to project immediately
         self.project.custom_shortcuts[key] = tag_id
         self._dirty = True
+        if self._project_path:
+            self.project.save(self._project_path)
         # Register the shortcut
         shortcut = QShortcut(QKeySequence(key), self)
         shortcut.activated.connect(lambda tid=tag_id: self._toggle_tag_shortcut(tid))
