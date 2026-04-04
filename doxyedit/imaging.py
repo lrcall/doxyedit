@@ -40,7 +40,7 @@ def load_psd_thumb(path: str, min_size: int = 0) -> tuple[PILImage.Image, int, i
 
 
 def load_pixmap(path: str) -> tuple[QPixmap, int, int]:
-    """Load any supported image as QPixmap, including PSD. Returns (pixmap, w, h)."""
+    """Load any supported image as QPixmap, including PSD and shell-supported formats."""
     ext = Path(path).suffix.lower()
     if ext in PSD_EXTS:
         try:
@@ -49,8 +49,65 @@ def load_pixmap(path: str) -> tuple[QPixmap, int, int]:
         except Exception:
             return QPixmap(), 0, 0
 
+    if ext in SHELL_THUMB_EXTS:
+        shell_img = _get_shell_thumbnail(path, 512)
+        if shell_img:
+            return pil_to_qpixmap(shell_img), shell_img.width, shell_img.height
+        return QPixmap(), 0, 0
+
     pm = QPixmap(path)
     return pm, pm.width(), pm.height()
+
+
+def _get_shell_thumbnail(path: str, size: int = 256) -> PILImage.Image | None:
+    """Extract thumbnail via Windows Shell (works with SaiThumbs, etc.)."""
+    try:
+        import ctypes
+        from ctypes import byref, POINTER, c_void_p, c_int, HRESULT
+
+        ctypes.windll.ole32.CoInitialize(None)
+
+        class GUID(ctypes.Structure):
+            _fields_ = [('Data1', ctypes.c_ulong), ('Data2', ctypes.c_ushort),
+                        ('Data3', ctypes.c_ushort), ('Data4', ctypes.c_ubyte * 8)]
+
+        class SIZE(ctypes.Structure):
+            _fields_ = [('cx', c_int), ('cy', c_int)]
+
+        IID = GUID(0xbcc18b79, 0xba16, 0x442f,
+            (ctypes.c_ubyte * 8)(0x80, 0xc4, 0x8a, 0x59, 0xc3, 0x0c, 0x46, 0x3b))
+
+        shell_item = c_void_p()
+        hr = ctypes.windll.shell32.SHCreateItemFromParsingName(
+            str(Path(path).resolve()), None, byref(IID), byref(shell_item))
+        if hr != 0:
+            return None
+
+        vtable = ctypes.cast(
+            ctypes.cast(shell_item, POINTER(c_void_p))[0],
+            POINTER(c_void_p * 5))[0]
+
+        GetImage = ctypes.CFUNCTYPE(HRESULT, c_void_p, SIZE, c_int, POINTER(c_void_p))(vtable[3])
+        hbitmap = c_void_p()
+        hr2 = GetImage(shell_item, SIZE(size, size), 0, byref(hbitmap))
+
+        # Release shell item
+        Release = ctypes.CFUNCTYPE(ctypes.c_ulong, c_void_p)(vtable[2])
+        Release(shell_item)
+
+        if hr2 != 0 or not hbitmap.value:
+            return None
+
+        import win32gui, win32ui
+        info = win32gui.GetObject(int(hbitmap.value))
+        w, h = info.bmWidth, info.bmHeight
+        bmp = win32ui.CreateBitmapFromHandle(int(hbitmap.value))
+        bits = bmp.GetBitmapBits(True)
+        img = PILImage.frombuffer('RGBA', (w, h), bits, 'raw', 'BGRA', 0, 1)
+        ctypes.windll.gdi32.DeleteObject(hbitmap)
+        return img
+    except Exception:
+        return None
 
 
 def _make_placeholder(path: str) -> tuple[PILImage.Image, int, int]:
@@ -86,8 +143,11 @@ def open_for_thumb(path: str, target_size: int = 160) -> tuple[PILImage.Image, i
         except Exception:
             pass
 
-    # For SAI, CLIP, KRA etc — show a labeled placeholder
+    # For SAI, CLIP, KRA etc — try Windows shell thumbnail (SaiThumbs etc.)
     if ext in SHELL_THUMB_EXTS:
+        shell_img = _get_shell_thumbnail(path, target_size)
+        if shell_img:
+            return shell_img, shell_img.width, shell_img.height
         return _make_placeholder(path)
 
     # Standard PIL formats
