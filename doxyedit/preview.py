@@ -4,8 +4,8 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QGraphicsScene, QGraphicsView,
     QGraphicsPixmapItem, QHBoxLayout, QApplication,
 )
-from PySide6.QtCore import Qt, QPoint, QRectF
-from PySide6.QtGui import QPixmap, QPainter, QFont, QColor, QKeySequence, QShortcut
+from PySide6.QtCore import Qt, QPoint, QRectF, QSettings
+from PySide6.QtGui import QPixmap, QPainter, QFont, QColor, QKeySequence, QShortcut, QTransform
 
 from doxyedit.imaging import load_pixmap
 
@@ -71,7 +71,10 @@ class ImagePreviewDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(f"Preview — {Path(image_path).name}")
         self.setMinimumSize(800, 600)
-        self.resize(1100, 800)
+        settings = QSettings("DoxyEdit", "DoxyEdit")
+        w_size = settings.value("preview_width", 1100, type=int)
+        h_size = settings.value("preview_height", 800, type=int)
+        self.resize(w_size, h_size)
         self.setStyleSheet("QDialog { background: #111; }")
 
         layout = QVBoxLayout(self)
@@ -115,11 +118,29 @@ class ImagePreviewDialog(QDialog):
             item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
             self.scene.addItem(item)
             self.scene.setSceneRect(QRectF(pm.rect()))
-            self.view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
+
+            # Restore last zoom level, or fit to view on first use
+            saved_zoom = settings.value("preview_zoom", 0.0, type=float)
+            if saved_zoom > 0:
+                self.view.setTransform(QTransform.fromScale(saved_zoom, saved_zoom))
+            else:
+                self.view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
 
         self.view.wheelEvent = self._wheel_zoom
         QShortcut(QKeySequence("Escape"), self, self.close)
+        QShortcut(QKeySequence("Ctrl+0"), self, self._fit_to_view)
+
+    def _fit_to_view(self):
+        self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
     def _wheel_zoom(self, event):
         factor = 1.2 if event.angleDelta().y() > 0 else 1 / 1.2
         self.view.scale(factor, factor)
+
+    def closeEvent(self, event):
+        settings = QSettings("DoxyEdit", "DoxyEdit")
+        settings.setValue("preview_width", self.width())
+        settings.setValue("preview_height", self.height())
+        zoom = self.view.transform().m11()
+        settings.setValue("preview_zoom", zoom)
+        event.accept()
