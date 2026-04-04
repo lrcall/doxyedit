@@ -663,7 +663,6 @@ class AssetBrowser(QWidget):
             self._next_page()
             return
         super().keyPressEvent(event)
-            self._scroll.verticalScrollBar().setValue(0)
 
     # --- Grid ---
 
