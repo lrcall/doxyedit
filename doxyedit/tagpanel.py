@@ -229,23 +229,39 @@ class TagPanel(QWidget):
         self._tag_layout.addWidget(row)
         self._rows[tag_id] = row
 
-    def refresh_discovered_tags(self, assets: list):
-        """Add rows for tags found in assets that aren't already in the panel."""
+    def refresh_discovered_tags(self, assets: list, project=None):
+        """Add rows for tags found in assets and custom_tags that aren't already in the panel."""
         from doxyedit.models import VINIK_COLORS
         added = False
-        used_colors = set()
         existing_ids = set(self._rows.keys())
         color_idx = 0
 
+        # Collect all tag ids to add
+        new_tags = {}
+
+        # From project custom_tags
+        if project and hasattr(project, 'custom_tags'):
+            for ct in project.custom_tags:
+                if isinstance(ct, dict) and ct.get("id") not in existing_ids:
+                    tid = ct["id"]
+                    new_tags[tid] = TagPreset(
+                        id=tid, label=ct.get("label", tid),
+                        color=ct.get("color", VINIK_COLORS[color_idx % len(VINIK_COLORS)]))
+                    color_idx += 1
+
+        # From asset tags
         for asset in assets:
             for t in asset.tags:
-                if t not in existing_ids:
-                    color = VINIK_COLORS[color_idx % len(VINIK_COLORS)]
+                if t not in existing_ids and t not in new_tags:
+                    new_tags[t] = TagPreset(
+                        id=t, label=t,
+                        color=VINIK_COLORS[color_idx % len(VINIK_COLORS)])
                     color_idx += 1
-                    preset = TagPreset(id=t, label=t, color=color)
-                    self._add_tag_row(t, preset)
-                    existing_ids.add(t)
-                    added = True
+
+        for tid, preset in new_tags.items():
+            self._add_tag_row(tid, preset)
+            existing_ids.add(tid)
+            added = True
 
         if added:
             self._sep2.setVisible(True)

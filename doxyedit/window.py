@@ -252,6 +252,10 @@ class MainWindow(QMainWindow):
         view_menu.addAction("Decrease Font Size", self._font_decrease, QKeySequence("Ctrl+-"))
         view_menu.addAction("Reset Font Size", self._font_reset, QKeySequence("Ctrl+0"))
         view_menu.addSeparator()
+        page_menu = view_menu.addMenu("Thumbnails Per Page")
+        for n in [50, 100, 150, 200, 300, 500]:
+            page_menu.addAction(str(n), lambda size=n: self.browser.set_page_size(size))
+        view_menu.addSeparator()
         theme_menu = view_menu.addMenu("Theme")
         for tid, theme in THEMES.items():
             theme_menu.addAction(theme.name, lambda t=tid: self._apply_theme(t))
@@ -431,7 +435,7 @@ class MainWindow(QMainWindow):
 
     def _on_tags_modified(self):
         """Browser added/removed a custom tag — sync the side panel."""
-        self.tag_panel.refresh_discovered_tags(self.project.assets)
+        self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self._dirty = True
 
     # --- Tag management ---
@@ -617,7 +621,7 @@ class MainWindow(QMainWindow):
         self.platform_panel.project = self.project
         self.platform_panel.refresh()
         self.tag_panel.set_assets([])
-        self.tag_panel.refresh_discovered_tags(self.project.assets)
+        self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self._update_progress()
 
     def _open_project(self):

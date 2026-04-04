@@ -133,7 +133,7 @@ IMAGE_EXTS = {
     ".tga",                  # Targa
     ".exr", ".hdr",          # HDR formats
 }
-PAGE_SIZE = 100  # thumbnails per page
+DEFAULT_PAGE_SIZE = 100
 THUMB_GEN_SIZE = 512  # generate at high res so they're sharp at any zoom level
 
 # Filename patterns → auto-suggest tags on import
@@ -343,6 +343,7 @@ class AssetBrowser(QWidget):
         self._last_clicked_id: str | None = None
         settings = QSettings("DoxyEdit", "DoxyEdit")
         self._thumb_size = int(settings.value("thumb_size", THUMB_SIZE))
+        self._page_size = int(settings.value("page_size", DEFAULT_PAGE_SIZE))
         self.hover_preview_enabled = True
         self._current_font_size = 10
         self._resize_timer = QTimer(self)
@@ -641,7 +642,7 @@ class AssetBrowser(QWidget):
 
     @property
     def _total_pages(self):
-        return max(1, (len(self._filtered_assets) + PAGE_SIZE - 1) // PAGE_SIZE)
+        return max(1, (len(self._filtered_assets) + self._page_size - 1) // self._page_size)
 
     def _prev_page(self):
         if self._current_page > 0:
@@ -685,8 +686,8 @@ class AssetBrowser(QWidget):
                 child.widget().deleteLater()
         self._thumbnails.clear()
 
-        start = self._current_page * PAGE_SIZE
-        end = min(start + PAGE_SIZE, len(self._filtered_assets))
+        start = self._current_page * self._page_size
+        end = min(start + self._page_size, len(self._filtered_assets))
         page_assets = self._filtered_assets[start:end]
 
         ts = self._thumb_size
@@ -823,6 +824,12 @@ class AssetBrowser(QWidget):
 
     def get_selected_assets(self) -> list:
         return [a for a in self.project.assets if a.id in self._selected_ids]
+
+    def set_page_size(self, size: int):
+        self._page_size = max(20, min(500, size))
+        QSettings("DoxyEdit", "DoxyEdit").setValue("page_size", self._page_size)
+        self._current_page = 0
+        self._refresh_grid()
 
     def refresh(self):
         """Public method — recompute filters and rebuild the current page."""
