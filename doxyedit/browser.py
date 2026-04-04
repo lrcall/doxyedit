@@ -237,8 +237,8 @@ class ThumbnailWidget(QFrame):
         # Name + star
         bottom = QHBoxLayout()
         bottom.setContentsMargins(0, 0, 0, 0)
-        name = Path(self.asset.source_path).stem
-        name_label = QLabel(name[:18])
+        p = Path(self.asset.source_path)
+        name_label = QLabel(f"{p.stem[:16]}{p.suffix}")
         name_label.setFont(QFont("Segoe UI", 8))
         name_label.setStyleSheet("color: #aaa;")
         name_label.setToolTip(self.asset.source_path)
@@ -579,8 +579,12 @@ class AssetBrowser(QWidget):
         if query:
             if self.search_tags_check.isChecked():
                 assets = [a for a in assets if any(query in t for t in a.tags)]
+            elif "*" in query or "?" in query:
+                # Glob pattern match (e.g. *.png, hero_*)
+                import fnmatch
+                assets = [a for a in assets if fnmatch.fnmatch(Path(a.source_path).name.lower(), query)]
             else:
-                assets = [a for a in assets if query in Path(a.source_path).stem.lower()]
+                assets = [a for a in assets if query in Path(a.source_path).name.lower()]
         if self.filter_starred.isChecked():
             assets = [a for a in assets if a.starred > 0]
         if self.filter_untagged.isChecked():

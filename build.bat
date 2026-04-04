@@ -11,6 +11,7 @@ python -m nuitka ^
     --onefile ^
     --enable-plugin=pyside6 ^
     --windows-console-mode=disable ^
+    --windows-icon-from-ico=doxyedit.ico ^
     --output-filename=DoxyEdit.exe ^
     --output-dir=dist ^
     --include-package=doxyedit ^
