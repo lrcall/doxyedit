@@ -88,6 +88,13 @@ TAG_SIZED: dict[str, TagPreset] = {
 # Combined for lookups (content first, sized after)
 TAG_ALL: dict[str, TagPreset] = {**TAG_PRESETS, **TAG_SIZED}
 
+# Visual property tags (auto-generated from image analysis)
+VISUAL_TAGS = {
+    "warm", "cool", "dark", "bright",
+    "detailed", "flat",
+    "portrait", "landscape", "square", "panoramic", "tall",
+}
+
 # Keyboard shortcuts — only for content/workflow tags, not sized ones
 TAG_SHORTCUTS: dict[str, str] = {
     "1": "page",

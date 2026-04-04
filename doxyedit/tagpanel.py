@@ -199,17 +199,29 @@ class TagPanel(QWidget):
         for tag_id, tag in TAG_SIZED.items():
             self._add_tag_row(tag_id, tag)
 
-        # Separator for discovered/auto tags (hidden until needed)
+        # Separator for custom/discovered tags
         self._sep2 = QFrame()
         self._sep2.setFrameShape(QFrame.Shape.HLine)
         self._sep2.setStyleSheet("color: rgba(128,128,128,0.2);")
         self._sep2.setVisible(False)
         tag_layout.addWidget(self._sep2)
-        self._sep2_label = QLabel("Discovered tags")
+        self._sep2_label = QLabel("Custom / Project tags")
         self._sep2_label.setFont(QFont("Segoe UI", 8))
         self._sep2_label.setStyleSheet("color: rgba(128,128,128,0.4); padding: 2px 4px;")
         self._sep2_label.setVisible(False)
         tag_layout.addWidget(self._sep2_label)
+
+        # Separator for visual property tags (mood/color/dimension)
+        self._sep3 = QFrame()
+        self._sep3.setFrameShape(QFrame.Shape.HLine)
+        self._sep3.setStyleSheet("color: rgba(128,128,128,0.2);")
+        self._sep3.setVisible(False)
+        tag_layout.addWidget(self._sep3)
+        self._sep3_label = QLabel("Visual / Mood / Dimension")
+        self._sep3_label.setFont(QFont("Segoe UI", 8))
+        self._sep3_label.setStyleSheet("color: rgba(128,128,128,0.4); padding: 2px 4px;")
+        self._sep3_label.setVisible(False)
+        tag_layout.addWidget(self._sep3_label)
 
         self._stretch = tag_layout.addStretch()
         scroll.setWidget(tag_widget)
@@ -240,21 +252,19 @@ class TagPanel(QWidget):
         self._rows[tag_id] = row
 
     def refresh_discovered_tags(self, assets: list, project=None):
-        """Add rows for tags found in assets and custom_tags that aren't already in the panel."""
-        from doxyedit.models import VINIK_COLORS
-        added = False
+        """Add rows for tags found in assets and custom_tags, sorted into sections."""
+        from doxyedit.models import VINIK_COLORS, VISUAL_TAGS
         existing_ids = set(self._rows.keys())
         color_idx = 0
-
-        # Collect all tag ids to add
-        new_tags = {}
+        custom_tags = {}
+        visual_tags = {}
 
         # From project custom_tags
         if project and hasattr(project, 'custom_tags'):
             for ct in project.custom_tags:
                 if isinstance(ct, dict) and ct.get("id") not in existing_ids:
                     tid = ct["id"]
-                    new_tags[tid] = TagPreset(
+                    custom_tags[tid] = TagPreset(
                         id=tid, label=ct.get("label", tid),
                         color=ct.get("color", VINIK_COLORS[color_idx % len(VINIK_COLORS)]))
                     color_idx += 1
@@ -262,20 +272,30 @@ class TagPanel(QWidget):
         # From asset tags
         for asset in assets:
             for t in asset.tags:
-                if t not in existing_ids and t not in new_tags:
-                    new_tags[t] = TagPreset(
-                        id=t, label=t,
+                if t not in existing_ids and t not in custom_tags and t not in visual_tags:
+                    preset = TagPreset(id=t, label=t,
                         color=VINIK_COLORS[color_idx % len(VINIK_COLORS)])
                     color_idx += 1
+                    if t in VISUAL_TAGS:
+                        visual_tags[t] = preset
+                    else:
+                        custom_tags[t] = preset
 
-        for tid, preset in new_tags.items():
-            self._add_tag_row(tid, preset)
-            existing_ids.add(tid)
-            added = True
-
-        if added:
+        # Add custom/project tags
+        if custom_tags:
             self._sep2.setVisible(True)
             self._sep2_label.setVisible(True)
+            for tid, preset in custom_tags.items():
+                self._add_tag_row(tid, preset)
+                existing_ids.add(tid)
+
+        # Add visual property tags last
+        if visual_tags:
+            self._sep3.setVisible(True)
+            self._sep3_label.setVisible(True)
+            for tid, preset in visual_tags.items():
+                self._add_tag_row(tid, preset)
+                existing_ids.add(tid)
 
     def _btn_style(self):
         return "QPushButton { padding: 4px 10px; }"
