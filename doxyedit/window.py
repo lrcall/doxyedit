@@ -117,6 +117,21 @@ class MainWindow(QMainWindow):
         self._theme = theme
         self.setStyleSheet(generate_stylesheet(theme))
 
+    def _font_increase(self):
+        self._theme.font_size = min(24, self._theme.font_size + 1)
+        self.setStyleSheet(generate_stylesheet(self._theme))
+        self.status.showMessage(f"Font size: {self._theme.font_size}px", 2000)
+
+    def _font_decrease(self):
+        self._theme.font_size = max(8, self._theme.font_size - 1)
+        self.setStyleSheet(generate_stylesheet(self._theme))
+        self.status.showMessage(f"Font size: {self._theme.font_size}px", 2000)
+
+    def _font_reset(self):
+        self._theme.font_size = 12
+        self.setStyleSheet(generate_stylesheet(self._theme))
+        self.status.showMessage("Font size reset to 12px", 2000)
+
     def _build_toolbar(self):
         tb = QToolBar("Tools")
         tb.setMovable(False)
@@ -176,6 +191,10 @@ class MainWindow(QMainWindow):
         view_menu = menu.addMenu("&View")
         self._toggle_tags_action = view_menu.addAction(
             "Hide Tag Panel", self._toggle_tag_panel, QKeySequence("Ctrl+T"))
+        view_menu.addSeparator()
+        view_menu.addAction("Increase Font Size", self._font_increase, QKeySequence("Ctrl+="))
+        view_menu.addAction("Decrease Font Size", self._font_decrease, QKeySequence("Ctrl+-"))
+        view_menu.addAction("Reset Font Size", self._font_reset, QKeySequence("Ctrl+0"))
         view_menu.addSeparator()
         theme_menu = view_menu.addMenu("Theme")
         for tid, theme in THEMES.items():

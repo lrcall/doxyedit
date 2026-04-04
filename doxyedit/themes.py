@@ -43,6 +43,10 @@ class Theme:
     # Thumb/grid
     thumb_bg: str       # thumbnail placeholder background
 
+    # Font
+    font_size: int = 12       # base font size in px — all other sizes scale from this
+    font_family: str = "Segoe UI"
+
     # Semantic (consistent across themes)
     success: str = "#6eaa78"
     warning: str = "#be955c"
@@ -265,8 +269,15 @@ DEFAULT_THEME = "vinik24"
 
 def generate_stylesheet(theme: Theme) -> str:
     """Generate a complete Qt stylesheet from a theme."""
+    f = theme.font_size
+    fs = f - 1       # small
+    fxs = f - 2      # extra small
+    fl = f + 1       # large
+    ff = theme.font_family
+    cb = max(14, f + 2)  # checkbox indicator scales with font
+
     return f"""
-        * {{ font-family: "Segoe UI"; }}
+        * {{ font-family: "{ff}"; font-size: {f}px; }}
 
         QMainWindow {{ background: {theme.bg_deep}; }}
 
@@ -276,7 +287,7 @@ def generate_stylesheet(theme: Theme) -> str:
         QToolBar QToolButton {{
             background: {theme.bg_input}; color: {theme.text_primary};
             border: 1px solid {theme.border}; border-radius: 4px;
-            padding: 6px 12px; font-size: 12px;
+            padding: 6px 12px; font-size: {f}px;
         }}
         QToolBar QToolButton:hover {{ background: {theme.bg_hover}; }}
         QToolBar QToolButton:checked {{
@@ -286,15 +297,16 @@ def generate_stylesheet(theme: Theme) -> str:
 
         QStatusBar {{
             background: {theme.statusbar_bg}; color: {theme.statusbar_text};
-            font-size: 12px;
+            font-size: {f}px;
         }}
 
-        QMenuBar {{ background: {theme.bg_raised}; color: {theme.text_secondary}; }}
+        QMenuBar {{ background: {theme.bg_raised}; color: {theme.text_secondary}; font-size: {f}px; }}
         QMenuBar::item:selected {{ background: {theme.accent_dim}; }}
         QMenu {{
             background: {theme.bg_raised}; color: {theme.text_primary};
-            border: 1px solid {theme.border};
+            border: 1px solid {theme.border}; font-size: {f}px;
         }}
+        QMenu::item {{ padding: 5px 20px; }}
         QMenu::item:selected {{ background: {theme.accent_dim}; color: {theme.text_on_accent}; }}
         QMenu::separator {{ background: {theme.border}; height: 1px; margin: 4px 8px; }}
 
@@ -303,7 +315,7 @@ def generate_stylesheet(theme: Theme) -> str:
         QTabWidget::pane {{ border: none; background: {theme.bg_deep}; }}
         QTabBar::tab {{
             background: {theme.bg_raised}; color: {theme.text_muted}; border: none;
-            padding: 8px 20px; font-size: 12px; min-width: 100px;
+            padding: 8px 20px; font-size: {f}px; min-width: 100px;
         }}
         QTabBar::tab:selected {{ background: {theme.bg_deep}; color: {theme.text_primary}; }}
         QTabBar::tab:hover {{ color: {theme.text_secondary}; }}
@@ -321,7 +333,7 @@ def generate_stylesheet(theme: Theme) -> str:
         QLineEdit {{
             background: {theme.bg_input}; color: {theme.text_primary};
             border: 1px solid {theme.border}; border-radius: 4px;
-            padding: 5px 10px; font-size: 12px;
+            padding: 5px 10px; font-size: {f}px;
             selection-background-color: {theme.selection_bg};
         }}
         QLineEdit:focus {{ border-color: {theme.accent_bright}; }}
@@ -329,7 +341,7 @@ def generate_stylesheet(theme: Theme) -> str:
         QComboBox {{
             background: {theme.bg_input}; color: {theme.text_primary};
             border: 1px solid {theme.border}; border-radius: 4px;
-            padding: 4px 8px; font-size: 11px;
+            padding: 4px 8px; font-size: {fs}px;
         }}
         QComboBox QAbstractItemView {{
             background: {theme.bg_raised}; color: {theme.text_primary};
@@ -340,13 +352,13 @@ def generate_stylesheet(theme: Theme) -> str:
         QTextEdit {{
             background: {theme.bg_input}; color: {theme.text_primary};
             border: 1px solid {theme.border}; border-radius: 4px;
-            padding: 4px; font-size: 11px;
+            padding: 4px; font-size: {fs}px;
             selection-background-color: {theme.selection_bg};
         }}
 
-        QCheckBox {{ color: {theme.text_secondary}; font-size: 11px; }}
+        QCheckBox {{ color: {theme.text_secondary}; font-size: {fs}px; }}
         QCheckBox::indicator {{
-            width: 14px; height: 14px; border: 1px solid {theme.border};
+            width: {cb}px; height: {cb}px; border: 1px solid {theme.border};
             border-radius: 3px; background: {theme.bg_input};
         }}
         QCheckBox::indicator:checked {{
@@ -355,19 +367,19 @@ def generate_stylesheet(theme: Theme) -> str:
 
         QTreeWidget {{
             background: {theme.bg_deep}; color: {theme.text_primary};
-            border: none; font-size: 12px;
+            border: none; font-size: {f}px;
         }}
         QTreeWidget::item {{ padding: 4px; }}
         QTreeWidget::item:selected {{ background: {theme.accent_dim}; }}
         QHeaderView::section {{
             background: {theme.bg_raised}; color: {theme.text_muted};
-            border: none; padding: 4px 8px; font-size: 11px;
+            border: none; padding: 4px 8px; font-size: {fs}px;
         }}
 
         QPushButton {{
             background: {theme.bg_input}; color: {theme.text_primary};
             border: 1px solid {theme.border}; border-radius: 4px;
-            padding: 6px 12px; font-size: 11px;
+            padding: 6px 12px; font-size: {fs}px;
         }}
         QPushButton:hover {{ background: {theme.bg_hover}; }}
         QPushButton:pressed {{ background: {theme.accent_dim}; }}
