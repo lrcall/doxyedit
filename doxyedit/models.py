@@ -323,12 +323,17 @@ class Project:
         """Get merged tag presets — defaults + any project-custom ones."""
         tags = dict(TAG_ALL)
         for ct in self.custom_tags:
-            t = TagPreset(
-                id=ct["id"], label=ct.get("label", ct["id"]),
-                width=ct.get("width"), height=ct.get("height"),
-                ratio=ct.get("ratio", ""), color=ct.get("color", "#888"),
-            )
-            tags[t.id] = t
+            if not isinstance(ct, dict):
+                continue
+            try:
+                t = TagPreset(
+                    id=ct["id"], label=ct.get("label", ct["id"]),
+                    width=ct.get("width"), height=ct.get("height"),
+                    ratio=ct.get("ratio", ""), color=ct.get("color", "#888"),
+                )
+                tags[t.id] = t
+            except (KeyError, TypeError):
+                continue
         return tags
 
     def save(self, path: str):

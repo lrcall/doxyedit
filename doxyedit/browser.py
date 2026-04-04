@@ -489,11 +489,13 @@ class AssetBrowser(QWidget):
 
     def _rebuild_tag_buttons(self):
         """Build tag pill buttons from current TAG_PRESETS + project custom tags."""
-        # Remove all items from the flow layout
+        # Remove all items — setParent(None) for immediate cleanup
         while self._tag_flow.count():
             item = self._tag_flow.takeAt(0)
             if item and item.widget():
-                item.widget().deleteLater()
+                w = item.widget()
+                w.setParent(None)
+                w.deleteLater()
         self._tag_buttons.clear()
 
         all_tags = dict(TAG_ALL)
