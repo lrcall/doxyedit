@@ -62,6 +62,7 @@ class MainWindow(QMainWindow):
         self.tag_panel.tag_renamed.connect(self._on_tag_renamed)
         self.tag_panel.shortcut_changed.connect(self._on_shortcut_changed)
         self.tag_panel.hidden_changed.connect(self._on_hidden_changed)
+        self.tag_panel.filter_by_eye.connect(self._on_eye_filter)
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
         self._browse_split.addWidget(self.tag_panel)   # left side
@@ -455,6 +456,11 @@ class MainWindow(QMainWindow):
         shortcut = QShortcut(QKeySequence(key), self)
         shortcut.activated.connect(lambda tid=tag_id: self._toggle_tag_shortcut(tid))
         self.status.showMessage(f"Shortcut '{key}' → {tag_id}", 2000)
+
+    def _on_eye_filter(self, hidden_tag_ids: set):
+        """Eye toggle — hide images that have any of these tags."""
+        self.browser._eye_hidden_tags = hidden_tag_ids
+        self.browser.refresh()
 
     def _on_hidden_changed(self, hidden_list):
         self.project.hidden_tags = hidden_list

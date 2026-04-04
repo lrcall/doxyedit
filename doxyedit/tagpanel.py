@@ -25,7 +25,8 @@ class TagRow(QFrame):
     delete_requested = Signal(str)
     rename_requested = Signal(str, str)
     pin_requested = Signal(str)
-    shortcut_requested = Signal(str)  # tag_id
+    shortcut_requested = Signal(str)
+    visibility_toggled = Signal(str, bool)  # tag_id, visible — filter images by tag
 
     def __init__(self, tag: TagPreset, parent=None):
         super().__init__(parent)
@@ -35,7 +36,19 @@ class TagRow(QFrame):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(4, 2, 4, 2)
-        layout.setSpacing(8)
+        layout.setSpacing(4)
+
+        # Eye toggle — hide/show images with this tag
+        self.eye_btn = QPushButton("\U0001F441")  # 👁
+        self.eye_btn.setFixedSize(18, 18)
+        self.eye_btn.setCheckable(True)
+        self.eye_btn.setChecked(True)  # visible by default
+        self.eye_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.eye_btn.setStyleSheet(
+            "QPushButton { background: transparent; border: none; font-size: 11px; padding: 0; }"
+            "QPushButton:!checked { color: rgba(128,128,128,0.3); }")
+        self.eye_btn.toggled.connect(lambda vis: self.visibility_toggled.emit(self.tag.id, vis))
+        layout.addWidget(self.eye_btn)
 
         # Fitness dot
         self.dot = QLabel()
@@ -120,7 +133,8 @@ class TagPanel(QWidget):
     tag_deleted = Signal(str)
     tag_renamed = Signal(str, str, str)
     shortcut_changed = Signal(str, str)
-    hidden_changed = Signal(list)  # list of hidden tag ids
+    hidden_changed = Signal(list)
+    filter_by_eye = Signal(set)  # set of tag_ids to HIDE from grid
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -131,6 +145,7 @@ class TagPanel(QWidget):
         self._tag_sections: dict[str, str] = {}  # tag_id → section name
         self._section_starts: dict[str, int] = {}  # section → layout index of first tag
         self._hidden_tags: set[str] = set()
+        self._eye_hidden: set[str] = set()  # tags with eye off — hide images with these
         self._custom_shortcuts: dict[str, str] = {}  # tag_id → key
         self._build()
 
@@ -240,6 +255,7 @@ class TagPanel(QWidget):
         row.rename_requested.connect(self._rename_tag)
         row.pin_requested.connect(self._pin_tag)
         row.shortcut_requested.connect(self._set_shortcut)
+        row.visibility_toggled.connect(self._on_eye_toggled)
         if tag_id in self._hidden_tags:
             row.setVisible(False)
         if insert_after is not None:
@@ -421,6 +437,14 @@ class TagPanel(QWidget):
             row = self._rows[tag_id]
             row.checkbox.setText(f"{row.tag.label} [{key}]")
         self.shortcut_changed.emit(tag_id, key)
+
+    def _on_eye_toggled(self, tag_id: str, visible: bool):
+        """Eye button toggled — hide/show images tagged with this tag."""
+        if visible:
+            self._eye_hidden.discard(tag_id)
+        else:
+            self._eye_hidden.add(tag_id)
+        self.filter_by_eye.emit(self._eye_hidden)
 
     def _hide_tag(self, tag_id: str):
         self._hidden_tags.add(tag_id)

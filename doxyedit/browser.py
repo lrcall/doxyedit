@@ -318,6 +318,7 @@ class AssetBrowser(QWidget):
         settings = QSettings("DoxyEdit", "DoxyEdit")
         self._thumb_size = max(80, min(320, int(settings.value("thumb_size", THUMB_SIZE))))
         self.hover_preview_enabled = True
+        self._eye_hidden_tags: set[str] = set()
         self._current_font_size = 10
         self.setAcceptDrops(True)
         self._build()
@@ -570,6 +571,10 @@ class AssetBrowser(QWidget):
             assets = [a for a in assets if a.tags]
         if not self.filter_show_ignored.isChecked():
             assets = [a for a in assets if "ignore" not in a.tags]
+
+        # Eye filter — hide images with any eye-hidden tags
+        if self._eye_hidden_tags:
+            assets = [a for a in assets if not (set(a.tags) & self._eye_hidden_tags)]
 
         sort_mode = self.sort_combo.currentText()
         key_funcs = {
