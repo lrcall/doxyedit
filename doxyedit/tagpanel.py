@@ -22,6 +22,7 @@ class TagRow(QFrame):
     """One tag checkbox with fitness indicator dot."""
     toggled = Signal(str, bool)  # tag_id, checked
     hide_requested = Signal(str)  # tag_id
+    delete_requested = Signal(str)  # tag_id
 
     def __init__(self, tag: TagPreset, parent=None):
         super().__init__(parent)
@@ -88,12 +89,14 @@ class TagRow(QFrame):
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
         menu.addAction(f"Hide '{self.tag.label}'", lambda: self.hide_requested.emit(self.tag.id))
+        menu.addAction(f"Delete '{self.tag.label}' from project", lambda: self.delete_requested.emit(self.tag.id))
         menu.exec(event.globalPos())
 
 
 class TagPanel(QWidget):
     """Tag checklist for the currently selected asset(s)."""
-    tags_changed = Signal()  # emitted when any tag changes
+    tags_changed = Signal()
+    tag_deleted = Signal(str)  # tag_id — emitted so window/browser can clean up
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -160,6 +163,7 @@ class TagPanel(QWidget):
             row = TagRow(tag)
             row.toggled.connect(self._on_tag_toggled)
             row.hide_requested.connect(self._hide_tag)
+            row.delete_requested.connect(self._delete_tag)
             tag_layout.addWidget(row)
             self._rows[tag_id] = row
 
@@ -178,6 +182,7 @@ class TagPanel(QWidget):
             row = TagRow(tag)
             row.toggled.connect(self._on_tag_toggled)
             row.hide_requested.connect(self._hide_tag)
+            row.delete_requested.connect(self._delete_tag)
             tag_layout.addWidget(row)
             self._rows[tag_id] = row
 
@@ -278,6 +283,18 @@ class TagPanel(QWidget):
         for row in self._rows.values():
             row.setVisible(True)
         self._btn_show_all.setVisible(False)
+
+    def _delete_tag(self, tag_id: str):
+        """Remove a tag from all assets and hide the row."""
+        # Strip this tag from every asset in the current selection
+        for asset in self._assets:
+            if tag_id in asset.tags:
+                asset.tags.remove(tag_id)
+        # Hide the row
+        if tag_id in self._rows:
+            self._rows[tag_id].setVisible(False)
+        self.tag_deleted.emit(tag_id)
+        self.tags_changed.emit()
 
     def _set_tag(self, tag_id: str, checked: bool):
         for asset in self._assets:

@@ -49,6 +49,7 @@ class MainWindow(QMainWindow):
         self.tag_panel.setMinimumWidth(220)
         self.tag_panel.setMaximumWidth(400)
         self.tag_panel.tags_changed.connect(self._on_data_changed)
+        self.tag_panel.tag_deleted.connect(self._on_tag_deleted)
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
         self._browse_split.addWidget(self.tag_panel)   # left side
@@ -237,6 +238,8 @@ class MainWindow(QMainWindow):
         file_menu.addAction("&Export All Platforms...", self._export_all, QKeySequence("Ctrl+E"))
         file_menu.addSeparator()
         file_menu.addAction("Paste Image (Ctrl+V)", self._paste_from_clipboard, QKeySequence("Ctrl+V"))
+        file_menu.addSeparator()
+        file_menu.addAction("Reset All Tags (fresh start)", self._reset_all_tags)
 
         # View menu
         view_menu = menu.addMenu("&View")
@@ -399,6 +402,40 @@ class MainWindow(QMainWindow):
         n = self.browser.import_folder(folder)
         self._add_recent_folder(folder)
         self.status.showMessage(f"Opened folder: {Path(folder).name} ({n} images)")
+
+    # --- Tag management ---
+
+    def _on_tag_deleted(self, tag_id: str):
+        """Remove a tag from ALL assets in the project, not just selected."""
+        for asset in self.project.assets:
+            if tag_id in asset.tags:
+                asset.tags.remove(tag_id)
+        # Remove from custom tags if it's a custom one
+        self.project.custom_tags = [
+            ct for ct in self.project.custom_tags if ct.get("id") != tag_id
+        ]
+        self.browser.refresh()
+        self._dirty = True
+        self.status.showMessage(f"Deleted tag '{tag_id}' from all assets")
+
+    def _reset_all_tags(self):
+        """Nuke all tags from every asset — fresh start."""
+        from PySide6.QtWidgets import QMessageBox
+        n = len(self.project.assets)
+        reply = QMessageBox.question(
+            self, "Reset All Tags",
+            f"Remove ALL tags from all {n} assets?\nThis cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        for asset in self.project.assets:
+            asset.tags.clear()
+        self.project.custom_tags.clear()
+        self.tag_panel.set_assets(self.tag_panel._assets)
+        self.browser.refresh()
+        self._dirty = True
+        self.status.showMessage(f"Cleared all tags from {n} assets")
 
     # --- Data flow ---
 
