@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QScrollArea,
     QLabel, QPushButton, QFileDialog, QFrame, QLineEdit, QComboBox,
-    QMenu, QApplication,
+    QMenu, QApplication, QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QPixmap, QFont, QColor, QCursor
@@ -369,9 +369,10 @@ class AssetBrowser(QWidget):
         from doxyedit.models import TAG_SHORTCUTS
         self._tag_bar_frame = QFrame()
         self._tag_bar_frame.setStyleSheet(
-            "QFrame { border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 4px; }")
+            "QFrame { border-bottom: 1px solid rgba(255,255,255,0.08); }")
+        self._tag_bar_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         self._tag_flow = FlowLayout(self._tag_bar_frame, spacing=4)
-        self._tag_flow.setContentsMargins(0, 2, 0, 4)
+        self._tag_flow.setContentsMargins(0, 2, 0, 2)
 
         self._tag_buttons: list[tuple[QPushButton, str]] = []
         shortcut_reverse = {v: k for k, v in TAG_SHORTCUTS.items()}

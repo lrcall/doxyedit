@@ -63,7 +63,7 @@ class ThumbWorker(QThread):
                 existing[aid] = (path, size)
             for aid, path, size in items:
                 existing[aid] = (path, size)
-            self._queue = [(aid, p, s) for aid, (p, s) in existing.items()]
+            self._queue = deque((aid, p, s) for aid, (p, s) in existing.items())
 
     def clear_queue(self):
         with QMutexLocker(self._mutex):
