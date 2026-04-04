@@ -1,8 +1,74 @@
 # DoxyEdit Changelog
 
-## v0.3.1 — 2026-04-04
+## v0.5.0 — 2026-04-04
 
-### Tag Panel Sections
+Major release consolidating all v0.3.x work.
+
+### SAI/SAI2 Shell Thumbnails
+- SAI and SAI2 files show real thumbnails via Windows Shell API (SaiThumbs)
+- Unsupported formats show styled placeholder with extension label
+- Shell thumbnail integration for CLIP, KRA, XCF when extensions installed
+
+### Disk Thumbnail Cache
+- Thumbnails cached as PNGs in `~/.doxyedit/thumbcache/`
+- Keyed by file path + modification time — changed files auto-regenerate
+- Reopening large projects loads near-instantly
+
+### Preview Annotations
+- Press N or "Add Note" to draw annotation boxes on images
+- Type note text, saved to asset's notes field
+- Delete key removes selected annotations
+
+### Tag Panel — 4 Sections
+- Content/Workflow (Page, Character, Sketch, etc.)
+- Platform/Size targets (Hero, Banner, Cover, etc.)
+- Custom/Project tags (user-added, project-specific)
+- Visual/Mood/Dimension (warm, cool, dark, portrait, etc.)
+- Tags insert into their correct section, no mixing
+
+### Tag Management
+- Right-click tag → Pin to top of own section (gold border)
+- Right-click tag → Set Shortcut Key (any single key)
+- Right-click tag → Rename across all assets
+- Right-click tag → Delete from project
+- Custom tags appear in both tag bar and side panel
+- Tag bar excludes platform/size tags (side panel only)
+- All discovered tags show colored dots on thumbnails
+
+### Navigation & Settings
+- Left/Right arrow keys for page navigation
+- View > Thumbnails Per Page: 50/100/150/200/300/500
+- Recursive checkbox for folder imports
+- Ctrl+V accepts plain text file/folder paths
+- Search supports glob patterns (*.png, hero_*)
+- Alt+click tag bar button → search by that tag
+
+### UI Polish
+- Unicode stars ★/☆ cycling 5 Vinik colors
+- File extension shown in thumbnail labels
+- Resolution text properly spaced below thumbnails
+- Green flash on status bar when saving
+- Wider note and rename dialogs
+- App icon (Vinik-themed D) in titlebar
+- Windows title bar matches theme color
+- All dialogs themed (New Tag, Rename, Reset, etc.)
+- Tag panel scroll area transparent for theme
+
+### Theme Coverage
+- Object-name selectors for reliable theming across all widgets
+- All hardcoded hex colors replaced with rgba
+- Grid area, scroll areas, dialogs all respect active theme
+- 7 themes: Vinik 24, Warm Charcoal, Soot, Bone, Milk Glass, Forest, Dark
+
+### Code Quality (4 simplify rounds)
+- Extracted imaging.py for shared PIL/Qt conversion
+- Public APIs: rebuild_tag_bar, import_folder, import_files, etc.
+- Single-pass tag discovery, dedup separator helpers
+- Robust get_tags with error handling
+- Disk cache with MD5 keys and index
+- .gitignore for dist/pycache
+
+### v0.3.1 — Tag Panel Sections
 - Left panel now has 4 clear sections with proper separators:
   1. Content/Workflow (Page, Character, Sketch, etc.)
   2. Platform/Size targets (Hero, Banner, Cover, etc.)
