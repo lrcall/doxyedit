@@ -222,15 +222,11 @@ class ThumbnailWidget(QFrame):
         tag_row.addStretch()
         layout.addLayout(tag_row)
 
-        # Dimensions + tag count
-        dim_parts = []
-        if self._dims:
-            dim_parts.append(f"{self._dims[0]}x{self._dims[1]}")
-        if self.asset.tags:
-            dim_parts.append(f"[{len(self.asset.tags)}]")
-        dim_label = QLabel(" ".join(dim_parts))
+        # Dimensions
+        dim_text = f"{self._dims[0]}x{self._dims[1]}" if self._dims else ""
+        dim_label = QLabel(dim_text)
         dim_label.setFont(QFont("Segoe UI", 7))
-        dim_label.setStyleSheet("color: rgba(128,128,128,0.6);")
+        dim_label.setStyleSheet("color: rgba(128,128,128,0.6); margin-top: 5px;")
         dim_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(dim_label)
 
@@ -245,6 +241,7 @@ class ThumbnailWidget(QFrame):
         bottom.addWidget(name_label, 1)
 
         self.star_btn = QPushButton("*" if self.asset.starred else ".")
+        self.star_btn.setObjectName("star_btn")
         self.star_btn.setFixedSize(22, 22)
         self.star_btn.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         self.star_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -271,11 +268,11 @@ class ThumbnailWidget(QFrame):
         if s and s in STAR_COLORS:
             color = STAR_COLORS[s]
             self.star_btn.setStyleSheet(
-                f"QPushButton {{ background: transparent; color: {color}; border: none; font-size: 14px; }}")
+                f"#star_btn {{ background: transparent; color: {color}; border: none; font-size: 16px; }}")
         else:
             self.star_btn.setStyleSheet(
-                "QPushButton { background: transparent; color: rgba(128,128,128,0.4); border: none; font-size: 14px; }"
-                "QPushButton:hover { color: rgba(128,128,128,0.8); }")
+                "#star_btn { background: transparent; color: rgba(160,160,160,0.5); border: none; font-size: 16px; }"
+                "#star_btn:hover { color: rgba(200,200,200,0.8); }")
 
     def set_selected(self, sel: bool):
         self.selected = sel
