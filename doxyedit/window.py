@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         self.browser.asset_to_canvas.connect(self._send_to_canvas)
         self.browser.asset_to_censor.connect(self._send_to_censor)
         self.browser.selection_changed.connect(self._on_selection_changed)
+        self.browser.folder_opened.connect(self._add_recent_folder)
 
         # --- Toolbar & menu ---
         self._build_toolbar()
@@ -209,6 +210,13 @@ class MainWindow(QMainWindow):
         file_menu.addAction("&Save Project", self._save_project, QKeySequence("Ctrl+S"))
         file_menu.addAction("Save Project &As...", self._save_project_as, QKeySequence("Ctrl+Shift+S"))
         file_menu.addSeparator()
+
+        # Recent projects submenu
+        self._recent_projects_menu = file_menu.addMenu("Recent Projects")
+        self._recent_folders_menu = file_menu.addMenu("Recent Folders")
+        self._rebuild_recent_menus()
+        file_menu.addSeparator()
+
         file_menu.addAction("Import &Markdown...", self._import_md)
         file_menu.addAction("Export Markdown...", self._export_md)
         file_menu.addSeparator()
@@ -321,11 +329,71 @@ class MainWindow(QMainWindow):
             self.tag_panel.show()
             self._toggle_tags_action.setText("Hide Tag Panel")
 
+    # --- Recent files/folders ---
+
+    def _add_recent_project(self, path: str):
+        recents = self._settings.value("recent_projects", []) or []
+        if not isinstance(recents, list):
+            recents = [recents]
+        if path in recents:
+            recents.remove(path)
+        recents.insert(0, path)
+        self._settings.setValue("recent_projects", recents[:10])
+        self._rebuild_recent_menus()
+
+    def _add_recent_folder(self, folder: str):
+        recents = self._settings.value("recent_folders", []) or []
+        if not isinstance(recents, list):
+            recents = [recents]
+        if folder in recents:
+            recents.remove(folder)
+        recents.insert(0, folder)
+        self._settings.setValue("recent_folders", recents[:10])
+        self._rebuild_recent_menus()
+
+    def _rebuild_recent_menus(self):
+        self._recent_projects_menu.clear()
+        recents = self._settings.value("recent_projects", []) or []
+        if not isinstance(recents, list):
+            recents = [recents]
+        for p in recents:
+            if Path(p).exists():
+                name = Path(p).name
+                self._recent_projects_menu.addAction(name, lambda path=p: self._load_project_from(path))
+        if not recents:
+            self._recent_projects_menu.addAction("(none)").setEnabled(False)
+
+        self._recent_folders_menu.clear()
+        folders = self._settings.value("recent_folders", []) or []
+        if not isinstance(folders, list):
+            folders = [folders]
+        for f in folders:
+            if Path(f).exists():
+                name = Path(f).name
+                self._recent_folders_menu.addAction(name, lambda folder=f: self._open_recent_folder(folder))
+        if not folders:
+            self._recent_folders_menu.addAction("(none)").setEnabled(False)
+
+    def _load_project_from(self, path: str):
+        self.project = Project.load(path)
+        self._rebind_project()
+        self._project_path = path
+        self._settings.setValue("last_project", path)
+        self._add_recent_project(path)
+        self.setWindowTitle(f"DoxyEdit — {Path(path).name}")
+        self.status.showMessage(f"Opened {Path(path).name}")
+
+    def _open_recent_folder(self, folder: str):
+        n = self.browser.import_folder(folder)
+        self._add_recent_folder(folder)
+        self.status.showMessage(f"Opened folder: {Path(folder).name} ({n} images)")
+
     # --- Data flow ---
 
     def _on_data_changed(self):
         self._dirty = True
         self._update_progress()
+        self.browser.refresh()
 
     def _on_asset_selected(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
@@ -444,17 +512,14 @@ class MainWindow(QMainWindow):
             "DoxyEdit Projects (*.doxyproj.json);;All Files (*)"
         )
         if path:
-            self.project = Project.load(path)
-            self._rebind_project()
-            self._project_path = path
-            self._settings.setValue("last_project", path)
-            self.setWindowTitle(f"DoxyEdit — {Path(path).name}")
-            self.status.showMessage(f"Opened {Path(path).name}")
+            self._load_project_from(path)
 
     def _save_project(self):
         if self._project_path:
             self.project.save(self._project_path)
             self._dirty = False
+            self._settings.setValue("last_project", self._project_path)
+            self._add_recent_project(self._project_path)
             self.status.showMessage(f"Saved {Path(self._project_path).name}")
         else:
             self._save_project_as()
@@ -469,6 +534,7 @@ class MainWindow(QMainWindow):
             self._project_path = path
             self._dirty = False
             self._settings.setValue("last_project", path)
+            self._add_recent_project(path)
             self.setWindowTitle(f"DoxyEdit — {Path(path).name}")
             self.status.showMessage(f"Saved {Path(path).name}")
 

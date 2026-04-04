@@ -314,8 +314,9 @@ class ThumbnailWidget(QFrame):
 class AssetBrowser(QWidget):
     asset_selected = Signal(str)
     asset_preview = Signal(str)
-    asset_to_canvas = Signal(str)    # Ctrl+click → send to canvas
-    asset_to_censor = Signal(str)    # Alt+click → send to censor
+    asset_to_canvas = Signal(str)
+    asset_to_censor = Signal(str)
+    folder_opened = Signal(str)      # emitted when a folder is imported
     selection_changed = Signal(list)
 
     def __init__(self, project: Project, parent=None):
@@ -459,10 +460,11 @@ class AssetBrowser(QWidget):
 
     def _rebuild_tag_buttons(self):
         """Build tag pill buttons from current TAG_PRESETS + project custom tags."""
-        # Remove old buttons
-        for btn, _ in self._tag_buttons:
-            self._tag_flow.removeWidget(btn)
-            btn.deleteLater()
+        # Remove all items from the flow layout
+        while self._tag_flow.count():
+            item = self._tag_flow.takeAt(0)
+            if item and item.widget():
+                item.widget().deleteLater()
         self._tag_buttons.clear()
 
         all_tags = dict(TAG_PRESETS)
@@ -498,9 +500,12 @@ class AssetBrowser(QWidget):
             "id": tag_id, "label": name, "color": color,
         })
 
-        # Rebuild buttons
+        # Rebuild all buttons (including "+")
         self._rebuild_tag_buttons()
-        self._tag_flow.addWidget(self._add_tag_btn)  # keep "+" at end
+        self._add_tag_btn = QPushButton("+")
+        self._add_tag_btn.setToolTip("Add a custom tag")
+        self._add_tag_btn.clicked.connect(self._add_custom_tag)
+        self._tag_flow.addWidget(self._add_tag_btn)
         self._apply_tag_button_styles()
 
     def _apply_tag_button_styles(self, font_size: int = None):
@@ -588,6 +593,9 @@ class AssetBrowser(QWidget):
 
     def _rebuild_page(self):
         """Build only the current page of thumbnails."""
+        # Save scroll position
+        scroll_pos = self._scroll.verticalScrollBar().value()
+
         # Clear existing
         while self.grid_layout.count():
             child = self.grid_layout.takeAt(0)
@@ -637,6 +645,8 @@ class AssetBrowser(QWidget):
         self.btn_prev.setEnabled(self._current_page > 0)
         self.btn_next.setEnabled(self._current_page < tp - 1)
 
+        # Restore scroll position
+        self._scroll.verticalScrollBar().setValue(scroll_pos)
 
     def _on_thumb_ready(self, asset_id: str, pixmap: QPixmap, w: int, h: int, gen_size: int):
         """Callback from ThumbCache worker — update cache and widget if visible."""
@@ -735,6 +745,7 @@ class AssetBrowser(QWidget):
         if folder:
             settings.setValue("last_folder", folder)
             self.import_folder(folder)
+            self.folder_opened.emit(folder)
 
     def import_folder(self, folder: str):
         folder_path = Path(folder)
