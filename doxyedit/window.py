@@ -679,9 +679,15 @@ class MainWindow(QMainWindow):
         if self.project.hidden_tags:
             self.tag_panel.load_hidden_tags(self.project.hidden_tags)
         # Restore project-specific shortcuts
+        from doxyedit.models import TAG_SHORTCUTS
         for key, tag_id in self.project.custom_shortcuts.items():
+            TAG_SHORTCUTS[key] = tag_id
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(lambda tid=tag_id: self._toggle_tag_shortcut(tid))
+            # Update label on tag row if it exists
+            if tag_id in self.tag_panel._rows:
+                row = self.tag_panel._rows[tag_id]
+                row.checkbox.setText(f"{row.tag.label} [{key}]")
 
     def _open_project(self):
         path, _ = QFileDialog.getOpenFileName(
