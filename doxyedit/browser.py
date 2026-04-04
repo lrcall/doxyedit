@@ -499,6 +499,13 @@ class AssetBrowser(QWidget):
         if hasattr(self.project, 'get_tags'):
             all_tags = self.project.get_tags()
 
+        # Discover tags used in assets that aren't in the preset list
+        for asset in self.project.assets:
+            for t in asset.tags:
+                if t not in all_tags:
+                    color = next_tag_color(all_tags)
+                    all_tags[t] = TagPreset(id=t, label=t, color=color)
+
         shortcut_reverse = {v: k for k, v in TAG_SHORTCUTS.items()}
         for tag_id, preset in all_tags.items():
             key = shortcut_reverse.get(tag_id, "")
