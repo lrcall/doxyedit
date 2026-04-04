@@ -69,7 +69,11 @@ class MainWindow(QMainWindow):
         self._browse_split.addWidget(self.browser)     # right (main area)
         self._browse_split.setStretchFactor(0, 0)
         self._browse_split.setStretchFactor(1, 1)
-        self._browse_split.setSizes([260, 1000])
+        saved_split = self._settings_early.value("splitter_sizes", None)
+        if saved_split:
+            self._browse_split.setSizes([int(s) for s in saved_split])
+        else:
+            self._browse_split.setSizes([260, 1000])
         self.tabs.addTab(self._browse_split, "Assets")
 
         # Tab 2: Canvas Editor
@@ -120,6 +124,10 @@ class MainWindow(QMainWindow):
         self._progress_timer.start(2000)
 
         # --- Restore saved state ---
+        saved_gen = int(self._settings.value("thumb_gen_size", 512))
+        from doxyedit import browser
+        browser.THUMB_GEN_SIZE = saved_gen
+
         saved_font = int(self._settings.value("font_size", 12))
         if saved_font != 12:
             self._theme.font_size = saved_font
@@ -174,6 +182,12 @@ class MainWindow(QMainWindow):
     def _font_reset(self):
         self._theme.font_size = 12
         self._apply_font()
+
+    def _set_thumb_gen_size(self, size: int):
+        from doxyedit import browser
+        browser.THUMB_GEN_SIZE = size
+        self._settings.setValue("thumb_gen_size", size)
+        self.status.showMessage(f"Thumbnail quality: {size}px (recache with F5)", 3000)
 
     def _apply_font(self):
         fs = self._theme.font_size
@@ -261,6 +275,10 @@ class MainWindow(QMainWindow):
         view_menu.addAction("Increase Font Size", self._font_increase, QKeySequence("Ctrl+="))
         view_menu.addAction("Decrease Font Size", self._font_decrease, QKeySequence("Ctrl+-"))
         view_menu.addAction("Reset Font Size", self._font_reset, QKeySequence("Ctrl+0"))
+        view_menu.addSeparator()
+        gen_menu = view_menu.addMenu("Thumbnail Quality")
+        for n in [128, 256, 512, 768, 1024]:
+            gen_menu.addAction(f"{n}px", lambda size=n: self._set_thumb_gen_size(size))
         view_menu.addSeparator()
         theme_menu = view_menu.addMenu("Theme")
         for tid, theme in THEMES.items():
@@ -457,9 +475,9 @@ class MainWindow(QMainWindow):
         shortcut.activated.connect(lambda tid=tag_id: self._toggle_tag_shortcut(tid))
         self.status.showMessage(f"Shortcut '{key}' → {tag_id}", 2000)
 
-    def _on_eye_filter(self, hidden_tag_ids: set):
+    def _on_eye_filter(self, hidden_tag_ids: list):
         """Eye toggle — hide images that have any of these tags."""
-        self.browser._eye_hidden_tags = hidden_tag_ids
+        self.browser._eye_hidden_tags = set(hidden_tag_ids)
         self.browser.refresh()
 
     def _on_hidden_changed(self, hidden_list):
@@ -736,7 +754,8 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         if self._dirty and self._project_path:
             self.project.save(self._project_path)
-        # Save window position/size
+        # Save splitter and window position/size
+        self._settings.setValue("splitter_sizes", self._browse_split.sizes())
         self._settings.setValue("window_width", self.width())
         self._settings.setValue("window_height", self.height())
         self._settings.setValue("window_x", self.x())

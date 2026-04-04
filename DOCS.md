@@ -1,6 +1,6 @@
 # DoxyEdit Documentation
 
-**Version 0.6** — Art Asset Manager
+**Version 0.9** — Art Asset Manager
 
 DoxyEdit is a desktop tool for artists and creators to browse, tag, organize, and export art assets across multiple platforms (Kickstarter, Steam, Patreon, social media).
 
@@ -42,11 +42,12 @@ The primary workspace. Left sidebar has the tag panel, main area shows the thumb
 - Supports: PNG, JPG, BMP, GIF, WebP, TIFF, TGA, SVG, PSD, PSB, SAI, SAI2, CLIP, KRA, XCF
 
 **Browsing:**
-- **Ctrl+Scroll** — zoom thumbnails (80px to 320px)
+- **Smooth virtual scrolling** — no paging, all images accessible by scrolling
+- **Ctrl+Scroll** — zoom thumbnails instantly (80px to 320px, no rebuild)
 - **Double-click** — open full zoomable preview (Scroll to zoom, Drag to pan, N = add note, Esc to close)
 - **Recursive** checkbox — when checked, + Folder imports subfolders too
 - **Hover** — shows larger preview popup (toggle with "Hover Preview" checkbox)
-- Pages of 100 thumbnails — use Prev/Next or page indicator at bottom
+- **Cache All** checkbox — pre-generate thumbnails for entire project in background
 
 **Selecting:**
 - **Click** — select one image
@@ -95,6 +96,11 @@ Shows all tags with checkboxes. Click to apply/remove on selected image(s).
 - Green = image is large enough for this target size
 - Yellow = large enough but aspect ratio differs (crop needed)
 - Red = image too small
+
+**Eye Toggle (👁):**
+Each tag has an eye button. Click to hide all images with that tag from the grid.
+Click again to show them. Works like Photoshop layer visibility — multiple eyes
+can be toggled independently.
 
 **Right-click a tag to:**
 - **Pin to top** — moves it to the top of its section (gold border)

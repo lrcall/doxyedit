@@ -1,5 +1,29 @@
 # DoxyEdit Changelog
 
+## v0.9.0 — 2026-04-05
+
+### QListView Migration (Major Performance Upgrade)
+- Replaced QGridLayout with 200+ widget instances with a single QListView
+- Custom ThumbnailModel (QAbstractListModel) + ThumbnailDelegate (QStyledItemDelegate)
+- **Smooth virtual scrolling** — no more paging, all images accessible by scrolling
+- **Instant zoom** — Ctrl+scroll changes grid size without rebuilding
+- **Zero widget overhead** — delegate paints directly, no widget creation/destruction
+- Selection built-in: Ctrl+click, Shift+click, Ctrl+A all work natively
+- ~230 lines removed (1103 → 872 lines)
+- Scaled pixmap cache with proper Qt cacheKey
+
+### Eye Toggle (Photoshop-style Layer Visibility)
+- Each tag in the left panel has an 👁 eye button
+- Click to hide all images with that tag from the grid
+- Click again to show them
+- Multiple eyes can be toggled independently
+- Works like Photoshop layer visibility
+
+### Fixes
+- Repeating thumbnail images fixed (cache key collision)
+- Removed paging system (no longer needed with virtual scrolling)
+- Removed Thumbnails Per Page menu (replaced by smooth scroll)
+
 ## v0.6.1 — 2026-04-05
 
 ### Preview Annotations

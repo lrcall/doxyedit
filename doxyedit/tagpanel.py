@@ -134,7 +134,7 @@ class TagPanel(QWidget):
     tag_renamed = Signal(str, str, str)
     shortcut_changed = Signal(str, str)
     hidden_changed = Signal(list)
-    filter_by_eye = Signal(set)  # set of tag_ids to HIDE from grid
+    filter_by_eye = Signal(list)  # list of tag_ids to HIDE from grid
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -444,7 +444,7 @@ class TagPanel(QWidget):
             self._eye_hidden.discard(tag_id)
         else:
             self._eye_hidden.add(tag_id)
-        self.filter_by_eye.emit(self._eye_hidden)
+        self.filter_by_eye.emit(list(self._eye_hidden))
 
     def _hide_tag(self, tag_id: str):
         self._hidden_tags.add(tag_id)
