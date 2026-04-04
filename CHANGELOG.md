@@ -1,5 +1,24 @@
 # DoxyEdit Changelog
 
+## v0.6.1 — 2026-04-05
+
+### Preview Annotations
+- View Notes button (V key) toggles saved annotations visible/hidden
+- Annotations load from asset.notes on preview open
+- Large bold text with dark background for readability
+- Font size matches UI setting
+
+### Per-Project Persistence
+- Custom tag shortcuts saved to .doxyproj.json
+- Hidden tags saved to .doxyproj.json and restored on load
+- Main window position/size restored across sessions
+
+### Fixes
+- Ctrl+S / Ctrl+O now work (removed duplicate shortcut conflict)
+- Right-click Unstar sets to 0 (Cycle Star Color is separate option)
+- Thumb size clamped on load (prevents zoom corruption)
+- Note font matches UI font size setting
+
 ## v0.6.0 — 2026-04-05
 
 ### Performance
