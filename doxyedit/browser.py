@@ -324,7 +324,8 @@ class AssetBrowser(QWidget):
     asset_preview = Signal(str)
     asset_to_canvas = Signal(str)
     asset_to_censor = Signal(str)
-    folder_opened = Signal(str)      # emitted when a folder is imported
+    folder_opened = Signal(str)
+    tags_modified = Signal()         # emitted when custom tags change
     selection_changed = Signal(list)
 
     def __init__(self, project: Project, parent=None):
@@ -551,6 +552,7 @@ class AssetBrowser(QWidget):
         })
 
         self._rebuild_tag_bar()
+        self.tags_modified.emit()
 
     def _rebuild_tag_bar(self):
         """Rebuild the entire tag bar including the + button."""

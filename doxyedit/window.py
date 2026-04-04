@@ -80,6 +80,7 @@ class MainWindow(QMainWindow):
         self.browser.asset_to_censor.connect(self._send_to_censor)
         self.browser.selection_changed.connect(self._on_selection_changed)
         self.browser.folder_opened.connect(self._add_recent_folder)
+        self.browser.tags_modified.connect(self._on_tags_modified)
 
         # --- Toolbar & menu ---
         self._build_toolbar()
@@ -427,6 +428,11 @@ class MainWindow(QMainWindow):
         n = self.browser.import_folder(folder)
         self._add_recent_folder(folder)
         self.status.showMessage(f"Opened folder: {Path(folder).name} ({n} images)")
+
+    def _on_tags_modified(self):
+        """Browser added/removed a custom tag — sync the side panel."""
+        self.tag_panel.refresh_discovered_tags(self.project.assets)
+        self._dirty = True
 
     # --- Tag management ---
 
