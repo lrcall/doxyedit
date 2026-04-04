@@ -24,7 +24,8 @@ class TagRow(QFrame):
     hide_requested = Signal(str)
     delete_requested = Signal(str)
     rename_requested = Signal(str, str)
-    pin_requested = Signal(str)  # tag_id — pin/unpin to top of section
+    pin_requested = Signal(str)
+    shortcut_requested = Signal(str)  # tag_id
 
     def __init__(self, tag: TagPreset, parent=None):
         super().__init__(parent)
@@ -92,6 +93,7 @@ class TagRow(QFrame):
         menu = QMenu(self)
         pin_label = "Unpin from top" if getattr(self, '_pinned', False) else "Pin to top"
         menu.addAction(pin_label, lambda: self.pin_requested.emit(self.tag.id))
+        menu.addAction("Set Shortcut Key", lambda: self.shortcut_requested.emit(self.tag.id))
         menu.addSeparator()
         menu.addAction(f"Rename '{self.tag.label}'", self._request_rename)
         menu.addAction(f"Hide '{self.tag.label}'", lambda: self.hide_requested.emit(self.tag.id))
@@ -115,7 +117,8 @@ class TagPanel(QWidget):
     """Tag checklist for the currently selected asset(s)."""
     tags_changed = Signal()
     tag_deleted = Signal(str)
-    tag_renamed = Signal(str, str, str)  # old_id, new_id, new_label
+    tag_renamed = Signal(str, str, str)
+    shortcut_changed = Signal(str, str)  # tag_id, key
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -123,7 +126,10 @@ class TagPanel(QWidget):
         self._assets: list[Asset] = []
         self._img_dims: dict[str, tuple[int, int]] = {}
         self._rows: dict[str, TagRow] = {}
+        self._tag_sections: dict[str, str] = {}  # tag_id → section name
+        self._section_starts: dict[str, int] = {}  # section → layout index of first tag
         self._hidden_tags: set[str] = set()
+        self._custom_shortcuts: dict[str, str] = {}  # tag_id → key
         self._build()
 
     def _build(self):
@@ -182,8 +188,9 @@ class TagPanel(QWidget):
         self._tag_scroll_widget = tag_widget
 
         # Content/workflow tags (no size requirements)
+        self._section_starts["content"] = tag_layout.count()
         for tag_id, tag in TAG_PRESETS.items():
-            self._add_tag_row(tag_id, tag)
+            self._add_tag_row(tag_id, tag, section="content")
 
         # Separator
         self._sep1 = QFrame()
@@ -196,8 +203,9 @@ class TagPanel(QWidget):
         tag_layout.addWidget(self._sep1_label)
 
         # Sized tags (with dimensions)
+        self._section_starts["sized"] = tag_layout.count()
         for tag_id, tag in TAG_SIZED.items():
-            self._add_tag_row(tag_id, tag)
+            self._add_tag_row(tag_id, tag, section="sized")
 
         # Separator for custom/discovered tags
         self._sep2 = QFrame()
@@ -239,17 +247,19 @@ class TagPanel(QWidget):
         self.notes_edit.textChanged.connect(self._on_notes_changed)
         root.addWidget(self.notes_edit)
 
-    def _add_tag_row(self, tag_id: str, tag: TagPreset):
+    def _add_tag_row(self, tag_id: str, tag: TagPreset, section: str = "discovered"):
         row = TagRow(tag)
         row.toggled.connect(self._on_tag_toggled)
         row.hide_requested.connect(self._hide_tag)
         row.delete_requested.connect(self._delete_tag)
         row.rename_requested.connect(self._rename_tag)
         row.pin_requested.connect(self._pin_tag)
+        row.shortcut_requested.connect(self._set_shortcut)
         if tag_id in self._hidden_tags:
             row.setVisible(False)
         self._tag_layout.addWidget(row)
         self._rows[tag_id] = row
+        self._tag_sections[tag_id] = section
 
     def refresh_discovered_tags(self, assets: list, project=None):
         """Add rows for tags found in assets and custom_tags, sorted into sections."""
@@ -286,7 +296,7 @@ class TagPanel(QWidget):
             self._sep2.setVisible(True)
             self._sep2_label.setVisible(True)
             for tid, preset in custom_tags.items():
-                self._add_tag_row(tid, preset)
+                self._add_tag_row(tid, preset, section="custom")
                 existing_ids.add(tid)
 
         # Add visual property tags last
@@ -294,7 +304,7 @@ class TagPanel(QWidget):
             self._sep3.setVisible(True)
             self._sep3_label.setVisible(True)
             for tid, preset in visual_tags.items():
-                self._add_tag_row(tid, preset)
+                self._add_tag_row(tid, preset, section="visual")
                 existing_ids.add(tid)
 
     def _btn_style(self):
@@ -368,7 +378,7 @@ class TagPanel(QWidget):
             return 0, 0
 
     def _pin_tag(self, tag_id: str):
-        """Pin/unpin a tag to the top of its section."""
+        """Pin/unpin a tag to the top of its own section."""
         if tag_id not in self._rows:
             return
         row = self._rows[tag_id]
@@ -376,14 +386,41 @@ class TagPanel(QWidget):
         row._pinned = not pinned
 
         if row._pinned:
-            # Move to top of layout (index 0)
+            # Find the section start index
+            section = self._tag_sections.get(tag_id, "content")
+            # Find first row in this section
+            target_idx = 0
+            for i in range(self._tag_layout.count()):
+                item = self._tag_layout.itemAt(i)
+                if item and item.widget():
+                    w = item.widget()
+                    if isinstance(w, TagRow):
+                        wid = w.tag.id
+                        if self._tag_sections.get(wid) == section:
+                            target_idx = i
+                            break
             self._tag_layout.removeWidget(row)
-            self._tag_layout.insertWidget(0, row)
-            # Visual indicator
-            row.setStyleSheet("TagRow { border-left: 3px solid rgba(190,149,92,0.7); }")
+            self._tag_layout.insertWidget(target_idx, row)
+            row.setStyleSheet("border-left: 3px solid rgba(190,149,92,0.7);")
         else:
-            # Just remove the visual indicator — stays where it is
-            row.setStyleSheet("TagRow { background: transparent; }")
+            row.setStyleSheet("")
+
+    def _set_shortcut(self, tag_id: str):
+        """Let user assign a keyboard shortcut key to a tag."""
+        from PySide6.QtWidgets import QInputDialog
+        key, ok = QInputDialog.getText(
+            self.window(), "Set Shortcut",
+            f"Enter a single key for '{self._rows[tag_id].tag.label}':\n"
+            "(e.g. A, B, C, or a number)")
+        if not ok or not key.strip():
+            return
+        key = key.strip().upper()[0]  # take first character
+        self._custom_shortcuts[tag_id] = key
+        # Update the hint label on the row
+        if tag_id in self._rows:
+            row = self._rows[tag_id]
+            row.checkbox.setText(f"{row.tag.label} [{key}]")
+        self.shortcut_changed.emit(tag_id, key)
 
     def _hide_tag(self, tag_id: str):
         self._hidden_tags.add(tag_id)

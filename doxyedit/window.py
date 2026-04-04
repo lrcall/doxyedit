@@ -51,6 +51,7 @@ class MainWindow(QMainWindow):
         self.tag_panel.tags_changed.connect(self._on_data_changed)
         self.tag_panel.tag_deleted.connect(self._on_tag_deleted)
         self.tag_panel.tag_renamed.connect(self._on_tag_renamed)
+        self.tag_panel.shortcut_changed.connect(self._on_shortcut_changed)
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
         self._browse_split.addWidget(self.tag_panel)   # left side
@@ -432,6 +433,22 @@ class MainWindow(QMainWindow):
         n = self.browser.import_folder(folder)
         self._add_recent_folder(folder)
         self.status.showMessage(f"Opened folder: {Path(folder).name} ({n} images)")
+
+    def _on_shortcut_changed(self, tag_id: str, key: str):
+        """Register a new keyboard shortcut for a tag."""
+        from doxyedit.models import TAG_SHORTCUTS
+        # Remove any existing shortcut for this key
+        for k, v in list(TAG_SHORTCUTS.items()):
+            if v == tag_id:
+                del TAG_SHORTCUTS[k]
+        # Remove any tag that had this key
+        if key in TAG_SHORTCUTS:
+            del TAG_SHORTCUTS[key]
+        TAG_SHORTCUTS[key] = tag_id
+        # Register the shortcut
+        shortcut = QShortcut(QKeySequence(key), self)
+        shortcut.activated.connect(lambda tid=tag_id: self._toggle_tag_shortcut(tid))
+        self.status.showMessage(f"Shortcut '{key}' → {tag_id}", 2000)
 
     def _on_tags_modified(self):
         """Browser added/removed a custom tag — sync the side panel."""
