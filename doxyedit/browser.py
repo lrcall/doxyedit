@@ -431,6 +431,7 @@ class AssetBrowser(QWidget):
         self._list_view.doubleClicked.connect(self._on_double_click)
         self._list_view.selectionModel().selectionChanged.connect(self._on_selection_changed_internal)
         self._list_view.setStyleSheet("QListView { border: none; }")
+        self._list_view.installEventFilter(self)
         root.addWidget(self._list_view)
 
         # Status line
@@ -832,30 +833,25 @@ class AssetBrowser(QWidget):
             self._selected_ids.remove(asset.id)
         self._refresh_grid()
 
-    # --- Zoom ---
+    # --- Zoom (event filter intercepts Ctrl+Scroll on the list view) ---
 
-    def wheelEvent(self, event):
-        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            # Remember focused item
-            current = self._list_view.currentIndex()
-
-            delta = event.angleDelta().y()
-            if delta > 0:
-                self._thumb_size = min(320, self._thumb_size + 20)
-            else:
-                self._thumb_size = max(80, self._thumb_size - 20)
-            QSettings("DoxyEdit", "DoxyEdit").setValue("thumb_size", self._thumb_size)
-            self._delegate.thumb_size = self._thumb_size
-            self._delegate.invalidate_cache()
-            self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
-
-            # Scroll back to focused item
-            if current.isValid():
-                self._list_view.scrollTo(current, QListView.ScrollHint.PositionAtCenter)
-
-            event.accept()
-            return
-        super().wheelEvent(event)
+    def eventFilter(self, obj, event):
+        if obj is self._list_view and event.type() == event.Type.Wheel:
+            if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                current = self._list_view.currentIndex()
+                delta = event.angleDelta().y()
+                if delta > 0:
+                    self._thumb_size = min(320, self._thumb_size + 20)
+                else:
+                    self._thumb_size = max(80, self._thumb_size - 20)
+                QSettings("DoxyEdit", "DoxyEdit").setValue("thumb_size", self._thumb_size)
+                self._delegate.thumb_size = self._thumb_size
+                self._delegate.invalidate_cache()
+                self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
+                if current.isValid():
+                    self._list_view.scrollTo(current, QListView.ScrollHint.PositionAtCenter)
+                return True  # consumed
+        return super().eventFilter(obj, event)
 
     # --- Keyboard ---
 
