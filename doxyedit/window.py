@@ -482,7 +482,7 @@ class MainWindow(QMainWindow):
             if isinstance(ct, dict) and ct.get("id") == old_id:
                 ct["id"] = new_id
                 ct["label"] = new_label
-        self.browser._rebuild_tag_bar()
+        self.browser.rebuild_tag_bar()
         self.browser.refresh()
         self._dirty = True
         self.status.showMessage(f"Renamed tag '{old_id}' → '{new_label}'")
@@ -501,7 +501,7 @@ class MainWindow(QMainWindow):
         for asset in self.project.assets:
             asset.tags.clear()
         self.project.custom_tags.clear()
-        self.tag_panel.set_assets(self.tag_panel._assets)
+        self.tag_panel.set_assets([])
         self.browser.refresh()
         self._dirty = True
         self.status.showMessage(f"Cleared all tags from {n} assets")
@@ -633,7 +633,7 @@ class MainWindow(QMainWindow):
 
     def _rebind_project(self):
         self.browser.project = self.project
-        self.browser._rebuild_tag_bar()
+        self.browser.rebuild_tag_bar()
         self.browser.refresh()
         self.platform_panel.project = self.project
         self.platform_panel.refresh()

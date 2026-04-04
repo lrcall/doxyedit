@@ -30,6 +30,7 @@ class TagRow(QFrame):
     def __init__(self, tag: TagPreset, parent=None):
         super().__init__(parent)
         self.tag = tag
+        self._pinned = False
         self.setStyleSheet("TagRow { background: transparent; }")
 
         layout = QHBoxLayout(self)
@@ -192,44 +193,27 @@ class TagPanel(QWidget):
         for tag_id, tag in TAG_PRESETS.items():
             self._add_tag_row(tag_id, tag, section="content")
 
-        # Separator
-        self._sep1 = QFrame()
-        self._sep1.setFrameShape(QFrame.Shape.HLine)
-        self._sep1.setStyleSheet("color: rgba(128,128,128,0.2);")
-        tag_layout.addWidget(self._sep1)
-        self._sep1_label = QLabel("Platform / Size targets")
-        self._sep1_label.setFont(QFont("Segoe UI", 8))
-        self._sep1_label.setStyleSheet("color: rgba(128,128,128,0.4); padding: 2px 4px;")
-        tag_layout.addWidget(self._sep1_label)
+        def _make_sep(label_text, visible=True):
+            sep = QFrame()
+            sep.setFrameShape(QFrame.Shape.HLine)
+            sep.setStyleSheet("color: rgba(128,128,128,0.2);")
+            sep.setVisible(visible)
+            tag_layout.addWidget(sep)
+            lbl = QLabel(label_text)
+            lbl.setFont(QFont("Segoe UI", 8))
+            lbl.setStyleSheet("color: rgba(128,128,128,0.4); padding: 2px 4px;")
+            lbl.setVisible(visible)
+            tag_layout.addWidget(lbl)
+            return sep, lbl
 
-        # Sized tags (with dimensions)
+        self._sep1, self._sep1_label = _make_sep("Platform / Size targets")
+
         self._section_starts["sized"] = tag_layout.count()
         for tag_id, tag in TAG_SIZED.items():
             self._add_tag_row(tag_id, tag, section="sized")
 
-        # Separator for custom/discovered tags
-        self._sep2 = QFrame()
-        self._sep2.setFrameShape(QFrame.Shape.HLine)
-        self._sep2.setStyleSheet("color: rgba(128,128,128,0.2);")
-        self._sep2.setVisible(False)
-        tag_layout.addWidget(self._sep2)
-        self._sep2_label = QLabel("Custom / Project tags")
-        self._sep2_label.setFont(QFont("Segoe UI", 8))
-        self._sep2_label.setStyleSheet("color: rgba(128,128,128,0.4); padding: 2px 4px;")
-        self._sep2_label.setVisible(False)
-        tag_layout.addWidget(self._sep2_label)
-
-        # Separator for visual property tags (mood/color/dimension)
-        self._sep3 = QFrame()
-        self._sep3.setFrameShape(QFrame.Shape.HLine)
-        self._sep3.setStyleSheet("color: rgba(128,128,128,0.2);")
-        self._sep3.setVisible(False)
-        tag_layout.addWidget(self._sep3)
-        self._sep3_label = QLabel("Visual / Mood / Dimension")
-        self._sep3_label.setFont(QFont("Segoe UI", 8))
-        self._sep3_label.setStyleSheet("color: rgba(128,128,128,0.4); padding: 2px 4px;")
-        self._sep3_label.setVisible(False)
-        tag_layout.addWidget(self._sep3_label)
+        self._sep2, self._sep2_label = _make_sep("Custom / Project tags", visible=False)
+        self._sep3, self._sep3_label = _make_sep("Visual / Mood / Dimension", visible=False)
 
         self._stretch = tag_layout.addStretch()
         scroll.setWidget(tag_widget)
@@ -397,7 +381,7 @@ class TagPanel(QWidget):
         if tag_id not in self._rows:
             return
         row = self._rows[tag_id]
-        pinned = getattr(row, '_pinned', False)
+        pinned = row._pinned
         row._pinned = not pinned
 
         if row._pinned:

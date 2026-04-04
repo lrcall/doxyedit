@@ -509,14 +509,14 @@ class AssetBrowser(QWidget):
             for tid, preset in self.project.get_tags().items():
                 if tid not in TAG_SIZED:
                     bar_tags[tid] = preset
-        # Add discovered tags from assets (mood, dimension, etc.)
+        # Discover tags from assets in one pass
+        all_used = {t for a in self.project.assets for t in a.tags}
         color_idx = 0
-        for asset in self.project.assets:
-            for t in asset.tags:
-                if t not in bar_tags and t not in TAG_SIZED:
-                    bar_tags[t] = TagPreset(id=t, label=t,
-                        color=VINIK_COLORS[color_idx % len(VINIK_COLORS)])
-                    color_idx += 1
+        for t in sorted(all_used):
+            if t not in bar_tags and t not in TAG_SIZED:
+                bar_tags[t] = TagPreset(id=t, label=t,
+                    color=VINIK_COLORS[color_idx % len(VINIK_COLORS)])
+                color_idx += 1
 
         shortcut_reverse = {v: k for k, v in TAG_SHORTCUTS.items()}
         for tag_id, preset in bar_tags.items():
@@ -556,7 +556,7 @@ class AssetBrowser(QWidget):
         self._rebuild_tag_bar()
         self.tags_modified.emit()
 
-    def _rebuild_tag_bar(self):
+    def rebuild_tag_bar(self):
         """Rebuild the entire tag bar including the + button."""
         self._rebuild_tag_buttons()
         self._add_tag_btn = QPushButton("+")
