@@ -247,7 +247,7 @@ class TagPanel(QWidget):
         self.notes_edit.textChanged.connect(self._on_notes_changed)
         root.addWidget(self.notes_edit)
 
-    def _add_tag_row(self, tag_id: str, tag: TagPreset, section: str = "discovered"):
+    def _add_tag_row(self, tag_id: str, tag: TagPreset, section: str = "discovered", insert_after=None):
         row = TagRow(tag)
         row.toggled.connect(self._on_tag_toggled)
         row.hide_requested.connect(self._hide_tag)
@@ -257,7 +257,17 @@ class TagPanel(QWidget):
         row.shortcut_requested.connect(self._set_shortcut)
         if tag_id in self._hidden_tags:
             row.setVisible(False)
-        self._tag_layout.addWidget(row)
+        if insert_after is not None:
+            # Find the widget index and insert after it
+            for i in range(self._tag_layout.count()):
+                item = self._tag_layout.itemAt(i)
+                if item and item.widget() is insert_after:
+                    self._tag_layout.insertWidget(i + 1, row)
+                    break
+            else:
+                self._tag_layout.addWidget(row)
+        else:
+            self._tag_layout.addWidget(row)
         self._rows[tag_id] = row
         self._tag_sections[tag_id] = section
 
@@ -291,20 +301,25 @@ class TagPanel(QWidget):
                     else:
                         custom_tags[t] = preset
 
-        # Add custom/project tags
+        # Add custom/project tags — insert after _sep2_label
         if custom_tags:
             self._sep2.setVisible(True)
             self._sep2_label.setVisible(True)
+            last_custom = self._sep2_label
             for tid, preset in custom_tags.items():
-                self._add_tag_row(tid, preset, section="custom")
+                self._add_tag_row(tid, preset, section="custom", insert_after=last_custom)
+                last_custom = self._rows[tid]
                 existing_ids.add(tid)
 
-        # Add visual property tags last
+        # Add visual property tags — insert after _sep3_label (always last)
         if visual_tags:
             self._sep3.setVisible(True)
             self._sep3_label.setVisible(True)
+            last_visual = self._sep3_label
             for tid, preset in visual_tags.items():
-                self._add_tag_row(tid, preset, section="visual")
+                self._add_tag_row(tid, preset, section="visual", insert_after=last_visual)
+                last_visual = self._rows[tid]
+                existing_ids.add(tid)
                 existing_ids.add(tid)
 
     def _btn_style(self):
