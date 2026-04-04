@@ -377,6 +377,15 @@ class AssetBrowser(QWidget):
 
         # Hover preview toggle
         from PySide6.QtWidgets import QCheckBox
+        self.filter_show_ignored = QPushButton("Show Ignored")
+        self.filter_show_ignored.setCheckable(True)
+        self.filter_show_ignored.setChecked(False)
+        self.filter_show_ignored.setStyleSheet(self._btn_style())
+        self.filter_show_ignored.toggled.connect(self._on_filter_changed)
+        toolbar.addWidget(self.filter_show_ignored)
+
+        toolbar.addSpacing(8)
+
         self.hover_check = QCheckBox("Hover Preview")
         self.hover_check.setChecked(True)
         self.hover_check.toggled.connect(lambda v: setattr(self, 'hover_preview_enabled', v))
@@ -566,6 +575,10 @@ class AssetBrowser(QWidget):
             assets = [a for a in assets if not a.tags]
         if self.filter_tagged.isChecked():
             assets = [a for a in assets if a.tags]
+
+        # Hide ignored/skip unless "Show Ignored" is toggled on
+        if not self.filter_show_ignored.isChecked():
+            assets = [a for a in assets if "ignore" not in a.tags]
 
         sort_mode = self.sort_combo.currentText()
         key_funcs = {
