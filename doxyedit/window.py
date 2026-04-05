@@ -141,6 +141,8 @@ class MainWindow(QMainWindow):
             lambda: self.browser.search_box.setFocus())
         # Alt+H temporary hide/unhide
         QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._temp_hide_toggle)
+        # Ctrl+Shift+C copy full path
+        QShortcut(QKeySequence("Ctrl+Shift+C"), self).activated.connect(self._copy_full_path)
         # Shift+E notes overlay
         QShortcut(QKeySequence("Shift+E"), self).activated.connect(self._show_notes_overlay)
 
@@ -894,6 +896,16 @@ class MainWindow(QMainWindow):
     def _select_all(self):
         if self.tabs.currentIndex() == 0:
             self.browser._list_view.selectAll()
+
+    def _copy_full_path(self):
+        if self.tabs.currentIndex() != 0:
+            return
+        assets = self.browser.get_selected_assets()
+        if not assets:
+            return
+        paths = "\n".join(a.source_path for a in assets)
+        QApplication.clipboard().setText(paths)
+        self.status.showMessage(f"Copied {len(assets)} path(s)", 2000)
 
     def _select_none(self):
         if self.tabs.currentIndex() == 0:
