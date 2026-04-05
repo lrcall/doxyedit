@@ -140,8 +140,9 @@ class FlowWidget(QWidget):
 
 class _FolderHeader:
     """Sentinel inserted into the model to represent a folder group header."""
-    def __init__(self, folder: str):
+    def __init__(self, folder: str, collapsed: bool = False):
         self.folder = folder
+        self.collapsed = collapsed
         self.id = None
 
 
@@ -247,8 +248,13 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.setPen(QColor(200, 200, 200, 180))
             painter.setFont(QFont("Segoe UI", max(8, self.font_size - 1), QFont.Weight.Bold))
             folder = index.data(Qt.ItemDataRole.DisplayRole) or ""
+            # Get collapsed state from model item
+            model = index.model()
+            item = model._items[index.row()] if hasattr(model, '_items') else None
+            arrow = "\u25B6" if (item and item.collapsed) else "\u25BC"
             painter.drawText(rect.adjusted(8, 0, 0, 0),
-                             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, folder)
+                             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                             f"{arrow} {folder}")
             painter.restore()
             return
 
@@ -374,6 +380,7 @@ class AssetBrowser(QWidget):
         self._temp_hidden_ids: set[str] = set()  # Alt+H temporary hide (not saved)
         self.auto_tag_enabled = False
         self.show_hidden_only = False
+        self._collapsed_folders: set[str] = set()
         self._current_font_size = 10
         self._hover_id = None
         self._hover_timer = QTimer(self)
@@ -691,8 +698,10 @@ class AssetBrowser(QWidget):
                 groups[a.source_folder or Path(a.source_path).parent.as_posix()].append(a)
             result = []
             for folder in sorted(groups.keys(), key=str.lower):
-                result.append(_FolderHeader(folder))
-                result.extend(sorted(groups[folder], key=lambda a: Path(a.source_path).stem.lower()))
+                collapsed = folder in self._collapsed_folders
+                result.append(_FolderHeader(folder, collapsed))
+                if not collapsed:
+                    result.extend(sorted(groups[folder], key=lambda a: Path(a.source_path).stem.lower()))
             return result
 
         key_funcs = {
@@ -1072,6 +1081,19 @@ class AssetBrowser(QWidget):
                     self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
                     if current.isValid():
                         self._list_view.scrollTo(current, QListView.ScrollHint.PositionAtCenter)
+                    return True
+
+            # Folder header click — toggle collapse
+            if event.type() == event.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+                pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
+                index = self._list_view.indexAt(pos)
+                if index.isValid() and index.data(ThumbnailModel.FolderHeaderRole):
+                    item = self._model._items[index.row()]
+                    if item.folder in self._collapsed_folders:
+                        self._collapsed_folders.discard(item.folder)
+                    else:
+                        self._collapsed_folders.add(item.folder)
+                    self._refresh_grid()
                     return True
 
             # Star click — detect click in star area of a thumbnail
