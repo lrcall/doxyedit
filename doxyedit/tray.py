@@ -107,8 +107,9 @@ class WorkTray(QWidget):
             self._paths[asset_id] = path
 
         item = QListWidgetItem()
-        item.setText(name)
+        item.setText(name if self._view_mode == 0 else "")
         item.setData(Qt.ItemDataRole.UserRole, asset_id)
+        item.setData(Qt.ItemDataRole.UserRole + 1, name)  # store name for mode switching
         if pixmap and not pixmap.isNull():
             scaled = pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio,
                                    Qt.TransformationMode.SmoothTransformation)
@@ -225,21 +226,33 @@ class WorkTray(QWidget):
 
     def _cycle_view_mode(self):
         self._view_mode = (self._view_mode + 1) % 3
-        modes = [
-            ("1col", QListWidget.ViewMode.ListMode, QSize(80, 80)),
-            ("2col", QListWidget.ViewMode.IconMode, QSize(60, 60)),
-            ("3col", QListWidget.ViewMode.IconMode, QSize(40, 40)),
-        ]
-        label, mode, icon_size = modes[self._view_mode]
-        self._view_btn.setText(label)
-        self._list.setViewMode(mode)
-        self._list.setIconSize(icon_size)
-        if mode == QListWidget.ViewMode.IconMode:
-            self._list.setWordWrap(True)
-            self._list.setSpacing(4)
-        else:
-            self._list.setWordWrap(False)
+        if self._view_mode == 0:
+            # List mode — full filename + icon
+            self._view_btn.setText("\u2630")
+            self._list.setViewMode(QListWidget.ViewMode.ListMode)
+            self._list.setIconSize(QSize(80, 80))
+            self._list.setGridSize(QSize())  # auto
             self._list.setSpacing(2)
+            for i in range(self._list.count()):
+                item = self._list.item(i)
+                if item and item.data(Qt.ItemDataRole.UserRole + 1):
+                    item.setText(item.data(Qt.ItemDataRole.UserRole + 1))
+        else:
+            # Grid modes — icon only, no text
+            cell = 120 if self._view_mode == 1 else 80
+            icon = cell - 10
+            self._view_btn.setText(f"{self._view_mode + 1}col")
+            self._list.setViewMode(QListWidget.ViewMode.IconMode)
+            self._list.setIconSize(QSize(icon, icon))
+            self._list.setGridSize(QSize(cell, cell))
+            self._list.setSpacing(2)
+            # Store name and clear text so grid is clean
+            for i in range(self._list.count()):
+                item = self._list.item(i)
+                if item:
+                    if not item.data(Qt.ItemDataRole.UserRole + 1):
+                        item.setData(Qt.ItemDataRole.UserRole + 1, item.text())
+                    item.setText("")
 
     def _toggle_tray_tag(self, asset_id: str, tag_id: str):
         if not hasattr(self, '_project') or not self._project:
