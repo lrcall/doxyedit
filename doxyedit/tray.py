@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QPixmap, QIcon, QFont
 
 
-NAME_ROLE = NAME_ROLE  # stores display name for view mode switching
+NAME_ROLE = Qt.ItemDataRole.UserRole + 1  # stores display name for view mode switching
 
 
 class WorkTray(QWidget):
