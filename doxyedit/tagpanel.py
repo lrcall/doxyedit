@@ -43,26 +43,28 @@ class TagRow(QFrame):
 
         # Eye toggle — hide/show images with this tag
         self.eye_btn = QPushButton("\u25C9")  # ◉ when visible
-        self.eye_btn.setFixedSize(20, 20)
+        self.eye_btn.setFixedSize(24, 24)
         self.eye_btn.setCheckable(True)
-        self.eye_btn.setChecked(True)  # visible by default
+        self.eye_btn.setChecked(True)
         self.eye_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.eye_btn.setToolTip("Toggle visibility — hide/show images with this tag")
         self.eye_btn.setStyleSheet(
-            "QPushButton { background: transparent; border: none; font-size: 13px; padding: 0; color: rgba(100,200,100,0.8); }"
+            "QPushButton { background: transparent; border: none; font-size: 16px; padding: 0; color: rgba(100,200,100,0.8); }"
             "QPushButton:!checked { color: rgba(128,128,128,0.25); }")
         self.eye_btn.toggled.connect(self._on_eye_click)
         layout.addWidget(self.eye_btn)
 
-        # Fitness dot
+        # Tag color dot (shows the tag's own color)
         self.dot = QLabel()
         self.dot.setFixedSize(12, 12)
-        self._set_fitness("green")
+        self.dot.setStyleSheet(
+            f"background: {tag.color}; border-radius: 6px;"
+            f" border: 1px solid rgba(0,0,0,0.3);")
         layout.addWidget(self.dot)
 
-        # Checkbox
+        # Checkbox — bold text in tag color
         self.checkbox = QCheckBox(tag.label)
-        self.checkbox.setFont(QFont("Segoe UI", 10))
+        self.checkbox.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
         self.checkbox.setStyleSheet(f"QCheckBox {{ color: {tag.color}; }}")
         self.checkbox.toggled.connect(lambda checked: self.toggled.emit(tag.id, checked))
         layout.addWidget(self.checkbox, 1)

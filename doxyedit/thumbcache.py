@@ -183,7 +183,10 @@ class ThumbCache:
         needed = [(aid, path, size) for aid, path in items
                   if self._gen_sizes.get(aid, 0) < size]
         if needed:
-            self._worker.enqueue_batch(needed)
+            # Prioritize: never-cached first, then upgrades (already have smaller version)
+            fresh = [(a, p, s) for a, p, s in needed if a not in self._gen_sizes]
+            upgrades = [(a, p, s) for a, p, s in needed if a in self._gen_sizes]
+            self._worker.enqueue_batch(fresh + upgrades)
 
     def on_ready(self, asset_id: str, pixmap: QPixmap, w: int, h: int, gen_size: int):
         self._pixmaps[asset_id] = pixmap
