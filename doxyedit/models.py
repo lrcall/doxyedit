@@ -181,6 +181,7 @@ class Asset:
     assignments: list[PlatformAssignment] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     notes: str = ""
+    specs: dict = field(default_factory=dict)  # CLI/tool metadata (size, relations, etc.)
 
     @property
     def stem(self) -> str:
@@ -416,13 +417,21 @@ class Project:
                     if canonical not in resolved:
                         resolved.append(canonical)
                 raw_tags = resolved
+            raw_notes = a.get("notes", "")
+            raw_specs = a.get("specs", {})
+            # Auto-migrate CLI-generated notes to specs
+            import re
+            if raw_notes and not raw_specs and re.match(r'^\d+x\d+', raw_notes.strip()):
+                raw_specs["cli_info"] = raw_notes.strip()
+                raw_notes = ""
             asset = Asset(
                 id=a.get("id", ""),
                 source_path=a.get("source_path", ""),
                 source_folder=a.get("source_folder", ""),
                 starred=int(a.get("starred", 0)) if not isinstance(a.get("starred"), bool) else (1 if a.get("starred") else 0),
                 tags=raw_tags,
-                notes=a.get("notes", ""),
+                notes=raw_notes,
+                specs=raw_specs,
             )
             for c in a.get("crops", []):
                 asset.crops.append(CropRegion(**c))

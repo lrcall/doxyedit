@@ -56,16 +56,10 @@ class WorkTray(QWidget):
         header.addWidget(title)
         header.addStretch()
 
-        self._collapse_btn = QPushButton("\u25B6")  # ▶ collapsed, ▼ expanded
-        self._collapse_btn.setFixedSize(22, 22)
-        self._collapse_btn.setStyleSheet("QPushButton { background: transparent; border: none; }")
-        self._collapse_btn.clicked.connect(lambda: self.toggle_requested.emit())
-        header.addWidget(self._collapse_btn)
-
-        self._view_btn = QPushButton("1col")
-        self._view_btn.setFixedSize(32, 22)
-        self._view_btn.setStyleSheet("QPushButton { background: transparent; border: none; font-size: 9px; }")
-        self._view_btn.setToolTip("Cycle tray view: list / 2-col / 3-col")
+        self._view_btn = QPushButton("\u2630")  # ☰ hamburger
+        self._view_btn.setFixedSize(22, 22)
+        self._view_btn.setToolTip("Cycle view: list / 2-col / 3-col")
+        self._view_btn.setStyleSheet("QPushButton { padding: 2px; }")
         self._view_btn.clicked.connect(self._cycle_view_mode)
         self._view_mode = 0  # 0=list, 1=2col, 2=3col
         header.addWidget(self._view_btn)
@@ -75,9 +69,15 @@ class WorkTray(QWidget):
         self._clear_btn.setStyleSheet("QPushButton { padding: 2px 8px; }")
         self._clear_btn.clicked.connect(self.clear)
         header.addWidget(self._clear_btn)
+
+        self._close_btn = QPushButton("\u2715")  # ✕
+        self._close_btn.setFixedSize(22, 22)
+        self._close_btn.setToolTip("Close tray (Ctrl+T)")
+        self._close_btn.setStyleSheet("QPushButton { padding: 2px; }")
+        self._close_btn.clicked.connect(lambda: self.toggle_requested.emit())
+        header.addWidget(self._close_btn)
         layout.addLayout(header)
         self._collapsed = False
-        self._collapse_btn.setText("\u25BC")  # ▼ expanded
 
         # Count
         self._count_label = QLabel("0 items")
@@ -144,7 +144,6 @@ class WorkTray(QWidget):
         self._list.setVisible(not self._collapsed)
         self._count_label.setVisible(not self._collapsed)
         self._clear_btn.setVisible(not self._collapsed)
-        self._collapse_btn.setText("\u25B6" if self._collapsed else "\u25BC")
 
     def _update_count(self):
         n = len(self._asset_ids)
