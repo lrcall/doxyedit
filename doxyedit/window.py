@@ -796,6 +796,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction("&Export All Platforms...", self._export_all, QKeySequence("Ctrl+E"))
         file_menu.addSeparator()
         file_menu.addAction("Paste Image (Ctrl+V)", self._paste_from_clipboard, QKeySequence("Ctrl+V"))
+        file_menu.addAction("Paste Folder", self._paste_folder_from_clipboard)
         file_menu.addSeparator()
         file_menu.addAction("Reset All Tags (fresh start)", self._reset_all_tags)
         file_menu.addSeparator()
@@ -860,6 +861,13 @@ class MainWindow(QMainWindow):
         shared = self._settings.value("shared_cache", "false") == "true"
         self._shared_cache_action.setChecked(shared)
         self._shared_cache_action.toggled.connect(self._on_shared_cache_toggled)
+        self._fast_cache_action = tools_menu.addAction("Fast Cache Mode (BMP, larger files)")
+        self._fast_cache_action.setCheckable(True)
+        self._fast_cache_action.setChecked(bool(self._settings.value("fast_cache", 0, type=int)))
+        self._fast_cache_action.setToolTip(
+            "Store thumbnails as uncompressed BMP for faster reads at the cost of disk space")
+        self._fast_cache_action.toggled.connect(
+            lambda on: self._settings.setValue("fast_cache", int(on)))
         tools_menu.addSeparator()
         tools_menu.addAction("Find Duplicate Files...", self._find_duplicates)
         tools_menu.addAction("Tag Usage Stats...", self._show_tag_stats)
@@ -1008,6 +1016,29 @@ class MainWindow(QMainWindow):
                 return
 
         self.status.showMessage("No image or path in clipboard", 2000)
+
+    def _paste_folder_from_clipboard(self):
+        """Import a folder whose path is on the clipboard (text or file URL)."""
+        clipboard = QApplication.clipboard()
+        mime = clipboard.mimeData()
+        folders = []
+        if mime.hasUrls():
+            for u in mime.urls():
+                p = Path(u.toLocalFile())
+                if p.is_dir():
+                    folders.append(str(p))
+        if not folders and mime.hasText():
+            for line in mime.text().strip().splitlines():
+                p = Path(line.strip().strip('"'))
+                if p.is_dir():
+                    folders.append(str(p))
+        if not folders:
+            self.status.showMessage("No folder path in clipboard", 2000)
+            return
+        total = 0
+        for f in folders:
+            total += self.browser.import_folder(f)
+        self.status.showMessage(f"Imported {total} image(s) from folder", 2000)
 
     # --- Progress counter ---
 

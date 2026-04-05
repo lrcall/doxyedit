@@ -469,11 +469,12 @@ class FolderSection(QWidget):
     collapsed_changed = Signal(str, bool)  # (folder_path, is_collapsed)
 
     def __init__(self, folder: str, assets: list, delegate, thumb_size: int,
-                 collapsed: bool = False, parent=None):
+                 collapsed: bool = False, depth: int = 0, parent=None):
         super().__init__(parent)
         self.setObjectName("folder_section")
         self._folder = folder
         self._thumb_size = thumb_size
+        self._depth = depth
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 2, 0, 0)
@@ -535,7 +536,8 @@ class FolderSection(QWidget):
         self._view.setVisible(not collapsed)
         n = self._model.rowCount()
         arrow = "▶" if collapsed else "▼"
-        self._header.setText(f"{arrow}  {self._short}  ({n})")
+        indent = "   " * self._depth
+        self._header.setText(f"{indent}{arrow}  {self._short}  ({n})")
 
     def _toggle_collapse(self):
         new_state = not self.is_collapsed
@@ -1167,7 +1169,9 @@ class AssetBrowser(QWidget):
                 self.window().status.showMessage("All thumbnails already cached", 2000)
             except Exception:
                 pass
+            self.cache_all_check.blockSignals(True)
             self.cache_all_check.setChecked(False)
+            self.cache_all_check.blockSignals(False)
             return
 
         self._cache_all_remaining = ordered
@@ -1406,14 +1410,17 @@ class AssetBrowser(QWidget):
         self._folder_sections.clear()
 
         # Build new sections
+        min_depth = min((len(Path(f).parts) for f in groups), default=0)
         for folder, assets in groups.items():
             collapsed = folder in self._collapsed_folders
+            depth = len(Path(folder).parts) - min_depth
             section = FolderSection(
                 folder=folder,
                 assets=assets,
                 delegate=self._delegate,
                 thumb_size=self._thumb_size,
                 collapsed=collapsed,
+                depth=depth,
                 parent=self._folder_container,
             )
             section.collapsed_changed.connect(self._on_folder_collapsed)
@@ -2132,13 +2139,18 @@ class AssetBrowser(QWidget):
                 self._hover_timer.stop()
                 HoverPreview.instance().hide_preview()
 
-            # Delete key — pass to window's handler
+            # Key events — pass special keys to browser handlers
             if event.type() == event.Type.KeyPress:
                 if event.key() == Qt.Key.Key_Delete:
                     try:
                         self.window()._handle_delete()
                     except Exception:
                         pass
+                    return True
+                if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                    if self._selected_ids:
+                        aid = next(iter(self._selected_ids))
+                        self.asset_preview.emit(aid)
                     return True
 
         return super().eventFilter(obj, event)
@@ -2152,6 +2164,12 @@ class AssetBrowser(QWidget):
             self._refresh_grid()
             self.window().status.showMessage("Recaching thumbnails...", 2000)
             return
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            # Open preview for the currently selected asset
+            if self._selected_ids:
+                aid = next(iter(self._selected_ids))
+                self.asset_preview.emit(aid)
+                return
         if event.key() == Qt.Key.Key_Escape:
             if self._bar_tag_filters:
                 self.clear_bar_filters()

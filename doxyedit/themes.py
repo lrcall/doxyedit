@@ -272,7 +272,7 @@ THEMES: dict[str, Theme] = {
     "dark": DARK,
 }
 
-DEFAULT_THEME = "vinik24"
+DEFAULT_THEME = "soot"
 
 
 def generate_stylesheet(theme: Theme) -> str:
