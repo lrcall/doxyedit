@@ -375,9 +375,8 @@ class FolderListView(QListView):
         grid = self.gridSize()
         if not grid.isValid():
             return 0
-        # Use viewport width — the actual drawable area
         vp_w = self.viewport().width()
-        w = vp_w if vp_w > 0 else max(self.width(), 200)
+        w = vp_w if vp_w > 0 else (self.width() if self.width() > 0 else 1000)
         col_w = max(1, grid.width() + self.spacing() * 2)
         cols = max(1, w // col_w)
         rows = (m.rowCount() + cols - 1) // cols
@@ -387,7 +386,8 @@ class FolderListView(QListView):
         return QSize(0, self._compute_height())
 
     def minimumSizeHint(self):
-        return QSize(0, 0)
+        h = self._compute_height()
+        return QSize(0, h)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -633,6 +633,15 @@ class AssetBrowser(QWidget):
         self.search_box.textChanged.connect(self._on_filter_changed)
         row2.addWidget(self.search_box, 1)
 
+        self._tag_bar_toggle_btn = QPushButton("▼ Filters")
+        self._tag_bar_toggle_btn.setCheckable(True)
+        self._tag_bar_toggle_btn.setChecked(True)
+        self._tag_bar_toggle_btn.setStyleSheet(self._btn_style())
+        self._tag_bar_toggle_btn.setToolTip("Show/hide the tag filter bar")
+        self._tag_bar_toggle_btn.toggled.connect(self._on_tag_bar_toggle)
+        row2.addWidget(self._tag_bar_toggle_btn)
+        self._toolbar_plain_btns.append(self._tag_bar_toggle_btn)
+
         self._fold_all_btn = QPushButton("Collapse All")
         self._fold_all_btn.setStyleSheet(self._btn_style())
         self._fold_all_btn.setToolTip("Collapse all folders")
@@ -664,14 +673,6 @@ class AssetBrowser(QWidget):
         self.sort_combo.currentIndexChanged.connect(self._on_filter_changed)
         self.sort_combo.currentTextChanged.connect(self._on_sort_mode_changed)
         row2.addWidget(self.sort_combo)
-
-        self._tag_bar_toggle_btn = QPushButton("▼ Filters")
-        self._tag_bar_toggle_btn.setCheckable(True)
-        self._tag_bar_toggle_btn.setChecked(True)
-        self._tag_bar_toggle_btn.setStyleSheet(self._btn_style())
-        self._tag_bar_toggle_btn.setToolTip("Show/hide the tag filter bar")
-        self._tag_bar_toggle_btn.toggled.connect(self._on_tag_bar_toggle)
-        row2.addWidget(self._tag_bar_toggle_btn)
 
         root.addLayout(row2)
 
