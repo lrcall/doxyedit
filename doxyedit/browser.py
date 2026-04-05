@@ -933,6 +933,21 @@ class AssetBrowser(QWidget):
                         self._list_view.scrollTo(current, QListView.ScrollHint.PositionAtCenter)
                     return True
 
+            # Star click — detect click in star area of a thumbnail
+            if event.type() == event.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+                pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
+                index = self._list_view.indexAt(pos)
+                if index.isValid():
+                    item_rect = self._list_view.visualRect(index)
+                    ts = self._delegate.thumb_size
+                    star_rect = QRect(item_rect.right() - 24, item_rect.y() + ts + 34, 22, 22)
+                    if star_rect.contains(pos):
+                        asset = self._model.get_asset(index)
+                        if asset:
+                            asset.cycle_star()
+                            self._model.dataChanged.emit(index, index)
+                        return True
+
             # Middle-click — instant preview regardless of hover setting
             if event.type() == event.Type.MouseButtonPress:
                 if event.button() == Qt.MouseButton.MiddleButton:
