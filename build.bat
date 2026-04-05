@@ -26,6 +26,17 @@ python -m nuitka ^
     --include-module=PIL ^
     --include-module=psd_tools ^
     --include-module=numpy ^
+    --nofollow-import-to=matplotlib ^
+    --nofollow-import-to=scipy ^
+    --nofollow-import-to=skimage ^
+    --nofollow-import-to=sklearn ^
+    --nofollow-import-to=pandas ^
+    --nofollow-import-to=tkinter ^
+    --nofollow-import-to=unittest ^
+    --nofollow-import-to=test ^
+    --nofollow-import-to=setuptools ^
+    --nofollow-import-to=pip ^
+    --nofollow-import-to=distutils ^
     run.py
 
 if errorlevel 1 (
