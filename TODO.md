@@ -169,6 +169,7 @@
 - [ ] F2 to rename selected file on disk
 - [ ] Multiple tray views (tabs or named trays)
 - [ ] Tag bar buttons function as hide/show toggles (click to filter view) not tag assignment
+- [ ] Hover preview size as fixed px (e.g. 400px) not percent of thumbnail — consistent size regardless of zoom
 
 ### Low Priority / Future
 - [ ] Mass tag editing for AI training prompt files
