@@ -41,6 +41,11 @@
       "id": "angel",
       "label": "Angel",
       "color": "#be955c"
+    },
+    {
+      "id": "sketches",
+      "label": "sketches",
+      "color": "#7ca1c0"
     }
   ],
   "custom_shortcuts": {
@@ -59,6 +64,7 @@
     "banner",
     "tier_card"
   ],
+  "eye_hidden_tags": [],
   "assets": [
     {
       "id": "001_0",

@@ -326,6 +326,8 @@ class Project:
     custom_tags: list[dict] = field(default_factory=list)
     custom_shortcuts: dict[str, str] = field(default_factory=dict)  # key → tag_id
     hidden_tags: list[str] = field(default_factory=list)  # tags hidden from side panel
+    eye_hidden_tags: list[str] = field(default_factory=list)  # tags with eye off (filter from grid)
+    sort_mode: str = "Name A-Z"
     notes: str = ""
 
     def get_tags(self) -> dict[str, TagPreset]:
@@ -354,6 +356,8 @@ class Project:
             "custom_tags": self.custom_tags,
             "custom_shortcuts": self.custom_shortcuts,
             "hidden_tags": self.hidden_tags,
+            "eye_hidden_tags": self.eye_hidden_tags,
+            "sort_mode": self.sort_mode,
             "assets": [asdict(a) for a in self.assets],
         }
         Path(path).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
@@ -368,6 +372,8 @@ class Project:
             custom_tags=raw.get("custom_tags", []),
             custom_shortcuts=raw.get("custom_shortcuts", {}),
             hidden_tags=raw.get("hidden_tags", []),
+            eye_hidden_tags=raw.get("eye_hidden_tags", []),
+            sort_mode=raw.get("sort_mode", "Name A-Z"),
         )
         for a in raw.get("assets", []):
             asset = Asset(

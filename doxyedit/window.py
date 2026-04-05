@@ -444,6 +444,13 @@ class MainWindow(QMainWindow):
             self._recent_folders_menu.addAction("(none)").setEnabled(False)
 
     def _load_project_from(self, path: str):
+        # Create backup before loading
+        import shutil
+        bak = path + ".bak"
+        try:
+            shutil.copy2(path, bak)
+        except Exception:
+            pass
         self.project = Project.load(path)
         self._rebind_project()
         self._project_path = path
@@ -480,6 +487,8 @@ class MainWindow(QMainWindow):
     def _on_eye_filter(self, hidden_tag_ids: list):
         """Eye toggle — hide images that have any of these tags."""
         self.browser._eye_hidden_tags = set(hidden_tag_ids)
+        self.project.eye_hidden_tags = hidden_tag_ids
+        self._dirty = True
         self.browser.refresh()
 
     def _on_hidden_changed(self, hidden_list):
@@ -675,6 +684,26 @@ class MainWindow(QMainWindow):
         self.tag_panel.set_assets([])
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self._update_progress()
+        # Restore sort mode
+        if self.project.sort_mode:
+            idx = self.browser.sort_combo.findText(self.project.sort_mode)
+            if idx >= 0:
+                self.browser.sort_combo.setCurrentIndex(idx)
+
+        # Restore eye-hidden tags (grid filter)
+        if self.project.eye_hidden_tags:
+            self.browser._eye_hidden_tags = set(self.project.eye_hidden_tags)
+            self.tag_panel._eye_hidden = set(self.project.eye_hidden_tags)
+            # Update eye buttons on tag rows
+            for tag_id in self.project.eye_hidden_tags:
+                if tag_id in self.tag_panel._rows:
+                    row = self.tag_panel._rows[tag_id]
+                    row.eye_btn.blockSignals(True)
+                    row.eye_btn.setChecked(False)
+                    row.eye_btn.setText("\u25CB")
+                    row.eye_btn.blockSignals(False)
+            self.browser.refresh()
+
         # Restore hidden tags
         if self.project.hidden_tags:
             self.tag_panel.load_hidden_tags(self.project.hidden_tags)
@@ -699,6 +728,8 @@ class MainWindow(QMainWindow):
 
     def _save_project(self):
         if self._project_path:
+            # Sync UI state to project before saving
+            self.project.sort_mode = self.browser.sort_combo.currentText()
             self.project.save(self._project_path)
             self._dirty = False
             self._settings.setValue("last_project", self._project_path)
