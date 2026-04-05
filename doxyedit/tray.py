@@ -125,6 +125,9 @@ class WorkTray(QWidget):
         self._list.itemClicked.connect(self._on_item_clicked)
         self._list.itemDoubleClicked.connect(self._on_item_double_clicked)
         self._list.setStyleSheet("QListWidget { border: none; }")
+        self._list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self._list.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self._list.verticalScrollBar().setSingleStep(20)
         layout.addWidget(self._list)
 
     def add_asset(self, asset_id: str, name: str, pixmap: QPixmap = None, path: str = ""):
