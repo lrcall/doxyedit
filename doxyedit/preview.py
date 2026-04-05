@@ -2,7 +2,7 @@
 from pathlib import Path
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsScene, QGraphicsView,
-    QGraphicsPixmapItem, QGraphicsRectItem, QGraphicsTextItem,
+    QGraphicsPixmapItem, QGraphicsRectItem,
     QApplication, QPushButton, QInputDialog, QWidget,
 )
 from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF
@@ -82,7 +82,9 @@ class HoverPreview(QWidget):
 
 
 class NoteRectItem(QGraphicsRectItem):
-    """A draggable note box with text label on the preview."""
+    """A draggable note box with text label — text stays fixed screen size at any zoom."""
+
+    _FONT = QFont("Segoe UI", 13, QFont.Weight.Bold)
 
     def __init__(self, rect: QRectF, text: str = ""):
         super().__init__(rect)
@@ -92,29 +94,39 @@ class NoteRectItem(QGraphicsRectItem):
             QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable
         )
-        # Fixed font size — 18pt looks readable at all zoom levels
-        self._text_item = QGraphicsTextItem(text, self)
-        self._text_item.setDefaultTextColor(QColor(255, 240, 210, 240))
-        self._text_item.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
-        self._text_item.setPos(rect.x() + 8, rect.y() + 6)
-        # Add a dark background behind text for readability
-        self._bg = QGraphicsRectItem(self)
-        self._bg.setBrush(QBrush(QColor(0, 0, 0, 140)))
-        self._bg.setPen(QPen(Qt.PenStyle.NoPen))
-        self._bg.setZValue(-1)
         self.text = text
-        self._update_text_bg()
-
-    def _update_text_bg(self):
-        br = self._text_item.boundingRect()
-        self._bg.setRect(
-            self._text_item.x(), self._text_item.y(),
-            br.width() + 8, br.height() + 4)
 
     def update_text(self, text: str):
         self.text = text
-        self._text_item.setPlainText(text)
-        self._update_text_bg()
+        self.update()
+
+    def paint(self, painter, option, widget=None):
+        # Draw the rect border/fill normally (scales with zoom)
+        super().paint(painter, option, widget)
+        if not self.text:
+            return
+
+        # Map the rect's top-left corner from scene → screen pixels
+        scene_tl = self.mapToScene(self.rect().topLeft())
+        screen_tl = painter.transform().map(scene_tl)
+
+        # Switch to screen-space drawing so font size is independent of zoom
+        painter.save()
+        painter.resetTransform()
+
+        fm = painter.fontMetrics()  # use whatever font is current
+        painter.setFont(self._FONT)
+        fm = painter.fontMetrics()
+        pad_x, pad_y = 8, 5
+        text_w = fm.horizontalAdvance(self.text) + pad_x * 2
+        text_h = fm.height() + pad_y * 2
+
+        bg = QRectF(screen_tl.x() + 4, screen_tl.y() + 4, text_w, text_h)
+        painter.fillRect(bg, QColor(0, 0, 0, 160))
+        painter.setPen(QColor(255, 240, 210, 240))
+        painter.drawText(bg.adjusted(pad_x, pad_y, -pad_x, -pad_y), self.text)
+
+        painter.restore()
 
 
 class ImagePreviewDialog(QDialog):

@@ -758,6 +758,17 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction("E&xit", self.close, QKeySequence("Alt+F4"))
 
+        # Bookmarks menu
+        bm_menu = menu.addMenu("&Bookmarks")
+        bm_menu.addAction("Bookmark This Project", self._bookmark_current_project)
+        bm_menu.addAction("Bookmark Current Collection", self._bookmark_current_collection)
+        bm_menu.addSeparator()
+        self._bm_projects_menu = bm_menu.addMenu("Projects")
+        self._bm_collections_menu = bm_menu.addMenu("Collections")
+        bm_menu.addSeparator()
+        bm_menu.addAction("Manage Bookmarks…", self._manage_bookmarks)
+        self._rebuild_bookmarks_menu()
+
         # Edit menu
         edit_menu = menu.addMenu("&Edit")
         edit_menu.addAction("Select &All", self._select_all, QKeySequence("Ctrl+A"))
@@ -1064,6 +1075,116 @@ class MainWindow(QMainWindow):
                     Path(f).name, lambda folder=f: self._open_recent_folder(folder))
         if self._recent_folders_menu.isEmpty():
             self._recent_folders_menu.addAction("(none)").setEnabled(False)
+
+    # ── Bookmarks ──────────────────────────────────────────────────────────
+
+    def _get_bookmarks(self, key: str) -> list[str]:
+        v = self._settings.value(key, [])
+        return v if isinstance(v, list) else ([v] if v else [])
+
+    def _rebuild_bookmarks_menu(self):
+        self._bm_projects_menu.clear()
+        for p in self._get_bookmarks("bookmarked_projects"):
+            if Path(p).exists():
+                self._bm_projects_menu.addAction(
+                    Path(p).stem, lambda path=p: self._open_project_in_tab_from(path))
+            else:
+                act = self._bm_projects_menu.addAction(f"✕ {Path(p).stem}")
+                act.setEnabled(False)
+        if self._bm_projects_menu.isEmpty():
+            self._bm_projects_menu.addAction("(none)").setEnabled(False)
+
+        self._bm_collections_menu.clear()
+        for c in self._get_bookmarks("bookmarked_collections"):
+            if Path(c).exists():
+                self._bm_collections_menu.addAction(
+                    Path(c).stem, lambda path=c: self._restore_collection_interactive(path))
+            else:
+                act = self._bm_collections_menu.addAction(f"✕ {Path(c).stem}")
+                act.setEnabled(False)
+        if self._bm_collections_menu.isEmpty():
+            self._bm_collections_menu.addAction("(none)").setEnabled(False)
+
+    def _bookmark_current_project(self):
+        if not self._project_path:
+            self.status.showMessage("Save the project first before bookmarking", 3000)
+            return
+        bms = self._get_bookmarks("bookmarked_projects")
+        if self._project_path not in bms:
+            bms.append(self._project_path)
+            self._settings.setValue("bookmarked_projects", bms)
+            self._rebuild_bookmarks_menu()
+        self.status.showMessage(f"Bookmarked: {Path(self._project_path).stem}", 2000)
+
+    def _bookmark_current_collection(self):
+        last = self._settings.value("last_collection", "")
+        if not last or not Path(last).exists():
+            self.status.showMessage("No saved collection to bookmark", 3000)
+            return
+        bms = self._get_bookmarks("bookmarked_collections")
+        if last not in bms:
+            bms.append(last)
+            self._settings.setValue("bookmarked_collections", bms)
+            self._rebuild_bookmarks_menu()
+        self.status.showMessage(f"Bookmarked collection: {Path(last).stem}", 2000)
+
+    def _open_project_in_tab_from(self, path: str):
+        for i, slot in enumerate(self._project_slots):
+            if slot["path"] == path:
+                self._proj_tab_bar.setCurrentIndex(i)
+                return
+        project = Project.load(path)
+        self._add_project_tab(project, path, Path(path).stem)
+
+    def _restore_collection_interactive(self, path: str):
+        if not self._restore_collection(path):
+            QMessageBox.warning(self, "Open Collection",
+                f"Could not load collection — some project files may be missing:\n{path}")
+
+    def _manage_bookmarks(self):
+        """Dialog to remove stale or unwanted bookmarks."""
+        from PySide6.QtWidgets import QDialog, QListWidget, QListWidgetItem, QDialogButtonBox, QVBoxLayout
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Manage Bookmarks")
+        dlg.resize(500, 400)
+        layout = QVBoxLayout(dlg)
+
+        layout.addWidget(QLabel("Projects:"))
+        proj_list = QListWidget()
+        for p in self._get_bookmarks("bookmarked_projects"):
+            item = QListWidgetItem(f"{'✓' if Path(p).exists() else '✕'} {Path(p).stem}  —  {p}")
+            item.setData(Qt.ItemDataRole.UserRole, p)
+            proj_list.addItem(item)
+        layout.addWidget(proj_list)
+
+        layout.addWidget(QLabel("Collections:"))
+        coll_list = QListWidget()
+        for c in self._get_bookmarks("bookmarked_collections"):
+            item = QListWidgetItem(f"{'✓' if Path(c).exists() else '✕'} {Path(c).stem}  —  {c}")
+            item.setData(Qt.ItemDataRole.UserRole, c)
+            coll_list.addItem(item)
+        layout.addWidget(coll_list)
+
+        layout.addWidget(QLabel("Select items and press Delete to remove, or use the buttons below."))
+
+        remove_btn = QPushButton("Remove Selected")
+        def _remove():
+            for lst, key in [(proj_list, "bookmarked_projects"), (coll_list, "bookmarked_collections")]:
+                for item in lst.selectedItems():
+                    bms = self._get_bookmarks(key)
+                    p = item.data(Qt.ItemDataRole.UserRole)
+                    if p in bms:
+                        bms.remove(p)
+                    self._settings.setValue(key, bms)
+                    lst.takeItem(lst.row(item))
+            self._rebuild_bookmarks_menu()
+        remove_btn.clicked.connect(_remove)
+        layout.addWidget(remove_btn)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        btns.rejected.connect(dlg.accept)
+        layout.addWidget(btns)
+        dlg.exec()
 
     def _load_project_from(self, path: str):
         # Create backup before loading
