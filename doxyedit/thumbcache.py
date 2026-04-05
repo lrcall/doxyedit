@@ -162,7 +162,9 @@ class ThumbCache:
         self._pixmaps: dict[str, QPixmap] = {}
         self._gen_sizes: dict[str, int] = {}
         self._dims: dict[str, tuple[int, int]] = {}
-        self._disk_cache = DiskCache()
+        from PySide6.QtCore import QSettings
+        cache_dir = QSettings("DoxyEdit", "DoxyEdit").value("cache_dir", None)
+        self._disk_cache = DiskCache(cache_dir=cache_dir)
         self._worker = ThumbWorker(self._disk_cache)
         self._worker.start()
 

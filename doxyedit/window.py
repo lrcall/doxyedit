@@ -294,6 +294,7 @@ class MainWindow(QMainWindow):
         tools_menu.addAction("Project &Summary (CLI)", self._show_summary)
         tools_menu.addAction("Show Project File...", self._show_project_file)
         tools_menu.addSeparator()
+        tools_menu.addAction("Set Cache Location...", self._set_cache_location)
         tools_menu.addAction("Open Cache Folder", self._open_cache_folder)
 
         # View menu
@@ -783,9 +784,16 @@ class MainWindow(QMainWindow):
         else:
             self.status.showMessage("Save the project first", 2000)
 
+    def _set_cache_location(self):
+        current = self._settings.value("cache_dir", str(Path.home() / ".doxyedit" / "thumbcache"))
+        folder = QFileDialog.getExistingDirectory(self, "Set Cache Location", current)
+        if folder:
+            self._settings.setValue("cache_dir", folder)
+            self.status.showMessage(f"Cache location set to: {folder} (restart to apply)")
+
     def _open_cache_folder(self):
         import subprocess
-        cache_dir = str(Path.home() / ".doxyedit" / "thumbcache")
+        cache_dir = self._settings.value("cache_dir", str(Path.home() / ".doxyedit" / "thumbcache"))
         subprocess.Popen(f'explorer "{cache_dir}"')
 
     def _show_shortcuts(self):
@@ -921,8 +929,10 @@ Alt+Click tag — Search by tag
 
     def _save_project(self):
         if self._project_path:
-            # Sync UI state to project before saving
+            # Sync all UI state to project before saving
             self.project.sort_mode = self.browser.sort_combo.currentText()
+            self.project.eye_hidden_tags = list(self.browser._eye_hidden_tags)
+            self.project.hidden_tags = list(self.tag_panel._hidden_tags)
             self.project.save(self._project_path)
             self._dirty = False
             self._settings.setValue("last_project", self._project_path)

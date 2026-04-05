@@ -800,8 +800,21 @@ class AssetBrowser(QWidget):
             menu.addAction(f"Star All ({n})", self._star_all_selected)
             menu.addAction(f"Unstar All ({n})", self._unstar_all_selected)
             menu.addSeparator()
+        menu.addAction("Add Tag...", lambda: self._add_tag_dialog(asset))
         menu.addAction("Remove from Project", lambda: self._remove_asset(asset))
         menu.exec(pos)
+
+    def _add_tag_dialog(self, asset):
+        from PySide6.QtWidgets import QInputDialog
+        tag, ok = QInputDialog.getText(self.window(), "Add Tag", "Tag to add:")
+        if ok and tag.strip():
+            tag_id = tag.strip().lower().replace(" ", "_")
+            # Apply to all selected if multiple selected
+            assets = self.get_selected_assets() or [asset]
+            for a in assets:
+                if tag_id not in a.tags:
+                    a.tags.append(tag_id)
+            self.selection_changed.emit(list(self._selected_ids))
 
     def _toggle_star(self, asset):
         asset.cycle_star()
