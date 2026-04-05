@@ -52,6 +52,7 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.work_tray = WorkTray()
         self._tray_open = False
+        self._saved_tray_sizes = None
         self.work_tray.hide()
 
         self._main_split = QSplitter(Qt.Orientation.Horizontal)
@@ -671,7 +672,7 @@ class MainWindow(QMainWindow):
         self._dirty = True
 
     def _toggle_work_tray(self):
-        is_open = hasattr(self, '_tray_open') and self._tray_open
+        is_open = self._tray_open
         if is_open:
             self._tray_open = False
             # Remember tray width before hiding
@@ -686,7 +687,7 @@ class MainWindow(QMainWindow):
             self.work_tray.setMaximumWidth(400)
             self.work_tray.show()
             # Restore previous tray width
-            if hasattr(self, '_saved_tray_sizes') and self._saved_tray_sizes:
+            if self._saved_tray_sizes:
                 self._main_split.setSizes(self._saved_tray_sizes)
             else:
                 sizes = self._main_split.sizes()
@@ -886,6 +887,14 @@ class MainWindow(QMainWindow):
         if self.tabs.currentIndex() == 0:
             self.browser._list_view.clearSelection()
 
+    def _remove_assets_by_ids(self, ids: set):
+        """Remove assets from current project by ID and refresh."""
+        self.project.assets = [a for a in self.project.assets if a.id not in ids]
+        self.project.invalidate_index()
+        self._refresh_all_tags()
+        self.browser.refresh()
+        self._dirty = True
+
     def _move_to_project(self):
         """Move selected assets to another .doxyproj.json file."""
         assets = self.browser.get_selected_assets()
@@ -910,12 +919,7 @@ class MainWindow(QMainWindow):
                 moved += 1
             ids_to_remove.add(a.id)
         target.save(path)
-        # Remove from current project
-        self.project.assets = [a for a in self.project.assets if a.id not in ids_to_remove]
-        self.project.invalidate_index()
-        self._refresh_all_tags()
-        self.browser.refresh()
-        self._dirty = True
+        self._remove_assets_by_ids(ids_to_remove)
         self.status.showMessage(f"Moved {moved} asset(s) to {Path(path).name}")
 
     def _move_to_new_project(self):
@@ -932,17 +936,10 @@ class MainWindow(QMainWindow):
             path += ".doxyproj.json"
         name = Path(path).stem.replace(".doxyproj", "")
         target = Project(name=name)
-        ids_to_remove = set()
-        for a in assets:
-            target.assets.append(a)
-            ids_to_remove.add(a.id)
+        ids_to_remove = {a.id for a in assets}
+        target.assets.extend(assets)
         target.save(path)
-        # Remove from current project
-        self.project.assets = [a for a in self.project.assets if a.id not in ids_to_remove]
-        self.project.invalidate_index()
-        self._refresh_all_tags()
-        self.browser.refresh()
-        self._dirty = True
+        self._remove_assets_by_ids(ids_to_remove)
         self.status.showMessage(f"Created '{name}' with {len(assets)} asset(s)")
 
     def _show_notes_overlay(self):

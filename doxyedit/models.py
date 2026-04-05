@@ -1,6 +1,7 @@
 """Central data model — everything saves to readable JSON."""
 from __future__ import annotations
 import json
+import re
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
@@ -25,6 +26,12 @@ class TagPreset:
     height: Optional[int] = None  # None = flexible height
     ratio: str = ""               # display hint like "16:9"
     color: str = "#888888"
+
+    @classmethod
+    def from_dict(cls, tid: str, d: dict) -> "TagPreset":
+        return cls(id=tid, label=d.get("label", tid),
+                   width=d.get("width"), height=d.get("height"),
+                   ratio=d.get("ratio", ""), color=d.get("color", "#888"))
 
 
 # Vinik24 color cycle for auto-assigning colors to new tags
@@ -339,25 +346,16 @@ class Project:
         tags = dict(TAG_ALL)
         # New-style tag_definitions (preferred)
         for tid, defn in self.tag_definitions.items():
-            if not isinstance(defn, dict):
-                continue
-            tags[tid] = TagPreset(
-                id=tid, label=defn.get("label", tid),
-                width=defn.get("width"), height=defn.get("height"),
-                ratio=defn.get("ratio", ""), color=defn.get("color", "#888"),
-            )
+            if isinstance(defn, dict):
+                tags[tid] = TagPreset.from_dict(tid, defn)
         # Legacy custom_tags (backward compat — migrated on save)
         for ct in self.custom_tags:
             if not isinstance(ct, dict):
                 continue
             try:
                 tid = ct["id"]
-                if tid not in tags:  # don't overwrite tag_definitions
-                    tags[tid] = TagPreset(
-                        id=tid, label=ct.get("label", tid),
-                        width=ct.get("width"), height=ct.get("height"),
-                        ratio=ct.get("ratio", ""), color=ct.get("color", "#888"),
-                    )
+                if tid not in tags:
+                    tags[tid] = TagPreset.from_dict(tid, ct)
             except (KeyError, TypeError):
                 continue
         return tags
@@ -420,7 +418,6 @@ class Project:
             raw_notes = a.get("notes", "")
             raw_specs = a.get("specs", {})
             # Auto-migrate CLI-generated notes to specs
-            import re
             if raw_notes and not raw_specs and re.match(r'^\d+x\d+', raw_notes.strip()):
                 raw_specs["cli_info"] = raw_notes.strip()
                 raw_notes = ""

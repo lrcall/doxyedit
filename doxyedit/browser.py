@@ -497,7 +497,7 @@ class AssetBrowser(QWidget):
         self._tag_buttons.clear()
 
         all_used = {t for a in self.project.assets for t in a.tags}
-        all_tags = self.project.get_tags() if hasattr(self.project, 'get_tags') else dict(TAG_ALL)
+        all_tags = self.project.get_tags()
         bar_tags = {}
         # Built-in presets (always shown)
         for tid, preset in TAG_PRESETS.items():
@@ -664,14 +664,16 @@ class AssetBrowser(QWidget):
         self._filtered_assets = self._compute_filtered()
         self._model.set_assets(self._filtered_assets)
 
-        # Restore selection
+        # Restore selection (block signals to avoid N redundant emissions)
         if saved_ids:
             sel = self._list_view.selectionModel()
+            sel.blockSignals(True)
             for i in range(self._model.rowCount()):
                 idx = self._model.index(i)
                 asset = self._model.get_asset(idx)
                 if asset and asset.id in saved_ids:
                     sel.select(idx, sel.SelectionFlag.Select)
+            sel.blockSignals(False)
 
         # Request thumbnails for visible items
         batch = [(a.id, a.source_path) for a in self._filtered_assets]
@@ -889,7 +891,7 @@ class AssetBrowser(QWidget):
                     union_tags.append(t)
                     seen.add(t)
         if union_tags:
-            all_tags = self.project.get_tags() if hasattr(self.project, 'get_tags') else {}
+            all_tags = self.project.get_tags()
             cur_menu = menu.addMenu(f"Tags ({len(union_tags)})")
             for t in union_tags:
                 label = all_tags[t].label if t in all_tags else t

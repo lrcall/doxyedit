@@ -8,6 +8,9 @@ from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QPixmap, QIcon, QFont
 
 
+NAME_ROLE = NAME_ROLE  # stores display name for view mode switching
+
+
 class WorkTray(QWidget):
     """Collapsible right panel — drag images here as a work area / quickslot."""
     asset_selected = Signal(str)
@@ -22,6 +25,7 @@ class WorkTray(QWidget):
         self.setMaximumWidth(400)
         self._asset_ids: list[str] = []
         self._pixmaps: dict[str, QPixmap] = {}
+        self._project = None
         self._paths: dict[str, str] = {}  # asset_id → source_path
         self._build()
 
@@ -77,7 +81,6 @@ class WorkTray(QWidget):
         self._close_btn.clicked.connect(lambda: self.toggle_requested.emit())
         header.addWidget(self._close_btn)
         layout.addLayout(header)
-        self._collapsed = False
 
         # Count
         self._count_label = QLabel("0 items")
@@ -109,7 +112,7 @@ class WorkTray(QWidget):
         item = QListWidgetItem()
         item.setText(name if self._view_mode == 0 else "")
         item.setData(Qt.ItemDataRole.UserRole, asset_id)
-        item.setData(Qt.ItemDataRole.UserRole + 1, name)  # store name for mode switching
+        item.setData(NAME_ROLE, name)  # store name for mode switching
         if pixmap and not pixmap.isNull():
             scaled = pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio,
                                    Qt.TransformationMode.SmoothTransformation)
@@ -140,12 +143,6 @@ class WorkTray(QWidget):
     def get_asset_ids(self) -> list[str]:
         return list(self._asset_ids)
 
-    def _toggle_collapse(self):
-        self._collapsed = not self._collapsed
-        self._list.setVisible(not self._collapsed)
-        self._count_label.setVisible(not self._collapsed)
-        self._clear_btn.setVisible(not self._collapsed)
-
     def _update_count(self):
         n = len(self._asset_ids)
         self._count_label.setText(f"{n} item{'s' if n != 1 else ''}")
@@ -175,7 +172,7 @@ class WorkTray(QWidget):
         menu.addAction("Move to Top", lambda: self._move_to_top(asset_id))
         menu.addAction("Move to Bottom", lambda: self._move_to_bottom(asset_id))
         # Quick Tag
-        if hasattr(self, '_project') and self._project:
+        if self._project:
             asset = self._project.get_asset(asset_id)
             if asset:
                 all_tags = list(self._project.get_tags().values())
@@ -235,8 +232,8 @@ class WorkTray(QWidget):
             self._list.setSpacing(2)
             for i in range(self._list.count()):
                 item = self._list.item(i)
-                if item and item.data(Qt.ItemDataRole.UserRole + 1):
-                    item.setText(item.data(Qt.ItemDataRole.UserRole + 1))
+                if item and item.data(NAME_ROLE):
+                    item.setText(item.data(NAME_ROLE))
         else:
             # Grid modes — icon only, no text
             cell = 120 if self._view_mode == 1 else 80
@@ -250,8 +247,8 @@ class WorkTray(QWidget):
             for i in range(self._list.count()):
                 item = self._list.item(i)
                 if item:
-                    if not item.data(Qt.ItemDataRole.UserRole + 1):
-                        item.setData(Qt.ItemDataRole.UserRole + 1, item.text())
+                    if not item.data(NAME_ROLE):
+                        item.setData(NAME_ROLE, item.text())
                     item.setText("")
 
     def _toggle_tray_tag(self, asset_id: str, tag_id: str):
