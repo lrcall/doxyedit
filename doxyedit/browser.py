@@ -402,6 +402,7 @@ class FolderSection(QWidget):
     def __init__(self, folder: str, assets: list, delegate, thumb_size: int,
                  collapsed: bool = False, parent=None):
         super().__init__(parent)
+        self.setObjectName("folder_section")
         self._folder = folder
         self._thumb_size = thumb_size
 
@@ -722,12 +723,14 @@ class AssetBrowser(QWidget):
 
         # Folder scroll area (page 1 of the stack) — built lazily in _refresh_grid
         self._folder_container = QWidget()
+        self._folder_container.setObjectName("folder_container")
         self._folder_container_layout = QVBoxLayout(self._folder_container)
         self._folder_container_layout.setContentsMargins(0, 0, 0, 0)
         self._folder_container_layout.setSpacing(4)
         self._folder_container_layout.addStretch()
 
         self._folder_scroll = QScrollArea()
+        self._folder_scroll.setObjectName("folder_scroll")
         self._folder_scroll.setWidget(self._folder_container)
         self._folder_scroll.setWidgetResizable(True)
         self._folder_scroll.setFrameShape(QFrame.Shape.NoFrame)

@@ -2,6 +2,9 @@
 title DoxyEdit
 cd /d "%~dp0"
 
+where py >nul 2>&1
+if %errorlevel% == 0 (set PYTHON=py) else (set PYTHON=python)
+
 echo.
 echo   ____                   _____    _ _ _
 echo  ^|  _ \  ___  _  ___   _^| ____^|__^| ^(_) ^|_
@@ -14,7 +17,7 @@ echo  Art Asset Manager
 echo  ─────────────────
 echo.
 
-python run.py %*
+%PYTHON% run.py %*
 
 if errorlevel 1 (
     echo.

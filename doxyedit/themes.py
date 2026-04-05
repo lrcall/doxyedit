@@ -487,6 +487,11 @@ def generate_stylesheet(theme: Theme) -> str:
             color: {theme.text_primary};
             border-bottom: 2px solid {theme.accent_bright};
         }}
+        QWidget#folder_section, QWidget#folder_container,
+        QScrollArea#folder_scroll, QScrollArea#folder_scroll > QWidget,
+        QScrollArea#folder_scroll QWidget {{
+            background: {theme.bg_deep};
+        }}
         QPushButton#folder_section_header {{
             background: {theme.bg_raised};
             color: {theme.text_secondary};
