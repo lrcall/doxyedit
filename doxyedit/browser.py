@@ -1720,7 +1720,21 @@ class AssetBrowser(QWidget):
                     for section in self._folder_sections:
                         section.update_grid_size(self._thumb_size)
                     if current.isValid():
-                        view.scrollTo(current, QListView.ScrollHint.PositionAtCenter)
+                        if view is self._list_view:
+                            QTimer.singleShot(0, lambda v=view, c=current: v.scrollTo(c, QListView.ScrollHint.PositionAtCenter))
+                        else:
+                            # Folder section — scroll the outer QScrollArea to the item
+                            def _scroll_to_item(v=view, c=current):
+                                for section in self._folder_sections:
+                                    if section.view is v:
+                                        ir = v.visualRect(c)
+                                        if ir.isValid():
+                                            item_y = v.mapTo(self._folder_container, ir.topLeft()).y() + ir.height() // 2
+                                            vp_h = self._folder_scroll.viewport().height()
+                                            sb = self._folder_scroll.verticalScrollBar()
+                                            sb.setValue(max(0, min(item_y - vp_h // 2, sb.maximum())))
+                                        break
+                            QTimer.singleShot(0, _scroll_to_item)
                     return True
 
             # Star click — detect click in star area of a thumbnail
