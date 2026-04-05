@@ -233,7 +233,10 @@ class ThumbnailDelegate(QStyledItemDelegate):
 
     def sizeHint(self, option, index):
         if index.data(ThumbnailModel.FolderHeaderRole):
-            return QSize(option.rect.width(), 28)
+            # Full viewport width so the header spans the entire row
+            view = option.widget
+            w = view.viewport().width() if view else 800
+            return QSize(w, 28)
         return QSize(self.thumb_size + 2 * self.PADDING,
                      self.thumb_size + 70)
 
