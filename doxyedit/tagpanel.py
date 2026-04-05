@@ -247,7 +247,7 @@ class TagPanel(QWidget):
         root.addWidget(notes_label)
 
         self.notes_edit = QTextEdit()
-        self.notes_edit.setMaximumHeight(80)
+        self.notes_edit.setMinimumHeight(40)
         # Inherits from theme
         self.notes_edit.textChanged.connect(self._on_notes_changed)
         root.addWidget(self.notes_edit)

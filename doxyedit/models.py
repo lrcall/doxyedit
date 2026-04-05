@@ -328,6 +328,7 @@ class Project:
     hidden_tags: list[str] = field(default_factory=list)  # tags hidden from side panel
     eye_hidden_tags: list[str] = field(default_factory=list)  # tags with eye off (filter from grid)
     sort_mode: str = "Name A-Z"
+    tray_items: list[str] = field(default_factory=list)  # asset IDs in work tray
     notes: str = ""
 
     def get_tags(self) -> dict[str, TagPreset]:
@@ -358,6 +359,7 @@ class Project:
             "hidden_tags": self.hidden_tags,
             "eye_hidden_tags": self.eye_hidden_tags,
             "sort_mode": self.sort_mode,
+            "tray_items": self.tray_items,
             "assets": [asdict(a) for a in self.assets],
         }
         Path(path).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
@@ -374,6 +376,7 @@ class Project:
             hidden_tags=raw.get("hidden_tags", []),
             eye_hidden_tags=raw.get("eye_hidden_tags", []),
             sort_mode=raw.get("sort_mode", "Name A-Z"),
+            tray_items=raw.get("tray_items", []),
         )
         for a in raw.get("assets", []):
             asset = Asset(

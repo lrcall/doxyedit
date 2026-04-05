@@ -21,6 +21,7 @@ from doxyedit.platforms import PlatformPanel
 from doxyedit.tagpanel import TagPanel
 from doxyedit.exporter import export_project
 from doxyedit.preview import ImagePreviewDialog
+from doxyedit.tray import WorkTray
 from doxyedit.project import save_project, load_project, export_markdown, import_markdown
 
 AUTOSAVE_INTERVAL_MS = 30_000
@@ -64,16 +65,26 @@ class MainWindow(QMainWindow):
         self.tag_panel.hidden_changed.connect(self._on_hidden_changed)
         self.tag_panel.filter_by_eye.connect(self._on_eye_filter)
 
+        self.work_tray = WorkTray()
+        self.work_tray.asset_selected.connect(self._on_asset_selected)
+        self.work_tray.asset_preview.connect(self._on_asset_preview)
+        self.work_tray.setVisible(False)  # collapsed by default
+
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
-        self._browse_split.addWidget(self.tag_panel)   # left side
-        self._browse_split.addWidget(self.browser)     # right (main area)
+        self._browse_split.addWidget(self.tag_panel)   # left
+        self._browse_split.addWidget(self.browser)     # center
+        self._browse_split.addWidget(self.work_tray)   # right
         self._browse_split.setStretchFactor(0, 0)
         self._browse_split.setStretchFactor(1, 1)
+        self._browse_split.setStretchFactor(2, 0)
         saved_split = self._settings_early.value("splitter_sizes", None)
         if saved_split:
-            self._browse_split.setSizes([int(s) for s in saved_split])
+            sizes = [int(s) for s in saved_split]
+            while len(sizes) < 3:
+                sizes.append(0)
+            self._browse_split.setSizes(sizes)
         else:
-            self._browse_split.setSizes([260, 1000])
+            self._browse_split.setSizes([260, 1000, 0])
         self.tabs.addTab(self._browse_split, "Assets")
 
         # Tab 2: Canvas Editor
@@ -96,6 +107,7 @@ class MainWindow(QMainWindow):
         self.browser.asset_to_censor.connect(self._send_to_censor)
         self.browser.selection_changed.connect(self._on_selection_changed)
         self.browser.folder_opened.connect(self._add_recent_folder)
+        self.browser.asset_to_tray.connect(self._send_single_to_tray)
         self.browser.tags_modified.connect(self._on_tags_modified)
 
         # --- Toolbar & menu ---
@@ -301,6 +313,8 @@ class MainWindow(QMainWindow):
         view_menu = menu.addMenu("&View")
         self._toggle_tags_action = view_menu.addAction(
             "Hide Tag Panel", self._toggle_tag_panel, QKeySequence("Ctrl+T"))
+        self._toggle_tray_action = view_menu.addAction(
+            "Show Work Tray", self._toggle_work_tray, QKeySequence("Ctrl+R"))
         view_menu.addSeparator()
         view_menu.addAction("Increase Font Size", self._font_increase, QKeySequence("Ctrl+="))
         view_menu.addAction("Decrease Font Size", self._font_decrease, QKeySequence("Ctrl+-"))
@@ -537,6 +551,38 @@ class MainWindow(QMainWindow):
         """Browser added/removed a custom tag — sync the side panel."""
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self._dirty = True
+
+    def _toggle_work_tray(self):
+        if self.work_tray.isVisible():
+            self.work_tray.hide()
+            self._toggle_tray_action.setText("Show Work Tray")
+        else:
+            self.work_tray.show()
+            if self._browse_split.sizes()[2] < 120:
+                sizes = self._browse_split.sizes()
+                sizes[2] = 200
+                self._browse_split.setSizes(sizes)
+            self._toggle_tray_action.setText("Hide Work Tray")
+
+    def _send_to_tray(self):
+        """Send selected assets to work tray."""
+        assets = self.browser.get_selected_assets()
+        if not assets:
+            return
+        if not self.work_tray.isVisible():
+            self._toggle_work_tray()
+        for a in assets:
+            pm = self.browser._thumb_cache.get(a.id)
+            self.work_tray.add_asset(a.id, a.name, pm)
+        self.status.showMessage(f"Sent {len(assets)} to tray")
+
+    def _send_single_to_tray(self, asset_id: str):
+        asset = self.project.get_asset(asset_id)
+        if asset:
+            if not self.work_tray.isVisible():
+                self._toggle_work_tray()
+            pm = self.browser._thumb_cache.get(asset_id)
+            self.work_tray.add_asset(asset_id, asset.name, pm)
 
     # --- Tag management ---
 
@@ -885,6 +931,13 @@ Alt+Click tag — Search by tag
         self.tag_panel.set_assets([])
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self._update_progress()
+        # Restore work tray
+        if self.project.tray_items:
+            self.work_tray.load_state(self.project.tray_items, self.project)
+            if self.project.tray_items:
+                self.work_tray.show()
+                self._toggle_tray_action.setText("Hide Work Tray")
+
         # Restore sort mode
         if self.project.sort_mode:
             idx = self.browser.sort_combo.findText(self.project.sort_mode)
@@ -933,6 +986,7 @@ Alt+Click tag — Search by tag
             self.project.sort_mode = self.browser.sort_combo.currentText()
             self.project.eye_hidden_tags = list(self.browser._eye_hidden_tags)
             self.project.hidden_tags = list(self.tag_panel._hidden_tags)
+            self.project.tray_items = self.work_tray.save_state()
             self.project.save(self._project_path)
             self._dirty = False
             self._settings.setValue("last_project", self._project_path)

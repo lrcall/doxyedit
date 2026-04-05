@@ -302,6 +302,7 @@ class AssetBrowser(QWidget):
     asset_preview = Signal(str)
     asset_to_canvas = Signal(str)
     asset_to_censor = Signal(str)
+    asset_to_tray = Signal(str)
     folder_opened = Signal(str)
     tags_modified = Signal()
     selection_changed = Signal(list)
@@ -765,6 +766,7 @@ class AssetBrowser(QWidget):
             return
         menu = QMenu(self)
         menu.addAction("Preview", lambda: self.asset_preview.emit(asset_id))
+        menu.addAction("Send to Tray", lambda: self.asset_to_tray.emit(asset_id))
         menu.addAction("Send to Canvas", lambda: self.asset_to_canvas.emit(asset_id))
         menu.addAction("Send to Censor", lambda: self.asset_to_censor.emit(asset_id))
         menu.addSeparator()
