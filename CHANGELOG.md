@@ -1,5 +1,44 @@
 # DoxyEdit Changelog
 
+## v1.5.0 — 2026-04-05
+
+### UI Overhaul
+- Left toolbar removed — Tags and Tray toggle buttons moved to browser toolbar
+- Browser toolbar uses FlowLayout — buttons wrap on narrow windows
+- Tag bar now shows custom/project tags only (built-in presets removed)
+- Count label (shown/starred/tagged) moved to status bar
+- Tags + Tray buttons positioned first in toolbar, side by side
+
+### Sort by Folder
+- New "By Folder" sort mode groups assets by source folder
+- Folder labels shown on first item of each group (last 2 path components)
+- Collapse All / Expand All buttons appear in By Folder mode
+- Collapsed folders persist during session
+
+### Drag & Drop
+- Tray items can be dragged out to external apps (Photoshop, Explorer, etc.)
+- Multi-select drag supported — select multiple items then drag
+- Uses QDrag with file URL mime data
+
+### Design System Fixes
+- Button styles unified — all _btn_style methods now include font-size
+- Theme.btn_style() shared method added for future use
+- TagPanel scales fonts with Ctrl+=/- (was frozen at hardcoded sizes)
+- Custom tag colors in side panel now read from tag_definitions
+- Tag search is case-insensitive (works with preserved-case tags)
+- Ctrl+Click tag search: text set before mode toggle for reliable filtering
+
+### Asset File Watcher
+- Source image changes detected automatically via QFileSystemWatcher
+- Thumbnails regenerate when files are modified on disk
+- ThumbCache.invalidate() method for clearing individual entries
+
+### Bug Fixes
+- Clear Unused Tags added to Tools menu
+- Auto-tag defaults to off
+- Fixed NAME_ROLE self-reference crash in tray
+- Fixed _cb → checkbox AttributeError in tag panel font scaling
+
 ## v1.4.0 — 2026-04-05
 
 ### Tag Definitions & Aliases
