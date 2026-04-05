@@ -496,12 +496,19 @@ class AssetBrowser(QWidget):
                 w.deleteLater()
         self._tag_buttons.clear()
 
-        bar_tags = dict(TAG_PRESETS)
-        if hasattr(self.project, 'get_tags'):
-            for tid, preset in self.project.get_tags().items():
-                if tid not in TAG_SIZED:
-                    bar_tags[tid] = preset
         all_used = {t for a in self.project.assets for t in a.tags}
+        all_tags = self.project.get_tags() if hasattr(self.project, 'get_tags') else dict(TAG_ALL)
+        bar_tags = {}
+        # Built-in presets (always shown)
+        for tid, preset in TAG_PRESETS.items():
+            bar_tags[tid] = preset
+        # Custom/project tags — only if used in assets or in tag_definitions
+        for tid, preset in all_tags.items():
+            if tid in TAG_SIZED or tid in bar_tags:
+                continue
+            if tid in all_used or tid in getattr(self.project, 'tag_definitions', {}):
+                bar_tags[tid] = preset
+        # Tags used in assets but not defined anywhere
         color_idx = 0
         for t in sorted(all_used):
             if t not in bar_tags and t not in TAG_SIZED:
@@ -862,11 +869,21 @@ class AssetBrowser(QWidget):
         else:
             menu.addAction("Star", lambda: self._toggle_star(asset))
 
-        # Current tags on this asset
-        if asset.tags:
-            cur_menu = menu.addMenu(f"Tags ({len(asset.tags)})")
-            for t in asset.tags:
-                cur_menu.addAction(f"- {t}", lambda tid=t: self._toggle_tag(asset, tid))
+        # Current tags across all selected — click to remove (union of all tags)
+        selected = self.get_selected_assets() or [asset]
+        union_tags = []
+        seen = set()
+        for a in selected:
+            for t in a.tags:
+                if t not in seen:
+                    union_tags.append(t)
+                    seen.add(t)
+        if union_tags:
+            all_tags = self.project.get_tags() if hasattr(self.project, 'get_tags') else {}
+            cur_menu = menu.addMenu(f"Tags ({len(union_tags)})")
+            for t in union_tags:
+                label = all_tags[t].label if t in all_tags else t
+                cur_menu.addAction(f"\u2212 {label}", lambda tid=t: self._remove_tag_from_selected(tid))
 
         menu.addSeparator()
         n = len(self._selected_ids)
@@ -924,6 +941,16 @@ class AssetBrowser(QWidget):
         toggle_tags([asset], tag_id)
         self._refresh_grid()
         self.selection_changed.emit(list(self._selected_ids))
+
+    def _remove_tag_from_selected(self, tag_id):
+        """Remove a tag from all selected assets."""
+        assets = self.get_selected_assets()
+        for a in assets:
+            if tag_id in a.tags:
+                a.tags.remove(tag_id)
+        self._refresh_grid()
+        self.selection_changed.emit(list(self._selected_ids))
+        self.tags_modified.emit()
 
     def _toggle_tag_multi(self, asset, tag_id):
         """Toggle tag on all selected assets (or just the clicked one)."""

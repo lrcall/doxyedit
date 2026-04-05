@@ -149,18 +149,18 @@
 - [ ] Sort by folder with folder headers in thumbnail mode
 
 ### Medium Priority
-- [ ] Rebuild custom tag bar buttons from tags that exist in project JSON (not hardcoded)
-- [ ] Move selected assets to another .doxyproj.json (push + remove)
+- [x] Rebuild custom tag bar buttons from tags that exist in project JSON (not hardcoded)
+- [x] Move selected assets to another .doxyproj.json (push + remove)
 - [ ] Kanban/Gantt posting schedule board
 - [ ] Project color mode (window accent per project)
 - [ ] Duplicate file finder/unifier
 - [ ] Platform panel with asset thumbnails in slots
 - [ ] Markdown-driven project config (UI from .md files)
-- [ ] Shift+E → notes overlay popup (center screen)
+- [x] Shift+E → notes overlay popup (center screen)
 - [ ] Crop region selector tool
-- [ ] N key → notes overlay (same as bottom-left but center)
+- [x] N key → notes overlay (same as bottom-left but center, via Shift+E)
 - [x] Tray group tagging / quick tag for tray items
-- [ ] Tray column modes (detail/2-col/3-col)
+- [x] Tray column modes (detail/2-col/3-col)
 - [x] "Show Hidden Only" filter in View
 - [x] Right-click Quick Tag multi-column layout (max 10 per column)
 - [ ] Drag-select over tag rows (rubber band selection)

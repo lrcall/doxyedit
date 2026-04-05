@@ -136,6 +136,8 @@ class MainWindow(QMainWindow):
             lambda: self.browser.search_box.setFocus())
         # Alt+H temporary hide/unhide
         QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._temp_hide_toggle)
+        # Shift+E notes overlay
+        QShortcut(QKeySequence("Shift+E"), self).activated.connect(self._show_notes_overlay)
 
         # --- Status bar with progress ---
         self.status = QStatusBar()
@@ -348,6 +350,7 @@ class MainWindow(QMainWindow):
         edit_menu.addSeparator()
         edit_menu.addAction("&Delete Selected (Ignore)", self._handle_delete, QKeySequence("Delete"))
         edit_menu.addAction("&Remove from Project", self._remove_selected)
+        edit_menu.addAction("Move to Another Project...", self._move_to_project)
         edit_menu.addSeparator()
         edit_menu.addAction("Star Selected", lambda: self._batch_star(1))
         edit_menu.addAction("Unstar Selected", lambda: self._batch_star(0))
@@ -884,6 +887,65 @@ class MainWindow(QMainWindow):
         if self.tabs.currentIndex() == 0:
             self.browser._list_view.clearSelection()
 
+    def _move_to_project(self):
+        """Move selected assets to another .doxyproj.json file."""
+        assets = self.browser.get_selected_assets()
+        if not assets:
+            self.status.showMessage("Select assets to move first", 2000)
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Move to Project", "", "DoxyEdit Projects (*.doxyproj.json)")
+        if not path:
+            return
+        try:
+            target = Project.load(path)
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not load project:\n{e}")
+            return
+        existing_paths = {a.source_path for a in target.assets}
+        moved = 0
+        ids_to_remove = set()
+        for a in assets:
+            if a.source_path not in existing_paths:
+                target.assets.append(a)
+                moved += 1
+            ids_to_remove.add(a.id)
+        target.save(path)
+        # Remove from current project
+        self.project.assets = [a for a in self.project.assets if a.id not in ids_to_remove]
+        self.project.invalidate_index()
+        self._refresh_all_tags()
+        self.browser.refresh()
+        self._dirty = True
+        self.status.showMessage(f"Moved {moved} asset(s) to {Path(path).name}")
+
+    def _show_notes_overlay(self):
+        """Shift+E: centered notes popup for the selected asset."""
+        if self.tabs.currentIndex() != 0:
+            return
+        assets = self.browser.get_selected_assets()
+        if len(assets) != 1:
+            self.status.showMessage("Select a single asset to edit notes", 2000)
+            return
+        asset = assets[0]
+        from PySide6.QtWidgets import QDialog, QTextEdit, QDialogButtonBox
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Notes — {asset.name}")
+        dlg.resize(500, 300)
+        lay = QVBoxLayout(dlg)
+        edit = QTextEdit()
+        edit.setPlainText(asset.notes or "")
+        lay.addWidget(edit)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+        if dlg.exec():
+            asset.notes = edit.toPlainText()
+            self.tag_panel.set_assets([asset])
+            self._dirty = True
+            self.status.showMessage("Notes updated")
+
     def _select_all_with_tag(self, tag_id: str):
         """Select all assets in the grid that have the given tag."""
         sel = self.browser._list_view.selectionModel()
@@ -1071,6 +1133,7 @@ Delete — Soft-delete (tag as ignore)
 F5 — Reload Project from Disk
 Shift+F5 — Refresh Thumbnails
 Ctrl+F — Focus Search Box
+Shift+E — Notes Overlay (edit notes popup)
 
 Preview:
 N — Add Note

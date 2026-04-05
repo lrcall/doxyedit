@@ -62,6 +62,14 @@ class WorkTray(QWidget):
         self._collapse_btn.clicked.connect(lambda: self.toggle_requested.emit())
         header.addWidget(self._collapse_btn)
 
+        self._view_btn = QPushButton("1col")
+        self._view_btn.setFixedSize(32, 22)
+        self._view_btn.setStyleSheet("QPushButton { background: transparent; border: none; font-size: 9px; }")
+        self._view_btn.setToolTip("Cycle tray view: list / 2-col / 3-col")
+        self._view_btn.clicked.connect(self._cycle_view_mode)
+        self._view_mode = 0  # 0=list, 1=2col, 2=3col
+        header.addWidget(self._view_btn)
+
         self._clear_btn = QPushButton("Clear")
         self._clear_btn.setFixedHeight(22)
         self._clear_btn.setStyleSheet("QPushButton { padding: 2px 8px; }")
@@ -215,6 +223,24 @@ class WorkTray(QWidget):
         path = self._paths.get(asset_id, "")
         if path:
             QApplication.clipboard().setText(path)
+
+    def _cycle_view_mode(self):
+        self._view_mode = (self._view_mode + 1) % 3
+        modes = [
+            ("1col", QListWidget.ViewMode.ListMode, QSize(80, 80)),
+            ("2col", QListWidget.ViewMode.IconMode, QSize(60, 60)),
+            ("3col", QListWidget.ViewMode.IconMode, QSize(40, 40)),
+        ]
+        label, mode, icon_size = modes[self._view_mode]
+        self._view_btn.setText(label)
+        self._list.setViewMode(mode)
+        self._list.setIconSize(icon_size)
+        if mode == QListWidget.ViewMode.IconMode:
+            self._list.setWordWrap(True)
+            self._list.setSpacing(4)
+        else:
+            self._list.setWordWrap(False)
+            self._list.setSpacing(2)
 
     def _toggle_tray_tag(self, asset_id: str, tag_id: str):
         if not hasattr(self, '_project') or not self._project:
