@@ -121,7 +121,8 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status)
 
         self._progress_bar = QProgressBar()
-        self._progress_bar.setFixedWidth(200)
+        self._progress_bar.setMinimumWidth(250)
+        self._progress_bar.setMaximumWidth(400)
         self._progress_bar.setFixedHeight(16)
         self._progress_bar.setTextVisible(True)
         self._progress_bar.setVisible(False)
