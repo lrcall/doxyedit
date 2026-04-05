@@ -2,10 +2,10 @@
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame, QSizePolicy,
+    QScrollArea, QFrame, QSizePolicy, QSplitter,
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, Signal, QSize
+from PySide6.QtGui import QFont, QPixmap
 
 from doxyedit.models import Project, Asset, PlatformAssignment, PostStatus, PLATFORMS
 
@@ -29,6 +29,7 @@ class PlatformPanel(QWidget):
     """Two-column card grid of platform slots."""
 
     request_asset_pick = Signal(str, str)  # platform_id, slot_name
+    asset_selected = Signal(str)           # asset_id — hive cell clicked
 
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
@@ -41,13 +42,18 @@ class PlatformPanel(QWidget):
         outer.setSpacing(6)
 
         self.summary_label = QLabel()
-        self.summary_label.setStyleSheet("color: rgba(180,180,180,0.7); padding: 2px 0;")
+        self.summary_label.setProperty("role", "muted")
+        self.summary_label.setStyleSheet("padding: 2px 0;")
         outer.addWidget(self.summary_label)
 
+        # Vertical splitter: card columns (top) + image hive (bottom)
+        self._vsplit = QSplitter(Qt.Orientation.Vertical)
+        outer.addWidget(self._vsplit, 1)
+
+        # ── Card columns ──────────────────────────────────────────────────
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        outer.addWidget(scroll)
 
         self._cards_widget = QWidget()
         scroll.setWidget(self._cards_widget)
@@ -62,6 +68,38 @@ class PlatformPanel(QWidget):
         self._col1.setSpacing(10)
         self._col_layout.addLayout(self._col0)
         self._col_layout.addLayout(self._col1)
+
+        self._vsplit.addWidget(scroll)
+
+        # ── Image hive ────────────────────────────────────────────────────
+        hive_container = QWidget()
+        hive_container.setObjectName("hive_container")
+        hive_v = QVBoxLayout(hive_container)
+        hive_v.setContentsMargins(0, 4, 0, 0)
+        hive_v.setSpacing(4)
+
+        hive_header = QLabel("Assigned Art")
+        hive_header.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
+        hive_header.setProperty("role", "secondary")
+        hive_v.addWidget(hive_header)
+
+        hive_scroll = QScrollArea()
+        hive_scroll.setWidgetResizable(True)
+        hive_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        hive_scroll.setFixedHeight(160)
+        hive_v.addWidget(hive_scroll)
+
+        self._hive_widget = QWidget()
+        self._hive_layout = QHBoxLayout(self._hive_widget)
+        self._hive_layout.setContentsMargins(4, 4, 4, 4)
+        self._hive_layout.setSpacing(8)
+        self._hive_layout.addStretch()
+        hive_scroll.setWidget(self._hive_widget)
+
+        self._vsplit.addWidget(hive_container)
+        self._vsplit.setSizes([600, 180])
+        self._vsplit.setStretchFactor(0, 1)
+        self._vsplit.setStretchFactor(1, 0)
 
         self.refresh()
 
@@ -105,6 +143,79 @@ class PlatformPanel(QWidget):
             f"{posted_slots} posted  ·  "
             f"{empty} empty"
         )
+        self._rebuild_hive(assign_map)
+
+    def _rebuild_hive(self, assign_map: dict):
+        """Rebuild the thumbnail hive from current assignments."""
+        # Clear previous thumbnails (keep trailing stretch)
+        while self._hive_layout.count() > 1:
+            item = self._hive_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # Collect unique (asset, slot_label, platform_name) in platform order
+        seen_assets: set[str] = set()
+        entries = []
+        for pid in self.project.platforms:
+            platform = PLATFORMS.get(pid)
+            if not platform:
+                continue
+            for slot in platform.slots:
+                key = (pid, slot.name)
+                entry = assign_map.get(key)
+                if entry:
+                    asset, pa = entry
+                    entries.append((asset, slot.label, platform.name, pa.status))
+
+        for asset, slot_label, plat_name, status in entries:
+            cell = self._hive_cell(asset, slot_label, plat_name, status)
+            self._hive_layout.insertWidget(self._hive_layout.count() - 1, cell)
+
+    def _hive_cell(self, asset, slot_label: str, plat_name: str, status: str) -> QWidget:
+        """One thumbnail cell in the image hive."""
+        THUMB = 100
+        cell = QWidget()
+        cell.setFixedWidth(THUMB + 8)
+        cell.setCursor(Qt.CursorShape.PointingHandCursor)
+        cell.setToolTip(f"{plat_name} — {slot_label}\n{asset.source_path}")
+        v = QVBoxLayout(cell)
+        v.setContentsMargins(4, 4, 4, 4)
+        v.setSpacing(3)
+
+        # Thumbnail
+        thumb = QLabel()
+        thumb.setFixedSize(THUMB, THUMB)
+        thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        thumb.setStyleSheet(
+            "QLabel { background: rgba(255,255,255,0.05); border-radius: 4px;"
+            " border: 1px solid rgba(255,255,255,0.08); }")
+        pm = QPixmap(asset.source_path)
+        if not pm.isNull():
+            pm = pm.scaled(THUMB, THUMB, Qt.AspectRatioMode.KeepAspectRatio,
+                           Qt.TransformationMode.SmoothTransformation)
+            thumb.setPixmap(pm)
+        else:
+            thumb.setText("?")
+        v.addWidget(thumb)
+
+        # Slot label
+        slot_lbl = QLabel(slot_label)
+        slot_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        slot_lbl.setWordWrap(True)
+        slot_lbl.setProperty("role", "muted")
+        slot_lbl.setMaximumWidth(THUMB + 8)
+        v.addWidget(slot_lbl)
+
+        # Status dot
+        color = STATUS_COLORS.get(str(status), "#666")
+        dot = QLabel(STATUS_ICONS.get(str(status), "·"))
+        dot.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        dot.setStyleSheet(f"color: {color};")
+        v.addWidget(dot)
+
+        # Click → emit asset_selected if signal wired (handled via mousePressEvent)
+        cell.mousePressEvent = lambda _, aid=asset.id: self.asset_selected.emit(aid)
+        return cell
 
     def _build_card(self, platform, pid: str, assign_map: dict) -> QFrame:
         card = QFrame()

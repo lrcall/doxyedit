@@ -1,4 +1,5 @@
 """Main application window — tabbed layout with all panels."""
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -236,6 +237,7 @@ class MainWindow(QMainWindow):
         self.browser.asset_to_tray.connect(self._send_single_to_tray)
         self.browser.tags_modified.connect(self._on_tags_modified)
         self.platform_panel.request_asset_pick.connect(self._assign_selected_to_slot)
+        self.platform_panel.asset_selected.connect(self._navigate_to_asset)
         self.checklist_panel.modified.connect(lambda: setattr(self, '_dirty', True))
         self.health_panel.asset_selected.connect(self._navigate_to_asset)
 
