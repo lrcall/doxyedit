@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QTabWidget, QToolBar, QFileDialog, QStatusBar,
     QGraphicsTextItem, QGraphicsRectItem, QGraphicsLineItem,
     QGraphicsPixmapItem, QColorDialog, QMessageBox, QSplitter,
-    QWidget, QVBoxLayout, QApplication, QLabel,
+    QWidget, QVBoxLayout, QApplication, QLabel, QProgressBar,
 )
 from PySide6.QtCore import Qt, QTimer, QSettings, QSize
 from PySide6.QtGui import (
@@ -48,10 +48,17 @@ class MainWindow(QMainWindow):
         self._current_theme_id = self._settings.value("theme", DEFAULT_THEME)
         self._apply_theme(self._current_theme_id)
 
-        # --- Tabs ---
+        # --- Main layout: tabs + tray splitter ---
         self.tabs = QTabWidget()
-        # Tab styling inherited from theme
-        self.setCentralWidget(self.tabs)
+        self.work_tray = WorkTray()
+        self.work_tray.setVisible(False)
+
+        self._main_split = QSplitter(Qt.Orientation.Horizontal)
+        self._main_split.addWidget(self.tabs)
+        self._main_split.addWidget(self.work_tray)
+        self._main_split.setStretchFactor(0, 1)
+        self._main_split.setStretchFactor(1, 0)
+        self.setCentralWidget(self._main_split)
 
         # Tab 1: Left Sidebar (tags+info) | Asset Browser grid
         self.browser = AssetBrowser(self.project)
@@ -65,26 +72,20 @@ class MainWindow(QMainWindow):
         self.tag_panel.hidden_changed.connect(self._on_hidden_changed)
         self.tag_panel.filter_by_eye.connect(self._on_eye_filter)
 
-        self.work_tray = WorkTray()
         self.work_tray.asset_selected.connect(self._on_asset_selected)
         self.work_tray.asset_preview.connect(self._on_asset_preview)
-        self.work_tray.setVisible(False)  # collapsed by default
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
-        self._browse_split.addWidget(self.tag_panel)   # left
-        self._browse_split.addWidget(self.browser)     # center
-        self._browse_split.addWidget(self.work_tray)   # right
+        self._browse_split.addWidget(self.tag_panel)
+        self._browse_split.addWidget(self.browser)
         self._browse_split.setStretchFactor(0, 0)
         self._browse_split.setStretchFactor(1, 1)
-        self._browse_split.setStretchFactor(2, 0)
         saved_split = self._settings_early.value("splitter_sizes", None)
         if saved_split:
             sizes = [int(s) for s in saved_split]
-            while len(sizes) < 3:
-                sizes.append(0)
-            self._browse_split.setSizes(sizes)
+            self._browse_split.setSizes(sizes[:2] if len(sizes) >= 2 else [260, 1000])
         else:
-            self._browse_split.setSizes([260, 1000, 0])
+            self._browse_split.setSizes([260, 1000])
         self.tabs.addTab(self._browse_split, "Assets")
 
         # Tab 2: Canvas Editor
@@ -118,6 +119,14 @@ class MainWindow(QMainWindow):
         # --- Status bar with progress ---
         self.status = QStatusBar()
         self.setStatusBar(self.status)
+
+        self._progress_bar = QProgressBar()
+        self._progress_bar.setFixedWidth(200)
+        self._progress_bar.setFixedHeight(16)
+        self._progress_bar.setTextVisible(True)
+        self._progress_bar.setVisible(False)
+        self.status.addPermanentWidget(self._progress_bar)
+
         self._progress_label = QLabel()
         self._progress_label.setStyleSheet("padding-right: 12px;")
         self.status.addPermanentWidget(self._progress_label)
@@ -448,6 +457,28 @@ class MainWindow(QMainWindow):
 
         self._progress_label.setText("  |  ".join(parts))
 
+    # --- Progress bar ---
+
+    def start_progress(self, label: str, total: int):
+        """Show progress bar with a label and total count."""
+        self._progress_bar.setMaximum(total)
+        self._progress_bar.setValue(0)
+        self._progress_bar.setFormat(f"{label} %v/%m")
+        self._progress_bar.setVisible(True)
+        self.status.showMessage(label)
+        QApplication.processEvents()
+
+    def update_progress(self, value: int):
+        """Update progress bar value."""
+        self._progress_bar.setValue(value)
+        if value % 10 == 0:
+            QApplication.processEvents()
+
+    def finish_progress(self, message: str = "Done"):
+        """Hide progress bar and show completion message."""
+        self._progress_bar.setVisible(False)
+        self.status.showMessage(message, 3000)
+
     # --- Tag panel toggle ---
 
     def _toggle_tag_panel(self):
@@ -558,10 +589,10 @@ class MainWindow(QMainWindow):
             self._toggle_tray_action.setText("Show Work Tray")
         else:
             self.work_tray.show()
-            if self._browse_split.sizes()[2] < 120:
-                sizes = self._browse_split.sizes()
-                sizes[2] = 200
-                self._browse_split.setSizes(sizes)
+            sizes = self._main_split.sizes()
+            if len(sizes) > 1 and sizes[1] < 120:
+                sizes[1] = 200
+                self._main_split.setSizes(sizes)
             self._toggle_tray_action.setText("Hide Work Tray")
 
     def _send_to_tray(self):

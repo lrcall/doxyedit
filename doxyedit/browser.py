@@ -321,6 +321,8 @@ class AssetBrowser(QWidget):
         self.hover_preview_enabled = True
         self._eye_hidden_tags: set[str] = set()
         self._current_font_size = 10
+        self._cache_all_total = 0
+        self._cache_all_done = 0
         self.setAcceptDrops(True)
         self._build()
 
@@ -555,8 +557,13 @@ class AssetBrowser(QWidget):
     def _on_cache_all_toggled(self, checked):
         if checked:
             batch = [(a.id, a.source_path) for a in self.project.assets]
+            self._cache_all_total = len(batch)
+            self._cache_all_done = 0
             self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
-            self.window().status.showMessage(f"Caching all {len(batch)} thumbnails...", 3000)
+            try:
+                self.window().start_progress("Caching thumbnails", len(batch))
+            except Exception:
+                pass
 
     def _compute_filtered(self) -> list[Asset]:
         assets = list(self.project.assets)
@@ -617,6 +624,16 @@ class AssetBrowser(QWidget):
     def _on_thumb_ready(self, asset_id: str, pixmap: QPixmap, w: int, h: int, gen_size: int):
         self._thumb_cache.on_ready(asset_id, pixmap, w, h, gen_size)
         self._model.update_pixmap(asset_id, pixmap)
+        # Update progress bar if caching all
+        if self._cache_all_total > 0:
+            self._cache_all_done += 1
+            try:
+                self.window().update_progress(self._cache_all_done)
+                if self._cache_all_done >= self._cache_all_total:
+                    self.window().finish_progress(f"Cached {self._cache_all_total} thumbnails")
+                    self._cache_all_total = 0
+            except Exception:
+                pass
 
     def _on_visual_tags(self, asset_id: str, vtags: list):
         asset = self.project.get_asset(asset_id)
@@ -766,7 +783,11 @@ class AssetBrowser(QWidget):
             return
         menu = QMenu(self)
         menu.addAction("Preview", lambda: self.asset_preview.emit(asset_id))
-        menu.addAction("Send to Tray", lambda: self.asset_to_tray.emit(asset_id))
+        n_sel = len(self._selected_ids)
+        if n_sel > 1:
+            menu.addAction(f"Send {n_sel} to Tray", lambda: [self.asset_to_tray.emit(aid) for aid in self._selected_ids])
+        else:
+            menu.addAction("Send to Tray", lambda: self.asset_to_tray.emit(asset_id))
         menu.addAction("Send to Canvas", lambda: self.asset_to_canvas.emit(asset_id))
         menu.addAction("Send to Censor", lambda: self.asset_to_censor.emit(asset_id))
         menu.addSeparator()
