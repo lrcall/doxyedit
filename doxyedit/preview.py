@@ -34,7 +34,7 @@ class HoverPreview(QWidget):
         self._img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._img_label)
         self._info_label = QLabel()
-        self._info_label.setStyleSheet("color: rgba(200,200,200,0.8); font-size: 9px;")
+        self._info_label.setStyleSheet("color: rgba(200,200,200,0.8); font-size: 12px;")
         self._info_label.setWordWrap(True)
         layout.addWidget(self._info_label)
         self.hide()
