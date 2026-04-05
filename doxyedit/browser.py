@@ -672,8 +672,13 @@ class AssetBrowser(QWidget):
     def _quick_tag(self, tag_id: str):
         modifiers = QApplication.keyboardModifiers()
         if modifiers & Qt.KeyboardModifier.AltModifier:
-            self.search_tags_check.setChecked(True)
-            self.search_box.setText(tag_id)
+            # Toggle: if already searching this tag, clear it
+            if self.search_tags_check.isChecked() and self.search_box.text().strip() == tag_id:
+                self.search_box.clear()
+                self.search_tags_check.setChecked(False)
+            else:
+                self.search_tags_check.setChecked(True)
+                self.search_box.setText(tag_id)
             return
         assets = self.get_selected_assets()
         if not assets:
