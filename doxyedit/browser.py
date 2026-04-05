@@ -1092,12 +1092,9 @@ class AssetBrowser(QWidget):
     def eventFilter(self, obj, event):
         vp = self._list_view.viewport()
         if obj is self._list_view or obj is vp:
-            # Folder overlays — paint after viewport renders
+            # Folder overlays — schedule paint after viewport renders
             if obj is vp and event.type() == event.Type.Paint:
-                # Let the viewport paint normally first, then overlay
-                obj.event(event)  # process the paint
-                self._paint_folder_overlays()
-                return True  # we handled it
+                QTimer.singleShot(0, self._paint_folder_overlays)
 
             # Ctrl+Scroll zoom
             if event.type() == event.Type.Wheel:
