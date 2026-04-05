@@ -921,6 +921,23 @@ class AssetBrowser(QWidget):
                         self._list_view.scrollTo(current, QListView.ScrollHint.PositionAtCenter)
                     return True
 
+            # Middle-click — instant preview regardless of hover setting
+            if event.type() == event.Type.MouseButtonPress:
+                if event.button() == Qt.MouseButton.MiddleButton:
+                    pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
+                    index = self._list_view.indexAt(pos)
+                    asset = self._model.get_asset(index) if index.isValid() else None
+                    if asset:
+                        size = int(self._thumb_size * self._hover_size_pct / 100)
+                        HoverPreview.instance().PREVIEW_SIZE = max(300, size)
+                        HoverPreview.instance().show_for(asset.source_path, QCursor.pos())
+                    return True
+
+            if event.type() == event.Type.MouseButtonRelease:
+                if event.button() == Qt.MouseButton.MiddleButton:
+                    HoverPreview.instance().hide_preview()
+                    return True
+
             # Hover preview
             if event.type() == event.Type.MouseMove and self.hover_preview_enabled:
                 pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
