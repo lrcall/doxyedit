@@ -691,7 +691,7 @@ class AssetBrowser(QWidget):
         query = self.search_box.text().strip().lower()
         if query:
             if self.search_tags_check.isChecked():
-                assets = [a for a in assets if any(query in t for t in a.tags)]
+                assets = [a for a in assets if any(query in t.lower() for t in a.tags)]
             elif "*" in query or "?" in query:
                 import fnmatch
                 assets = [a for a in assets if fnmatch.fnmatch(Path(a.source_path).name.lower(), query)]
