@@ -12,7 +12,7 @@ from PySide6.QtCore import (
     QAbstractListModel, QModelIndex,
 )
 from PySide6.QtGui import (
-    QPixmap, QFont, QColor, QCursor, QPainter, QPen, QFontMetrics,
+    QPixmap, QFont, QColor, QCursor, QPainter, QPen, QFontMetrics, QPainterPath,
 )
 
 from doxyedit.models import (
@@ -238,7 +238,12 @@ class ThumbnailDelegate(QStyledItemDelegate):
             scaled = self._scaled_cache[cache_key]
             x = rect.x() + (rect.width() - scaled.width()) // 2
             y = rect.y() + self.PADDING + (ts - scaled.height()) // 2
+            # Rounded corners
+            path = QPainterPath()
+            path.addRoundedRect(float(x), float(y), float(scaled.width()), float(scaled.height()), 3, 3)
+            painter.setClipPath(path)
             painter.drawPixmap(x, y, scaled)
+            painter.setClipping(False)
         else:
             # Placeholder
             ph_rect = QRect(rect.x() + self.PADDING, rect.y() + self.PADDING, ts, ts)
