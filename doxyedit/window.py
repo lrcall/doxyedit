@@ -939,7 +939,8 @@ Alt+Click tag — Search by tag
             self._add_recent_project(self._project_path)
             self.status.showMessage(f"Saved {Path(self._project_path).name}")
             # Brief green flash on status bar
-            self.status.setStyleSheet("QStatusBar { background: rgba(80,180,80,0.8); }")
+            self.status.setStyleSheet(
+                f"QStatusBar {{ background: {self._theme.accent}; color: {self._theme.text_on_accent}; }}")
             QTimer.singleShot(800, lambda: self.status.setStyleSheet(""))
         else:
             self._save_project_as()
