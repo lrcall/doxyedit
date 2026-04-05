@@ -14,7 +14,9 @@
       "Bash(cp:*)",
       "Bash(rm:*)",
       "Bash(python -c \"from PySide6.QtWidgets import QListView; v = QListView\\(\\); v.verticalScrollBar\\(\\)\")",
-      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('custom_shortcuts:', d.get\\('custom_shortcuts', 'MISSING'\\)\\)\")"
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('custom_shortcuts:', d.get\\('custom_shortcuts', 'MISSING'\\)\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(type\\(d\\)\\); print\\(list\\(d.keys\\(\\)\\)[:5] if isinstance\\(d,dict\\) else 'list of ' + str\\(len\\(d\\)\\)\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); a=d['assets'][0]; print\\(json.dumps\\(a, indent=2\\)\\)\")"
     ]
   }
 }

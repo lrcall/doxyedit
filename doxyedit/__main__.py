@@ -140,6 +140,223 @@ def cmd_export_json(path: str):
     print(Path(path).read_text())
 
 
+def cmd_sync_tags(path: str, registry_path: str):
+    """Merge tags bidirectionally between doxyproj and an external registry JSON."""
+    from doxyedit.models import Project
+    proj = Project.load(path)
+    reg = json.loads(Path(registry_path).read_text())
+    reg_assets = {Path(a["path"]).stem: a for a in reg.get("assets", [])}
+
+    merged = 0
+    for asset in proj.assets:
+        key = asset.stem
+        if key in reg_assets:
+            reg_asset = reg_assets[key]
+            reg_tags = set(reg_asset.get("tags", []))
+            proj_tags = set(asset.tags)
+            combined = proj_tags | reg_tags
+            if combined != proj_tags:
+                asset.tags = list(combined)
+                merged += 1
+            if combined != reg_tags:
+                reg_asset["tags"] = list(combined)
+                merged += 1
+
+    proj.save(path)
+    Path(registry_path).write_text(json.dumps(reg, indent=2))
+    print(f"Synced {merged} tag changes between {Path(path).name} and {Path(registry_path).name}")
+
+
+def cmd_strip_tags(path: str, tags_to_strip: str):
+    """Bulk remove specific tags from all assets."""
+    from doxyedit.models import Project
+    proj = Project.load(path)
+    strip = set(tags_to_strip.split(","))
+    count = 0
+    for asset in proj.assets:
+        before = len(asset.tags)
+        asset.tags = [t for t in asset.tags if t not in strip]
+        if len(asset.tags) < before:
+            count += 1
+    proj.save(path)
+    print(f"Stripped {strip} from {count} assets")
+
+
+def cmd_find_dupes(path: str, threshold: int = 10):
+    """Perceptual hash scan for duplicates."""
+    from doxyedit.models import Project
+    from PIL import Image as PILImage
+    proj = Project.load(path)
+
+    # Simple average hash
+    def ahash(img_path, size=8):
+        try:
+            img = PILImage.open(img_path).convert("L").resize((size, size))
+            avg = sum(img.getdata()) / (size * size)
+            return sum(1 << i for i, p in enumerate(img.getdata()) if p > avg)
+        except Exception:
+            return None
+
+    print("Computing hashes...")
+    hashes = {}
+    for a in proj.assets:
+        h = ahash(a.source_path)
+        if h is not None:
+            hashes.setdefault(h, []).append(a)
+
+    groups = {h: assets for h, assets in hashes.items() if len(assets) > 1}
+    tagged = 0
+    for h, assets in groups.items():
+        assets.sort(key=lambda a: -os.path.getsize(a.source_path) if os.path.exists(a.source_path) else 0)
+        print(f"\nDuplicate group ({len(assets)} files):")
+        for i, a in enumerate(assets):
+            size = os.path.getsize(a.source_path) if os.path.exists(a.source_path) else 0
+            marker = " (KEEP)" if i == 0 else " → tagged duplicate"
+            print(f"  {a.stem} ({size//1024}KB){marker}")
+            if i > 0 and "duplicate" not in a.tags:
+                a.tags.append("duplicate")
+                tagged += 1
+
+    proj.save(path)
+    print(f"\n{len(groups)} duplicate groups found, {tagged} assets tagged as duplicate")
+
+
+def cmd_assign_slots(path: str):
+    """Auto-suggest best-fit images for each platform slot."""
+    from doxyedit.models import Project, PLATFORMS, check_fitness
+    from PIL import Image as PILImage
+    proj = Project.load(path)
+
+    for pid in proj.platforms:
+        platform = PLATFORMS.get(pid)
+        if not platform:
+            continue
+        print(f"\n=== {platform.name} ===")
+        for slot in platform.slots:
+            best = None
+            best_score = -1
+            tag_preset = type('P', (), {'width': slot.width, 'height': slot.height})()
+            for a in proj.assets:
+                if "ignore" in a.tags or "duplicate" in a.tags:
+                    continue
+                try:
+                    img = PILImage.open(a.source_path)
+                    w, h = img.size
+                    img.close()
+                except Exception:
+                    continue
+                fitness = check_fitness(w, h, tag_preset)
+                score = {"green": 3, "yellow": 2, "red": 0}.get(fitness, 0)
+                score += a.starred
+                if score > best_score:
+                    best_score = score
+                    best = (a, w, h, fitness)
+            if best:
+                a, w, h, fit = best
+                print(f"  {slot.label} ({slot.width}x{slot.height}): {a.stem} [{w}x{h}] fitness={fit} star={a.starred}")
+            else:
+                print(f"  {slot.label} ({slot.width}x{slot.height}): no candidates")
+
+
+def cmd_export_platform(path: str, platform_id: str, output: str):
+    """Export assigned slot images resized to platform specs."""
+    from doxyedit.models import Project
+    from doxyedit.exporter import export_project
+    proj = Project.load(path)
+    # Filter to just this platform
+    orig = proj.platforms
+    proj.platforms = [platform_id]
+    manifest = export_project(proj, output)
+    proj.platforms = orig
+    n = len(manifest["exports"])
+    print(f"Exported {n} files to {output}")
+    for e in manifest["exports"]:
+        print(f"  {e['slot']}: {e['file']} ({e['size']})")
+
+
+def cmd_search_advanced(path: str, tag: str = None, min_width: int = 0, aspect: str = None):
+    """Advanced search by tag, dimensions, aspect."""
+    from doxyedit.models import Project
+    proj = Project.load(path)
+    results = proj.assets
+    if tag:
+        results = [a for a in results if tag in a.tags]
+    if min_width > 0:
+        from PIL import Image as PILImage
+        filtered = []
+        for a in results:
+            try:
+                img = PILImage.open(a.source_path)
+                if img.width >= min_width:
+                    filtered.append((a, img.width, img.height))
+                img.close()
+            except Exception:
+                pass
+        results = filtered
+    else:
+        results = [(a, 0, 0) for a in results]
+    if aspect:
+        final = []
+        for a, w, h in results:
+            if w == 0:
+                try:
+                    from PIL import Image as PILImage
+                    img = PILImage.open(a.source_path)
+                    w, h = img.size
+                    img.close()
+                except Exception:
+                    continue
+            ratio = w / h if h else 1
+            if aspect == "landscape" and ratio > 1.2:
+                final.append((a, w, h))
+            elif aspect == "portrait" and ratio < 0.8:
+                final.append((a, w, h))
+            elif aspect == "square" and 0.8 <= ratio <= 1.2:
+                final.append((a, w, h))
+        results = final
+
+    for a, w, h in results:
+        dim = f" ({w}x{h})" if w else ""
+        print(f"{a.stem}{dim}: {', '.join(a.tags)}")
+    print(f"\n--- {len(results)} matches ---")
+
+
+def cmd_extract_thumbs(path: str, size: int = 512, output: str = None):
+    """Extract proxy thumbnails for all assets that don't have one yet."""
+    from doxyedit.models import Project
+    from doxyedit.imaging import open_for_thumb, pil_to_qpixmap
+    from PIL import Image as PILImage
+
+    proj = Project.load(path)
+    out_dir = Path(output) if output else Path(path).parent / "thumbnails"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    total = len(proj.assets)
+    exported = 0
+    skipped = 0
+    failed = 0
+
+    for i, asset in enumerate(proj.assets):
+        out_file = out_dir / f"{asset.id}.png"
+        if out_file.exists():
+            skipped += 1
+            continue
+        try:
+            img, w, h = open_for_thumb(asset.source_path, size)
+            img.thumbnail((size, size), PILImage.LANCZOS)
+            if img.mode not in ("RGB", "RGBA"):
+                img = img.convert("RGBA")
+            img.save(str(out_file), "PNG")
+            exported += 1
+            if (i + 1) % 20 == 0:
+                print(f"  [{i+1}/{total}] exported {exported}, skipped {skipped}, failed {failed}")
+        except Exception as e:
+            failed += 1
+
+    print(f"\nDone: {exported} exported, {skipped} already existed, {failed} failed")
+    print(f"Output: {out_dir}")
+
+
 def cmd_status(path: str):
     from doxyedit.models import Project, PLATFORMS
     proj = Project.load(path)
@@ -205,6 +422,65 @@ def main():
             print("Usage: python -m doxyedit set-star <project.json> <asset_id> <0-5>")
             sys.exit(1)
         cmd_set_star(args[1], args[2], args[3])
+    elif cmd == "sync-tags":
+        if len(args) < 3:
+            print("Usage: python -m doxyedit sync-tags <project.json> <registry.json>")
+            sys.exit(1)
+        cmd_sync_tags(args[1], args[2])
+    elif cmd == "strip-tags":
+        if len(args) < 3:
+            print("Usage: python -m doxyedit strip-tags <project.json> <tag1,tag2,...>")
+            sys.exit(1)
+        cmd_strip_tags(args[1], args[2])
+    elif cmd == "find-dupes":
+        if len(args) < 2:
+            print("Usage: python -m doxyedit find-dupes <project.json> [--threshold N]")
+            sys.exit(1)
+        threshold = int(args[3]) if len(args) > 3 and args[2] == "--threshold" else 10
+        cmd_find_dupes(args[1], threshold)
+    elif cmd == "assign-slots":
+        if len(args) < 2:
+            print("Usage: python -m doxyedit assign-slots <project.json>")
+            sys.exit(1)
+        cmd_assign_slots(args[1])
+    elif cmd == "export-proxies" or cmd == "extract-thumbs":
+        if len(args) < 2:
+            print("Usage: python -m doxyedit export-proxies <project.json> [--size N] [--output folder/]")
+            sys.exit(1)
+        size = 512
+        output = None
+        i = 2
+        while i < len(args):
+            if args[i] == "--size" and i + 1 < len(args):
+                size = int(args[i + 1]); i += 2
+            elif args[i] == "--output" and i + 1 < len(args):
+                output = args[i + 1]; i += 2
+            else:
+                i += 1
+        cmd_extract_thumbs(args[1], size, output)
+    elif cmd == "export":
+        if len(args) < 4 or "--platform" not in args:
+            print("Usage: python -m doxyedit export <project.json> --platform <id> --output <folder>")
+            sys.exit(1)
+        plat = args[args.index("--platform") + 1]
+        out = args[args.index("--output") + 1] if "--output" in args else "export/"
+        cmd_export_platform(args[1], plat, out)
+    elif cmd == "search-advanced":
+        if len(args) < 2:
+            print("Usage: python -m doxyedit search-advanced <project.json> [--tag X] [--min-width N] [--aspect landscape|portrait|square]")
+            sys.exit(1)
+        tag = min_w = aspect = None
+        i = 2
+        while i < len(args):
+            if args[i] == "--tag" and i + 1 < len(args):
+                tag = args[i + 1]; i += 2
+            elif args[i] == "--min-width" and i + 1 < len(args):
+                min_w = int(args[i + 1]); i += 2
+            elif args[i] == "--aspect" and i + 1 < len(args):
+                aspect = args[i + 1]; i += 2
+            else:
+                i += 1
+        cmd_search_advanced(args[1], tag, min_w or 0, aspect)
     else:
         print(__doc__)
         sys.exit(1)
