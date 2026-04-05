@@ -363,6 +363,7 @@ class MainWindow(QMainWindow):
         tools_menu.addAction("&Reload Project from Disk", self._reload_project, QKeySequence("F5"))
         tools_menu.addAction("Refresh Thumbnails", self._refresh_thumbs, QKeySequence("Shift+F5"))
         tools_menu.addAction("Rebuild Tag Bar", lambda: self.browser.rebuild_tag_bar())
+        tools_menu.addAction("Clear Unused Tags", self._clear_unused_tags)
         tools_menu.addSeparator()
         tools_menu.addAction("Clear Thumbnail Cache", self._clear_thumb_cache)
         self._auto_tag_action = tools_menu.addAction("Auto-Tag on Import")
@@ -886,6 +887,27 @@ class MainWindow(QMainWindow):
     def _select_none(self):
         if self.tabs.currentIndex() == 0:
             self.browser._list_view.clearSelection()
+
+    def _clear_unused_tags(self):
+        """Remove tag definitions and custom tags not used by any asset."""
+        used = {t for a in self.project.assets for t in a.tags}
+        removed = []
+        # Clean tag_definitions
+        for tid in list(self.project.tag_definitions.keys()):
+            if tid not in used:
+                del self.project.tag_definitions[tid]
+                removed.append(tid)
+        # Clean custom_tags
+        self.project.custom_tags = [
+            ct for ct in self.project.custom_tags
+            if not isinstance(ct, dict) or ct.get("id") in used
+        ]
+        if removed:
+            self._refresh_all_tags()
+            self._dirty = True
+            self.status.showMessage(f"Removed {len(removed)} unused tag(s): {', '.join(removed)}")
+        else:
+            self.status.showMessage("No unused tags found")
 
     def _remove_assets_by_ids(self, ids: set):
         """Remove assets from current project by ID and refresh."""
