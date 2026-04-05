@@ -659,9 +659,19 @@ class AssetBrowser(QWidget):
         return assets
 
     def _refresh_grid(self):
+        saved_ids = set(self._selected_ids)
         self.project.invalidate_index()
         self._filtered_assets = self._compute_filtered()
         self._model.set_assets(self._filtered_assets)
+
+        # Restore selection
+        if saved_ids:
+            sel = self._list_view.selectionModel()
+            for i in range(self._model.rowCount()):
+                idx = self._model.index(i)
+                asset = self._model.get_asset(idx)
+                if asset and asset.id in saved_ids:
+                    sel.select(idx, sel.SelectionFlag.Select)
 
         # Request thumbnails for visible items
         batch = [(a.id, a.source_path) for a in self._filtered_assets]
