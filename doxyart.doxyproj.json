@@ -64,7 +64,10 @@
     "banner",
     "tier_card"
   ],
-  "eye_hidden_tags": [],
+  "eye_hidden_tags": [
+    "reference"
+  ],
+  "sort_mode": "Name A-Z",
   "assets": [
     {
       "id": "001_0",

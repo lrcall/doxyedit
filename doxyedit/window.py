@@ -266,6 +266,35 @@ class MainWindow(QMainWindow):
         file_menu.addAction("Paste Image (Ctrl+V)", self._paste_from_clipboard, QKeySequence("Ctrl+V"))
         file_menu.addSeparator()
         file_menu.addAction("Reset All Tags (fresh start)", self._reset_all_tags)
+        file_menu.addSeparator()
+        file_menu.addAction("E&xit", self.close, QKeySequence("Alt+F4"))
+
+        # Edit menu
+        edit_menu = menu.addMenu("&Edit")
+        edit_menu.addAction("Select &All", self._select_all, QKeySequence("Ctrl+A"))
+        edit_menu.addAction("Select &None", self._select_none, QKeySequence("Ctrl+D"))
+        edit_menu.addAction("&Invert Selection", self._invert_selection)
+        edit_menu.addSeparator()
+        edit_menu.addAction("&Delete Selected (Ignore)", self._handle_delete, QKeySequence("Delete"))
+        edit_menu.addAction("&Remove from Project", self._remove_selected)
+        edit_menu.addSeparator()
+        edit_menu.addAction("Star Selected", lambda: self._batch_star(1))
+        edit_menu.addAction("Unstar Selected", lambda: self._batch_star(0))
+        edit_menu.addSeparator()
+        edit_menu.addAction("Clear Tags on Selected", self._clear_tags_selected)
+        edit_menu.addAction("Add Tag to Selected...", self._add_tag_to_selected)
+
+        # Tools menu
+        tools_menu = menu.addMenu("&Tools")
+        tools_menu.addAction("&Refresh Thumbnails", self._refresh_thumbs, QKeySequence("F5"))
+        tools_menu.addAction("Rebuild Tag Bar", lambda: self.browser.rebuild_tag_bar())
+        tools_menu.addSeparator()
+        tools_menu.addAction("Clear Thumbnail Cache", self._clear_thumb_cache)
+        tools_menu.addSeparator()
+        tools_menu.addAction("Project &Summary (CLI)", self._show_summary)
+        tools_menu.addAction("Show Project File...", self._show_project_file)
+        tools_menu.addSeparator()
+        tools_menu.addAction("Open Cache Folder", self._open_cache_folder)
 
         # View menu
         view_menu = menu.addMenu("&View")
@@ -283,6 +312,14 @@ class MainWindow(QMainWindow):
         theme_menu = view_menu.addMenu("Theme")
         for tid, theme in THEMES.items():
             theme_menu.addAction(theme.name, lambda t=tid: self._apply_theme(t))
+        view_menu.addSeparator()
+        view_menu.addAction("Show All Hidden Tags", lambda: self.tag_panel._show_all_tags())
+        view_menu.addAction("Refresh Grid", lambda: self.browser.refresh(), QKeySequence("F5"))
+
+        # Help menu
+        help_menu = menu.addMenu("&Help")
+        help_menu.addAction("Keyboard Shortcuts", self._show_shortcuts)
+        help_menu.addAction("About DoxyEdit", self._show_about)
 
     def _setup_tag_shortcuts(self):
         """Set up keyboard shortcuts for tagging — only active on Assets tab."""
@@ -638,6 +675,145 @@ class MainWindow(QMainWindow):
             for item in self.scene.selectedItems():
                 self.scene.removeItem(item)
             self.status.showMessage("Deleted selected items")
+
+    def _select_all(self):
+        if self.tabs.currentIndex() == 0:
+            self.browser._list_view.selectAll()
+
+    def _select_none(self):
+        if self.tabs.currentIndex() == 0:
+            self.browser._list_view.clearSelection()
+
+    def _invert_selection(self):
+        if self.tabs.currentIndex() != 0:
+            return
+        model = self.browser._model
+        sel = self.browser._list_view.selectionModel()
+        for i in range(model.rowCount()):
+            idx = model.index(i)
+            sel.select(idx, sel.SelectionFlag.Toggle)
+
+    def _remove_selected(self):
+        assets = self.browser.get_selected_assets()
+        if not assets:
+            return
+        from PySide6.QtWidgets import QMessageBox
+        reply = QMessageBox.question(self, "Remove",
+            f"Remove {len(assets)} asset(s) from project?\n(Files are NOT deleted from disk)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
+        if reply == QMessageBox.StandardButton.Yes:
+            ids = {a.id for a in assets}
+            self.project.assets = [a for a in self.project.assets if a.id not in ids]
+            self.browser._selected_ids -= ids
+            self.browser.refresh()
+            self._dirty = True
+            self.status.showMessage(f"Removed {len(assets)} asset(s)")
+
+    def _batch_star(self, value: int):
+        for a in self.browser.get_selected_assets():
+            a.starred = value
+        self.browser.refresh()
+        self._dirty = True
+
+    def _clear_tags_selected(self):
+        assets = self.browser.get_selected_assets()
+        for a in assets:
+            a.tags.clear()
+        self.tag_panel.set_assets(assets)
+        self._dirty = True
+        self.status.showMessage(f"Cleared tags on {len(assets)} asset(s)")
+
+    def _add_tag_to_selected(self):
+        from PySide6.QtWidgets import QInputDialog
+        tag, ok = QInputDialog.getText(self, "Add Tag", "Tag to add to selected:")
+        if not ok or not tag.strip():
+            return
+        tag_id = tag.strip().lower().replace(" ", "_")
+        assets = self.browser.get_selected_assets()
+        for a in assets:
+            if tag_id not in a.tags:
+                a.tags.append(tag_id)
+        self._dirty = True
+        self.status.showMessage(f"Added '{tag_id}' to {len(assets)} asset(s)")
+
+    def _refresh_thumbs(self):
+        self.browser._thumb_cache.clear()
+        self.browser._delegate.invalidate_cache()
+        self.browser.refresh()
+        self.status.showMessage("Recaching thumbnails...", 2000)
+
+    def _clear_thumb_cache(self):
+        import shutil
+        cache_dir = Path.home() / ".doxyedit" / "thumbcache"
+        if cache_dir.exists():
+            shutil.rmtree(cache_dir, ignore_errors=True)
+        self.browser._thumb_cache.clear()
+        self.browser._delegate.invalidate_cache()
+        self.browser.refresh()
+        self.status.showMessage("Thumbnail cache cleared")
+
+    def _show_summary(self):
+        summary = self.project.summary()
+        import json
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Project Summary",
+            json.dumps(summary, indent=2))
+
+    def _show_project_file(self):
+        if self._project_path:
+            import subprocess
+            subprocess.Popen(f'notepad "{self._project_path}"')
+        else:
+            self.status.showMessage("Save the project first", 2000)
+
+    def _open_cache_folder(self):
+        import subprocess
+        cache_dir = str(Path.home() / ".doxyedit" / "thumbcache")
+        subprocess.Popen(f'explorer "{cache_dir}"')
+
+    def _show_shortcuts(self):
+        from PySide6.QtWidgets import QMessageBox
+        shortcuts = """
+Ctrl+S — Save Project
+Ctrl+O — Open Project
+Ctrl+N — New Project
+Ctrl+E — Export All Platforms
+Ctrl+V — Paste Image/Path
+Ctrl+A — Select All
+Ctrl+D — Deselect All
+Ctrl+T — Toggle Tag Panel
+Ctrl+= — Increase Font
+Ctrl+- — Decrease Font
+Ctrl+0 — Reset Font
+Ctrl+Scroll — Zoom Thumbnails
+Delete — Soft-delete (tag as ignore)
+F5 — Refresh Thumbnails
+
+Preview:
+N — Add Note
+V — Toggle Notes Visible
+Ctrl+0 — Fit to View
+Esc — Close
+
+Tags (Assets tab):
+1-8 — Toggle content tags
+0 — Toggle Ignore
+Alt+Click tag — Search by tag
+"""
+        from doxyedit.models import TAG_SHORTCUTS
+        for key, tid in self.project.custom_shortcuts.items():
+            shortcuts += f"{key} — {tid}\n"
+        QMessageBox.information(self, "Keyboard Shortcuts", shortcuts.strip())
+
+    def _show_about(self):
+        from PySide6.QtWidgets import QMessageBox
+        from doxyedit import __version__
+        QMessageBox.about(self, "About DoxyEdit",
+            f"DoxyEdit v{__version__}\n\n"
+            "Art Asset Manager\n"
+            "Browse, tag, organize, and export art assets\n"
+            "across multiple platforms.\n\n"
+            "Built with PySide6 + PIL + psd-tools")
 
     def _change_color(self):
         items = self.scene.selectedItems()
