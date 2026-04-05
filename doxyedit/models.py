@@ -103,7 +103,7 @@ VISUAL_TAGS = {
 }
 
 # Keyboard shortcuts — only for content/workflow tags, not sized ones
-TAG_SHORTCUTS: dict[str, str] = {
+TAG_SHORTCUTS_DEFAULT: dict[str, str] = {
     "1": "page",
     "2": "character",
     "3": "sketch",
@@ -114,6 +114,7 @@ TAG_SHORTCUTS: dict[str, str] = {
     "8": "wip",
     "0": "ignore",
 }
+TAG_SHORTCUTS: dict[str, str] = dict(TAG_SHORTCUTS_DEFAULT)
 
 
 def check_fitness(img_w: int, img_h: int, tag: TagPreset) -> str:
@@ -340,6 +341,11 @@ class Project:
     sort_mode: str = "Name A-Z"
     tray_items: list[str] = field(default_factory=list)  # asset IDs in work tray
     notes: str = ""
+    accent_color: str = ""  # project-level accent override (hex, e.g. "#7ca1c0")
+    checklist: list[str] = field(default_factory=list)  # posting checklist items (prefix "[ ] " or "[x] ")
+    excluded_paths: set[str] = field(default_factory=set)  # paths permanently excluded (moved/deleted)
+    import_sources: list[dict] = field(default_factory=list)  # [{type, path, recursive, added_at}]
+    folder_presets: list[dict] = field(default_factory=list)  # [{id, name, folders: [str]}]
 
     def get_tags(self) -> dict[str, TagPreset]:
         """Get merged tag presets — defaults + tag_definitions + legacy custom_tags."""
@@ -384,6 +390,11 @@ class Project:
             "eye_hidden_tags": self.eye_hidden_tags,
             "sort_mode": self.sort_mode,
             "tray_items": self.tray_items,
+            "accent_color": self.accent_color,
+            "checklist": self.checklist,
+            "excluded_paths": sorted(self.excluded_paths),
+            "import_sources": self.import_sources,
+            "folder_presets": self.folder_presets,
             "assets": [asdict(a) for a in self.assets],
         }
         Path(path).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
@@ -403,6 +414,11 @@ class Project:
             eye_hidden_tags=raw.get("eye_hidden_tags", []),
             sort_mode=raw.get("sort_mode", "Name A-Z"),
             tray_items=raw.get("tray_items", []),
+            accent_color=raw.get("accent_color", ""),
+            checklist=raw.get("checklist", []),
+            excluded_paths=set(raw.get("excluded_paths", [])),
+            import_sources=raw.get("import_sources", []),
+            folder_presets=raw.get("folder_presets", []),
         )
         aliases = proj.tag_aliases
         for a in raw.get("assets", []):

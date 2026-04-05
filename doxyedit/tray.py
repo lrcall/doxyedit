@@ -75,7 +75,7 @@ class WorkTray(QWidget):
         # Content (hideable)
         self._content = QWidget()
         layout = QVBoxLayout(self._content)
-        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
         outer.addWidget(self._content)
 
@@ -197,6 +197,7 @@ class WorkTray(QWidget):
         menu.addSeparator()
         menu.addAction("Copy Path", lambda: self._copy_path(asset_id))
         menu.addAction("Copy Filename", lambda: self._copy_filename(asset_id))
+        menu.addAction("Copy Name (no ext)", lambda: self._copy_stem(asset_id))
         menu.addAction("Open in Explorer", lambda: self._open_explorer(asset_id))
         menu.addSeparator()
         menu.addAction("Move to Top", lambda: self._move_to_top(asset_id))
@@ -224,6 +225,12 @@ class WorkTray(QWidget):
         path = self._paths.get(asset_id, "")
         if path:
             QApplication.clipboard().setText(Path(path).name)
+
+    def _copy_stem(self, asset_id: str):
+        from PySide6.QtWidgets import QApplication
+        path = self._paths.get(asset_id, "")
+        if path:
+            QApplication.clipboard().setText(Path(path).stem)
 
     def _move_to_top(self, asset_id: str):
         for i in range(self._list.count()):

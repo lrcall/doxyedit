@@ -2,7 +2,7 @@
 import hashlib
 import json
 import os
-from collections import deque
+from collections import deque, OrderedDict
 from pathlib import Path
 from PySide6.QtCore import QThread, Signal, QMutex, QMutexLocker
 from PySide6.QtGui import QPixmap, QImage
@@ -155,11 +155,14 @@ class ThumbWorker(QThread):
         self._disk_cache.save_index()
 
 
+_LRU_MAX = 600  # max pixmaps kept in memory (~30 MB at 160px thumbs)
+
+
 class ThumbCache:
     """Manages memory + disk cache of thumbnails and a background worker."""
 
     def __init__(self):
-        self._pixmaps: dict[str, QPixmap] = {}
+        self._pixmaps: OrderedDict[str, QPixmap] = OrderedDict()
         self._gen_sizes: dict[str, int] = {}
         self._dims: dict[str, tuple[int, int]] = {}
         from PySide6.QtCore import QSettings
@@ -195,10 +198,18 @@ class ThumbCache:
             self._worker.enqueue_batch(fresh + upgrades)
 
     def on_ready(self, asset_id: str, pixmap: QPixmap, w: int, h: int, gen_size: int):
+        # Move to end (most-recently-used)
         self._pixmaps[asset_id] = pixmap
+        self._pixmaps.move_to_end(asset_id)
         self._gen_sizes[asset_id] = gen_size
         if w and h:
             self._dims[asset_id] = (w, h)
+        # Evict oldest entries if over limit
+        while len(self._pixmaps) > _LRU_MAX:
+            evicted = next(iter(self._pixmaps))
+            del self._pixmaps[evicted]
+            self._gen_sizes.pop(evicted, None)
+            self._dims.pop(evicted, None)
 
     def clear(self):
         self._worker.clear_queue()

@@ -13,6 +13,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QPixmap, QFont, QColor, QCursor, QPainter, QPen, QFontMetrics, QPainterPath,
+    QKeySequence, QShortcut,
 )
 
 from doxyedit.models import (
@@ -152,6 +153,7 @@ class ThumbnailModel(QAbstractListModel):
     DimsRole = Qt.ItemDataRole.UserRole + 3
     StarRole = Qt.ItemDataRole.UserRole + 4
     TagsRole = Qt.ItemDataRole.UserRole + 5
+    AssignmentsRole = Qt.ItemDataRole.UserRole + 6  # list of (platform, status) tuples
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -178,6 +180,8 @@ class ThumbnailModel(QAbstractListModel):
             return asset.starred
         elif role == self.TagsRole:
             return asset.tags
+        elif role == self.AssignmentsRole:
+            return [(pa.platform, pa.status) for pa in asset.assignments] if asset.assignments else []
         return None
 
     def set_assets(self, assets: list[Asset]):
@@ -288,6 +292,29 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.drawEllipse(QPoint(dot_x + 5, dot_y + 5), 5, 5)
             dot_x += 13
 
+        # Platform assignment status badge (top-right corner of thumbnail)
+        assignments = index.data(ThumbnailModel.AssignmentsRole) or []
+        if assignments:
+            # Pick highest-priority status: posted > ready > pending
+            statuses = {s for _, s in assignments}
+            if "posted" in statuses:
+                badge_color = QColor(110, 170, 120, 220)   # green
+                badge_char = "✓"
+            elif "ready" in statuses:
+                badge_color = QColor(124, 161, 192, 220)   # blue
+                badge_char = "R"
+            else:
+                badge_color = QColor(190, 149, 92, 220)    # amber
+                badge_char = "…"
+            bx = rect.x() + rect.width() - self.PADDING - 18
+            by = rect.y() + self.PADDING + 2
+            painter.setBrush(badge_color)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(bx, by, 16, 16, 4, 4)
+            painter.setPen(QColor(255, 255, 255, 230))
+            painter.setFont(QFont("Segoe UI", max(6, self.font_size - 4), QFont.Weight.Bold))
+            painter.drawText(QRect(bx, by, 16, 16), Qt.AlignmentFlag.AlignCenter, badge_char)
+
         # Dimensions text
         fs = self.font_size
         if self.show_dims:
@@ -347,6 +374,7 @@ class AssetBrowser(QWidget):
     folder_opened = Signal(str)
     tags_modified = Signal()
     selection_changed = Signal(list)
+    tag_bar_toggled = Signal(bool)  # emitted when toolbar filter btn changes
 
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
@@ -362,9 +390,11 @@ class AssetBrowser(QWidget):
         self.hover_preview_enabled = True
         self._eye_hidden_tags: set[str] = set()
         self._temp_hidden_ids: set[str] = set()  # Alt+H temporary hide (not saved)
+        self._bar_tag_filters: set[str] = set()  # tag bar filter toggles
         self.auto_tag_enabled = False
         self.show_hidden_only = False
         self._collapsed_folders: set[str] = set()
+        self._folder_filter: set[str] | None = None  # None = show all
         self._current_font_size = 10
         self._hover_id = None
         self._hover_timer = QTimer(self)
@@ -372,6 +402,7 @@ class AssetBrowser(QWidget):
         self._hover_timer.setInterval(int(settings.value("hover_delay_ms", 400)))
         self._hover_timer.timeout.connect(self._show_hover)
         self._hover_size_pct = int(settings.value("hover_size_pct", 150))
+        self._hover_fixed_px = int(settings.value("hover_fixed_px", 0))  # 0 = use pct
         self._cache_all_total = 0
         self._cache_all_done = 0
         self.setAcceptDrops(True)
@@ -410,9 +441,18 @@ class AssetBrowser(QWidget):
         self.filter_untagged.setToolTip("Show only images with no tags")
         self.filter_tagged = self._make_filter_btn("Tagged")
         self.filter_tagged.setToolTip("Show only tagged images")
+        self.filter_assigned = self._make_filter_btn("Assigned")
+        self.filter_assigned.setToolTip("Show only assets assigned to a platform")
+        self.filter_posted = self._make_filter_btn("Posted")
+        self.filter_posted.setToolTip("Show only assets with a posted platform status")
+        self.filter_needs_censor = self._make_filter_btn("Needs Censor")
+        self.filter_needs_censor.setToolTip("Show assets assigned to censor-required platforms with no censor regions")
         toolbar.addWidget(self.filter_starred)
         toolbar.addWidget(self.filter_untagged)
         toolbar.addWidget(self.filter_tagged)
+        toolbar.addWidget(self.filter_assigned)
+        toolbar.addWidget(self.filter_posted)
+        toolbar.addWidget(self.filter_needs_censor)
 
 
         self.filter_show_ignored = QPushButton("Show Ignored")
@@ -483,10 +523,19 @@ class AssetBrowser(QWidget):
 
         row2.addWidget(QLabel("Sort:"))
         self.sort_combo = QComboBox()
-        self.sort_combo.addItems(["Name A-Z", "Name Z-A", "Newest", "Oldest", "Largest", "Smallest", "By Folder"])
+        self.sort_combo.addItems(["Name A-Z", "Name Z-A", "Newest", "Oldest", "Largest", "Smallest", "Starred First", "Most Tagged", "By Folder"])
         self.sort_combo.currentIndexChanged.connect(self._on_filter_changed)
         self.sort_combo.currentTextChanged.connect(self._on_sort_mode_changed)
         row2.addWidget(self.sort_combo)
+
+        self._tag_bar_toggle_btn = QPushButton("▼ Filters")
+        self._tag_bar_toggle_btn.setCheckable(True)
+        self._tag_bar_toggle_btn.setChecked(True)
+        self._tag_bar_toggle_btn.setStyleSheet(self._btn_style())
+        self._tag_bar_toggle_btn.setToolTip("Show/hide the tag filter bar")
+        self._tag_bar_toggle_btn.toggled.connect(self._on_tag_bar_toggle)
+        row2.addWidget(self._tag_bar_toggle_btn)
+
         root.addLayout(row2)
 
         # Row 3: Quick-tag bar
@@ -496,11 +545,18 @@ class AssetBrowser(QWidget):
         self._tag_flow = FlowLayout(self._tag_bar_frame, spacing=4)
         self._tag_flow.setContentsMargins(0, 2, 0, 2)
         self._tag_buttons: list[tuple[QPushButton, str]] = []
-        self._rebuild_tag_buttons()
+        self._tag_button_map: dict[str, QPushButton] = {}  # tag_id → button, O(1) lookup
         self._add_tag_btn = QPushButton("+")
         self._add_tag_btn.setToolTip("Add a custom tag")
         self._add_tag_btn.clicked.connect(self._add_custom_tag)
+        self._clear_filter_btn = QPushButton("✕ Clear Filters")
+        self._clear_filter_btn.setToolTip("Clear all active tag bar filters (Escape)")
+        self._clear_filter_btn.setStyleSheet(self._btn_style())
+        self._clear_filter_btn.clicked.connect(self.clear_bar_filters)
+        self._clear_filter_btn.setVisible(False)
+        self._rebuild_tag_buttons()
         self._tag_flow.addWidget(self._add_tag_btn)
+        self._tag_flow.addWidget(self._clear_filter_btn)
         self._apply_tag_button_styles()
         root.addWidget(self._tag_bar_frame)
 
@@ -558,24 +614,28 @@ class AssetBrowser(QWidget):
     # --- Tag bar ---
 
     def _rebuild_tag_buttons(self):
-        while self._tag_flow.count():
-            item = self._tag_flow.takeAt(0)
-            if item and item.widget():
-                w = item.widget()
+        # Remove all items except _add_tag_btn and _clear_filter_btn (created once in _build)
+        keep = {self._add_tag_btn, self._clear_filter_btn}
+        i = 0
+        while i < self._tag_flow.count():
+            item = self._tag_flow.itemAt(i)
+            if item and item.widget() and item.widget() not in keep:
+                w = self._tag_flow.takeAt(i).widget()
                 w.setParent(None)
                 w.deleteLater()
+            else:
+                i += 1
         self._tag_buttons.clear()
+        self._tag_button_map.clear()
 
         all_used = {t for a in self.project.assets for t in a.tags}
         all_tags = self.project.get_tags()
         bar_tags = {}
-        # Custom/project tags only — skip built-in presets (TAG_PRESETS + TAG_SIZED)
         for tid, preset in all_tags.items():
             if tid in TAG_PRESETS or tid in TAG_SIZED:
                 continue
             if tid in all_used or tid in getattr(self.project, 'tag_definitions', {}):
                 bar_tags[tid] = preset
-        # Tags used in assets but not defined anywhere (also skip built-ins)
         color_idx = 0
         for t in sorted(all_used):
             if t not in bar_tags and t not in TAG_PRESETS and t not in TAG_SIZED:
@@ -588,17 +648,21 @@ class AssetBrowser(QWidget):
             key = shortcut_reverse.get(tag_id, "")
             label = f"{preset.label}" + (f" [{key}]" if key else "")
             btn = QPushButton(label)
-            btn.setToolTip(f"{preset.label} — click to toggle")
-            btn.clicked.connect(lambda checked, tid=tag_id: self._quick_tag(tid))
+            btn.setCheckable(True)
+            btn.setChecked(tag_id in self._bar_tag_filters)
+            btn.setProperty("tag_id", tag_id)
+            btn.setToolTip(f"{preset.label} — click to filter view")
+            btn.clicked.connect(lambda checked, tid=tag_id: self._toggle_bar_filter(tid))
             self._tag_buttons.append((btn, preset.color))
+            self._tag_button_map[tag_id] = btn
             self._tag_flow.addWidget(btn)
 
     def rebuild_tag_bar(self):
         self._rebuild_tag_buttons()
-        self._add_tag_btn = QPushButton("+")
-        self._add_tag_btn.setToolTip("Add a custom tag")
-        self._add_tag_btn.clicked.connect(self._add_custom_tag)
+        # _add_tag_btn and _clear_filter_btn are created once in _build; just re-append
         self._tag_flow.addWidget(self._add_tag_btn)
+        self._clear_filter_btn.setVisible(bool(self._bar_tag_filters))
+        self._tag_flow.addWidget(self._clear_filter_btn)
         self._apply_tag_button_styles()
         self._tag_flow.invalidate()
         self._tag_bar_frame.updateGeometry()
@@ -637,7 +701,10 @@ class AssetBrowser(QWidget):
                 f"QPushButton {{ background: transparent; color: {color};"
                 f" border: 1px solid {color}; border-radius: {h // 2}px;"
                 f" padding: 2px 8px; font-size: {font_size}px; font-weight: bold; }}"
-                f"QPushButton:hover {{ background: {color}; color: rgba(0,0,0,0.8); }}")
+                f"QPushButton:hover {{ background: {color}; color: rgba(0,0,0,0.8); }}"
+                f"QPushButton:checked {{ background: {color}; color: rgba(0,0,0,0.85);"
+                f" border-color: {color}; }}"
+                f"QPushButton:checked:hover {{ background: {color}; }}")
         self._add_tag_btn.setFixedHeight(h)
         self._add_tag_btn.setFixedWidth(h)
         self._add_tag_btn.setStyleSheet(
@@ -711,6 +778,14 @@ class AssetBrowser(QWidget):
         self.search_box.setPlaceholderText("Search by tags..." if checked else "Search...")
         self._on_filter_changed()
 
+    def _on_tag_bar_toggle(self, checked: bool):
+        self._tag_bar_frame.setVisible(checked)
+        self._tag_bar_toggle_btn.setText("▼ Filters" if checked else "▶ Filters")
+        self.tag_bar_toggled.emit(checked)
+
+    def toggle_tag_bar(self):
+        self._tag_bar_toggle_btn.setChecked(not self._tag_bar_toggle_btn.isChecked())
+
     def _on_cache_all_toggled(self, checked):
         if checked:
             batch = [(a.id, a.source_path) for a in self.project.assets]
@@ -731,8 +806,16 @@ class AssetBrowser(QWidget):
             except Exception:
                 pass
 
+    def set_folder_filter(self, folders: list[str] | None):
+        """Restrict the grid to assets from specific folders. Pass None to show all."""
+        self._folder_filter = set(folders) if folders else None
+        self._refresh_grid()
+
     def _compute_filtered(self) -> list[Asset]:
         assets = list(self.project.assets)
+        if self._folder_filter:
+            assets = [a for a in assets
+                      if (a.source_folder or str(Path(a.source_path).parent)) in self._folder_filter]
         query = self.search_box.text().strip().lower()
         if query:
             if self.search_tags_check.isChecked():
@@ -752,6 +835,20 @@ class AssetBrowser(QWidget):
             assets = [a for a in assets if "ignore" not in a.tags]
         if self.filter_has_notes.isChecked():
             assets = [a for a in assets if a.notes and a.notes.strip()]
+        if self.filter_assigned.isChecked():
+            assets = [a for a in assets if a.assignments]
+        if self.filter_posted.isChecked():
+            assets = [a for a in assets if any(pa.status == "posted" for pa in a.assignments)]
+        if self.filter_needs_censor.isChecked():
+            from doxyedit.models import PLATFORMS as _PLATS
+            censor_platforms = {pid for pid, p in _PLATS.items() if p.needs_censor}
+            assets = [a for a in assets
+                      if any(pa.platform in censor_platforms for pa in a.assignments)
+                      and not a.censors]
+
+        # Tag bar filter — show only assets with at least one active filter tag (OR logic)
+        if self._bar_tag_filters:
+            assets = [a for a in assets if self._bar_tag_filters & set(a.tags)]
 
         # Eye filter — hide images with any eye-hidden tags
         if self.show_hidden_only and self._eye_hidden_tags:
@@ -774,13 +871,39 @@ class AssetBrowser(QWidget):
                           not in self._collapsed_folders]
             return assets
 
+        # For stat-based sorts, batch all os.stat calls once (O(n)) before sort
+        if sort_mode in ("Newest", "Oldest", "Largest", "Smallest"):
+            mtime_cache: dict[str, float] = {}
+            fsize_cache: dict[str, int] = {}
+            for a in assets:
+                try:
+                    st = os.stat(a.source_path)
+                    mtime_cache[a.id] = st.st_mtime
+                    fsize_cache[a.id] = st.st_size
+                except OSError:
+                    mtime_cache[a.id] = 0
+                    fsize_cache[a.id] = 0
+            stat_funcs = {
+                "Newest":   (lambda a: mtime_cache[a.id], True),
+                "Oldest":   (lambda a: mtime_cache[a.id], False),
+                "Largest":  (lambda a: fsize_cache[a.id], True),
+                "Smallest": (lambda a: fsize_cache[a.id], False),
+            }
+            fn, rev = stat_funcs[sort_mode]
+            assets.sort(key=fn, reverse=rev)
+            return assets
+
+        if sort_mode == "Starred First":
+            assets.sort(key=lambda a: (0 if a.starred > 0 else 1, Path(a.source_path).stem.lower()))
+            return assets
+
+        if sort_mode == "Most Tagged":
+            assets.sort(key=lambda a: (-len(a.tags), Path(a.source_path).stem.lower()))
+            return assets
+
         key_funcs = {
             "Name A-Z": (lambda a: Path(a.source_path).stem.lower(), False),
             "Name Z-A": (lambda a: Path(a.source_path).stem.lower(), True),
-            "Newest": (lambda a: _mtime(a), True),
-            "Oldest": (lambda a: _mtime(a), False),
-            "Largest": (lambda a: _fsize(a), True),
-            "Smallest": (lambda a: _fsize(a), False),
         }
         if sort_mode in key_funcs:
             fn, rev = key_funcs[sort_mode]
@@ -824,7 +947,13 @@ class AssetBrowser(QWidget):
         shown = len(self._filtered_assets)
         starred = sum(1 for a in self.project.assets if a.starred > 0)
         tagged = sum(1 for a in self.project.assets if a.tags)
-        self.count_label.setText(f"{shown}/{total} shown, {starred} starred, {tagged} tagged")
+        any_filter = (self._bar_tag_filters or self.search_box.text().strip()
+                      or self.filter_starred.isChecked() or self.filter_untagged.isChecked()
+                      or self.filter_tagged.isChecked() or self.filter_assigned.isChecked()
+                      or self.filter_posted.isChecked() or self.filter_needs_censor.isChecked()
+                      or self.filter_has_notes.isChecked())
+        filtered_marker = "  ⬡ FILTERED" if (any_filter and shown < total) else ""
+        self.count_label.setText(f"{shown}/{total} shown, {starred}★, {tagged} tagged{filtered_marker}")
         self.page_label.setText(f"{shown} images")
 
     # --- Thumb cache callbacks ---
@@ -872,32 +1001,53 @@ class AssetBrowser(QWidget):
     def get_selected_assets(self) -> list:
         return [a for a in self.project.assets if a.id in self._selected_ids]
 
-    # --- Quick tag ---
+    # --- Tag bar filter ---
 
-    def _quick_tag(self, tag_id: str):
-        modifiers = QApplication.keyboardModifiers()
-        if modifiers & Qt.KeyboardModifier.ControlModifier:
-            # Toggle: if already searching this tag, clear it
-            if self.search_tags_check.isChecked() and self.search_box.text().strip() == tag_id:
-                self.search_box.clear()
-                self.search_tags_check.setChecked(False)
-            else:
-                self.search_box.setText(tag_id)
-                self.search_tags_check.setChecked(True)
-            return
-        assets = self.get_selected_assets()
-        if not assets:
-            return
-        toggle_tags(assets, tag_id)
-        self.selection_changed.emit(list(self._selected_ids))
-        # If this tag is eye-hidden, refresh to hide newly tagged images
-        if tag_id in self._eye_hidden_tags:
-            self._refresh_grid()
+    def _sync_filter_btn(self, tag_id: str):
+        btn = self._tag_button_map.get(tag_id)
+        if btn:
+            btn.blockSignals(True)
+            btn.setChecked(tag_id in self._bar_tag_filters)
+            btn.blockSignals(False)
+
+    def _toggle_bar_filter(self, tag_id: str):
+        if tag_id in self._bar_tag_filters:
+            self._bar_tag_filters.discard(tag_id)
+        else:
+            self._bar_tag_filters.add(tag_id)
+        self._sync_filter_btn(tag_id)
+        self._clear_filter_btn.setVisible(bool(self._bar_tag_filters))
+        self._refresh_grid()
+
+    def clear_bar_filters(self):
+        self._bar_tag_filters.clear()
+        for tag_id in self._tag_button_map:
+            self._sync_filter_btn(tag_id)
+        self._clear_filter_btn.setVisible(False)
+        self._refresh_grid()
+
+    def _find_similar(self, asset):
+        """Filter grid to assets sharing any tag with the given asset."""
+        self._bar_tag_filters = set(asset.tags)
+        for tag_id in self._tag_button_map:
+            self._sync_filter_btn(tag_id)
+        self._clear_filter_btn.setVisible(bool(self._bar_tag_filters))
+        self._refresh_grid()
 
     # --- Public API ---
 
     def refresh(self):
         self._refresh_grid()
+
+    def scroll_to_asset(self, asset_id: str):
+        """Scroll the grid to show the given asset and select it."""
+        for i, a in enumerate(self._filtered_assets):
+            if a.id == asset_id:
+                idx = self._model.index(i)
+                self._list_view.scrollTo(idx, self._list_view.ScrollHint.PositionAtCenter)
+                self._list_view.setCurrentIndex(idx)
+                self._selected_ids = {asset_id}
+                break
 
     def shutdown(self):
         self._thumb_cache.shutdown()
@@ -923,20 +1073,40 @@ class AssetBrowser(QWidget):
             self.import_folder(folder, recursive=recursive)
             self.folder_opened.emit(folder)
 
+    def _record_import_source(self, source_type: str, path: str, recursive: bool = False):
+        """Record an import source so the project knows where its assets came from."""
+        import datetime
+        sources = self.project.import_sources
+        # Update existing record for same path rather than duplicating
+        for rec in sources:
+            if rec.get("path") == path and rec.get("type") == source_type:
+                rec["recursive"] = recursive
+                rec["last_imported"] = datetime.datetime.now().isoformat(timespec="seconds")
+                return
+        sources.append({
+            "type": source_type,
+            "path": path,
+            "recursive": recursive,
+            "added_at": datetime.datetime.now().isoformat(timespec="seconds"),
+            "last_imported": datetime.datetime.now().isoformat(timespec="seconds"),
+        })
+
     def import_folder(self, folder: str, recursive: bool = None):
         if recursive is None:
             recursive = self.recursive_check.isChecked()
         folder_path = Path(folder)
         existing = {a.source_path for a in self.project.assets}
+        excluded = getattr(self.project, 'excluded_paths', set())
         count = 0
         files = sorted(folder_path.rglob("*") if recursive else folder_path.iterdir())
         for f in files:
-            if f.is_file() and f.suffix.lower() in IMAGE_EXTS and str(f) not in existing:
+            if f.is_file() and f.suffix.lower() in IMAGE_EXTS and str(f) not in existing and str(f) not in excluded:
                 self.project.assets.append(Asset(
                     id=f.stem + "_" + str(len(self.project.assets)),
                     source_path=str(f), source_folder=str(f.parent),
                     tags=auto_suggest_tags(f.stem) if self.auto_tag_enabled else []))
                 count += 1
+        self._record_import_source("folder", str(folder_path), recursive)
         if count:
             self._refresh_grid()
         return count
@@ -951,17 +1121,27 @@ class AssetBrowser(QWidget):
 
     def import_files(self, files: list[str]):
         existing = {a.source_path for a in self.project.assets}
+        excluded = getattr(self.project, 'excluded_paths', set())
         added = 0
+        first_id = None
+        new_files = []
         for f in files:
-            if f not in existing and Path(f).suffix.lower() in IMAGE_EXTS:
+            if f not in existing and f not in excluded and Path(f).suffix.lower() in IMAGE_EXTS:
                 p = Path(f)
+                aid = p.stem + "_" + str(len(self.project.assets))
                 self.project.assets.append(Asset(
-                    id=p.stem + "_" + str(len(self.project.assets)),
-                    source_path=f, source_folder=str(p.parent),
+                    id=aid, source_path=f, source_folder=str(p.parent),
                     tags=auto_suggest_tags(p.stem) if self.auto_tag_enabled else []))
+                if first_id is None:
+                    first_id = aid
                 added += 1
+                new_files.append(f)
+        for f in new_files:
+            self._record_import_source("file", f)
         if added:
             self._refresh_grid()
+            if first_id:
+                self.scroll_to_asset(first_id)
         return added
 
     # --- Drag and drop ---
@@ -1005,6 +1185,7 @@ class AssetBrowser(QWidget):
         n_sel = len(self._selected_ids)
         if n_sel > 1:
             menu.addAction(f"Send {n_sel} to Tray", lambda: [self.asset_to_tray.emit(aid) for aid in self._selected_ids])
+            menu.addAction(f"Export {n_sel} Selected to Folder...", self._export_selected)
         else:
             menu.addAction("Send to Tray", lambda: self.asset_to_tray.emit(asset_id))
         menu.addAction("Send to Canvas", lambda: self.asset_to_canvas.emit(asset_id))
@@ -1013,6 +1194,11 @@ class AssetBrowser(QWidget):
         menu.addAction("Open in Explorer", lambda: _open_explorer(asset))
         menu.addAction("Copy Path", lambda: QApplication.clipboard().setText(asset.source_path))
         menu.addAction("Copy Filename", lambda: QApplication.clipboard().setText(Path(asset.source_path).name))
+        menu.addAction("Copy Name (no ext)", lambda: QApplication.clipboard().setText(Path(asset.source_path).stem))
+        if n_sel > 1:
+            sel_assets = self.get_selected_assets()
+            menu.addAction(f"Copy All Paths ({n_sel})", lambda: QApplication.clipboard().setText(
+                "\n".join(a.source_path for a in sel_assets)))
         menu.addSeparator()
 
         if asset.starred > 0:
@@ -1065,8 +1251,80 @@ class AssetBrowser(QWidget):
                         a.triggered.connect(lambda _, tid=tag.id: self._toggle_tag_multi(asset, tid))
 
         menu.addAction("Add Tag...", lambda: self._add_tag_dialog(asset))
+        if asset.tags:
+            menu.addAction("Find Similar Assets", lambda: self._find_similar(asset))
+        # Platform status update submenu
+        if asset.assignments:
+            from doxyedit.models import PostStatus as _PS
+            status_menu = menu.addMenu(f"Update Status ({len(asset.assignments)} assignments)")
+            for pa in asset.assignments:
+                sub = status_menu.addMenu(f"{pa.platform} / {pa.slot} [{pa.status}]")
+                for s in (_PS.PENDING, _PS.READY, _PS.POSTED, _PS.SKIP):
+                    label = f"{'✓ ' if pa.status == s else ''}{s}"
+                    sub.addAction(label, lambda _pa=pa, _s=s: self._set_assignment_status(_pa, _s))
+
+        # Platform assignment submenu
+        from doxyedit.models import PLATFORMS as _PLATS, PlatformAssignment, PostStatus
+        if self.project.platforms:
+            assign_menu = menu.addMenu("Assign to Platform")
+            sel_assets = self.get_selected_assets() or [asset]
+            for pid in self.project.platforms:
+                plat = _PLATS.get(pid)
+                if not plat:
+                    continue
+                p_menu = assign_menu.addMenu(plat.name)
+                for slot in plat.slots:
+                    def _assign(checked, _pid=pid, _slot=slot.name, _assets=sel_assets):
+                        for a in _assets:
+                            existing = next((pa for pa in a.assignments
+                                            if pa.platform == _pid and pa.slot == _slot), None)
+                            if not existing:
+                                a.assignments.append(PlatformAssignment(
+                                    platform=_pid, slot=_slot, status=PostStatus.PENDING))
+                        self._refresh_grid()
+                        try:
+                            self.window()._dirty = True
+                        except Exception:
+                            pass
+                    already = any(pa.platform == pid and pa.slot == slot.name
+                                  for a in sel_assets for pa in a.assignments)
+                    p_menu.addAction(f"{'✓ ' if already else ''}{slot.label}", _assign)
         menu.addAction("Remove from Project", lambda: self._remove_asset(asset))
         menu.exec(pos)
+
+    def _set_assignment_status(self, pa, status: str):
+        pa.status = status
+        self._refresh_grid()
+        try:
+            self.window()._dirty = True
+        except Exception:
+            pass
+
+    def _export_selected(self):
+        assets = self.get_selected_assets()
+        if not assets:
+            return
+        folder = QFileDialog.getExistingDirectory(self.window(), "Export Selected Assets To...")
+        if not folder:
+            return
+        import shutil
+        dest = Path(folder)
+        ok, failed = 0, 0
+        for a in assets:
+            src = Path(a.source_path)
+            if src.exists():
+                try:
+                    shutil.copy2(src, dest / src.name)
+                    ok += 1
+                except Exception:
+                    failed += 1
+        try:
+            msg = f"Exported {ok} file(s) to {folder}"
+            if failed:
+                msg += f" ({failed} failed)"
+            self.window().status.showMessage(msg, 4000)
+        except Exception:
+            pass
 
     def _add_tag_dialog(self, asset):
         from PySide6.QtWidgets import QInputDialog
@@ -1132,13 +1390,18 @@ class AssetBrowser(QWidget):
 
     # --- Hover preview ---
 
+    def _hover_px(self) -> int:
+        """Return hover preview size in pixels (fixed or pct-based)."""
+        if self._hover_fixed_px > 0:
+            return self._hover_fixed_px
+        return max(300, int(self._thumb_size * self._hover_size_pct / 100))
+
     def _show_hover(self):
         if not self._hover_id or not self.hover_preview_enabled:
             return
         asset = self.project.get_asset(self._hover_id)
         if asset:
-            size = int(self._thumb_size * self._hover_size_pct / 100)
-            HoverPreview.instance().PREVIEW_SIZE = max(300, size)
+            HoverPreview.instance().PREVIEW_SIZE = self._hover_px()
             HoverPreview.instance().show_for(asset.source_path, QCursor.pos())
 
     # --- Zoom (event filter intercepts Ctrl+Scroll on the list view) ---
@@ -1190,7 +1453,7 @@ class AssetBrowser(QWidget):
                     asset = self._model.get_asset(index) if index.isValid() else None
                     if asset:
                         hp = HoverPreview.instance()
-                        hp.PREVIEW_SIZE = max(300, int(self._thumb_size * self._hover_size_pct / 100))
+                        hp.PREVIEW_SIZE = self._hover_px()
                         hp.show_for(asset.source_path, QCursor.pos())
                     return True
 
@@ -1209,7 +1472,7 @@ class AssetBrowser(QWidget):
                 if asset and asset.id != self._hover_id:
                     self._hover_id = asset.id
                     hp = HoverPreview.instance()
-                    hp.PREVIEW_SIZE = max(300, int(self._thumb_size * self._hover_size_pct / 100))
+                    hp.PREVIEW_SIZE = self._hover_px()
                     hp.show_for(asset.source_path, QCursor.pos())
                 return True
 
@@ -1254,6 +1517,11 @@ class AssetBrowser(QWidget):
             self._refresh_grid()
             self.window().status.showMessage("Recaching thumbnails...", 2000)
             return
+        if event.key() == Qt.Key.Key_Escape:
+            if self._bar_tag_filters:
+                self.clear_bar_filters()
+                self.window().status.showMessage("Tag filters cleared", 1500)
+                return
         super().keyPressEvent(event)
 
 

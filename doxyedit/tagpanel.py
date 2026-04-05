@@ -3,10 +3,10 @@ from pathlib import Path
 from PIL import Image
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox,
-    QFrame, QScrollArea, QTextEdit, QPushButton, QSplitter,
+    QFrame, QScrollArea, QTextEdit, QPushButton, QSplitter, QColorDialog,
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont, QColor
+from PySide6.QtCore import Qt, Signal, QPoint, QRect, QEvent
+from PySide6.QtGui import QFont, QColor, QPainter, QPen, QBrush
 
 from doxyedit.models import Asset, TAG_PRESETS, TAG_SIZED, TAG_ALL, TAG_SHORTCUTS, TagPreset, check_fitness
 
@@ -16,6 +16,149 @@ FITNESS_COLORS = {
     "yellow": "#ffa500",
     "red": "#ff4444",
 }
+
+
+class _TagContainer(QWidget):
+    """Inner scroll widget that handles drag-to-select and drag-to-reorder tag rows."""
+
+    def __init__(self, panel):
+        super().__init__()
+        self._panel = panel           # TagPanel reference
+        self._drag_start: QPoint | None = None
+        self._drag_current: QPoint | None = None
+        self._drag_mode = "none"      # "select" | "reorder" | "none"
+        self._reorder_tag_id: str | None = None
+        self._drop_indicator_y = -1
+        self.setMouseTracking(True)
+
+    # ── rubber-band drag-select ─────────────────────────────────────────────
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start = event.pos()
+            self._drag_current = event.pos()
+            # Check if click lands on a selected row → drag-reorder
+            tag_id = self._tag_id_at(event.pos())
+            if tag_id and tag_id in self._panel._selected_tag_rows:
+                self._drag_mode = "reorder"
+                self._reorder_tag_id = tag_id
+            else:
+                self._drag_mode = "select"
+                self._reorder_tag_id = None
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if not (event.buttons() & Qt.MouseButton.LeftButton) or self._drag_start is None:
+            super().mouseMoveEvent(event)
+            return
+        self._drag_current = event.pos()
+        if self._drag_mode == "select":
+            self._update_drag_selection()
+            self.update()
+        elif self._drag_mode == "reorder":
+            self._drop_indicator_y = event.pos().y()
+            self.update()
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            if self._drag_mode == "reorder" and self._reorder_tag_id:
+                self._finish_reorder(event.pos())
+            self._drag_start = None
+            self._drag_current = None
+            self._drag_mode = "none"
+            self._reorder_tag_id = None
+            self._drop_indicator_y = -1
+            self.update()
+        super().mouseReleaseEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        p = QPainter(self)
+        # Rubber-band rectangle
+        if self._drag_mode == "select" and self._drag_start and self._drag_current:
+            rect = QRect(self._drag_start, self._drag_current).normalized()
+            p.setPen(QPen(QColor(100, 160, 220, 180), 1))
+            p.setBrush(QBrush(QColor(100, 160, 220, 40)))
+            p.drawRect(rect)
+        # Drop indicator line
+        if self._drag_mode == "reorder" and self._drop_indicator_y >= 0:
+            p.setPen(QPen(QColor(100, 200, 255, 220), 2))
+            p.drawLine(0, self._drop_indicator_y, self.width(), self._drop_indicator_y)
+        p.end()
+
+    # ── helpers ────────────────────────────────────────────────────────────
+
+    def _tag_id_at(self, pos: QPoint) -> str | None:
+        """Return the tag_id of the row widget under pos, or None."""
+        for tag_id, row in self._panel._rows.items():
+            if row.isVisible() and row.geometry().contains(pos):
+                return tag_id
+        return None
+
+    def _update_drag_selection(self):
+        if not self._drag_start or not self._drag_current:
+            return
+        rect = QRect(self._drag_start, self._drag_current).normalized()
+        new_sel: set[str] = set()
+        for tag_id, row in self._panel._rows.items():
+            if not row.isVisible():
+                continue
+            hit = row.geometry().intersects(rect)
+            was = tag_id in self._panel._selected_tag_rows
+            if hit != was:
+                row.set_row_selected(hit)
+            if hit:
+                new_sel.add(tag_id)
+        self._panel._selected_tag_rows = new_sel
+
+    def _finish_reorder(self, pos: QPoint):
+        """Drop the dragged tag row to the position nearest the cursor."""
+        tag_id = self._reorder_tag_id
+        if not tag_id:
+            return
+        section = self._panel._tag_sections.get(tag_id)
+        widget_to_tid = {row: tid for tid, row in self._panel._rows.items()}
+        # Single pass: collect visible section rows in layout order with layout indices
+        section_rows: list[tuple[int, str, int]] = []  # (y_mid, tag_id, layout_idx)
+        for i in range(self._panel._tag_layout.count()):
+            item = self._panel._tag_layout.itemAt(i)
+            if not item:
+                continue
+            w = item.widget()
+            tid = widget_to_tid.get(w)
+            if tid and w.isVisible() and self._panel._tag_sections.get(tid) == section:
+                section_rows.append((w.geometry().center().y(), tid, i))
+
+        if not section_rows:
+            return
+        ids_in_order = [tid for _, tid, _ in section_rows]
+        if tag_id not in ids_in_order:
+            return
+        cur_idx = ids_in_order.index(tag_id)
+
+        # Find target index based on drop position
+        drop_y = pos.y()
+        new_idx = len(ids_in_order) - 1
+        for i, (mid_y, tid, _) in enumerate(section_rows):
+            if drop_y < mid_y:
+                new_idx = i if i <= cur_idx else i - 1
+                break
+        if new_idx == cur_idx:
+            return
+
+        # Direct layout swap: take the dragged widget and re-insert at target
+        src_li = section_rows[cur_idx][2]
+        dst_li = section_rows[new_idx][2]
+        dragged_w = self._panel._tag_layout.takeAt(src_li).widget()
+        # dst_li shifts by -1 if src was before dst
+        insert_at = dst_li if src_li > dst_li else dst_li - 1
+        self._panel._tag_layout.insertWidget(insert_at, dragged_w)
+
+        new_section_ids = list(ids_in_order)
+        new_section_ids.insert(new_idx, new_section_ids.pop(cur_idx))
+        for order_i, tid in enumerate(new_section_ids):
+            self._panel.tag_reordered.emit(tid, order_i)
 
 
 class TagRow(QFrame):
@@ -29,6 +172,8 @@ class TagRow(QFrame):
     visibility_toggled = Signal(str, bool)
     row_clicked = Signal(str, bool)  # tag_id, ctrl_held
     select_all_requested = Signal(str)  # tag_id
+    color_changed = Signal(str, str)   # tag_id, new_hex_color
+    reorder_requested = Signal(str, int)  # tag_id, direction (-1=up, +1=down)
 
     def __init__(self, tag: TagPreset, parent=None):
         super().__init__(parent)
@@ -64,9 +209,13 @@ class TagRow(QFrame):
         layout.addWidget(self.dot)
 
         # Checkbox — bold text in tag color
+        # Object name scopes the rule so it beats the global theme QCheckBox selector
         self.checkbox = QCheckBox(tag.label)
+        self.checkbox.setObjectName("tag_checkbox")
         self.checkbox.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        self.checkbox.setStyleSheet(f"QCheckBox {{ color: {tag.color}; }}")
+        self.checkbox.setStyleSheet(
+            f"QCheckBox#tag_checkbox {{ color: {tag.color}; }}"
+            f"QCheckBox#tag_checkbox::indicator {{ width: 13px; height: 13px; }}")
         self.checkbox.toggled.connect(lambda checked: self.toggled.emit(tag.id, checked))
         layout.addWidget(self.checkbox, 1)
 
@@ -90,6 +239,12 @@ class TagRow(QFrame):
         hint_label.setFont(QFont("Segoe UI", 8))
         hint_label.setStyleSheet("color: rgba(128,128,128,0.5);")
         layout.addWidget(hint_label)
+
+        self._count_lbl = QLabel("")
+        self._count_lbl.setFont(QFont("Segoe UI", 8))
+        self._count_lbl.setStyleSheet("color: rgba(128,128,128,0.35); min-width: 24px;")
+        self._count_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self._count_lbl)
 
     def _set_fitness(self, level: str):
         color = FITNESS_COLORS.get(level, "#888")
@@ -134,12 +289,31 @@ class TagRow(QFrame):
         menu.addAction(pin_label, lambda: self.pin_requested.emit(self.tag.id))
         menu.addAction("Set Shortcut Key", lambda: self.shortcut_requested.emit(self.tag.id))
         menu.addSeparator()
+        menu.addAction("Move Up", lambda: self.reorder_requested.emit(self.tag.id, -1))
+        menu.addAction("Move Down", lambda: self.reorder_requested.emit(self.tag.id, 1))
+        menu.addSeparator()
         menu.addAction(f"Rename '{self.tag.label}'", self._request_rename)
         menu.addAction(f"Hide '{self.tag.label}'", lambda: self.hide_requested.emit(self.tag.id))
         menu.addAction(f"Delete '{self.tag.label}' from project", lambda: self.delete_requested.emit(self.tag.id))
         menu.addSeparator()
+        menu.addAction(f"Change Color…", self._pick_color)
+        menu.addSeparator()
         menu.addAction(f"Select all with '{self.tag.label}'", lambda: self.select_all_requested.emit(self.tag.id))
         menu.exec(event.globalPos())
+
+    def _pick_color(self):
+        from PySide6.QtGui import QColor
+        color = QColorDialog.getColor(QColor(self.tag.color), self.window(), "Tag Color")
+        if color.isValid():
+            hex_color = color.name()
+            self.tag = type(self.tag)(id=self.tag.id, label=self.tag.label,
+                                      color=hex_color, width=self.tag.width,
+                                      height=self.tag.height, ratio=self.tag.ratio)
+            self.dot.setStyleSheet(f"background: {hex_color}; border-radius: 6px; border: 1px solid rgba(0,0,0,0.3);")
+            self.checkbox.setStyleSheet(
+                f"QCheckBox#tag_checkbox {{ color: {hex_color}; }}"
+                f"QCheckBox#tag_checkbox::indicator {{ width: 13px; height: 13px; }}")
+            self.color_changed.emit(self.tag.id, hex_color)
 
     def _request_rename(self):
         from PySide6.QtWidgets import QInputDialog
@@ -163,6 +337,9 @@ class TagPanel(QWidget):
     hidden_changed = Signal(list)
     filter_by_eye = Signal(list)  # list of tag_ids to HIDE from grid
     select_all_with_tag = Signal(str)  # select all assets with this tag
+    tag_color_changed = Signal(str, str)  # tag_id, new_hex_color
+    tag_reordered = Signal(str, int)  # tag_id, new_order_index
+    batch_apply_tags = Signal(list)  # list of tag_ids to apply to selected assets
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -180,7 +357,7 @@ class TagPanel(QWidget):
 
     def _build(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(8, 8, 8, 8)
+        root.setContentsMargins(3, 3, 3, 3)
 
         # Header
         self.header = QLabel("Select an image to tag it")
@@ -218,6 +395,12 @@ class TagPanel(QWidget):
         self._btn_show_all.setVisible(False)
         batch_row.addWidget(self._btn_show_all)
 
+        self._collapse_all_btn = QPushButton("Collapse All")
+        self._collapse_all_btn.setStyleSheet(self._btn_style())
+        self._collapse_all_btn.setToolTip("Collapse / expand all tag sections")
+        self._collapse_all_btn.clicked.connect(self._toggle_all_sections)
+        batch_row.addWidget(self._collapse_all_btn)
+
         batch_row.addStretch()
         root.addLayout(batch_row)
 
@@ -225,18 +408,21 @@ class TagPanel(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("QScrollArea, QScrollArea > QWidget > QWidget { border: none; background: transparent; }")
-        tag_widget = QWidget()
+        tag_widget = _TagContainer(self)
         tag_layout = QVBoxLayout(tag_widget)
         tag_layout.setSpacing(2)
         tag_layout.setContentsMargins(0, 0, 0, 0)
 
         self._tag_layout = tag_layout
         self._tag_scroll_widget = tag_widget
+        self._tag_scroll = scroll
 
         self._collapsed_sections: set[str] = set()
-        _lbl_style = ("QPushButton { color: rgba(128,128,128,0.4); padding: 2px 4px;"
-                       " background: transparent; border: none; text-align: left; }"
-                       "QPushButton:hover { color: rgba(128,128,128,0.7); }")
+        _lbl_style = ("QPushButton { color: rgba(160,160,160,0.75); padding: 2px 4px;"
+                       " background: rgba(128,128,128,0.07); border: none;"
+                       " border-radius: 3px; text-align: left; font-weight: bold; }"
+                       "QPushButton:hover { color: rgba(200,200,200,0.95);"
+                       " background: rgba(128,128,128,0.15); }")
 
         def _make_section_label(text, section_id):
             btn = QPushButton(f"\u25BC {text}")  # ▼ expanded
@@ -257,8 +443,12 @@ class TagPanel(QWidget):
             tag_layout.addWidget(lbl)
             return sep, lbl
 
+        # Map section_id → (btn, label_text) for collapse-all
+        self._section_btns: dict[str, tuple] = {}
+
         # "Default" section label (no separator line above — it's the first section)
         self._default_lbl = _make_section_label("Default", "content")
+        self._section_btns["content"] = (self._default_lbl, "Default")
         tag_layout.addWidget(self._default_lbl)
 
         # Content/workflow tags
@@ -267,13 +457,16 @@ class TagPanel(QWidget):
             self._add_tag_row(tag_id, tag, section="content")
 
         self._sep1, self._sep1_label = _make_sep("Platform / Size targets", "sized")
+        self._section_btns["sized"] = (self._sep1_label, "Platform / Size targets")
 
         self._section_starts["sized"] = tag_layout.count()
         for tag_id, tag in TAG_SIZED.items():
             self._add_tag_row(tag_id, tag, section="sized")
 
         self._sep2, self._sep2_label = _make_sep("Custom / Project tags", "custom", visible=False)
+        self._section_btns["custom"] = (self._sep2_label, "Custom / Project tags")
         self._sep3, self._sep3_label = _make_sep("Visual / Mood / Dimension", "visual", visible=False)
+        self._section_btns["visual"] = (self._sep3_label, "Visual / Mood / Dimension")
 
         self._stretch = tag_layout.addStretch()
         scroll.setWidget(tag_widget)
@@ -311,6 +504,8 @@ class TagPanel(QWidget):
         row.visibility_toggled.connect(self._on_eye_toggled)
         row.row_clicked.connect(self._on_row_clicked)
         row.select_all_requested.connect(lambda tid: self.select_all_with_tag.emit(tid))
+        row.color_changed.connect(self._on_tag_color_changed)
+        row.reorder_requested.connect(self._reorder_tag)
         if tag_id in self._hidden_tags:
             row.setVisible(False)
         if insert_after is not None:
@@ -331,6 +526,13 @@ class TagPanel(QWidget):
         """Add rows for tags found in assets and custom_tags, sorted into sections."""
         from doxyedit.models import VINIK_COLORS, VISUAL_TAGS
         existing_ids = set(self._rows.keys())
+        # Un-hide any previously deleted rows whose tag has reappeared in assets
+        tags_in_assets = {t for a in assets for t in a.tags}
+        for tid in list(self._hidden_tags):
+            if tid in existing_ids and tid in tags_in_assets:
+                self._hidden_tags.discard(tid)
+                self._rows[tid].setVisible(True)
+        self._btn_show_all.setVisible(len(self._hidden_tags) > 0)
         color_idx = 0
         custom_tags = {}
         visual_tags = {}
@@ -354,12 +556,17 @@ class TagPanel(QWidget):
                     else:
                         custom_tags[t] = preset
 
-        # Add custom/project tags — insert after _sep2_label, sorted alphabetically
+        # Add custom/project tags — insert after _sep2_label, ordered by "order" field then label
         if custom_tags:
             self._sep2.setVisible(True)
             self._sep2_label.setVisible(True)
             last_custom = self._sep2_label
-            for tid, preset in sorted(custom_tags.items(), key=lambda x: x[1].label.lower()):
+            tag_defs = project.tag_definitions if project else {}
+            def _custom_sort_key(item):
+                tid, preset = item
+                order = tag_defs.get(tid, {}).get("order", 9999)
+                return (order, preset.label.lower())
+            for tid, preset in sorted(custom_tags.items(), key=_custom_sort_key):
                 self._add_tag_row(tid, preset, section="custom", insert_after=last_custom)
                 last_custom = self._rows[tid]
                 existing_ids.add(tid)
@@ -386,6 +593,23 @@ class TagPanel(QWidget):
             if self._tag_sections.get(tag_id) == section_id:
                 row.setVisible(section_id not in self._collapsed_sections
                                and tag_id not in self._hidden_tags)
+
+    def _toggle_all_sections(self):
+        """Collapse all sections if any are expanded, otherwise expand all."""
+        all_section_ids = [sid for sid in self._section_btns if sid in
+                           {self._tag_sections.get(tid) for tid in self._rows}]
+        any_expanded = any(sid not in self._collapsed_sections for sid in all_section_ids)
+        for sid, (btn, label) in self._section_btns.items():
+            if any_expanded:
+                self._collapsed_sections.add(sid)
+                btn.setText(f"\u25B6 {label}")
+            else:
+                self._collapsed_sections.discard(sid)
+                btn.setText(f"\u25BC {label}")
+        for tag_id, row in self._rows.items():
+            sid = self._tag_sections.get(tag_id)
+            row.setVisible(sid not in self._collapsed_sections and tag_id not in self._hidden_tags)
+        self._collapse_all_btn.setText("Expand All" if any_expanded else "Collapse All")
 
     def _btn_style(self):
         return "QPushButton { padding: 3px 8px; font-size: 10px; }"
@@ -494,17 +718,27 @@ class TagPanel(QWidget):
             row.setStyleSheet("")
 
     def _set_shortcut(self, tag_id: str):
-        """Let user assign a keyboard shortcut key to a tag."""
+        """Let user assign (or clear) a keyboard shortcut key for a tag."""
         from PySide6.QtWidgets import QInputDialog
+        current = self._custom_shortcuts.get(tag_id, "")
+        current_hint = f" (current: {current})" if current else ""
         key, ok = QInputDialog.getText(
             self.window(), "Set Shortcut",
-            f"Enter a single key for '{self._rows[tag_id].tag.label}':\n"
-            "(e.g. A, B, C, or a number)")
-        if not ok or not key.strip():
+            f"Enter a single key for '{self._rows[tag_id].tag.label}'{current_hint}:\n"
+            "Leave blank to clear the shortcut.")
+        if not ok:
             return
-        key = key.strip().upper()[0]  # take first character
+        key = key.strip()
+        if not key:
+            # Clear shortcut
+            self._custom_shortcuts.pop(tag_id, None)
+            if tag_id in self._rows:
+                row = self._rows[tag_id]
+                row.checkbox.setText(row.tag.label)
+            self.shortcut_changed.emit(tag_id, "")
+            return
+        key = key.upper()[0]
         self._custom_shortcuts[tag_id] = key
-        # Update the hint label on the row
         if tag_id in self._rows:
             row = self._rows[tag_id]
             row.checkbox.setText(f"{row.tag.label} [{key}]")
@@ -540,6 +774,8 @@ class TagPanel(QWidget):
             from PySide6.QtWidgets import QMenu
             menu = QMenu(self)
             n = len(self._selected_tag_rows)
+            menu.addAction(f"Apply Selected Tags to Assets", self._batch_apply_to_assets)
+            menu.addSeparator()
             menu.addAction(f"Hide All ({n})", self._batch_hide_selected)
             menu.addAction(f"Show All ({n})", self._batch_show_selected)
             menu.addAction(f"Delete All ({n})", self._batch_delete_selected)
@@ -566,6 +802,53 @@ class TagPanel(QWidget):
         for tid in list(self._selected_tag_rows):
             self._delete_tag(tid)
         self._clear_row_selection()
+
+    def _batch_apply_to_assets(self):
+        """Apply all selected tags to currently selected assets in the browser."""
+        self.batch_apply_tags.emit(list(self._selected_tag_rows))
+        self._clear_row_selection()
+
+    def _reorder_tag(self, tag_id: str, direction: int):
+        """Move a tag row up (-1) or down (+1) within its section."""
+        if tag_id not in self._rows:
+            return
+        section = self._tag_sections.get(tag_id)
+        # Single pass: collect section order AND layout indices together
+        row_widget = self._rows[tag_id]
+        widget_to_tid = {row: tid for tid, row in self._rows.items()}
+        section_ids: list[str] = []
+        layout_indices: dict[str, int] = {}
+        for i in range(self._tag_layout.count()):
+            item = self._tag_layout.itemAt(i)
+            if not item:
+                continue
+            w = item.widget()
+            tid = widget_to_tid.get(w)
+            if tid and self._tag_sections.get(tid) == section:
+                section_ids.append(tid)
+                layout_indices[tid] = i
+
+        if tag_id not in layout_indices:
+            return
+        idx = section_ids.index(tag_id)
+        new_idx = idx + direction
+        if new_idx < 0 or new_idx >= len(section_ids):
+            return
+
+        swap_id = section_ids[new_idx]
+        row_li = layout_indices[tag_id]
+        swap_li = layout_indices[swap_id]
+        # Remove higher index first to avoid shifting
+        hi, lo = (row_li, swap_li) if row_li > swap_li else (swap_li, row_li)
+        hi_w = self._tag_layout.takeAt(hi).widget()
+        lo_w = self._tag_layout.takeAt(lo).widget()
+        self._tag_layout.insertWidget(lo, hi_w)
+        self._tag_layout.insertWidget(hi, lo_w)
+
+        new_section_ids = list(section_ids)
+        new_section_ids[idx], new_section_ids[new_idx] = new_section_ids[new_idx], new_section_ids[idx]
+        for order_i, tid in enumerate(new_section_ids):
+            self.tag_reordered.emit(tid, order_i)
 
     def _clear_row_selection(self):
         for tid in list(self._selected_tag_rows):
@@ -627,7 +910,6 @@ class TagPanel(QWidget):
         for asset in self._assets:
             if tag_id in asset.tags:
                 asset.tags.remove(tag_id)
-        # Permanently hide (persists via hidden_tags)
         self._hidden_tags.add(tag_id)
         if tag_id in self._rows:
             self._rows[tag_id].setVisible(False)
@@ -635,6 +917,18 @@ class TagPanel(QWidget):
         self.hidden_changed.emit(list(self._hidden_tags))
         self.tag_deleted.emit(tag_id)
         self.tags_changed.emit()
+
+    def remove_tag_rows(self, tag_ids: list[str]):
+        """Remove tag rows entirely from the panel (used after bulk unused-tag cleanup)."""
+        for tag_id in tag_ids:
+            row = self._rows.pop(tag_id, None)
+            if row:
+                row.setParent(None)
+                row.deleteLater()
+            self._tag_sections.pop(tag_id, None)
+            self._hidden_tags.discard(tag_id)
+            self._selected_tag_rows.discard(tag_id)
+        self._btn_show_all.setVisible(len(self._hidden_tags) > 0)
 
     def _set_tag(self, tag_id: str, checked: bool):
         for asset in self._assets:
@@ -657,6 +951,21 @@ class TagPanel(QWidget):
             asset.tags.clear()
         for row in self._rows.values():
             row.set_checked(False)
+        self.tags_changed.emit()
+
+    def update_tag_counts(self, all_assets: list):
+        """Update the usage count badge on each tag row."""
+        counts: dict[str, int] = {}
+        for a in all_assets:
+            for t in a.tags:
+                counts[t] = counts.get(t, 0) + 1
+        for tag_id, row in self._rows.items():
+            n = counts.get(tag_id, 0)
+            row._count_lbl.setText(str(n) if n else "")
+
+    def _on_tag_color_changed(self, tag_id: str, hex_color: str):
+        """Propagate color change to window for persistence."""
+        self.tag_color_changed.emit(tag_id, hex_color)
         self.tags_changed.emit()
 
     def _on_notes_changed(self):

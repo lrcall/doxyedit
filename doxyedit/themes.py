@@ -343,13 +343,18 @@ def generate_stylesheet(theme: Theme) -> str:
 
         QSplitter::handle {{ background: {theme.border}; width: 7px; }}
 
+        QTabWidget {{ background: {theme.bg_raised}; }}
         QTabWidget::pane {{ border: none; background: {theme.bg_deep}; }}
+        QTabWidget > QTabBar {{ background: {theme.bg_raised}; }}
+        QTabBar {{ background: {theme.bg_raised}; }}
+        QWidget#proj_tab_bar_row {{ background: {theme.bg_raised}; }}
         QTabBar::tab {{
             background: {theme.bg_raised}; color: {theme.text_muted}; border: none;
             padding: {pad_lg}px {pad_lg * 3}px; font-size: {f}px; min-width: 80px;
         }}
         QTabBar::tab:selected {{ background: {theme.bg_deep}; color: {theme.text_primary}; font-size: {f}px; }}
         QTabBar::tab:hover {{ color: {theme.text_secondary}; font-size: {f}px; }}
+        QTabBar::scroller {{ background: {theme.bg_raised}; }}
 
         QScrollArea {{ border: none; background: {theme.bg_deep}; }}
         QScrollBar:vertical {{

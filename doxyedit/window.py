@@ -1,18 +1,19 @@
 """Main application window — tabbed layout with all panels."""
+import os
 import tempfile
 from pathlib import Path
 from PySide6.QtWidgets import (
-    QMainWindow, QTabWidget, QToolBar, QFileDialog, QStatusBar,
+    QMainWindow, QTabWidget, QTabBar, QToolBar, QFileDialog, QStatusBar,
     QGraphicsTextItem, QGraphicsRectItem, QGraphicsLineItem,
     QGraphicsPixmapItem, QColorDialog, QMessageBox, QSplitter,
-    QWidget, QVBoxLayout, QApplication, QLabel, QProgressBar, QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QApplication, QLabel, QProgressBar, QPushButton,
 )
 from PySide6.QtCore import Qt, QTimer, QSettings, QSize
 from PySide6.QtGui import (
     QAction, QKeySequence, QColor, QPen, QBrush, QShortcut, QImage,
 )
 
-from doxyedit.models import Project, PLATFORMS, TAG_ALL, TAG_SHORTCUTS, toggle_tags
+from doxyedit.models import Project, PLATFORMS, TAG_ALL, TAG_SHORTCUTS, TAG_SHORTCUTS_DEFAULT, toggle_tags
 from doxyedit.canvas import CanvasScene, CanvasView, Tool, EditableTextItem, TagItem
 from doxyedit.browser import AssetBrowser, IMAGE_EXTS, THUMB_GEN_SIZE
 from doxyedit.themes import THEMES, DEFAULT_THEME, generate_stylesheet, Theme
@@ -22,14 +23,15 @@ from doxyedit.tagpanel import TagPanel
 from doxyedit.exporter import export_project
 from doxyedit.preview import ImagePreviewDialog
 from doxyedit.tray import WorkTray
-from doxyedit.project import save_project, load_project, export_markdown, import_markdown
+from doxyedit.project import save_project, load_project
 
 AUTOSAVE_INTERVAL_MS = 30_000
 
 
 class MainWindow(QMainWindow):
+    _open_windows: list["MainWindow"] = []  # keep extra windows alive (prevent GC)
 
-    def __init__(self):
+    def __init__(self, _skip_autoload: bool = False):
         super().__init__()
         self.setWindowTitle("DoxyEdit")
         self.resize(1400, 900)
@@ -48,6 +50,43 @@ class MainWindow(QMainWindow):
         self._current_theme_id = self._settings.value("theme", DEFAULT_THEME)
         self._apply_theme(self._current_theme_id)
 
+        # --- Project tabs (one per open project) ---
+        self._project_slots: list[dict] = []   # [{project, path, label}]
+        self._current_slot: int = -1
+
+        # --- Project tab bar (above inner tabs) ---
+        self._proj_tab_bar = QTabBar()
+        self._proj_tab_bar.setTabsClosable(True)
+        self._proj_tab_bar.setMovable(True)
+        self._proj_tab_bar.setExpanding(False)
+        self._proj_tab_bar.setStyleSheet(
+            "QTabBar { background: transparent; }"
+            "QTabBar::tab { padding: 4px 12px; font-size: 11px; }"
+            "QTabBar::tab:selected { font-weight: bold; }"
+        )
+        self._proj_tab_bar.currentChanged.connect(self._on_proj_tab_changed)
+        self._proj_tab_bar.tabCloseRequested.connect(self._close_proj_tab)
+        self._proj_tab_bar.tabMoved.connect(self._on_proj_tab_moved)
+        self._proj_tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._proj_tab_bar.customContextMenuRequested.connect(
+            lambda pos: self._preset_context_menu(
+                self._proj_tab_bar.tabAt(pos),
+                self._proj_tab_bar.mapToGlobal(pos)))
+
+        # + button to open a new folder tab
+        self._new_tab_btn = QPushButton("+")
+        self._new_tab_btn.setFixedSize(24, 24)
+        self._new_tab_btn.setToolTip("Add folder preset tab")
+        self._new_tab_btn.clicked.connect(self._add_folder_preset_dialog)
+
+        _proj_bar_widget = QWidget()
+        _proj_bar_widget.setObjectName("proj_tab_bar_row")
+        _proj_bar_row = QHBoxLayout(_proj_bar_widget)
+        _proj_bar_row.setContentsMargins(0, 0, 0, 0)
+        _proj_bar_row.setSpacing(2)
+        _proj_bar_row.addWidget(self._proj_tab_bar, 1)
+        _proj_bar_row.addWidget(self._new_tab_btn)
+
         # --- Main layout: tabs + tray splitter ---
         self.tabs = QTabWidget()
         self.work_tray = WorkTray()
@@ -60,7 +99,14 @@ class MainWindow(QMainWindow):
         self._main_split.addWidget(self.work_tray)
         self._main_split.setStretchFactor(0, 1)
         self._main_split.setStretchFactor(1, 0)
-        self.setCentralWidget(self._main_split)
+
+        _center = QWidget()
+        _center_layout = QVBoxLayout(_center)
+        _center_layout.setContentsMargins(0, 0, 0, 0)
+        _center_layout.setSpacing(0)
+        _center_layout.addWidget(_proj_bar_widget)
+        _center_layout.addWidget(self._main_split, 1)
+        self.setCentralWidget(_center)
 
         # Tab 1: Left Sidebar (tags+info) | Asset Browser grid
         self.browser = AssetBrowser(self.project)
@@ -75,6 +121,10 @@ class MainWindow(QMainWindow):
         self.tag_panel.hidden_changed.connect(self._on_hidden_changed)
         self.tag_panel.filter_by_eye.connect(self._on_eye_filter)
         self.tag_panel.select_all_with_tag.connect(self._select_all_with_tag)
+        self.tag_panel.tag_color_changed.connect(self._on_tag_color_changed)
+        self.tag_panel.tag_reordered.connect(self._on_tag_reordered)
+        self.tag_panel.batch_apply_tags.connect(self._on_batch_apply_tags)
+        self.browser.tag_bar_toggled.connect(self._on_browser_tag_bar_toggled)
 
         self.work_tray.asset_selected.connect(self._on_asset_selected)
         self.work_tray.asset_preview.connect(self._on_asset_preview)
@@ -96,7 +146,20 @@ class MainWindow(QMainWindow):
         saved_notes_split = self._settings_early.value("tag_notes_splitter", None)
         if saved_notes_split:
             self.tag_panel._tag_notes_split.setSizes([int(s) for s in saved_notes_split])
-        self.tabs.addTab(self._browse_split, "Assets")
+        # Project notes panel — collapsible below the browser grid
+        from PySide6.QtWidgets import QTextEdit
+        self._notes_edit = QTextEdit()
+        self._notes_edit.setPlaceholderText("Project notes…")
+        self._notes_edit.setMaximumHeight(120)
+        self._notes_edit.setVisible(False)
+        self._notes_edit.textChanged.connect(self._on_project_notes_changed)
+
+        self._assets_notes_split = QSplitter(Qt.Orientation.Vertical)
+        self._assets_notes_split.addWidget(self._browse_split)
+        self._assets_notes_split.addWidget(self._notes_edit)
+        self._assets_notes_split.setStretchFactor(0, 1)
+        self._assets_notes_split.setStretchFactor(1, 0)
+        self.tabs.addTab(self._assets_notes_split, "Assets")
 
         # Tab 2: Canvas Editor
         self.scene = CanvasScene()
@@ -110,6 +173,36 @@ class MainWindow(QMainWindow):
         # Tab 4: Platforms
         self.platform_panel = PlatformPanel(self.project)
         self.tabs.addTab(self.platform_panel, "Platforms")
+
+        # Tab 5: Project Notes (full markdown scratchpad)
+        from PySide6.QtWidgets import QPlainTextEdit
+        self._project_notes_edit = QPlainTextEdit()
+        self._project_notes_edit.setPlaceholderText(
+            "Project notes — supports markdown\n\n# Section\n- bullet\n**bold**  _italic_")
+        self._project_notes_edit.setObjectName("project_notes_tab")
+        self._project_notes_edit.setStyleSheet(
+            "QPlainTextEdit#project_notes_tab {"
+            "  font-family: 'Segoe UI', sans-serif;"
+            "  font-size: 15px;"
+            "  line-height: 1.6;"
+            "  border: none;"
+            "  background: transparent;"
+            "}")
+        self._project_notes_edit.textChanged.connect(self._on_project_notes_tab_changed)
+        # Centered column with left/right padding
+        _notes_outer = QWidget()
+        _notes_outer_layout = QHBoxLayout(_notes_outer)
+        _notes_outer_layout.setContentsMargins(0, 0, 0, 0)
+        _notes_outer_layout.setSpacing(0)
+        _notes_col = QWidget()
+        _notes_col.setMaximumWidth(860)
+        _notes_col_layout = QVBoxLayout(_notes_col)
+        _notes_col_layout.setContentsMargins(48, 32, 48, 32)
+        _notes_col_layout.addWidget(self._project_notes_edit)
+        _notes_outer_layout.addStretch()
+        _notes_outer_layout.addWidget(_notes_col, 1)
+        _notes_outer_layout.addStretch()
+        self.tabs.addTab(_notes_outer, "Notes")
 
         # --- Signals ---
         self.browser.asset_selected.connect(self._on_asset_selected)
@@ -126,6 +219,13 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self._build_menu()
         self._setup_tag_shortcuts()
+        # Tray toggle button pinned to top-right of menu bar
+        self._menubar_tray_btn = QPushButton("Tray")
+        self._menubar_tray_btn.setCheckable(True)
+        self._menubar_tray_btn.setFixedHeight(22)
+        self._menubar_tray_btn.setToolTip("Toggle Work Tray (Ctrl+Shift+W)")
+        self._menubar_tray_btn.clicked.connect(self._toggle_work_tray)
+        self.menuBar().setCornerWidget(self._menubar_tray_btn, Qt.Corner.TopRightCorner)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._on_tab_changed(0)  # hide canvas tools initially
 
@@ -138,7 +238,7 @@ class MainWindow(QMainWindow):
         # Escape to deselect, Ctrl+F to focus search
         QShortcut(QKeySequence("Escape"), self).activated.connect(self._select_none)
         QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(
-            lambda: self.browser.search_box.setFocus())
+            lambda: (self.browser.search_box.setFocus(), self.browser.search_box.selectAll()))
         # Alt+H temporary hide/unhide
         QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._temp_hide_toggle)
         # Ctrl+Shift+C copy full path
@@ -200,25 +300,157 @@ class MainWindow(QMainWindow):
             self._apply_font()
 
         # Auto-load last project, or re-open last folder if no project
-        last_project = self._settings.value("last_project", "")
-        if last_project and Path(last_project).exists():
-            self.project = Project.load(last_project)
-            self._rebind_project()
-            self._project_path = last_project
-            self.setWindowTitle(f"DoxyEdit — {Path(last_project).name}")
-            self.status.showMessage(f"Restored: {Path(last_project).name}")
+        if not _skip_autoload:
+            last_project = self._settings.value("last_project", "")
+            if last_project and Path(last_project).exists():
+                self.project = Project.load(last_project)
+                self._project_path = last_project
+                self._register_initial_slot(last_project, Path(last_project).stem)
+                self._rebind_project()
+                self.setWindowTitle(f"DoxyEdit — {Path(last_project).name}")
+                self.status.showMessage(f"Restored: {Path(last_project).name}")
+            else:
+                self._register_initial_slot(None, "New Project")
+                last_folder = self._settings.value("last_folder", "")
+                if last_folder and Path(last_folder).exists():
+                    n = self.browser.import_folder(last_folder)
+                    if n:
+                        self.status.showMessage(f"Reopened folder: {Path(last_folder).name} ({n} images)")
         else:
-            last_folder = self._settings.value("last_folder", "")
-            if last_folder and Path(last_folder).exists():
-                n = self.browser.import_folder(last_folder)
-                if n:
-                    self.status.showMessage(f"Reopened folder: {Path(last_folder).name} ({n} images)")
+            self._register_initial_slot(None, "New Project")
+
+    # ── Project tab management ──────────────────────────────────────────────
+
+    def _register_initial_slot(self, path: str | None, label: str):
+        self._project_slots = [{"project": self.project, "path": path, "label": label}]
+        self._current_slot = 0
+        self._proj_tab_bar.blockSignals(True)
+        while self._proj_tab_bar.count():
+            self._proj_tab_bar.removeTab(0)
+        self._proj_tab_bar.addTab(label)
+        self._proj_tab_bar.blockSignals(False)
+
+    def _add_project_tab(self, project, path: str | None, label: str):
+        self._save_current_slot()
+        slot = {"project": project, "path": path, "label": label}
+        self._project_slots.append(slot)
+        idx = len(self._project_slots) - 1
+        self._proj_tab_bar.blockSignals(True)
+        self._proj_tab_bar.addTab(label)
+        self._proj_tab_bar.blockSignals(False)
+        self._proj_tab_bar.setCurrentIndex(idx)
+        self._switch_to_slot(idx)
+
+    def _save_current_slot(self):
+        if 0 <= self._current_slot < len(self._project_slots):
+            slot = self._project_slots[self._current_slot]
+            slot["project"] = self.project
+            if self._dirty and slot["path"]:
+                self.project.save(slot["path"])
+                self._dirty = False
+
+    def _on_proj_tab_changed(self, idx: int):
+        if idx < 0 or idx >= len(self._project_slots) or idx == self._current_slot:
+            return
+        self._save_current_slot()
+        self._switch_to_slot(idx)
+
+    def _switch_to_slot(self, idx: int):
+        slot = self._project_slots[idx]
+        self._current_slot = idx
+        self.project = slot["project"]
+        self._project_path = slot["path"]
+        self._rebind_project()
+        self.setWindowTitle(f"DoxyEdit — {slot['label']}")
+        self._proj_tab_bar.setTabText(idx, slot["label"])
+
+    def _close_proj_tab(self, idx: int):
+        if len(self._project_slots) <= 1:
+            self._new_project_blank()
+            return
+        slot = self._project_slots[idx]
+        if slot["path"] and self._dirty and self._current_slot == idx:
+            reply = QMessageBox.question(
+                self, "Unsaved Changes",
+                f"Save '{slot['label']}' before closing?",
+                QMessageBox.StandardButton.Save |
+                QMessageBox.StandardButton.Discard |
+                QMessageBox.StandardButton.Cancel)
+            if reply == QMessageBox.StandardButton.Cancel:
+                return
+            if reply == QMessageBox.StandardButton.Save:
+                self.project.save(slot["path"])
+        self._project_slots.pop(idx)
+        self._proj_tab_bar.blockSignals(True)
+        self._proj_tab_bar.removeTab(idx)
+        self._proj_tab_bar.blockSignals(False)
+        new_idx = min(idx, len(self._project_slots) - 1)
+        self._current_slot = -1
+        self._proj_tab_bar.setCurrentIndex(new_idx)
+        self._switch_to_slot(new_idx)
+
+    def _on_proj_tab_moved(self, from_idx: int, to_idx: int):
+        slot = self._project_slots.pop(from_idx)
+        self._project_slots.insert(to_idx, slot)
+        if self._current_slot == from_idx:
+            self._current_slot = to_idx
+        elif from_idx < self._current_slot <= to_idx:
+            self._current_slot -= 1
+        elif to_idx <= self._current_slot < from_idx:
+            self._current_slot += 1
+
+    def _rename_proj_tab(self, label: str):
+        if 0 <= self._current_slot < len(self._project_slots):
+            self._project_slots[self._current_slot]["label"] = label
+            self._proj_tab_bar.setTabText(self._current_slot, label)
+
+    def _add_folder_preset_dialog(self):
+        """+ button or Ctrl+T: open a project or folder in a new tab."""
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(self)
+        menu.addAction("Open Project…", lambda: self._open_project_in_tab())
+        menu.addAction("Open Folder…", lambda: self._open_folder_in_tab())
+        menu.addAction("New Empty Project", self._new_project_blank_tab)
+        menu.exec(self._new_tab_btn.mapToGlobal(self._new_tab_btn.rect().bottomLeft()))
+
+    def _open_project_in_tab(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Project", "", "DoxyEdit Projects (*.doxyproj.json)")
+        if not path:
+            return
+        for i, slot in enumerate(self._project_slots):
+            if slot["path"] == path:
+                self._proj_tab_bar.setCurrentIndex(i)
+                return
+        project = Project.load(path)
+        self._add_project_tab(project, path, Path(path).stem)
+
+    def _open_folder_in_tab(self):
+        folder = QFileDialog.getExistingDirectory(self, "Open Folder", "")
+        if not folder:
+            return
+        project = Project(name=Path(folder).name)
+        self._add_project_tab(project, None, Path(folder).name)
+        self.browser.import_folder(folder)
+        self._dirty = True
+
+    def _new_project_blank_tab(self):
+        project = Project(name="New Project")
+        self._add_project_tab(project, None, "New Project")
+
+    # ── end project tab management ───────────────────────────────────────────
 
     def _apply_theme(self, theme_id: str):
         from dataclasses import replace
         self._current_theme_id = theme_id
         base = THEMES.get(theme_id, THEMES[DEFAULT_THEME])
-        self._theme = replace(base, font_size=getattr(self, '_theme', base).font_size)
+        overrides = {"font_size": getattr(self, '_theme', base).font_size}
+        # Apply project accent color if set
+        proj_accent = getattr(getattr(self, 'project', None), 'accent_color', '')
+        if proj_accent:
+            overrides.update({"accent": proj_accent, "accent_bright": proj_accent,
+                               "selection_border": proj_accent})
+        self._theme = replace(base, **overrides)
         self.setStyleSheet(generate_stylesheet(self._theme))
         self._settings.setValue("theme", theme_id)
         # Match Windows title bar to theme
@@ -249,10 +481,60 @@ class MainWindow(QMainWindow):
         self._theme.font_size = 12
         self._apply_font()
 
+    def _set_project_color(self):
+        color = QColorDialog.getColor(
+            QColor(self.project.accent_color or self._theme.accent),
+            self, "Project Accent Color")
+        if not color.isValid():
+            return
+        self.project.accent_color = color.name()
+        self._apply_theme(self._current_theme_id)
+        self._dirty = True
+        self.status.showMessage(f"Project accent: {color.name()}", 2000)
+
+    def _toggle_project_notes(self, visible: bool):
+        self._notes_edit.setVisible(visible)
+        if visible:
+            self._notes_edit.blockSignals(True)
+            self._notes_edit.setPlainText(self.project.notes)
+            self._notes_edit.blockSignals(False)
+
+    def _on_project_notes_changed(self):
+        text = self._notes_edit.toPlainText()
+        self.project.notes = text
+        self._dirty = True
+        # Keep the full Notes tab in sync
+        self._project_notes_edit.blockSignals(True)
+        self._project_notes_edit.setPlainText(text)
+        self._project_notes_edit.blockSignals(False)
+
+    def _on_project_notes_tab_changed(self):
+        text = self._project_notes_edit.toPlainText()
+        self.project.notes = text
+        self._dirty = True
+        # Keep the small notes panel in sync if visible
+        if self._notes_edit.isVisible():
+            self._notes_edit.blockSignals(True)
+            self._notes_edit.setPlainText(text)
+            self._notes_edit.blockSignals(False)
+
+    def _clear_project_color(self):
+        self.project.accent_color = ""
+        self._apply_theme(self._current_theme_id)
+        self._dirty = True
+        self.status.showMessage("Project accent cleared", 2000)
+
     def _set_hover_size(self, pct: int):
         self.browser._hover_size_pct = pct
+        self.browser._hover_fixed_px = 0
         self._settings.setValue("hover_size_pct", pct)
+        self._settings.setValue("hover_fixed_px", 0)
         self.status.showMessage(f"Hover preview: {pct}% of thumbnail size", 2000)
+
+    def _set_hover_fixed_px(self, px: int):
+        self.browser._hover_fixed_px = px
+        self._settings.setValue("hover_fixed_px", px)
+        self.status.showMessage(f"Hover preview: fixed {px}px", 2000)
 
     def _set_hover_delay(self, ms: int):
         self.browser._hover_timer.setInterval(ms)
@@ -321,6 +603,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction("&Save Project", self._save_project, QKeySequence("Ctrl+S"))
         file_menu.addAction("Save Project &As...", self._save_project_as, QKeySequence("Ctrl+Shift+S"))
         file_menu.addSeparator()
+        file_menu.addAction("New Folder &Tab", self._add_folder_preset_dialog, QKeySequence("Ctrl+T"))
 
         # Recent projects submenu
         self._recent_projects_menu = file_menu.addMenu("Recent Projects")
@@ -328,14 +611,21 @@ class MainWindow(QMainWindow):
         self._rebuild_recent_menus()
         file_menu.addSeparator()
 
-        file_menu.addAction("Import &Markdown...", self._import_md)
-        file_menu.addAction("Export Markdown...", self._export_md)
+        # Collection (workspace) — save/load all open windows as a group
+        file_menu.addAction("Save Collection...", self._save_collection)
+        file_menu.addAction("Open Collection...", self._open_collection)
+        file_menu.addSeparator()
+
+        file_menu.addAction("Import Project...", self._open_project_in_tab)
         file_menu.addSeparator()
         file_menu.addAction("&Export All Platforms...", self._export_all, QKeySequence("Ctrl+E"))
         file_menu.addSeparator()
         file_menu.addAction("Paste Image (Ctrl+V)", self._paste_from_clipboard, QKeySequence("Ctrl+V"))
         file_menu.addSeparator()
         file_menu.addAction("Reset All Tags (fresh start)", self._reset_all_tags)
+        file_menu.addSeparator()
+        file_menu.addAction("Set Project Accent Color...", self._set_project_color)
+        file_menu.addAction("Clear Project Accent Color", self._clear_project_color)
         file_menu.addSeparator()
         file_menu.addAction("E&xit", self.close, QKeySequence("Alt+F4"))
 
@@ -345,6 +635,7 @@ class MainWindow(QMainWindow):
         edit_menu.addAction("Select &None", self._select_none, QKeySequence("Ctrl+D"))
         edit_menu.addAction("&Invert Selection", self._invert_selection)
         edit_menu.addSeparator()
+        edit_menu.addAction("&Rename File on Disk", self._rename_selected, QKeySequence("F2"))
         edit_menu.addAction("&Delete Selected (Ignore)", self._handle_delete, QKeySequence("Delete"))
         edit_menu.addAction("&Remove from Project", self._remove_selected)
         edit_menu.addAction("Move to Another Project...", self._move_to_project)
@@ -362,6 +653,8 @@ class MainWindow(QMainWindow):
         tools_menu.addAction("Refresh Thumbnails", self._refresh_thumbs, QKeySequence("Shift+F5"))
         tools_menu.addAction("Rebuild Tag Bar", lambda: self.browser.rebuild_tag_bar())
         tools_menu.addAction("Clear Unused Tags", self._clear_unused_tags)
+        tools_menu.addAction("Refresh Import Sources", self._refresh_import_sources, QKeySequence("Ctrl+R"))
+        tools_menu.addAction("Show Import Sources...", self._show_import_sources)
         tools_menu.addSeparator()
         tools_menu.addAction("Clear Thumbnail Cache", self._clear_thumb_cache)
         self._auto_tag_action = tools_menu.addAction("Auto-Tag on Import")
@@ -371,16 +664,23 @@ class MainWindow(QMainWindow):
         tools_menu.addSeparator()
         tools_menu.addAction("Project &Summary (CLI)", self._show_summary)
         tools_menu.addAction("Show Project File...", self._show_project_file)
+        tools_menu.addAction("Open Project File Location", self._open_project_location)
         tools_menu.addSeparator()
         tools_menu.addAction("Set Cache Location...", self._set_cache_location)
         tools_menu.addAction("Open Cache Folder", self._open_cache_folder)
+        tools_menu.addSeparator()
+        tools_menu.addAction("Find Duplicate Files...", self._find_duplicates)
+        tools_menu.addAction("Tag Usage Stats...", self._show_tag_stats)
+        tools_menu.addAction("Posting Checklist...", self._show_checklist)
+        tools_menu.addSeparator()
+        tools_menu.addAction("Mass Tag Editor (AI Training)...", self._mass_tag_editor)
 
         # View menu
         view_menu = menu.addMenu("&View")
         self._toggle_tags_action = view_menu.addAction(
             "Hide Tag Panel", self._toggle_tag_panel, QKeySequence("Ctrl+L"))
         self._toggle_tray_action = view_menu.addAction(
-            "Show Work Tray", self._toggle_work_tray, QKeySequence("Ctrl+T"))
+            "Show Work Tray", self._toggle_work_tray, QKeySequence("Ctrl+Shift+W"))
         view_menu.addSeparator()
         view_menu.addAction("Increase Font Size", self._font_increase, QKeySequence("Ctrl+="))
         view_menu.addAction("Decrease Font Size", self._font_decrease, QKeySequence("Ctrl+-"))
@@ -396,7 +696,10 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
         hover_menu = view_menu.addMenu("Hover Preview Size")
         for pct in [125, 150, 200, 250, 300]:
-            hover_menu.addAction(f"{pct}%", lambda p=pct: self._set_hover_size(p))
+            hover_menu.addAction(f"{pct}% (of thumbnail)", lambda p=pct: self._set_hover_size(p))
+        hover_menu.addSeparator()
+        for px in [200, 300, 400, 500, 600, 800]:
+            hover_menu.addAction(f"{px}px (fixed)", lambda p=px: self._set_hover_fixed_px(p))
         delay_menu = view_menu.addMenu("Hover Preview Delay")
         for ms in [200, 300, 400, 600, 800, 1200]:
             delay_menu.addAction(f"{ms}ms", lambda d=ms: self._set_hover_delay(d))
@@ -408,13 +711,15 @@ class MainWindow(QMainWindow):
         self._toggle_tag_bar_action = view_menu.addAction("Show Tag Bar")
         self._toggle_tag_bar_action.setCheckable(True)
         self._toggle_tag_bar_action.setChecked(True)
-        self._toggle_tag_bar_action.toggled.connect(
-            lambda on: self.browser._tag_bar_frame.setVisible(on))
+        self._toggle_tag_bar_action.toggled.connect(self._on_toggle_tag_bar)
         self._show_hidden_only = view_menu.addAction("Show Hidden Only")
         self._show_hidden_only.setCheckable(True)
         self._show_hidden_only.toggled.connect(self._toggle_show_hidden_only)
         view_menu.addAction("Show All Hidden Tags", lambda: self.tag_panel._show_all_tags())
         view_menu.addAction("Refresh Grid", lambda: self.browser.refresh())
+        self._toggle_project_notes_action = view_menu.addAction("Project Notes Panel")
+        self._toggle_project_notes_action.setCheckable(True)
+        self._toggle_project_notes_action.toggled.connect(self._toggle_project_notes)
 
         # Help menu
         help_menu = menu.addMenu("&Help")
@@ -469,6 +774,7 @@ class MainWindow(QMainWindow):
                 )
                 self.project.assets.append(asset)
                 self.browser.refresh()
+                self.browser.scroll_to_asset(asset.id)
                 self.status.showMessage("Pasted image from clipboard")
                 return
 
@@ -581,6 +887,18 @@ class MainWindow(QMainWindow):
         if checked != self.tag_panel.isVisible():
             self._toggle_tag_panel()
 
+    def _on_toggle_tag_bar(self, on: bool):
+        btn = self.browser._tag_bar_toggle_btn
+        if btn.isChecked() != on:
+            btn.setChecked(on)  # triggers _on_tag_bar_toggle which sets frame visibility
+
+    def _on_browser_tag_bar_toggled(self, on: bool):
+        if hasattr(self, '_toggle_tag_bar_action'):
+            if self._toggle_tag_bar_action.isChecked() != on:
+                self._toggle_tag_bar_action.blockSignals(True)
+                self._toggle_tag_bar_action.setChecked(on)
+                self._toggle_tag_bar_action.blockSignals(False)
+
     # --- Recent files/folders ---
 
     def _get_recent(self, key: str) -> list[str]:
@@ -632,7 +950,12 @@ class MainWindow(QMainWindow):
         self._watch_project()
         self._settings.setValue("last_project", path)
         self._add_recent_project(path)
+        label = Path(path).stem
         self.setWindowTitle(f"DoxyEdit — {Path(path).name}")
+        self._rename_proj_tab(label)
+        if 0 <= self._current_slot < len(self._project_slots):
+            self._project_slots[self._current_slot]["project"] = self.project
+            self._project_slots[self._current_slot]["path"] = path
         self.status.showMessage(f"Opened {Path(path).name}")
 
     def _open_recent_folder(self, folder: str):
@@ -641,21 +964,29 @@ class MainWindow(QMainWindow):
         self.status.showMessage(f"Opened folder: {Path(folder).name} ({n} images)")
 
     def _on_shortcut_changed(self, tag_id: str, key: str):
-        """Register a new keyboard shortcut for a tag and save to project."""
+        """Register or clear a keyboard shortcut for a tag and save to project."""
         from doxyedit.models import TAG_SHORTCUTS
-        # Remove any existing shortcut for this key
+        # Remove any existing binding for this tag
         for k, v in list(TAG_SHORTCUTS.items()):
             if v == tag_id:
                 del TAG_SHORTCUTS[k]
+        for k, v in list(self.project.custom_shortcuts.items()):
+            if v == tag_id:
+                del self.project.custom_shortcuts[k]
+        if not key:
+            # Shortcut cleared
+            self._dirty = True
+            if self._project_path:
+                self.project.save(self._project_path)
+            self.status.showMessage(f"Shortcut cleared for {tag_id}", 2000)
+            return
         if key in TAG_SHORTCUTS:
             del TAG_SHORTCUTS[key]
         TAG_SHORTCUTS[key] = tag_id
-        # Save to project immediately
         self.project.custom_shortcuts[key] = tag_id
         self._dirty = True
         if self._project_path:
             self.project.save(self._project_path)
-        # Register the shortcut
         shortcut = QShortcut(QKeySequence(key), self)
         shortcut.activated.connect(lambda tid=tag_id: self._toggle_tag_shortcut(tid))
         self.status.showMessage(f"Shortcut '{key}' → {tag_id}", 2000)
@@ -675,6 +1006,7 @@ class MainWindow(QMainWindow):
         """Rebuild both tag locations: browser tag bar + side panel."""
         self.browser.rebuild_tag_bar()
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
+        self.tag_panel.update_tag_counts(self.project.assets)
 
     def _on_tags_modified(self):
         """Browser added/removed a custom tag — sync both tag locations."""
@@ -693,6 +1025,8 @@ class MainWindow(QMainWindow):
                 self._tray_toolbar_btn.blockSignals(True)
                 self._tray_toolbar_btn.setChecked(False)
                 self._tray_toolbar_btn.blockSignals(False)
+            if hasattr(self, '_menubar_tray_btn'):
+                self._menubar_tray_btn.setChecked(False)
         else:
             self._tray_open = True
             self.work_tray.setMinimumWidth(150)
@@ -712,6 +1046,8 @@ class MainWindow(QMainWindow):
                 self._tray_toolbar_btn.blockSignals(True)
                 self._tray_toolbar_btn.setChecked(True)
                 self._tray_toolbar_btn.blockSignals(False)
+            if hasattr(self, '_menubar_tray_btn'):
+                self._menubar_tray_btn.setChecked(True)
 
     def _send_to_tray(self):
         """Send selected assets to work tray."""
@@ -738,6 +1074,38 @@ class MainWindow(QMainWindow):
             self.work_tray.add_asset(asset_id, asset.name, pm, path=asset.source_path)
 
     # --- Tag management ---
+
+    def _on_tag_color_changed(self, tag_id: str, hex_color: str):
+        if tag_id in self.project.tag_definitions:
+            self.project.tag_definitions[tag_id]["color"] = hex_color
+        else:
+            self.project.tag_definitions[tag_id] = {"label": tag_id, "color": hex_color}
+        for ct in self.project.custom_tags:
+            if isinstance(ct, dict) and ct.get("id") == tag_id:
+                ct["color"] = hex_color
+        self.browser.rebuild_tag_bar()
+        self._dirty = True
+
+    def _on_tag_reordered(self, tag_id: str, new_order: int):
+        """Persist reorder index to tag_definitions so section order survives reload."""
+        if tag_id not in self.project.tag_definitions:
+            self.project.tag_definitions[tag_id] = {"label": tag_id}
+        self.project.tag_definitions[tag_id]["order"] = new_order
+        self._dirty = True
+
+    def _on_batch_apply_tags(self, tag_ids: list):
+        """Apply a list of tag IDs to all currently selected assets."""
+        sel = self.browser.selected_ids()
+        if not sel or not tag_ids:
+            return
+        asset_map = {a.id: a for a in self.project.assets if a.id in sel}
+        for asset in asset_map.values():
+            for tid in tag_ids:
+                if tid not in asset.tags:
+                    asset.tags.append(tid)
+        self.tag_panel.set_assets(list(asset_map.values()))
+        self.browser.refresh()
+        self._dirty = True
 
     def _on_tag_deleted(self, tag_id: str):
         """Remove a tag from ALL assets in the project, not just selected."""
@@ -772,6 +1140,13 @@ class MainWindow(QMainWindow):
             self.project.tag_definitions[new_id] = defn
         # Add alias so old references resolve on next load
         self.project.tag_aliases[old_id] = new_id
+        # Remap any keyboard shortcut pointing at the old ID
+        for key, tid in list(TAG_SHORTCUTS.items()):
+            if tid == old_id:
+                TAG_SHORTCUTS[key] = new_id
+        for key, tid in list(self.project.custom_shortcuts.items()):
+            if tid == old_id:
+                self.project.custom_shortcuts[key] = new_id
         self._refresh_all_tags()
         self.browser.refresh()
         self._dirty = True
@@ -875,16 +1250,44 @@ class MainWindow(QMainWindow):
             self.tabs.setCurrentWidget(self.view)
             self.status.showMessage(f"Added to canvas: {Path(path).name}")
 
+    def _rename_selected(self):
+        """F2 — rename the selected file on disk and update the project."""
+        if self.tabs.currentIndex() != 0:
+            return
+        assets = self.browser.get_selected_assets()
+        if len(assets) != 1:
+            self.status.showMessage("Select exactly one asset to rename", 2000)
+            return
+        asset = assets[0]
+        old_path = Path(asset.source_path)
+        from PySide6.QtWidgets import QInputDialog
+        new_name, ok = QInputDialog.getText(
+            self, "Rename File", "New filename:", text=old_path.name)
+        if not ok or not new_name.strip() or new_name.strip() == old_path.name:
+            return
+        new_path = old_path.parent / new_name.strip()
+        try:
+            os.rename(old_path, new_path)
+        except OSError as e:
+            QMessageBox.warning(self, "Rename Failed", str(e))
+            return
+        asset.source_path = str(new_path)
+        self.browser._thumb_cache.invalidate(asset.id)
+        self.browser.refresh()
+        self._dirty = True
+        self.status.showMessage(f"Renamed → {new_path.name}", 3000)
+
     def _handle_delete(self):
         """Delete key — context-aware. Assets tab: soft-delete. Canvas: remove items."""
         if self.tabs.currentIndex() == 0:
-            # Assets tab — tag selected as "ignore" (soft delete)
+            # Assets tab — tag selected as "ignore" (soft delete) and permanently exclude
             assets = self.browser.get_selected_assets()
             if not assets:
                 return
             for a in assets:
                 if "ignore" not in a.tags:
                     a.tags.append("ignore")
+                self.project.excluded_paths.add(a.source_path)
             self.browser.refresh()
             self._dirty = True
             n = len(assets)
@@ -915,6 +1318,7 @@ class MainWindow(QMainWindow):
 
     def _clear_unused_tags(self):
         """Remove tag definitions and custom tags not used by any asset."""
+        from doxyedit.models import TAG_PRESETS, TAG_SIZED
         used = {t for a in self.project.assets for t in a.tags}
         removed = []
         # Clean tag_definitions
@@ -922,17 +1326,85 @@ class MainWindow(QMainWindow):
             if tid not in used:
                 del self.project.tag_definitions[tid]
                 removed.append(tid)
-        # Clean custom_tags
+        # Clean custom_tags list
         self.project.custom_tags = [
             ct for ct in self.project.custom_tags
             if not isinstance(ct, dict) or ct.get("id") in used
         ]
+        # Also remove panel rows for auto-discovered tags not in any asset
+        # (tags that exist in the panel but never made it into tag_definitions)
+        for tid in list(self.tag_panel._rows.keys()):
+            if tid not in used and tid not in TAG_PRESETS and tid not in TAG_SIZED:
+                if tid not in removed:
+                    removed.append(tid)
         if removed:
-            self._refresh_all_tags()
+            self.tag_panel.remove_tag_rows(removed)
+            self.browser.rebuild_tag_bar()
             self._dirty = True
             self.status.showMessage(f"Removed {len(removed)} unused tag(s): {', '.join(removed)}")
         else:
             self.status.showMessage("No unused tags found")
+
+    def _refresh_import_sources(self):
+        """Re-scan all recorded folder sources and import any new files found since last import."""
+        sources = self.project.import_sources
+        folder_sources = [s for s in sources if s.get("type") == "folder"]
+        if not folder_sources:
+            self.status.showMessage("No folder sources recorded — import a folder first", 3000)
+            return
+        total = 0
+        for rec in folder_sources:
+            path = rec.get("path", "")
+            recursive = rec.get("recursive", False)
+            if not Path(path).exists():
+                continue
+            n = self.browser.import_folder(path, recursive=recursive)
+            total += n
+        if total:
+            self._refresh_all_tags()
+            self._dirty = True
+            self.status.showMessage(f"Refresh: added {total} new file(s) from {len(folder_sources)} source(s)")
+        else:
+            self.status.showMessage("Refresh: no new files found")
+
+    def _show_import_sources(self):
+        """Show a dialog listing all recorded import sources."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QHeaderView
+        sources = self.project.import_sources
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Import Sources")
+        dlg.resize(700, 400)
+        layout = QVBoxLayout(dlg)
+        table = QTableWidget(len(sources), 4)
+        table.setHorizontalHeaderLabels(["Type", "Path", "Recursive", "Last Imported"])
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        for i, rec in enumerate(sources):
+            table.setItem(i, 0, QTableWidgetItem(rec.get("type", "")))
+            table.setItem(i, 1, QTableWidgetItem(rec.get("path", "")))
+            table.setItem(i, 2, QTableWidgetItem("Yes" if rec.get("recursive") else "No"))
+            table.setItem(i, 3, QTableWidgetItem(rec.get("last_imported", rec.get("added_at", ""))))
+        layout.addWidget(table)
+        btn_row = QHBoxLayout()
+        btn_remove = QPushButton("Remove Selected")
+        def _remove():
+            rows = sorted({idx.row() for idx in table.selectedIndexes()}, reverse=True)
+            for r in rows:
+                self.project.import_sources.pop(r)
+                table.removeRow(r)
+            self._dirty = True
+        btn_remove.clicked.connect(_remove)
+        btn_row.addWidget(btn_remove)
+        btn_refresh = QPushButton("Refresh Now")
+        btn_refresh.clicked.connect(lambda: (dlg.accept(), self._refresh_import_sources()))
+        btn_row.addWidget(btn_refresh)
+        btn_row.addStretch()
+        btn_close = QPushButton("Close")
+        btn_close.clicked.connect(dlg.accept)
+        btn_row.addWidget(btn_close)
+        layout.addLayout(btn_row)
+        dlg.exec()
 
     def _remove_assets_by_ids(self, ids: set):
         """Remove assets from current project by ID and refresh."""
@@ -965,6 +1437,7 @@ class MainWindow(QMainWindow):
                 target.assets.append(a)
                 moved += 1
             ids_to_remove.add(a.id)
+            self.project.excluded_paths.add(a.source_path)
         target.save(path)
         self._remove_assets_by_ids(ids_to_remove)
         self.status.showMessage(f"Moved {moved} asset(s) to {Path(path).name}")
@@ -984,6 +1457,8 @@ class MainWindow(QMainWindow):
         name = Path(path).stem.replace(".doxyproj", "")
         target = Project(name=name)
         ids_to_remove = {a.id for a in assets}
+        for a in assets:
+            self.project.excluded_paths.add(a.source_path)
         target.assets.extend(assets)
         target.save(path)
         self._remove_assets_by_ids(ids_to_remove)
@@ -1169,6 +1644,14 @@ class MainWindow(QMainWindow):
         else:
             self.status.showMessage("Save the project first", 2000)
 
+    def _open_project_location(self):
+        if self._project_path:
+            import subprocess
+            path = self._project_path.replace("/", "\\")
+            subprocess.Popen(f'explorer /select,"{path}"')
+        else:
+            self.status.showMessage("Save the project first", 2000)
+
     def _set_cache_location(self):
         current = self._settings.value("cache_dir", str(Path.home() / ".doxyedit" / "thumbcache"))
         folder = QFileDialog.getExistingDirectory(self, "Set Cache Location", current)
@@ -1180,6 +1663,213 @@ class MainWindow(QMainWindow):
         import subprocess
         cache_dir = self._settings.value("cache_dir", str(Path.home() / ".doxyedit" / "thumbcache"))
         subprocess.Popen(f'explorer "{cache_dir}"')
+
+    def _find_duplicates(self):
+        """Hash all project assets and show a dialog of duplicate groups."""
+        import hashlib
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox, QInputDialog
+        self.status.showMessage("Scanning for duplicates...", 0)
+        QApplication.processEvents()
+
+        hashes: dict[str, list[str]] = {}
+        for asset in self.project.assets:
+            p = Path(asset.source_path)
+            if not p.exists():
+                continue
+            try:
+                h = hashlib.md5(p.read_bytes()).hexdigest()
+            except OSError:
+                continue
+            hashes.setdefault(h, []).append(asset.source_path)
+
+        dupes = {h: paths for h, paths in hashes.items() if len(paths) > 1}
+        self.status.showMessage(
+            f"Found {len(dupes)} duplicate group(s)" if dupes else "No duplicates found", 3000)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Duplicate Files")
+        dlg.resize(600, 400)
+        layout = QVBoxLayout(dlg)
+
+        text = QTextEdit()
+        text.setReadOnly(True)
+        if dupes:
+            lines = []
+            for i, (h, paths) in enumerate(dupes.items(), 1):
+                lines.append(f"Group {i} ({h[:8]}):")
+                for p in paths:
+                    lines.append(f"  {p}")
+            text.setPlainText("\n".join(lines))
+        else:
+            text.setPlainText("No duplicate files found.")
+        layout.addWidget(text)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        btns.rejected.connect(dlg.reject)
+        layout.addWidget(btns)
+        dlg.exec()
+
+    def _mass_tag_editor(self):
+        """Bulk edit tags on selected (or all) assets as comma-separated strings."""
+        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTableWidget,
+            QTableWidgetItem, QDialogButtonBox, QLabel, QPushButton, QCheckBox)
+        assets = self.browser.get_selected_assets() or self.project.assets
+        if not assets:
+            self.status.showMessage("No assets to edit", 2000)
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Mass Tag Editor — {len(assets)} assets")
+        dlg.resize(700, 500)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel("Edit comma-separated tags per asset. Changes apply on Save."))
+
+        table = QTableWidget(len(assets), 2)
+        table.setHorizontalHeaderLabels(["File", "Tags (comma-separated)"])
+        table.horizontalHeader().setSectionResizeMode(0, table.horizontalHeader().ResizeMode.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(1, table.horizontalHeader().ResizeMode.Stretch)
+        for i, a in enumerate(assets):
+            table.setItem(i, 0, QTableWidgetItem(Path(a.source_path).name))
+            table.item(i, 0).setFlags(table.item(i, 0).flags() & ~table.item(i, 0).flags().__class__.ItemIsEditable)
+            table.setItem(i, 1, QTableWidgetItem(", ".join(a.tags)))
+        layout.addWidget(table)
+
+        export_row = QHBoxLayout()
+        export_btn = QPushButton("Export .txt sidecar files")
+        export_btn.setToolTip("Write one .txt per image with its tags (AI training format)")
+        export_row.addWidget(export_btn)
+        export_row.addStretch()
+        layout.addLayout(export_row)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Save |
+                                QDialogButtonBox.StandardButton.Close)
+        layout.addWidget(btns)
+
+        def _save():
+            for i, a in enumerate(assets):
+                cell = table.item(i, 1)
+                if cell:
+                    raw = [t.strip() for t in cell.text().split(",") if t.strip()]
+                    a.tags = raw
+            self._refresh_all_tags()
+            self.browser.refresh()
+            self._dirty = True
+            dlg.accept()
+
+        def _export_txt():
+            exported = 0
+            for i, a in enumerate(assets):
+                cell = table.item(i, 1)
+                tags_str = cell.text() if cell else ", ".join(a.tags)
+                txt_path = Path(a.source_path).with_suffix(".txt")
+                try:
+                    txt_path.write_text(tags_str, encoding="utf-8")
+                    exported += 1
+                except OSError:
+                    pass
+            self.status.showMessage(f"Exported {exported} .txt sidecar files", 3000)
+
+        btns.accepted.connect(_save)
+        btns.rejected.connect(dlg.reject)
+        export_btn.clicked.connect(_export_txt)
+        dlg.exec()
+
+    def _show_checklist(self):
+        """Per-project posting checklist — items prefixed [ ] or [x]."""
+        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+            QListWidget, QListWidgetItem, QDialogButtonBox, QLineEdit, QPushButton)
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Posting Checklist — {self.project.name}")
+        dlg.resize(480, 400)
+        layout = QVBoxLayout(dlg)
+
+        lst = QListWidget()
+        lst.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        for item_text in self.project.checklist:
+            done = item_text.startswith("[x]")
+            label = item_text[4:] if item_text.startswith("[x] ") or item_text.startswith("[ ] ") else item_text
+            wi = QListWidgetItem(label)
+            wi.setCheckState(Qt.CheckState.Checked if done else Qt.CheckState.Unchecked)
+            lst.addItem(wi)
+        layout.addWidget(lst)
+
+        # Add / remove row
+        add_row = QHBoxLayout()
+        entry = QLineEdit()
+        entry.setPlaceholderText("New checklist item…")
+        add_row.addWidget(entry, 1)
+        add_btn = QPushButton("Add")
+        add_row.addWidget(add_btn)
+        del_btn = QPushButton("Remove")
+        add_row.addWidget(del_btn)
+        layout.addLayout(add_row)
+
+        def _add():
+            text = entry.text().strip()
+            if not text:
+                return
+            wi = QListWidgetItem(text)
+            wi.setCheckState(Qt.CheckState.Unchecked)
+            lst.addItem(wi)
+            entry.clear()
+
+        def _remove():
+            row = lst.currentRow()
+            if row >= 0:
+                lst.takeItem(row)
+
+        add_btn.clicked.connect(_add)
+        del_btn.clicked.connect(_remove)
+        entry.returnPressed.connect(_add)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Save |
+                                QDialogButtonBox.StandardButton.Close)
+        layout.addWidget(btns)
+
+        def _save():
+            items = []
+            for i in range(lst.count()):
+                wi = lst.item(i)
+                prefix = "[x] " if wi.checkState() == Qt.CheckState.Checked else "[ ] "
+                items.append(prefix + wi.text())
+            self.project.checklist = items
+            self._dirty = True
+            dlg.accept()
+
+        btns.accepted.connect(_save)
+        btns.rejected.connect(dlg.reject)
+        dlg.exec()
+
+    def _show_tag_stats(self):
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem, QDialogButtonBox
+        counts: dict[str, int] = {}
+        for a in self.project.assets:
+            for t in a.tags:
+                counts[t] = counts.get(t, 0) + 1
+        all_tags = self.project.get_tags()
+        rows = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Tag Usage Stats")
+        dlg.resize(400, 500)
+        layout = QVBoxLayout(dlg)
+        table = QTableWidget(len(rows), 3)
+        table.setHorizontalHeaderLabels(["Tag", "Label", "Count"])
+        table.horizontalHeader().setStretchLastSection(False)
+        table.horizontalHeader().setSectionResizeMode(1, table.horizontalHeader().ResizeMode.Stretch)
+        for i, (tid, cnt) in enumerate(rows):
+            label = all_tags[tid].label if tid in all_tags else tid
+            table.setItem(i, 0, QTableWidgetItem(tid))
+            table.setItem(i, 1, QTableWidgetItem(label))
+            item = QTableWidgetItem(str(cnt))
+            table.setItem(i, 2, item)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSortingEnabled(True)
+        layout.addWidget(table)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        btns.rejected.connect(dlg.reject)
+        layout.addWidget(btns)
+        dlg.exec()
 
     def _show_shortcuts(self):
         from PySide6.QtWidgets import QMessageBox
@@ -1315,14 +2005,39 @@ Ctrl+Click tag — Search by tag
     # --- Project file ops ---
 
     def _new_project(self):
+        """Open a fresh project in a new window."""
+        win = MainWindow(_skip_autoload=True)
+        MainWindow._open_windows.append(win)
+        win.show()
+
+    def _new_project_blank(self):
+        """Replace current window with a blank project (used internally)."""
         self.project = Project(name="Untitled")
         self.scene.clear()
-        self._rebind_project()
         self._project_path = None
-        self.setWindowTitle("DoxyEdit")
+        self._rebind_project()
+        self.setWindowTitle("DoxyEdit — New Project")
         self.status.showMessage("New project")
 
     def _rebind_project(self):
+        # Clear all per-project browser state from the previous project
+        self.browser._bar_tag_filters.clear()
+        self.browser._clear_filter_btn.setVisible(False)
+        self.browser._temp_hidden_ids.clear()
+        self.browser._collapsed_folders.clear()
+        self.browser._selected_ids.clear()
+        self.browser._eye_hidden_tags.clear()
+        self.browser._folder_filter = None
+        # Clear previous project's custom shortcuts from the global TAG_SHORTCUTS dict
+        for key in list(TAG_SHORTCUTS.keys()):
+            if key not in TAG_SHORTCUTS_DEFAULT:
+                del TAG_SHORTCUTS[key]
+
+        # Rebuild folder preset tabs for the new project
+        self._rebuild_preset_tabs()
+
+        # Re-apply theme so project accent color takes effect
+        self._apply_theme(getattr(self, '_current_theme_id', DEFAULT_THEME))
         self.browser.project = self.project
         self.work_tray._project = self.project
         self.browser.rebuild_tag_bar()
@@ -1331,6 +2046,14 @@ Ctrl+Click tag — Search by tag
         self.platform_panel.refresh()
         self.tag_panel.set_assets([])
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
+        self.tag_panel.update_tag_counts(self.project.assets)
+        if self._notes_edit.isVisible():
+            self._notes_edit.blockSignals(True)
+            self._notes_edit.setPlainText(self.project.notes)
+            self._notes_edit.blockSignals(False)
+        self._project_notes_edit.blockSignals(True)
+        self._project_notes_edit.setPlainText(self.project.notes)
+        self._project_notes_edit.blockSignals(False)
         self._update_progress()
         self._watch_asset_files()
         # Restore work tray
@@ -1369,7 +2092,6 @@ Ctrl+Click tag — Search by tag
         if self.project.hidden_tags:
             self.tag_panel.load_hidden_tags(self.project.hidden_tags)
         # Restore project-specific shortcuts
-        from doxyedit.models import TAG_SHORTCUTS
         for key, tag_id in self.project.custom_shortcuts.items():
             TAG_SHORTCUTS[key] = tag_id
             shortcut = QShortcut(QKeySequence(key), self)
@@ -1419,26 +2141,79 @@ Ctrl+Click tag — Search by tag
             self._settings.setValue("last_project", path)
             self._add_recent_project(path)
             self.setWindowTitle(f"DoxyEdit — {Path(path).name}")
+            self._proj_tab_bar.setTabText(0, Path(path).stem)
             self.status.showMessage(f"Saved {Path(path).name}")
 
-    def _import_md(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Import Markdown", "", "Markdown (*.md);;All Files (*)"
-        )
-        if path:
-            import_markdown(self.scene, path)
-            self.tabs.setCurrentWidget(self.view)
-            self.status.showMessage(f"Imported {Path(path).name}")
-
-    def _export_md(self):
+    def _save_collection(self):
+        """Save all open project windows as a named collection (.doxycoll.json)."""
+        all_wins = [self] + [w for w in MainWindow._open_windows if w is not self and w.isVisible()]
+        projects = [w._project_path for w in all_wins if w._project_path]
+        if not projects:
+            QMessageBox.information(self, "Save Collection",
+                "No saved projects are open. Save each project first.")
+            return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export Markdown", "export.md", "Markdown (*.md);;All Files (*)"
-        )
-        if path:
-            export_markdown(self.scene, path)
-            self.status.showMessage(f"Exported to {Path(path).name}")
+            self, "Save Collection", "workspace.doxycoll.json",
+            "DoxyEdit Collection (*.doxycoll.json);;All Files (*)")
+        if not path:
+            return
+        data = {"_type": "doxycoll", "projects": projects}
+        Path(path).write_text(json.dumps(data, indent=2), encoding="utf-8")
+        self._settings.setValue("last_collection", path)
+        self.status.showMessage(f"Collection saved: {len(projects)} project(s)")
+
+    def _open_collection(self):
+        """Open a saved collection — each project opens in its own window."""
+        last = self._settings.value("last_collection", "")
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Collection", last,
+            "DoxyEdit Collection (*.doxycoll.json);;All Files (*)")
+        if not path:
+            return
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        proj_paths = data.get("projects", [])
+        all_wins = [self] + [w for w in MainWindow._open_windows if w.isVisible()]
+        already_open = {w._project_path for w in all_wins if w._project_path}
+        opened = 0
+        for proj_path in proj_paths:
+            if not Path(proj_path).exists():
+                continue
+            if proj_path in already_open:
+                continue
+            win = MainWindow(_skip_autoload=True)
+            MainWindow._open_windows.append(win)
+            win._load_project_from(proj_path)
+            win.show()
+            already_open.add(proj_path)
+            opened += 1
+        self._settings.setValue("last_collection", path)
+        self.status.showMessage(
+            f"Collection loaded: {opened} new window(s), {len(proj_paths) - opened} already open")
 
     def _export_all(self):
+        # Gap detection — warn about unassigned required slots before export
+        from doxyedit.models import PLATFORMS
+        gaps = []
+        assigned_slots = {(pa.platform, pa.slot)
+                          for a in self.project.assets for pa in a.assignments}
+        for pid in self.project.platforms:
+            platform = PLATFORMS.get(pid)
+            if not platform:
+                continue
+            for slot in platform.slots:
+                if slot.required and (pid, slot.name) not in assigned_slots:
+                    gaps.append(f"  {platform.name} → {slot.label} ({slot.name})")
+        if gaps:
+            msg = "The following required platform slots have no assigned asset:\n\n"
+            msg += "\n".join(gaps[:20])
+            if len(gaps) > 20:
+                msg += f"\n  …and {len(gaps) - 20} more"
+            msg += "\n\nExport anyway?"
+            reply = QMessageBox.question(self, "Export Gaps Found", msg,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
         folder = QFileDialog.getExistingDirectory(self, "Export All Platforms To...")
         if not folder:
             return
