@@ -138,25 +138,45 @@ class FlowWidget(QWidget):
 # Thumbnail Model — data source for QListView
 # ---------------------------------------------------------------------------
 
+class _FolderHeader:
+    """Sentinel inserted into the model to represent a folder group header."""
+    def __init__(self, folder: str):
+        self.folder = folder
+        self.id = None
+
+
 class ThumbnailModel(QAbstractListModel):
     ThumbnailRole = Qt.ItemDataRole.UserRole + 1
     AssetIdRole = Qt.ItemDataRole.UserRole + 2
     DimsRole = Qt.ItemDataRole.UserRole + 3
     StarRole = Qt.ItemDataRole.UserRole + 4
     TagsRole = Qt.ItemDataRole.UserRole + 5
+    FolderHeaderRole = Qt.ItemDataRole.UserRole + 6
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._assets: list[Asset] = []
+        self._items: list = []  # Asset or _FolderHeader
         self._pixmaps: dict[str, QPixmap] = {}
 
     def rowCount(self, parent=QModelIndex()):
-        return 0 if parent.isValid() else len(self._assets)
+        return 0 if parent.isValid() else len(self._items)
+
+    def flags(self, index):
+        if index.isValid() and isinstance(self._items[index.row()], _FolderHeader):
+            return Qt.ItemFlag.ItemIsEnabled  # visible but not selectable
+        return super().flags(index)
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return None
-        asset = self._assets[index.row()]
+        item = self._items[index.row()]
+        if isinstance(item, _FolderHeader):
+            if role == Qt.ItemDataRole.DisplayRole:
+                return item.folder
+            if role == self.FolderHeaderRole:
+                return True
+            return None
+        asset = item
         if role == Qt.ItemDataRole.DisplayRole:
             p = Path(asset.source_path)
             return f"{p.stem[:16]}{p.suffix}"
@@ -170,24 +190,29 @@ class ThumbnailModel(QAbstractListModel):
             return asset.starred
         elif role == self.TagsRole:
             return asset.tags
+        elif role == self.FolderHeaderRole:
+            return False
         return None
 
-    def set_assets(self, assets: list[Asset]):
+    def set_assets(self, assets: list):
         self.beginResetModel()
-        self._assets = assets
+        self._items = assets
         self.endResetModel()
 
     def update_pixmap(self, asset_id: str, pixmap: QPixmap):
         self._pixmaps[asset_id] = pixmap
-        for i, a in enumerate(self._assets):
-            if a.id == asset_id:
+        for i, item in enumerate(self._items):
+            if isinstance(item, _FolderHeader):
+                continue
+            if item.id == asset_id:
                 idx = self.index(i)
                 self.dataChanged.emit(idx, idx, [self.ThumbnailRole])
                 return
 
     def get_asset(self, index: QModelIndex) -> Asset | None:
-        if index.isValid() and 0 <= index.row() < len(self._assets):
-            return self._assets[index.row()]
+        if index.isValid() and 0 <= index.row() < len(self._items):
+            item = self._items[index.row()]
+            return item if not isinstance(item, _FolderHeader) else None
         return None
 
 
@@ -206,6 +231,8 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self._scaled_cache: dict[tuple, QPixmap] = {}
 
     def sizeHint(self, option, index):
+        if index.data(ThumbnailModel.FolderHeaderRole):
+            return QSize(option.rect.width(), 28)
         return QSize(self.thumb_size + 2 * self.PADDING,
                      self.thumb_size + 70)
 
@@ -213,6 +240,18 @@ class ThumbnailDelegate(QStyledItemDelegate):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = option.rect
+
+        # Folder header row
+        if index.data(ThumbnailModel.FolderHeaderRole):
+            painter.fillRect(rect, QColor(128, 128, 128, 30))
+            painter.setPen(QColor(200, 200, 200, 180))
+            painter.setFont(QFont("Segoe UI", max(8, self.font_size - 1), QFont.Weight.Bold))
+            folder = index.data(Qt.ItemDataRole.DisplayRole) or ""
+            painter.drawText(rect.adjusted(8, 0, 0, 0),
+                             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, folder)
+            painter.restore()
+            return
+
         ts = self.thumb_size
 
         # Selection / hover background
@@ -418,7 +457,7 @@ class AssetBrowser(QWidget):
 
         row2.addWidget(QLabel("Sort:"))
         self.sort_combo = QComboBox()
-        self.sort_combo.addItems(["Name A-Z", "Name Z-A", "Newest", "Oldest", "Largest", "Smallest"])
+        self.sort_combo.addItems(["Name A-Z", "Name Z-A", "Newest", "Oldest", "Largest", "Smallest", "By Folder"])
         self.sort_combo.currentIndexChanged.connect(self._on_filter_changed)
         row2.addWidget(self.sort_combo)
         root.addLayout(row2)
@@ -645,6 +684,17 @@ class AssetBrowser(QWidget):
             assets = [a for a in assets if a.id not in self._temp_hidden_ids]
 
         sort_mode = self.sort_combo.currentText()
+        if sort_mode == "By Folder":
+            from collections import defaultdict
+            groups = defaultdict(list)
+            for a in assets:
+                groups[a.source_folder or Path(a.source_path).parent.as_posix()].append(a)
+            result = []
+            for folder in sorted(groups.keys(), key=str.lower):
+                result.append(_FolderHeader(folder))
+                result.extend(sorted(groups[folder], key=lambda a: Path(a.source_path).stem.lower()))
+            return result
+
         key_funcs = {
             "Name A-Z": (lambda a: Path(a.source_path).stem.lower(), False),
             "Name Z-A": (lambda a: Path(a.source_path).stem.lower(), True),
@@ -675,13 +725,14 @@ class AssetBrowser(QWidget):
                     sel.select(idx, sel.SelectionFlag.Select)
             sel.blockSignals(False)
 
-        # Request thumbnails for visible items
-        batch = [(a.id, a.source_path) for a in self._filtered_assets]
+        # Request thumbnails for visible items (skip folder headers)
+        batch = [(a.id, a.source_path) for a in self._filtered_assets
+                 if not isinstance(a, _FolderHeader)]
         self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
 
-        # Update counts
+        # Update counts (exclude headers)
         total = len(self.project.assets)
-        shown = len(self._filtered_assets)
+        shown = sum(1 for a in self._filtered_assets if not isinstance(a, _FolderHeader))
         starred = sum(1 for a in self.project.assets if a.starred > 0)
         tagged = sum(1 for a in self.project.assets if a.tags)
         self.count_label.setText(f"{shown}/{total} shown, {starred} starred, {tagged} tagged")

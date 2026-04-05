@@ -146,7 +146,7 @@
 - [x] Name first tag section "Default"
 - [x] Tray collapse button in header should close the whole tray (not just content)
 - [x] Auto-tagging toggle (on/off in Tools)
-- [ ] Sort by folder with folder headers in thumbnail mode
+- [x] Sort by folder with folder headers in thumbnail mode
 
 ### Medium Priority
 - [x] Rebuild custom tag bar buttons from tags that exist in project JSON (not hardcoded)
