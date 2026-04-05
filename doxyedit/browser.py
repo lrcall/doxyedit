@@ -211,6 +211,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self.thumb_size = thumb_size
         self.font_size = 10  # updated by update_font_size
         self.show_dims = True
+        self._folder_starts: dict[int, str] = {}  # row_index → folder path
         self._scaled_cache: dict[tuple, QPixmap] = {}
 
     def sizeHint(self, option, index):
@@ -221,6 +222,26 @@ class ThumbnailDelegate(QStyledItemDelegate):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = option.rect
+
+        # Folder separator overlay — paint above first item in each folder group
+        row = index.row()
+        if row in self._folder_starts:
+            view = option.widget
+            vw = view.viewport().width() if view else rect.width()
+            folder = self._folder_starts[row]
+            bar_h = 20
+            bar_y = rect.y() - bar_h - 2
+            if bar_y >= -bar_h:  # at least partially visible
+                bar_rect = QRect(0, bar_y, vw, bar_h)
+                painter.save()
+                painter.setClipRect(QRect(0, max(0, bar_y), vw, bar_h))
+                painter.fillRect(bar_rect, QColor(128, 128, 128, 40))
+                painter.setPen(QColor(200, 200, 200, 180))
+                painter.setFont(QFont("Segoe UI", max(7, self.font_size - 2)))
+                painter.drawText(bar_rect.adjusted(6, 0, -6, 0),
+                                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                                 f"\u25BC {folder}")
+                painter.restore()
 
         ts = self.thumb_size
 
@@ -363,8 +384,17 @@ class AssetBrowser(QWidget):
 
         # Row 1: import + filters (FlowLayout so buttons wrap on narrow windows)
         self._toolbar_widget = FlowWidget()
+        self._toolbar_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         toolbar = FlowLayout(self._toolbar_widget, spacing=4)
         toolbar.setContentsMargins(0, 0, 0, 0)
+
+        # Tags toggle — first item (left, matches tag panel position)
+        self._tags_btn = QPushButton("Tags")
+        self._tags_btn.setCheckable(True)
+        self._tags_btn.setChecked(True)
+        self._tags_btn.setStyleSheet(self._btn_style())
+        toolbar.addWidget(self._tags_btn)
+
         for label, handler in [("+ Folder", self.open_folder_dialog), ("+ Files", self.add_images_dialog)]:
             btn = QPushButton(label)
             btn.setStyleSheet(self._btn_style())
@@ -404,8 +434,14 @@ class AssetBrowser(QWidget):
         self.cache_all_check.toggled.connect(self._on_cache_all_toggled)
         toolbar.addWidget(self.cache_all_check)
 
-        self.count_label = QLabel("0 assets")
-        toolbar.addWidget(self.count_label)
+        self.count_label = QLabel("0 assets")  # shown in status bar by window
+
+        # Tray toggle — last item (right, matches tray panel position)
+        self._tray_btn = QPushButton("Tray")
+        self._tray_btn.setCheckable(True)
+        self._tray_btn.setStyleSheet(self._btn_style())
+        toolbar.addWidget(self._tray_btn)
+
         root.addWidget(self._toolbar_widget)
 
         # Row 2: search + sort
@@ -524,19 +560,16 @@ class AssetBrowser(QWidget):
         all_used = {t for a in self.project.assets for t in a.tags}
         all_tags = self.project.get_tags()
         bar_tags = {}
-        # Built-in presets (always shown)
-        for tid, preset in TAG_PRESETS.items():
-            bar_tags[tid] = preset
-        # Custom/project tags — only if used in assets or in tag_definitions
+        # Custom/project tags only — skip built-in presets (TAG_PRESETS + TAG_SIZED)
         for tid, preset in all_tags.items():
-            if tid in TAG_SIZED or tid in bar_tags:
+            if tid in TAG_PRESETS or tid in TAG_SIZED:
                 continue
             if tid in all_used or tid in getattr(self.project, 'tag_definitions', {}):
                 bar_tags[tid] = preset
-        # Tags used in assets but not defined anywhere
+        # Tags used in assets but not defined anywhere (also skip built-ins)
         color_idx = 0
         for t in sorted(all_used):
-            if t not in bar_tags and t not in TAG_SIZED:
+            if t not in bar_tags and t not in TAG_PRESETS and t not in TAG_SIZED:
                 bar_tags[t] = TagPreset(id=t, label=t,
                     color=VINIK_COLORS[color_idx % len(VINIK_COLORS)])
                 color_idx += 1
@@ -714,6 +747,17 @@ class AssetBrowser(QWidget):
         self.project.invalidate_index()
         self._filtered_assets = self._compute_filtered()
         self._model.set_assets(self._filtered_assets)
+
+        # Compute folder boundaries for delegate overlay painting
+        folder_starts = {}
+        if self.sort_combo.currentText() == "By Folder":
+            prev = None
+            for i, a in enumerate(self._filtered_assets):
+                folder = a.source_folder or Path(a.source_path).parent.as_posix()
+                if folder != prev:
+                    folder_starts[i] = folder
+                    prev = folder
+        self._delegate._folder_starts = folder_starts
 
         # Restore selection (block signals to avoid N redundant emissions)
         if saved_ids:
@@ -1092,9 +1136,7 @@ class AssetBrowser(QWidget):
     def eventFilter(self, obj, event):
         vp = self._list_view.viewport()
         if obj is self._list_view or obj is vp:
-            # Folder overlays — schedule paint after viewport renders
-            if obj is vp and event.type() == event.Type.Paint:
-                QTimer.singleShot(0, self._paint_folder_overlays)
+            pass  # folder overlays handled in delegate paint
 
             # Ctrl+Scroll zoom
             if event.type() == event.Type.Wheel:

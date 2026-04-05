@@ -129,21 +129,11 @@ class MainWindow(QMainWindow):
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._on_tab_changed(0)  # hide canvas tools initially
 
-        # Add Tray and Tags toggle buttons to browser toolbar
-        tray_btn = QPushButton("Tray")
-        tray_btn.setCheckable(True)
-        tray_btn.setStyleSheet(self.browser._btn_style())
-        tray_btn.toggled.connect(lambda checked: self._toggle_work_tray())
-        self._tray_toolbar_btn = tray_btn
-        self.browser._toolbar_widget.layout().addWidget(tray_btn)
-
-        tags_btn = QPushButton("Tags")
-        tags_btn.setCheckable(True)
-        tags_btn.setChecked(True)
-        tags_btn.setStyleSheet(self.browser._btn_style())
-        tags_btn.toggled.connect(self._toggle_tag_panel_btn)
-        self._tags_toolbar_btn = tags_btn
-        self.browser._toolbar_widget.layout().addWidget(tags_btn)
+        # Wire Tray and Tags toggle buttons (created by browser as first toolbar items)
+        self.browser._tray_btn.toggled.connect(lambda checked: self._toggle_work_tray())
+        self._tray_toolbar_btn = self.browser._tray_btn
+        self.browser._tags_btn.toggled.connect(self._toggle_tag_panel_btn)
+        self._tags_toolbar_btn = self.browser._tags_btn
 
         # Escape to deselect, Ctrl+F to focus search
         QShortcut(QKeySequence("Escape"), self).activated.connect(self._select_none)
@@ -169,6 +159,7 @@ class MainWindow(QMainWindow):
         self._progress_label = QLabel()
         self._progress_label.setStyleSheet("padding-right: 12px;")
         self.status.addPermanentWidget(self._progress_label)
+        self.status.addPermanentWidget(self.browser.count_label)
         self._update_progress()
         self.status.showMessage("Ready — open a folder or drag images in")
 
