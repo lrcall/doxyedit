@@ -34,12 +34,20 @@ class WorkTray(QWidget):
         header.addWidget(title)
         header.addStretch()
 
+        self._collapse_btn = QPushButton("\u25B6")  # ▶ collapsed, ▼ expanded
+        self._collapse_btn.setFixedSize(22, 22)
+        self._collapse_btn.setStyleSheet("QPushButton { background: transparent; border: none; }")
+        self._collapse_btn.clicked.connect(self._toggle_collapse)
+        header.addWidget(self._collapse_btn)
+
         self._clear_btn = QPushButton("Clear")
         self._clear_btn.setFixedHeight(22)
         self._clear_btn.setStyleSheet("QPushButton { padding: 2px 8px; }")
         self._clear_btn.clicked.connect(self.clear)
         header.addWidget(self._clear_btn)
         layout.addLayout(header)
+        self._collapsed = False
+        self._collapse_btn.setText("\u25BC")  # ▼ expanded
 
         # Count
         self._count_label = QLabel("0 items")
@@ -98,6 +106,13 @@ class WorkTray(QWidget):
     def get_asset_ids(self) -> list[str]:
         return list(self._asset_ids)
 
+    def _toggle_collapse(self):
+        self._collapsed = not self._collapsed
+        self._list.setVisible(not self._collapsed)
+        self._count_label.setVisible(not self._collapsed)
+        self._clear_btn.setVisible(not self._collapsed)
+        self._collapse_btn.setText("\u25B6" if self._collapsed else "\u25BC")
+
     def _update_count(self):
         n = len(self._asset_ids)
         self._count_label.setText(f"{n} item{'s' if n != 1 else ''}")
@@ -134,3 +149,16 @@ class WorkTray(QWidget):
             asset = project.get_asset(aid)
             if asset:
                 self.add_asset(aid, Path(asset.source_path).name)
+
+    def update_pixmap(self, asset_id: str, pixmap: QPixmap):
+        """Update thumbnail for an item already in the tray."""
+        if asset_id not in self._asset_ids:
+            return
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            if item.data(Qt.ItemDataRole.UserRole) == asset_id:
+                scaled = pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio,
+                                       Qt.TransformationMode.SmoothTransformation)
+                item.setIcon(QIcon(scaled))
+                self._pixmaps[asset_id] = pixmap
+                break

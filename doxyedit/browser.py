@@ -303,6 +303,7 @@ class AssetBrowser(QWidget):
     asset_to_canvas = Signal(str)
     asset_to_censor = Signal(str)
     asset_to_tray = Signal(str)
+    thumb_loaded = Signal(str, QPixmap)
     folder_opened = Signal(str)
     tags_modified = Signal()
     selection_changed = Signal(list)
@@ -630,6 +631,7 @@ class AssetBrowser(QWidget):
     def _on_thumb_ready(self, asset_id: str, pixmap: QPixmap, w: int, h: int, gen_size: int):
         self._thumb_cache.on_ready(asset_id, pixmap, w, h, gen_size)
         self._model.update_pixmap(asset_id, pixmap)
+        self.thumb_loaded.emit(asset_id, pixmap)
         # Update progress bar if caching all
         if self._cache_all_total > 0:
             self._cache_all_done += 1

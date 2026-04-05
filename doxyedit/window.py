@@ -108,6 +108,7 @@ class MainWindow(QMainWindow):
         self.browser.asset_to_censor.connect(self._send_to_censor)
         self.browser.selection_changed.connect(self._on_selection_changed)
         self.browser.folder_opened.connect(self._add_recent_folder)
+        self.browser.thumb_loaded.connect(self._on_thumb_for_tray)
         self.browser.asset_to_tray.connect(self._send_single_to_tray)
         self.browser.tags_modified.connect(self._on_tags_modified)
 
@@ -616,6 +617,10 @@ class MainWindow(QMainWindow):
             pm = self.browser._thumb_cache.get(a.id)
             self.work_tray.add_asset(a.id, a.name, pm)
         self.status.showMessage(f"Sent {len(assets)} to tray")
+
+    def _on_thumb_for_tray(self, asset_id: str, pixmap):
+        """Update tray thumbnail when thumb cache generates it."""
+        self.work_tray.update_pixmap(asset_id, pixmap)
 
     def _send_single_to_tray(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
