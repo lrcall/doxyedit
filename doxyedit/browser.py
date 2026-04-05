@@ -965,6 +965,9 @@ class AssetBrowser(QWidget):
         self._fold_all_btn.setVisible(is_folder)
         self._unfold_all_btn.setVisible(is_folder)
         self._view_stack.setCurrentIndex(1 if is_folder else 0)
+        # Re-prioritize cache queue to match new sort order
+        if self._cache_all_total > 0 and self.cache_all_check.isChecked():
+            self._on_cache_all_toggled(True)
 
     def _collapse_all_folders(self):
         for section in self._folder_sections:
@@ -1104,24 +1107,78 @@ class AssetBrowser(QWidget):
                 self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
 
     def _on_cache_all_toggled(self, checked):
-        if checked:
-            batch = [(a.id, a.source_path) for a in self.project.assets]
-            # Count how many actually need caching
-            need_cache = sum(1 for aid, _ in batch
-                            if self._thumb_cache._gen_sizes.get(aid, 0) < THUMB_GEN_SIZE)
-            if need_cache == 0:
-                try:
-                    self.window().status.showMessage("All thumbnails already cached", 2000)
-                except Exception:
-                    pass
-                return
-            self._cache_all_total = need_cache
-            self._cache_all_done = 0
-            self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
+        if not checked:
+            return
+        # Build batch in current view order, visible items first, then the rest
+        # of _filtered_assets, then any assets not in the current filter.
+        visible_ids = self._visible_asset_ids()
+        filtered_ids = {a.id for a in self._filtered_assets}
+
+        ordered: list[tuple[str, str]] = []
+        seen: set[str] = set()
+
+        # 1. Visible first
+        for a in self._filtered_assets:
+            if a.id in visible_ids and a.id not in seen:
+                ordered.append((a.id, a.source_path))
+                seen.add(a.id)
+        # 2. Rest of current view in sort order
+        for a in self._filtered_assets:
+            if a.id not in seen:
+                ordered.append((a.id, a.source_path))
+                seen.add(a.id)
+        # 3. Assets outside the current filter last
+        for a in self.project.assets:
+            if a.id not in seen:
+                ordered.append((a.id, a.source_path))
+                seen.add(a.id)
+
+        need_cache = sum(1 for aid, _ in ordered
+                         if self._thumb_cache._gen_sizes.get(aid, 0) < THUMB_GEN_SIZE)
+        if need_cache == 0:
             try:
-                self.window().start_progress("Caching thumbnails", need_cache)
+                self.window().status.showMessage("All thumbnails already cached", 2000)
             except Exception:
                 pass
+            return
+        self._cache_all_total = need_cache
+        self._cache_all_done = 0
+        self._thumb_cache.request_batch(ordered, size=THUMB_GEN_SIZE)
+        try:
+            self.window().start_progress("Caching thumbnails", need_cache)
+        except Exception:
+            pass
+
+    def _visible_asset_ids(self) -> set[str]:
+        """Return the set of asset IDs currently visible in the viewport."""
+        ids: set[str] = set()
+        if self._view_stack.currentIndex() == 0:
+            view = self._list_view
+            vr = view.viewport().rect()
+            top = view.indexAt(vr.topLeft())
+            bot = view.indexAt(QPoint(vr.center().x(), vr.bottom()))
+            r0 = top.row() if top.isValid() else 0
+            r1 = bot.row() if bot.isValid() else r0
+            for i in range(r0, r1 + 1):
+                a = self._model.get_asset(self._model.index(i))
+                if a:
+                    ids.add(a.id)
+        else:
+            sb = self._folder_scroll.verticalScrollBar()
+            vp_top = sb.value()
+            vp_bot = vp_top + self._folder_scroll.viewport().height()
+            for section in self._folder_sections:
+                if section.isHidden():
+                    continue
+                sec_top = section.mapTo(self._folder_container, QPoint(0, 0)).y()
+                sec_bot = sec_top + section.height()
+                if sec_bot < vp_top or sec_top > vp_bot:
+                    continue
+                for i in range(section.folder_model.rowCount()):
+                    a = section.folder_model.get_asset(section.folder_model.index(i))
+                    if a:
+                        ids.add(a.id)
+        return ids
 
     def set_folder_filter(self, folders: list[str] | None):
         """Restrict the grid to assets from specific folders. Pass None to show all."""
