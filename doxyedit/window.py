@@ -367,7 +367,7 @@ class MainWindow(QMainWindow):
         tools_menu.addAction("Clear Thumbnail Cache", self._clear_thumb_cache)
         self._auto_tag_action = tools_menu.addAction("Auto-Tag on Import")
         self._auto_tag_action.setCheckable(True)
-        self._auto_tag_action.setChecked(True)
+        self._auto_tag_action.setChecked(False)
         self._auto_tag_action.toggled.connect(lambda on: setattr(self.browser, 'auto_tag_enabled', on))
         tools_menu.addSeparator()
         tools_menu.addAction("Project &Summary (CLI)", self._show_summary)

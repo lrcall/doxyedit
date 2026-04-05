@@ -372,7 +372,7 @@ class AssetBrowser(QWidget):
         self.hover_preview_enabled = True
         self._eye_hidden_tags: set[str] = set()
         self._temp_hidden_ids: set[str] = set()  # Alt+H temporary hide (not saved)
-        self.auto_tag_enabled = True
+        self.auto_tag_enabled = False
         self.show_hidden_only = False
         self._current_font_size = 10
         self._hover_id = None
