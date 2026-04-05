@@ -282,9 +282,13 @@ def generate_stylesheet(theme: Theme) -> str:
         QMainWindow {{ background: {theme.bg_deep}; }}
 
         QSplitter {{ background: {theme.bg_deep}; }}
+        QSplitter::handle {{ background: {theme.border}; }}
+        QSplitter::handle:vertical {{ height: 4px; }}
+        QSplitter::handle:horizontal {{ width: 3px; }}
 
         #doxyedit_browser, #doxyedit_tagpanel, #doxyedit_grid,
-        #doxyedit_grid_scroll, #doxyedit_grid_scroll > QWidget {{
+        #doxyedit_grid_scroll, #doxyedit_grid_scroll > QWidget,
+        #doxyedit_tray, #doxyedit_tray QListWidget {{
             background: {theme.bg_deep};
         }}
 
