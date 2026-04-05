@@ -515,6 +515,7 @@ class AssetBrowser(QWidget):
         self._collapsed_folders: set[str] = set()
         self._folder_filter: set[str] | None = None  # None = show all
         self._folder_sections: list[FolderSection] = []
+        self._prev_sort_mode: str = "Name A-Z"  # last non-folder sort; used as within-folder secondary sort
         self._current_font_size = 10
         self._hover_id = None
         self._hover_timer = QTimer(self)
@@ -883,6 +884,8 @@ class AssetBrowser(QWidget):
 
     def _on_sort_mode_changed(self, text):
         is_folder = text == "By Folder"
+        if not is_folder:
+            self._prev_sort_mode = text
         self._fold_all_btn.setVisible(is_folder)
         self._unfold_all_btn.setVisible(is_folder)
         self._view_stack.setCurrentIndex(1 if is_folder else 0)
@@ -1023,9 +1026,39 @@ class AssetBrowser(QWidget):
 
         sort_mode = self.sort_combo.currentText()
         if sort_mode == "By Folder":
-            assets.sort(key=lambda a: (
-                (a.source_folder or Path(a.source_path).parent.as_posix()).lower(),
-                Path(a.source_path).stem.lower()))
+            secondary = self._prev_sort_mode
+            # Apply secondary sort first (stable), then stable-sort by folder
+            if secondary in ("Newest", "Oldest", "Largest", "Smallest"):
+                mtime_cache: dict[str, float] = {}
+                fsize_cache: dict[str, int] = {}
+                for a in assets:
+                    try:
+                        st = os.stat(a.source_path)
+                        mtime_cache[a.id] = st.st_mtime
+                        fsize_cache[a.id] = st.st_size
+                    except OSError:
+                        mtime_cache[a.id] = 0
+                        fsize_cache[a.id] = 0
+                sec_funcs = {
+                    "Newest":   (lambda a: mtime_cache[a.id], True),
+                    "Oldest":   (lambda a: mtime_cache[a.id], False),
+                    "Largest":  (lambda a: fsize_cache[a.id], True),
+                    "Smallest": (lambda a: fsize_cache[a.id], False),
+                }
+                fn, rev = sec_funcs[secondary]
+                assets.sort(key=fn, reverse=rev)
+            elif secondary == "Name Z-A":
+                assets.sort(key=lambda a: Path(a.source_path).stem.lower(), reverse=True)
+            elif secondary == "Starred First":
+                assets.sort(key=lambda a: (0 if a.starred > 0 else 1,
+                                           Path(a.source_path).stem.lower()))
+            elif secondary == "Most Tagged":
+                assets.sort(key=lambda a: (-len(a.tags), Path(a.source_path).stem.lower()))
+            else:  # Name A-Z (default)
+                assets.sort(key=lambda a: Path(a.source_path).stem.lower())
+            # Stable sort by folder groups each section while preserving within-folder order
+            assets.sort(key=lambda a: (a.source_folder or
+                                       Path(a.source_path).parent.as_posix()).lower())
             return assets  # collapse handled by FolderSection visibility
 
         # For stat-based sorts, batch all os.stat calls once (O(n)) before sort

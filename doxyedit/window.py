@@ -2520,6 +2520,7 @@ Ctrl+Click tag — Search by tag
 
         # Re-apply theme so project accent color takes effect
         self._apply_theme(getattr(self, '_current_theme_id', DEFAULT_THEME))
+        self.browser._thumb_cache.set_project(self.project.name)
         self.browser.project = self.project
         self.work_tray._project = self.project
         self.browser.rebuild_tag_bar()

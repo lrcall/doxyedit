@@ -158,6 +158,27 @@ class ThumbWorker(QThread):
 _LRU_MAX = 600  # max pixmaps kept in memory (~30 MB at 160px thumbs)
 
 
+def _safe_name(project_name: str) -> str:
+    """Sanitize a project name for use as a directory name."""
+    import re
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', project_name).strip('. ')
+    return name or "default"
+
+
+def _migrate_flat_cache(base_dir: Path):
+    """Move any loose .png / index.json files in base_dir into a 'default' subfolder."""
+    loose_pngs = list(base_dir.glob("*.png"))
+    loose_idx = base_dir / "index.json"
+    if not loose_pngs and not loose_idx.exists():
+        return
+    dest = base_dir / "default"
+    dest.mkdir(exist_ok=True)
+    for f in loose_pngs:
+        f.rename(dest / f.name)
+    if loose_idx.exists():
+        loose_idx.rename(dest / "index.json")
+
+
 class ThumbCache:
     """Manages memory + disk cache of thumbnails and a background worker."""
 
@@ -166,10 +187,32 @@ class ThumbCache:
         self._gen_sizes: dict[str, int] = {}
         self._dims: dict[str, tuple[int, int]] = {}
         from PySide6.QtCore import QSettings
-        cache_dir = QSettings("DoxyEdit", "DoxyEdit").value("cache_dir", None)
-        self._disk_cache = DiskCache(cache_dir=cache_dir)
+        self._base_cache_dir: Path | None = (
+            Path(QSettings("DoxyEdit", "DoxyEdit").value("cache_dir"))
+            if QSettings("DoxyEdit", "DoxyEdit").value("cache_dir") else None
+        )
+        if self._base_cache_dir is None:
+            self._base_cache_dir = Path.home() / ".doxyedit" / "thumbcache"
+        self._base_cache_dir.mkdir(parents=True, exist_ok=True)
+        _migrate_flat_cache(self._base_cache_dir)
+        self._disk_cache = DiskCache(cache_dir=str(self._base_cache_dir / "default"))
         self._worker = ThumbWorker(self._disk_cache)
         self._worker.start()
+
+    def set_project(self, project_name: str):
+        """Switch disk cache to a per-project subfolder. Clears in-memory cache."""
+        subfolder = self._base_cache_dir / _safe_name(project_name)
+        subfolder.mkdir(parents=True, exist_ok=True)
+        # Drain the worker queue before swapping disk cache
+        self._worker.clear_queue()
+        self._disk_cache.save_index()
+        new_disk = DiskCache(cache_dir=str(subfolder))
+        self._worker._disk_cache = new_disk
+        self._disk_cache = new_disk
+        # Clear in-memory cache so stale thumbnails from the old project don't show
+        self._pixmaps.clear()
+        self._gen_sizes.clear()
+        self._dims.clear()
 
     def get(self, asset_id: str) -> QPixmap | None:
         return self._pixmaps.get(asset_id)
