@@ -165,6 +165,7 @@
 - [x] Right-click Quick Tag multi-column layout (max 10 per column)
 - [ ] Drag-select over tag rows (rubber band selection)
 - [ ] Drag-drop tags between groups / create new tag groups
+- [ ] Actual file browser (browse filesystem, preview before import, drag into project)
 
 ### Low Priority / Future
 - [ ] Mass tag editing for AI training prompt files
