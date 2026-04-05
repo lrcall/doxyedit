@@ -673,6 +673,8 @@ class MainWindow(QMainWindow):
         is_open = hasattr(self, '_tray_open') and self._tray_open
         if is_open:
             self._tray_open = False
+            # Remember tray width before hiding
+            self._saved_tray_sizes = self._main_split.sizes()
             self.work_tray.hide()
             self._toggle_tray_action.setText("Show Work Tray")
             self._tray_btn.setChecked(False)
@@ -682,10 +684,14 @@ class MainWindow(QMainWindow):
             self.work_tray.setMinimumWidth(150)
             self.work_tray.setMaximumWidth(400)
             self.work_tray.show()
-            sizes = self._main_split.sizes()
-            if len(sizes) > 1 and sizes[1] < 150:
-                sizes[1] = 200
-                self._main_split.setSizes(sizes)
+            # Restore previous tray width
+            if hasattr(self, '_saved_tray_sizes') and self._saved_tray_sizes:
+                self._main_split.setSizes(self._saved_tray_sizes)
+            else:
+                sizes = self._main_split.sizes()
+                if len(sizes) > 1 and sizes[1] < 150:
+                    sizes[1] = 200
+                    self._main_split.setSizes(sizes)
             self._toggle_tray_action.setText("Hide Work Tray")
             self._tray_btn.setChecked(True)
 
