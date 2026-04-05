@@ -267,6 +267,7 @@ class MainWindow(QMainWindow):
         fs = self._theme.font_size
         self.setStyleSheet(generate_stylesheet(self._theme))
         self.browser.update_font_size(fs)
+        self.tag_panel.update_font_size(fs)
         self._settings.setValue("font_size", fs)
         self.status.showMessage(f"Font size: {fs}px", 2000)
 

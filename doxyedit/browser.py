@@ -214,39 +214,33 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self._folder_starts: dict[int, str] = {}  # row_index → folder path
         self._scaled_cache: dict[tuple, QPixmap] = {}
 
-    FOLDER_BAR_H = 24
-
     def sizeHint(self, option, index):
-        h = self.thumb_size + 70
-        if index.row() in self._folder_starts:
-            h += self.FOLDER_BAR_H
-        return QSize(self.thumb_size + 2 * self.PADDING, h)
+        return QSize(self.thumb_size + 2 * self.PADDING,
+                     self.thumb_size + 70)
 
     def paint(self, painter, option, index):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = option.rect
 
-        # Folder separator — paint label in the extra top space of this cell
+        # Folder label — small tag on the first item of each folder group
         row = index.row()
-        folder_offset = 0
         if row in self._folder_starts:
-            folder_offset = self.FOLDER_BAR_H
-            view = option.widget
-            vw = view.viewport().width() if view else rect.width()
             folder = self._folder_starts[row]
-            bar_rect = QRect(0, rect.y(), vw, self.FOLDER_BAR_H)
-            painter.fillRect(bar_rect, QColor(128, 128, 128, 40))
-            painter.setPen(QColor(200, 200, 200, 180))
-            painter.setFont(QFont("Segoe UI", max(7, self.font_size - 2)))
-            painter.drawText(bar_rect.adjusted(6, 0, -6, 0),
+            # Show last 2 path components for readability
+            parts = Path(folder).parts
+            short = str(Path(*parts[-2:])) if len(parts) >= 2 else folder
+            painter.save()
+            painter.setFont(QFont("Segoe UI", max(6, self.font_size - 3)))
+            fm = QFontMetrics(QFont("Segoe UI", max(6, self.font_size - 3)))
+            text_w = fm.horizontalAdvance(short) + 10
+            tag_rect = QRect(rect.x(), rect.y(), min(text_w, rect.width()), 16)
+            painter.fillRect(tag_rect, QColor(128, 128, 128, 60))
+            painter.setPen(QColor(200, 200, 200, 200))
+            painter.drawText(tag_rect.adjusted(4, 0, -4, 0),
                              Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                             f"\u25BC {folder}")
-
-        # Offset rect down for folder-start items
-        if folder_offset:
-            rect = QRect(rect.x(), rect.y() + folder_offset,
-                         rect.width(), rect.height() - folder_offset)
+                             short)
+            painter.restore()
 
         ts = self.thumb_size
 
@@ -540,7 +534,10 @@ class AssetBrowser(QWidget):
         root.addLayout(status)
 
     def _btn_style(self):
-        return "QPushButton { padding: 6px 12px; font-size: 11px; }"
+        f = self._current_font_size
+        pad = max(3, f // 3)
+        pad_lg = max(6, f // 2)
+        return f"QPushButton {{ padding: {pad}px {pad_lg}px; font-size: {f}px; }}"
 
     def _make_filter_btn(self, label):
         btn = QPushButton(label)

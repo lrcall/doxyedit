@@ -104,7 +104,7 @@ class CensorEditor(QWidget):
         self.view.mouseReleaseEvent = self._view_mouse_release
 
     def _btn_style(self):
-        return "QPushButton { padding: 6px 14px; }"
+        return "QPushButton { padding: 4px 10px; font-size: 11px; }"
 
     def load_asset(self, asset: Asset):
         """Load an asset image into the censor editor."""

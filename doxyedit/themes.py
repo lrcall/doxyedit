@@ -53,6 +53,14 @@ class Theme:
     error: str = "#9a4f50"
     star: str = "#be955c"
 
+    def btn_style(self) -> str:
+        """Shared button stylesheet — scales with font_size."""
+        f = self.font_size
+        pad = max(3, f // 3)
+        pad_lg = max(6, f // 2)
+        return (f"QPushButton {{ padding: {pad}px {pad_lg}px; font-size: {f}px; }}"
+                f"QPushButton:checked {{ background: {self.accent}; color: {self.text_on_accent}; }}")
+
 
 # ---------------------------------------------------------------------------
 # Vinik 24 — the default theme

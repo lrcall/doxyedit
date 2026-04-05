@@ -391,7 +391,17 @@ class TagPanel(QWidget):
                                and tag_id not in self._hidden_tags)
 
     def _btn_style(self):
-        return "QPushButton { padding: 4px 10px; }"
+        return "QPushButton { padding: 3px 8px; font-size: 10px; }"
+
+    def update_font_size(self, font_size: int):
+        """Scale all fonts in the tag panel."""
+        f = font_size
+        for row in self._rows.values():
+            row._cb.setFont(QFont("Segoe UI", f, QFont.Weight.Bold))
+            if hasattr(row, '_hint_label'):
+                row._hint_label.setFont(QFont("Segoe UI", max(7, f - 2)))
+        self.header.setFont(QFont("Segoe UI", f + 1, QFont.Weight.Bold))
+        self.notes_edit.setFont(QFont("Segoe UI", f))
 
     def set_assets(self, assets: list[Asset]):
         """Set which asset(s) the tag panel is editing."""
