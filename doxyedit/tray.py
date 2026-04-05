@@ -10,8 +10,9 @@ from PySide6.QtGui import QPixmap, QIcon, QFont
 
 class WorkTray(QWidget):
     """Collapsible right panel — drag images here as a work area / quickslot."""
-    asset_selected = Signal(str)   # asset_id clicked
-    asset_preview = Signal(str)    # double-click
+    asset_selected = Signal(str)
+    asset_preview = Signal(str)
+    toggle_requested = Signal()    # handle clicked — parent toggles visibility
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -24,9 +25,28 @@ class WorkTray(QWidget):
         self._build()
 
     def _build(self):
-        layout = QVBoxLayout(self)
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # Handle — clickable arrow on left edge
+        self._handle = QPushButton("\u25C0")  # ◀
+        self._handle.setFixedWidth(16)
+        self._handle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._handle.setToolTip("Close tray (Ctrl+T)")
+        self._handle.setStyleSheet(
+            "QPushButton { background: rgba(128,128,128,0.15); border: none;"
+            " border-radius: 0; font-size: 10px; color: rgba(128,128,128,0.6); }"
+            "QPushButton:hover { background: rgba(128,128,128,0.3); }")
+        self._handle.clicked.connect(lambda: self.toggle_requested.emit())
+        outer.addWidget(self._handle)
+
+        # Content
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
+        outer.addWidget(content)
 
         # Header
         header = QHBoxLayout()

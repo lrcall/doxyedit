@@ -74,6 +74,7 @@ class MainWindow(QMainWindow):
 
         self.work_tray.asset_selected.connect(self._on_asset_selected)
         self.work_tray.asset_preview.connect(self._on_asset_preview)
+        self.work_tray.toggle_requested.connect(self._toggle_work_tray)
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
         self._browse_split.addWidget(self.tag_panel)
@@ -336,9 +337,9 @@ class MainWindow(QMainWindow):
         # View menu
         view_menu = menu.addMenu("&View")
         self._toggle_tags_action = view_menu.addAction(
-            "Hide Tag Panel", self._toggle_tag_panel, QKeySequence("Ctrl+T"))
+            "Hide Tag Panel", self._toggle_tag_panel, QKeySequence("Ctrl+L"))
         self._toggle_tray_action = view_menu.addAction(
-            "Show Work Tray", self._toggle_work_tray, QKeySequence("Ctrl+R"))
+            "Show Work Tray", self._toggle_work_tray, QKeySequence("Ctrl+T"))
         view_menu.addSeparator()
         view_menu.addAction("Increase Font Size", self._font_increase, QKeySequence("Ctrl+="))
         view_menu.addAction("Decrease Font Size", self._font_decrease, QKeySequence("Ctrl+-"))
