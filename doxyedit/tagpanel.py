@@ -394,7 +394,7 @@ class TagPanel(QWidget):
         """Scale all fonts in the tag panel."""
         f = font_size
         for row in self._rows.values():
-            row._cb.setFont(QFont("Segoe UI", f, QFont.Weight.Bold))
+            row.checkbox.setFont(QFont("Segoe UI", f, QFont.Weight.Bold))
             if hasattr(row, '_hint_label'):
                 row._hint_label.setFont(QFont("Segoe UI", max(7, f - 2)))
         self.header.setFont(QFont("Segoe UI", f + 1, QFont.Weight.Bold))
