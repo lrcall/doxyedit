@@ -943,13 +943,14 @@ class AssetBrowser(QWidget):
             # Middle-click — instant preview regardless of hover setting
             if event.type() == event.Type.MouseButtonPress:
                 if event.button() == Qt.MouseButton.MiddleButton:
+                    self._hover_timer.stop()
                     pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
                     index = self._list_view.indexAt(pos)
                     asset = self._model.get_asset(index) if index.isValid() else None
                     if asset:
-                        size = int(self._thumb_size * self._hover_size_pct / 100)
-                        HoverPreview.instance().PREVIEW_SIZE = max(300, size)
-                        HoverPreview.instance().show_for(asset.source_path, QCursor.pos())
+                        hp = HoverPreview.instance()
+                        hp.PREVIEW_SIZE = max(300, int(self._thumb_size * self._hover_size_pct / 100))
+                        hp.show_for(asset.source_path, QCursor.pos())
                     return True
 
             if event.type() == event.Type.MouseButtonRelease:

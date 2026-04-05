@@ -22,6 +22,8 @@ class HoverPreview(QLabel):
 
     def __init__(self):
         super().__init__(None, Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
+        self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setStyleSheet(
             "QLabel { background: rgba(20,20,20,0.95); border: 2px solid rgba(128,128,128,0.3); border-radius: 6px; padding: 4px; }"
         )
