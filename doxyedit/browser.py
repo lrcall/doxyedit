@@ -692,6 +692,9 @@ class AssetBrowser(QWidget):
             return
         toggle_tags(assets, tag_id)
         self.selection_changed.emit(list(self._selected_ids))
+        # If this tag is eye-hidden, refresh to hide newly tagged images
+        if tag_id in self._eye_hidden_tags:
+            self._refresh_grid()
 
     # --- Public API ---
 

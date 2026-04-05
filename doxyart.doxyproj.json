@@ -1055,7 +1055,9 @@
       "censors": [],
       "assignments": [],
       "tags": [
-        "ignore"
+        "ignore",
+        "bright",
+        "square"
       ],
       "notes": ""
     },
@@ -2873,7 +2875,8 @@
       "tags": [
         "bright",
         "detailed",
-        "landscape"
+        "landscape",
+        "sai_2"
       ],
       "notes": ""
     },
@@ -13824,7 +13827,8 @@
       "assignments": [],
       "tags": [
         "detailed",
-        "landscape"
+        "landscape",
+        "reference"
       ],
       "notes": ""
     },
@@ -13869,7 +13873,8 @@
       "tags": [
         "dark",
         "detailed",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -13884,7 +13889,8 @@
       "tags": [
         "dark",
         "detailed",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -13932,7 +13938,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -13943,7 +13951,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -13954,7 +13964,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -13965,7 +13977,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -13976,7 +13990,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -14036,7 +14052,8 @@
         "warm",
         "dark",
         "detailed",
-        "portrait"
+        "portrait",
+        "reference"
       ],
       "notes": ""
     },
@@ -14052,7 +14069,8 @@
         "warm",
         "dark",
         "detailed",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14067,7 +14085,8 @@
       "tags": [
         "dark",
         "detailed",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14083,7 +14102,8 @@
         "warm",
         "dark",
         "detailed",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14130,7 +14150,8 @@
       "tags": [
         "dark",
         "detailed",
-        "portrait"
+        "portrait",
+        "reference"
       ],
       "notes": ""
     },
@@ -14144,7 +14165,8 @@
       "assignments": [],
       "tags": [
         "dark",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14156,7 +14178,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -14167,7 +14191,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -14181,7 +14207,8 @@
       "tags": [
         "warm",
         "dark",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14197,7 +14224,8 @@
         "warm",
         "dark",
         "detailed",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14212,7 +14240,8 @@
       "tags": [
         "dark",
         "detailed",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14226,7 +14255,8 @@
       "assignments": [],
       "tags": [
         "dark",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14240,7 +14270,8 @@
       "assignments": [],
       "tags": [
         "detailed",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14252,7 +14283,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -14263,7 +14296,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -14274,7 +14309,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -14285,7 +14322,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -14296,7 +14335,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -14307,7 +14348,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -14318,7 +14361,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "reference"
+      ],
       "notes": ""
     },
     {
@@ -14331,7 +14376,8 @@
       "assignments": [],
       "tags": [
         "warm",
-        "portrait"
+        "portrait",
+        "reference"
       ],
       "notes": ""
     },
@@ -14346,7 +14392,8 @@
       "tags": [
         "warm",
         "detailed",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14360,7 +14407,8 @@
       "assignments": [],
       "tags": [
         "warm",
-        "portrait"
+        "portrait",
+        "reference"
       ],
       "notes": ""
     },
@@ -14376,7 +14424,8 @@
         "warm",
         "dark",
         "detailed",
-        "portrait"
+        "portrait",
+        "reference"
       ],
       "notes": ""
     },
@@ -14391,7 +14440,8 @@
       "tags": [
         "warm",
         "dark",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14406,7 +14456,8 @@
       "tags": [
         "dark",
         "detailed",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14422,7 +14473,8 @@
         "warm",
         "dark",
         "detailed",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14437,7 +14489,8 @@
       "tags": [
         "warm",
         "dark",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14453,7 +14506,8 @@
         "warm",
         "dark",
         "detailed",
-        "square"
+        "square",
+        "reference"
       ],
       "notes": ""
     },
@@ -14468,7 +14522,8 @@
       "tags": [
         "dark",
         "detailed",
-        "portrait"
+        "portrait",
+        "reference"
       ],
       "notes": ""
     },
@@ -14498,7 +14553,8 @@
       "tags": [
         "warm",
         "detailed",
-        "landscape"
+        "landscape",
+        "reference"
       ],
       "notes": ""
     },

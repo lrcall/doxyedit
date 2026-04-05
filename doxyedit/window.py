@@ -389,6 +389,8 @@ class MainWindow(QMainWindow):
         added = toggle_tags(assets, tag_id)
         self.tag_panel.set_assets(assets)
         self._on_data_changed()
+        if tag_id in self.browser._eye_hidden_tags:
+            self.browser.refresh()
         preset = TAG_ALL.get(tag_id)
         label = preset.label if preset else tag_id
         action = "applied" if added else "removed"
