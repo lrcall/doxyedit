@@ -204,6 +204,11 @@ class MainWindow(QMainWindow):
         self._theme.font_size = 12
         self._apply_font()
 
+    def _set_hover_size(self, pct: int):
+        self.browser._hover_size_pct = pct
+        self._settings.setValue("hover_size_pct", pct)
+        self.status.showMessage(f"Hover preview: {pct}% of thumbnail size", 2000)
+
     def _set_thumb_gen_size(self, size: int):
         from doxyedit import browser
         browser.THUMB_GEN_SIZE = size
@@ -336,6 +341,10 @@ class MainWindow(QMainWindow):
         theme_menu = view_menu.addMenu("Theme")
         for tid, theme in THEMES.items():
             theme_menu.addAction(theme.name, lambda t=tid: self._apply_theme(t))
+        view_menu.addSeparator()
+        hover_menu = view_menu.addMenu("Hover Preview Size")
+        for pct in [125, 150, 200, 250, 300]:
+            hover_menu.addAction(f"{pct}%", lambda p=pct: self._set_hover_size(p))
         view_menu.addSeparator()
         view_menu.addAction("Show All Hidden Tags", lambda: self.tag_panel._show_all_tags())
         view_menu.addAction("Refresh Grid", lambda: self.browser.refresh(), QKeySequence("F5"))

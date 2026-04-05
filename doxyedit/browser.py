@@ -321,6 +321,12 @@ class AssetBrowser(QWidget):
         self.hover_preview_enabled = True
         self._eye_hidden_tags: set[str] = set()
         self._current_font_size = 10
+        self._hover_id = None
+        self._hover_timer = QTimer(self)
+        self._hover_timer.setSingleShot(True)
+        self._hover_timer.setInterval(400)
+        self._hover_timer.timeout.connect(self._show_hover)
+        self._hover_size_pct = int(settings.value("hover_size_pct", 150))
         self._cache_all_total = 0
         self._cache_all_done = 0
         self.setAcceptDrops(True)
@@ -870,24 +876,57 @@ class AssetBrowser(QWidget):
             self._selected_ids.remove(asset.id)
         self._refresh_grid()
 
+    # --- Hover preview ---
+
+    def _show_hover(self):
+        if not self._hover_id or not self.hover_preview_enabled:
+            return
+        asset = self.project.get_asset(self._hover_id)
+        if asset:
+            size = int(self._thumb_size * self._hover_size_pct / 100)
+            HoverPreview.instance().PREVIEW_SIZE = max(300, size)
+            HoverPreview.instance().show_for(asset.source_path, QCursor.pos())
+
     # --- Zoom (event filter intercepts Ctrl+Scroll on the list view) ---
 
     def eventFilter(self, obj, event):
-        if (obj is self._list_view or obj is self._list_view.viewport()) and event.type() == event.Type.Wheel:
-            if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-                current = self._list_view.currentIndex()
-                delta = event.angleDelta().y()
-                if delta > 0:
-                    self._thumb_size = min(320, self._thumb_size + 20)
-                else:
-                    self._thumb_size = max(80, self._thumb_size - 20)
-                QSettings("DoxyEdit", "DoxyEdit").setValue("thumb_size", self._thumb_size)
-                self._delegate.thumb_size = self._thumb_size
-                self._delegate.invalidate_cache()
-                self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
-                if current.isValid():
-                    self._list_view.scrollTo(current, QListView.ScrollHint.PositionAtCenter)
-                return True  # consumed
+        vp = self._list_view.viewport()
+        if obj is self._list_view or obj is vp:
+            # Ctrl+Scroll zoom
+            if event.type() == event.Type.Wheel:
+                if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                    current = self._list_view.currentIndex()
+                    delta = event.angleDelta().y()
+                    if delta > 0:
+                        self._thumb_size = min(320, self._thumb_size + 20)
+                    else:
+                        self._thumb_size = max(80, self._thumb_size - 20)
+                    QSettings("DoxyEdit", "DoxyEdit").setValue("thumb_size", self._thumb_size)
+                    self._delegate.thumb_size = self._thumb_size
+                    self._delegate.invalidate_cache()
+                    self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
+                    if current.isValid():
+                        self._list_view.scrollTo(current, QListView.ScrollHint.PositionAtCenter)
+                    return True
+
+            # Hover preview
+            if event.type() == event.Type.MouseMove and self.hover_preview_enabled:
+                pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
+                index = self._list_view.indexAt(pos)
+                asset = self._model.get_asset(index) if index.isValid() else None
+                if asset and asset.id != self._hover_id:
+                    self._hover_id = asset.id
+                    self._hover_timer.start()
+                elif not asset:
+                    self._hover_id = None
+                    self._hover_timer.stop()
+                    HoverPreview.instance().hide_preview()
+
+            if event.type() == event.Type.Leave:
+                self._hover_id = None
+                self._hover_timer.stop()
+                HoverPreview.instance().hide_preview()
+
         return super().eventFilter(obj, event)
 
     # --- Keyboard ---
