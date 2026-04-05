@@ -546,6 +546,7 @@ class AssetBrowser(QWidget):
                 f"A tag called '{all_tags[tag_id].label}' already exists.")
             return
         color = next_tag_color(all_tags)
+        self.project.tag_definitions[tag_id] = {"label": name, "color": color}
         self.project.custom_tags.append({"id": tag_id, "label": name, "color": color})
         self.rebuild_tag_bar()
         self.tags_modified.emit()

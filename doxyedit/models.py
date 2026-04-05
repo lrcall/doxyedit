@@ -323,7 +323,9 @@ class Project:
     name: str = "Untitled"
     assets: list[Asset] = field(default_factory=list)
     platforms: list[str] = field(default_factory=lambda: list(PLATFORMS.keys()))
-    custom_tags: list[dict] = field(default_factory=list)
+    custom_tags: list[dict] = field(default_factory=list)  # legacy — migrated to tag_definitions
+    tag_definitions: dict[str, dict] = field(default_factory=dict)  # id → {label, color, group}
+    tag_aliases: dict[str, str] = field(default_factory=dict)  # old_id → canonical_id
     custom_shortcuts: dict[str, str] = field(default_factory=dict)  # key → tag_id
     hidden_tags: list[str] = field(default_factory=list)  # tags hidden from side panel
     eye_hidden_tags: list[str] = field(default_factory=list)  # tags with eye off (filter from grid)
@@ -332,29 +334,52 @@ class Project:
     notes: str = ""
 
     def get_tags(self) -> dict[str, TagPreset]:
-        """Get merged tag presets — defaults + any project-custom ones."""
+        """Get merged tag presets — defaults + tag_definitions + legacy custom_tags."""
         tags = dict(TAG_ALL)
+        # New-style tag_definitions (preferred)
+        for tid, defn in self.tag_definitions.items():
+            if not isinstance(defn, dict):
+                continue
+            tags[tid] = TagPreset(
+                id=tid, label=defn.get("label", tid),
+                width=defn.get("width"), height=defn.get("height"),
+                ratio=defn.get("ratio", ""), color=defn.get("color", "#888"),
+            )
+        # Legacy custom_tags (backward compat — migrated on save)
         for ct in self.custom_tags:
             if not isinstance(ct, dict):
                 continue
             try:
-                t = TagPreset(
-                    id=ct["id"], label=ct.get("label", ct["id"]),
-                    width=ct.get("width"), height=ct.get("height"),
-                    ratio=ct.get("ratio", ""), color=ct.get("color", "#888"),
-                )
-                tags[t.id] = t
+                tid = ct["id"]
+                if tid not in tags:  # don't overwrite tag_definitions
+                    tags[tid] = TagPreset(
+                        id=tid, label=ct.get("label", tid),
+                        width=ct.get("width"), height=ct.get("height"),
+                        ratio=ct.get("ratio", ""), color=ct.get("color", "#888"),
+                    )
             except (KeyError, TypeError):
                 continue
         return tags
 
     def save(self, path: str):
+        # Migrate any legacy custom_tags into tag_definitions before saving
+        for ct in self.custom_tags:
+            if isinstance(ct, dict) and ct.get("id") and ct["id"] not in self.tag_definitions:
+                self.tag_definitions[ct["id"]] = {
+                    "label": ct.get("label", ct["id"]),
+                    "color": ct.get("color", "#888"),
+                }
+                if ct.get("width"): self.tag_definitions[ct["id"]]["width"] = ct["width"]
+                if ct.get("height"): self.tag_definitions[ct["id"]]["height"] = ct["height"]
+                if ct.get("ratio"): self.tag_definitions[ct["id"]]["ratio"] = ct["ratio"]
         data = {
             "_comment": "DoxyEdit project — edit with Claude CLI or by hand",
             "name": self.name,
             "notes": self.notes,
             "platforms": self.platforms,
-            "custom_tags": self.custom_tags,
+            "tag_definitions": self.tag_definitions,
+            "tag_aliases": self.tag_aliases,
+            "custom_tags": self.custom_tags,  # kept for backward compat
             "custom_shortcuts": self.custom_shortcuts,
             "hidden_tags": self.hidden_tags,
             "eye_hidden_tags": self.eye_hidden_tags,
@@ -372,19 +397,31 @@ class Project:
             notes=raw.get("notes", ""),
             platforms=raw.get("platforms", list(PLATFORMS.keys())),
             custom_tags=raw.get("custom_tags", []),
+            tag_definitions=raw.get("tag_definitions", {}),
+            tag_aliases=raw.get("tag_aliases", {}),
             custom_shortcuts=raw.get("custom_shortcuts", {}),
             hidden_tags=raw.get("hidden_tags", []),
             eye_hidden_tags=raw.get("eye_hidden_tags", []),
             sort_mode=raw.get("sort_mode", "Name A-Z"),
             tray_items=raw.get("tray_items", []),
         )
+        aliases = proj.tag_aliases
         for a in raw.get("assets", []):
+            # Resolve tag aliases
+            raw_tags = a.get("tags", [])
+            if aliases:
+                resolved = []
+                for t in raw_tags:
+                    canonical = aliases.get(t, t)
+                    if canonical not in resolved:
+                        resolved.append(canonical)
+                raw_tags = resolved
             asset = Asset(
                 id=a.get("id", ""),
                 source_path=a.get("source_path", ""),
                 source_folder=a.get("source_folder", ""),
                 starred=int(a.get("starred", 0)) if not isinstance(a.get("starred"), bool) else (1 if a.get("starred") else 0),
-                tags=a.get("tags", []),
+                tags=raw_tags,
                 notes=a.get("notes", ""),
             )
             for c in a.get("crops", []):

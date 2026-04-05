@@ -725,10 +725,11 @@ class MainWindow(QMainWindow):
         for asset in self.project.assets:
             if tag_id in asset.tags:
                 asset.tags.remove(tag_id)
-        # Remove from custom tags if it's a custom one
+        # Remove from custom tags and tag_definitions
         self.project.custom_tags = [
             ct for ct in self.project.custom_tags if ct.get("id") != tag_id
         ]
+        self.project.tag_definitions.pop(tag_id, None)
         self._refresh_all_tags()
         self.browser.refresh()
         self._dirty = True
@@ -741,11 +742,17 @@ class MainWindow(QMainWindow):
                 asset.tags.remove(old_id)
                 if new_id not in asset.tags:
                     asset.tags.append(new_id)
-        # Update custom tags
+        # Update custom tags and tag_definitions
         for ct in self.project.custom_tags:
             if isinstance(ct, dict) and ct.get("id") == old_id:
                 ct["id"] = new_id
                 ct["label"] = new_label
+        if old_id in self.project.tag_definitions:
+            defn = self.project.tag_definitions.pop(old_id)
+            defn["label"] = new_label
+            self.project.tag_definitions[new_id] = defn
+        # Add alias so old references resolve on next load
+        self.project.tag_aliases[old_id] = new_id
         self._refresh_all_tags()
         self.browser.refresh()
         self._dirty = True
@@ -765,6 +772,7 @@ class MainWindow(QMainWindow):
         for asset in self.project.assets:
             asset.tags.clear()
         self.project.custom_tags.clear()
+        self.project.tag_definitions.clear()
         self.tag_panel.set_assets([])
         self._refresh_all_tags()
         self.browser.refresh()
@@ -1170,6 +1178,11 @@ Ctrl+Click tag — Search by tag
         # Restore work tray
         if self.project.tray_items:
             self.work_tray.load_state(self.project.tray_items, self.project)
+            # Feed any already-cached pixmaps to the tray
+            for aid in self.project.tray_items:
+                pm = self.browser._thumb_cache.get(aid)
+                if pm:
+                    self.work_tray.update_pixmap(aid, pm)
             if self.project.tray_items:
                 self.work_tray.show()
                 self._toggle_tray_action.setText("Hide Work Tray")
