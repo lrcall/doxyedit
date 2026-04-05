@@ -17,13 +17,19 @@ echo  Art Asset Manager
 echo  ─────────────────
 echo.
 
-%PYTHON% run.py %*
+set LOG=%~dp0doxyedit.log
+
+echo [%date% %time%] Starting DoxyEdit > "%LOG%"
+echo [%date% %time%] Python: %PYTHON% >> "%LOG%"
+
+%PYTHON% run.py %* >> "%LOG%" 2>&1
 
 if errorlevel 1 (
     echo.
     echo  [!] DoxyEdit exited with an error.
-    echo  Make sure PySide6 and Pillow are installed:
-    echo    pip install -r requirements.txt
+    echo      Log saved to: %LOG%
+    echo.
+    type "%LOG%"
     echo.
     pause
 )

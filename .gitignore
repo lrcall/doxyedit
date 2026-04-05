@@ -6,6 +6,7 @@ __pycache__/
 *.exe
 *.spec
 *.bak
+*.log
 *.dll
 run.build/
 run.dist/

@@ -24,25 +24,38 @@ if %errorlevel% == 0 (
 
 echo  Using: %PYTHON%
 echo.
+
+set LOG=%~dp0doxyedit.log
+
+echo [%date% %time%] First-run setup > "%LOG%"
+echo [%date% %time%] Python: %PYTHON% >> "%LOG%"
+
 echo  Installing dependencies...
 echo.
-%PYTHON% -m pip install -r requirements.txt
+%PYTHON% -m pip install -r requirements.txt >> "%LOG%" 2>&1
 
 if errorlevel 1 (
     echo.
-    echo  [!] pip install failed. Check the errors above.
+    echo  [!] pip install failed. See log: %LOG%
+    echo.
+    type "%LOG%"
+    echo.
     pause
     exit /b 1
 )
 
-echo.
 echo  Dependencies installed. Launching DoxyEdit...
 echo.
 
-%PYTHON% run.py %*
+echo [%date% %time%] Launching app >> "%LOG%"
+%PYTHON% run.py %* >> "%LOG%" 2>&1
 
 if errorlevel 1 (
     echo.
     echo  [!] DoxyEdit exited with an error.
+    echo      Log saved to: %LOG%
+    echo.
+    type "%LOG%"
+    echo.
     pause
 )
