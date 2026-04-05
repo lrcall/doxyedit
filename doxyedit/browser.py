@@ -167,7 +167,7 @@ class ThumbnailModel(QAbstractListModel):
         asset = self._assets[index.row()]
         if role == Qt.ItemDataRole.DisplayRole:
             p = Path(asset.source_path)
-            return f"{p.stem[:16]}{p.suffix}"
+            return p.name
         elif role == self.ThumbnailRole:
             return self._pixmaps.get(asset.id)
         elif role == self.AssetIdRole:
