@@ -55,14 +55,8 @@
     "R": "reference"
   },
   "hidden_tags": [
-    "banner",
-    "promo",
-    "hero",
-    "interior",
-    "icon",
-    "stretch_goal",
-    "tier_card",
-    "cover"
+    "detailed",
+    "cool"
   ],
   "eye_hidden_tags": [
     "reference"

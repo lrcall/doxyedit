@@ -51,7 +51,9 @@ class MainWindow(QMainWindow):
         # --- Main layout: tabs + tray splitter ---
         self.tabs = QTabWidget()
         self.work_tray = WorkTray()
-        self.work_tray.setVisible(False)
+        self._tray_open = False
+        self.work_tray.setMaximumWidth(20)
+        self.work_tray.setMinimumWidth(20)
 
         self._main_split = QSplitter(Qt.Orientation.Horizontal)
         self._main_split.addWidget(self.tabs)
@@ -604,12 +606,22 @@ class MainWindow(QMainWindow):
         self._dirty = True
 
     def _toggle_work_tray(self):
-        if self.work_tray.isVisible():
-            self.work_tray.hide()
+        # Always keep the tray widget visible — just collapse/expand content
+        if not self.work_tray.isVisible():
+            self.work_tray.show()
+        is_open = hasattr(self, '_tray_open') and self._tray_open
+        if is_open:
+            self._tray_open = False
+            self.work_tray.setMaximumWidth(20)
+            self.work_tray.setMinimumWidth(20)
+            self.work_tray._handle.setText("\u25B6")  # ▶ closed
             self._toggle_tray_action.setText("Show Work Tray")
             self._tray_btn.setChecked(False)
         else:
-            self.work_tray.show()
+            self._tray_open = True
+            self.work_tray.setMinimumWidth(150)
+            self.work_tray.setMaximumWidth(400)
+            self.work_tray._handle.setText("\u25C0")  # ◀ open
             sizes = self._main_split.sizes()
             if len(sizes) > 1 and sizes[1] < 150:
                 sizes[1] = 200
