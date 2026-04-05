@@ -1,5 +1,16 @@
 # DoxyEdit Changelog
 
+## v1.5.1 — 2026-04-05
+
+### Hover Preview
+- Shows full original resolution (e.g. "2475 x 3375px") below preview image
+- Shows full file path below resolution
+- Larger info text (12px) for readability
+
+### UX Improvements
+- Ctrl+Shift+C copies full file path of selected asset(s) to clipboard
+- Splitter handles widened by 5px for easier grabbing (tag panel + tray)
+
 ## v1.5.0 — 2026-04-05
 
 ### UI Overhaul
