@@ -139,6 +139,11 @@ class MainWindow(QMainWindow):
         self._update_progress()
         self.status.showMessage("Ready — open a folder or drag images in")
 
+        # --- File watcher for external changes (Claude CLI) ---
+        from PySide6.QtCore import QFileSystemWatcher
+        self._file_watcher = QFileSystemWatcher(self)
+        self._file_watcher.fileChanged.connect(self._on_project_file_changed)
+
         # --- Auto-save timer ---
         self._autosave_timer = QTimer(self)
         self._autosave_timer.timeout.connect(self._autosave)
@@ -565,6 +570,7 @@ class MainWindow(QMainWindow):
         self.project = Project.load(path)
         self._rebind_project()
         self._project_path = path
+        self._watch_project()
         self._settings.setValue("last_project", path)
         self._add_recent_project(path)
         self.setWindowTitle(f"DoxyEdit — {Path(path).name}")
@@ -983,6 +989,30 @@ Alt+Click tag — Search by tag
 
     # --- Auto-save ---
 
+    def _on_project_file_changed(self, path: str):
+        """Project file changed on disk (e.g. by Claude CLI) — reload."""
+        if path == self._project_path and not self._dirty:
+            try:
+                self.project = Project.load(path)
+                self._rebind_project()
+                self.status.showMessage("Project reloaded (external change detected)", 3000)
+            except Exception:
+                pass
+        elif path == self._project_path and self._dirty:
+            self.status.showMessage("External change detected — save first or reopen", 3000)
+        # Re-add to watcher (Qt removes it after change on some platforms)
+        if path not in self._file_watcher.files():
+            self._file_watcher.addPath(path)
+
+    def _watch_project(self):
+        """Start watching the current project file for external changes."""
+        # Clear old watches
+        old = self._file_watcher.files()
+        if old:
+            self._file_watcher.removePaths(old)
+        if self._project_path and Path(self._project_path).exists():
+            self._file_watcher.addPath(self._project_path)
+
     def _autosave(self):
         if self._dirty and self._project_path:
             self.project.save(self._project_path)
@@ -1084,6 +1114,7 @@ Alt+Click tag — Search by tag
         if path:
             self.project.save(path)
             self._project_path = path
+            self._watch_project()
             self._dirty = False
             self._settings.setValue("last_project", path)
             self._add_recent_project(path)
