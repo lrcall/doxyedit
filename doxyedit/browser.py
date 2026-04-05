@@ -214,34 +214,39 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self._folder_starts: dict[int, str] = {}  # row_index → folder path
         self._scaled_cache: dict[tuple, QPixmap] = {}
 
+    FOLDER_BAR_H = 24
+
     def sizeHint(self, option, index):
-        return QSize(self.thumb_size + 2 * self.PADDING,
-                     self.thumb_size + 70)
+        h = self.thumb_size + 70
+        if index.row() in self._folder_starts:
+            h += self.FOLDER_BAR_H
+        return QSize(self.thumb_size + 2 * self.PADDING, h)
 
     def paint(self, painter, option, index):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = option.rect
 
-        # Folder separator overlay — paint above first item in each folder group
+        # Folder separator — paint label in the extra top space of this cell
         row = index.row()
+        folder_offset = 0
         if row in self._folder_starts:
+            folder_offset = self.FOLDER_BAR_H
             view = option.widget
             vw = view.viewport().width() if view else rect.width()
             folder = self._folder_starts[row]
-            bar_h = 20
-            bar_y = rect.y() - bar_h - 2
-            if bar_y >= -bar_h:  # at least partially visible
-                bar_rect = QRect(0, bar_y, vw, bar_h)
-                painter.save()
-                painter.setClipRect(QRect(0, max(0, bar_y), vw, bar_h))
-                painter.fillRect(bar_rect, QColor(128, 128, 128, 40))
-                painter.setPen(QColor(200, 200, 200, 180))
-                painter.setFont(QFont("Segoe UI", max(7, self.font_size - 2)))
-                painter.drawText(bar_rect.adjusted(6, 0, -6, 0),
-                                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                                 f"\u25BC {folder}")
-                painter.restore()
+            bar_rect = QRect(0, rect.y(), vw, self.FOLDER_BAR_H)
+            painter.fillRect(bar_rect, QColor(128, 128, 128, 40))
+            painter.setPen(QColor(200, 200, 200, 180))
+            painter.setFont(QFont("Segoe UI", max(7, self.font_size - 2)))
+            painter.drawText(bar_rect.adjusted(6, 0, -6, 0),
+                             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                             f"\u25BC {folder}")
+
+        # Offset rect down for folder-start items
+        if folder_offset:
+            rect = QRect(rect.x(), rect.y() + folder_offset,
+                         rect.width(), rect.height() - folder_offset)
 
         ts = self.thumb_size
 
@@ -1098,46 +1103,11 @@ class AssetBrowser(QWidget):
 
     # --- Zoom (event filter intercepts Ctrl+Scroll on the list view) ---
 
-    def _paint_folder_overlays(self):
-        """Paint folder separator labels on top of the grid when in By Folder mode."""
-        if self.sort_combo.currentText() != "By Folder":
-            return
-        if not self._filtered_assets:
-            return
-        vp = self._list_view.viewport()
-        painter = QPainter(vp)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        vw = vp.width()
-        fs = self._delegate.font_size
-        painter.setFont(QFont("Segoe UI", max(7, fs - 2)))
 
-        prev_folder = None
-        for i, asset in enumerate(self._filtered_assets):
-            folder = asset.source_folder or Path(asset.source_path).parent.as_posix()
-            if folder == prev_folder:
-                continue
-            prev_folder = folder
-            # Get the visual rect of the first item in this folder group
-            idx = self._model.index(i)
-            item_rect = self._list_view.visualRect(idx)
-            if item_rect.isNull() or item_rect.bottom() < 0 or item_rect.top() > vp.height():
-                continue  # off-screen
-            bar_y = item_rect.top() - 22
-            bar_rect = QRect(0, bar_y, vw, 20)
-            painter.fillRect(bar_rect, QColor(128, 128, 128, 40))
-            painter.setPen(QColor(200, 200, 200, 180))
-            collapsed = folder in self._collapsed_folders
-            arrow = "\u25B6" if collapsed else "\u25BC"
-            painter.drawText(bar_rect.adjusted(6, 0, -6, 0),
-                             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                             f"{arrow} {folder}")
-        painter.end()
 
     def eventFilter(self, obj, event):
         vp = self._list_view.viewport()
         if obj is self._list_view or obj is vp:
-            pass  # folder overlays handled in delegate paint
-
             # Ctrl+Scroll zoom
             if event.type() == event.Type.Wheel:
                 if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
