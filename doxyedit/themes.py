@@ -472,7 +472,7 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.bg_raised};
         }}
         QToolBar#tab_toolbar {{
-            background: {theme.bg};
+            background: {theme.bg_raised};
             border: none;
             border-bottom: 1px solid {theme.border};
             padding: 0px;

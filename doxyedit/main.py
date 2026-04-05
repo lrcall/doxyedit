@@ -17,7 +17,8 @@ def main():
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
 
-    window = MainWindow()
+    skip_autoload = "--new" in sys.argv
+    window = MainWindow(_skip_autoload=skip_autoload)
     window.show()
     window._update_title_bar_color()
 
