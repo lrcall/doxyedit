@@ -833,21 +833,11 @@ class AssetBrowser(QWidget):
         else:
             menu.addAction("Star", lambda: self._toggle_star(asset))
 
-        tag_menu = menu.addMenu("Quick Tag")
-        for tag_id, preset in TAG_PRESETS.items():
-            checked = tag_id in asset.tags
-            label = f"[x] {preset.label}" if checked else f"[ ] {preset.label}"
-            tag_menu.addAction(label, lambda tid=tag_id: self._toggle_tag(asset, tid))
-        tag_menu.addSeparator()
-        for tag_id, preset in TAG_SIZED.items():
-            checked = tag_id in asset.tags
-            label = f"[x] {preset.label}" if checked else f"[ ] {preset.label}"
-            tag_menu.addAction(label, lambda tid=tag_id: self._toggle_tag(asset, tid))
-        extra_tags = set(asset.tags) - set(TAG_PRESETS) - set(TAG_SIZED)
-        if extra_tags:
-            tag_menu.addSeparator()
-            for t in sorted(extra_tags):
-                tag_menu.addAction(f"[x] {t}", lambda tid=t: self._toggle_tag(asset, tid))
+        # Current tags on this asset
+        if asset.tags:
+            cur_menu = menu.addMenu(f"Tags ({len(asset.tags)})")
+            for t in asset.tags:
+                cur_menu.addAction(f"- {t}", lambda tid=t: self._toggle_tag(asset, tid))
 
         menu.addSeparator()
         n = len(self._selected_ids)
@@ -984,6 +974,15 @@ class AssetBrowser(QWidget):
                 self._hover_id = None
                 self._hover_timer.stop()
                 HoverPreview.instance().hide_preview()
+
+            # Delete key — pass to window's handler
+            if event.type() == event.Type.KeyPress:
+                if event.key() == Qt.Key.Key_Delete:
+                    try:
+                        self.window()._handle_delete()
+                    except Exception:
+                        pass
+                    return True
 
         return super().eventFilter(obj, event)
 

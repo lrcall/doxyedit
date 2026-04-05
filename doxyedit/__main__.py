@@ -16,6 +16,7 @@ Commands:
     notes <project.json>      List assets with notes
 """
 import sys
+import os
 import json
 from pathlib import Path
 

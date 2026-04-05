@@ -142,7 +142,11 @@ class MainWindow(QMainWindow):
         # --- File watcher for external changes (Claude CLI) ---
         from PySide6.QtCore import QFileSystemWatcher
         self._file_watcher = QFileSystemWatcher(self)
-        self._file_watcher.fileChanged.connect(self._on_project_file_changed)
+        self._file_watcher.fileChanged.connect(self._on_project_file_changed_raw)
+        self._reload_debounce = QTimer(self)
+        self._reload_debounce.setSingleShot(True)
+        self._reload_debounce.setInterval(500)
+        self._reload_debounce.timeout.connect(self._do_reload)
 
         # --- Auto-save timer ---
         self._autosave_timer = QTimer(self)
@@ -283,8 +287,7 @@ class MainWindow(QMainWindow):
         self._tool_actions[0][0].setChecked(True)
         tb.addSeparator()
 
-        tb.addAction(QAction("Delete", self, shortcut=QKeySequence("Delete"),
-                     triggered=self._handle_delete))
+        tb.addAction(QAction("Delete", self, triggered=self._handle_delete))
         tb.addAction(QAction("Color", self, triggered=self._change_color))
 
     def _build_menu(self):
@@ -989,20 +992,27 @@ Alt+Click tag — Search by tag
 
     # --- Auto-save ---
 
-    def _on_project_file_changed(self, path: str):
-        """Project file changed on disk (e.g. by Claude CLI) — reload."""
-        if path == self._project_path and not self._dirty:
-            try:
-                self.project = Project.load(path)
-                self._rebind_project()
-                self.status.showMessage("Project reloaded (external change detected)", 3000)
-            except Exception:
-                pass
-        elif path == self._project_path and self._dirty:
-            self.status.showMessage("External change detected — save first or reopen", 3000)
+    def _on_project_file_changed_raw(self, path: str):
+        """Debounce — wait 500ms before reloading to avoid partial writes."""
         # Re-add to watcher (Qt removes it after change on some platforms)
         if path not in self._file_watcher.files():
             self._file_watcher.addPath(path)
+        if path == self._project_path:
+            self._reload_debounce.start()
+
+    def _do_reload(self):
+        """Actually reload the project after debounce."""
+        if not self._project_path:
+            return
+        if self._dirty:
+            self.status.showMessage("External change detected — save first or reopen", 3000)
+            return
+        try:
+            self.project = Project.load(self._project_path)
+            self._rebind_project()
+            self.status.showMessage("Project reloaded (external change detected)", 3000)
+        except Exception:
+            pass
 
     def _watch_project(self):
         """Start watching the current project file for external changes."""
