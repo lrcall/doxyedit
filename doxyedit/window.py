@@ -251,16 +251,16 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self._build_menu()
         self._setup_tag_shortcuts()
-        # Hide the QTabWidget's built-in tab bar — tabs live in a compact toolbar
+        # Hide the QTabWidget's built-in tab bar — tabs live in the menu bar row
         self.tabs.tabBar().setVisible(False)
 
-        # Dedicated tab toolbar (sits directly below menu bar, always visible)
+        # Corner widget: [Assets Canvas Censor Platforms Overview Notes] <stretch> [Tray]
         _TAB_NAMES = ["Assets", "Canvas", "Censor", "Platforms", "Overview", "Notes"]
-        self._tab_toolbar = QToolBar("Tabs")
-        self._tab_toolbar.setObjectName("tab_toolbar")
-        self._tab_toolbar.setMovable(False)
-        self._tab_toolbar.setFloatable(False)
-        self._tab_toolbar.setIconSize(QSize(0, 0))
+        _corner = QWidget()
+        _corner.setObjectName("menubar_corner")
+        _corner_layout = QHBoxLayout(_corner)
+        _corner_layout.setContentsMargins(4, 0, 4, 0)
+        _corner_layout.setSpacing(0)
 
         self._menubar_tab_btns: list[QPushButton] = []
         for i, name in enumerate(_TAB_NAMES):
@@ -268,22 +268,19 @@ class MainWindow(QMainWindow):
             btn.setObjectName("menubar_tab_btn")
             btn.setCheckable(True)
             btn.clicked.connect(lambda _, idx=i: self.tabs.setCurrentIndex(idx))
-            self._tab_toolbar.addWidget(btn)
+            _corner_layout.addWidget(btn)
             self._menubar_tab_btns.append(btn)
 
-        # Spacer to push Tray to the right
-        _spacer = QWidget()
-        _spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self._tab_toolbar.addWidget(_spacer)
+        _corner_layout.addSpacing(8)
 
         self._menubar_tray_btn = QPushButton("Tray")
         self._menubar_tray_btn.setObjectName("menubar_tab_btn")
         self._menubar_tray_btn.setCheckable(True)
         self._menubar_tray_btn.setToolTip("Toggle Work Tray (Ctrl+Shift+W)")
         self._menubar_tray_btn.clicked.connect(self._toggle_work_tray)
-        self._tab_toolbar.addWidget(self._menubar_tray_btn)
+        _corner_layout.addWidget(self._menubar_tray_btn)
 
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._tab_toolbar)
+        self.menuBar().setCornerWidget(_corner, Qt.Corner.TopRightCorner)
 
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.tabs.currentChanged.connect(self._sync_menubar_tabs)
