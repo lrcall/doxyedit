@@ -251,16 +251,16 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self._build_menu()
         self._setup_tag_shortcuts()
-        # Hide the QTabWidget's built-in tab bar — tabs live in the menu bar row
+        # Hide the QTabWidget's built-in tab bar
         self.tabs.tabBar().setVisible(False)
 
-        # Corner widget: [Assets Canvas Censor Platforms Overview Notes] <stretch> [Tray]
+        # Tab toolbar — styled identical to the menu bar so both rows look like one bar
         _TAB_NAMES = ["Assets", "Canvas", "Censor", "Platforms", "Overview", "Notes"]
-        _corner = QWidget()
-        _corner.setObjectName("menubar_corner")
-        _corner_layout = QHBoxLayout(_corner)
-        _corner_layout.setContentsMargins(4, 0, 4, 0)
-        _corner_layout.setSpacing(0)
+        self._tab_toolbar = QToolBar("Tabs")
+        self._tab_toolbar.setObjectName("tab_toolbar")
+        self._tab_toolbar.setMovable(False)
+        self._tab_toolbar.setFloatable(False)
+        self._tab_toolbar.setIconSize(QSize(0, 0))
 
         self._menubar_tab_btns: list[QPushButton] = []
         for i, name in enumerate(_TAB_NAMES):
@@ -268,19 +268,22 @@ class MainWindow(QMainWindow):
             btn.setObjectName("menubar_tab_btn")
             btn.setCheckable(True)
             btn.clicked.connect(lambda _, idx=i: self.tabs.setCurrentIndex(idx))
-            _corner_layout.addWidget(btn)
+            self._tab_toolbar.addWidget(btn)
             self._menubar_tab_btns.append(btn)
 
-        _corner_layout.addSpacing(8)
+        _spacer = QWidget()
+        _spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        _spacer.setObjectName("tab_toolbar_spacer")
+        self._tab_toolbar.addWidget(_spacer)
 
         self._menubar_tray_btn = QPushButton("Tray")
         self._menubar_tray_btn.setObjectName("menubar_tab_btn")
         self._menubar_tray_btn.setCheckable(True)
         self._menubar_tray_btn.setToolTip("Toggle Work Tray (Ctrl+Shift+W)")
         self._menubar_tray_btn.clicked.connect(self._toggle_work_tray)
-        _corner_layout.addWidget(self._menubar_tray_btn)
+        self._tab_toolbar.addWidget(self._menubar_tray_btn)
 
-        self.menuBar().setCornerWidget(_corner, Qt.Corner.TopRightCorner)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._tab_toolbar)
 
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.tabs.currentChanged.connect(self._sync_menubar_tabs)
@@ -852,6 +855,11 @@ class MainWindow(QMainWindow):
         tools_menu.addSeparator()
         tools_menu.addAction("Set Cache Location...", self._set_cache_location)
         tools_menu.addAction("Open Cache Folder", self._open_cache_folder)
+        self._shared_cache_action = tools_menu.addAction("Shared Cache (all projects)")
+        self._shared_cache_action.setCheckable(True)
+        shared = self._settings.value("shared_cache", "false") == "true"
+        self._shared_cache_action.setChecked(shared)
+        self._shared_cache_action.toggled.connect(self._on_shared_cache_toggled)
         tools_menu.addSeparator()
         tools_menu.addAction("Find Duplicate Files...", self._find_duplicates)
         tools_menu.addAction("Tag Usage Stats...", self._show_tag_stats)
@@ -2137,6 +2145,15 @@ class MainWindow(QMainWindow):
         else:
             self.status.showMessage("Save the project first", 2000)
 
+    def _on_shared_cache_toggled(self, shared: bool):
+        self._settings.setValue("shared_cache", "true" if shared else "false")
+        # Re-apply immediately
+        name = "shared" if shared else self.project.name
+        self.browser._thumb_cache.set_project(name)
+        self.status.showMessage(
+            "Cache: shared (all projects use one folder)" if shared
+            else "Cache: per-project (each project has its own folder)", 4000)
+
     def _set_cache_location(self):
         current = self._settings.value("cache_dir", str(Path.home() / ".doxyedit" / "thumbcache"))
         folder = QFileDialog.getExistingDirectory(self, "Set Cache Location", current)
@@ -2521,7 +2538,9 @@ Ctrl+Click tag — Search by tag
 
         # Re-apply theme so project accent color takes effect
         self._apply_theme(getattr(self, '_current_theme_id', DEFAULT_THEME))
-        self.browser._thumb_cache.set_project(self.project.name)
+        shared = self._settings.value("shared_cache", "false") == "true"
+        cache_name = "shared" if shared else self.project.name
+        self.browser._thumb_cache.set_project(cache_name)
         self.browser.project = self.project
         self.work_tray._project = self.project
         self.browser.rebuild_tag_bar()
