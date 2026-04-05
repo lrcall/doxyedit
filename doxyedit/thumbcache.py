@@ -95,6 +95,13 @@ class ThumbWorker(QThread):
                 existing[aid] = (path, size)
             self._queue = deque((aid, p, s) for aid, (p, s) in existing.items())
 
+    def reprioritize(self, priority_ids: set):
+        """Move items whose asset_id is in priority_ids to the front of the queue."""
+        with QMutexLocker(self._mutex):
+            front = deque(item for item in self._queue if item[0] in priority_ids)
+            rest  = deque(item for item in self._queue if item[0] not in priority_ids)
+            self._queue = front + rest
+
     def clear_queue(self):
         with QMutexLocker(self._mutex):
             self._queue.clear()
@@ -253,6 +260,14 @@ class ThumbCache:
             del self._pixmaps[evicted]
             self._gen_sizes.pop(evicted, None)
             self._dims.pop(evicted, None)
+
+    def clear_queue(self):
+        """Stop all pending thumbnail generation without clearing the memory cache."""
+        self._worker.clear_queue()
+
+    def reprioritize(self, priority_ids: set):
+        """Move the given asset IDs to the front of the generation queue."""
+        self._worker.reprioritize(priority_ids)
 
     def clear(self):
         self._worker.clear_queue()

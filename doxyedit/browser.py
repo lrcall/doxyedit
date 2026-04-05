@@ -595,6 +595,7 @@ class AssetBrowser(QWidget):
         self._hover_fixed_px = int(settings.value("hover_fixed_px", 0))  # 0 = use pct
         self._cache_all_total = 0
         self._cache_all_done = 0
+        self._cache_all_remaining: list[tuple[str, str]] = []
         self._active_import_worker = None  # prevents GC during async import
         self._scan_running = False          # guard against concurrent folder scans
         self.setAcceptDrops(True)
@@ -965,9 +966,12 @@ class AssetBrowser(QWidget):
         self._fold_all_btn.setVisible(is_folder)
         self._unfold_all_btn.setVisible(is_folder)
         self._view_stack.setCurrentIndex(1 if is_folder else 0)
-        # Re-prioritize cache queue to match new sort order
+        # Re-prioritize cache queue to new sort order without resetting counts
         if self._cache_all_total > 0 and self.cache_all_check.isChecked():
-            self._on_cache_all_toggled(True)
+            self._thumb_cache.clear_queue()
+            remaining = self._cache_ordered_batch()
+            self._cache_all_remaining = remaining
+            self._thumb_cache.request_batch(remaining, size=THUMB_GEN_SIZE)
 
     def _collapse_all_folders(self):
         for section in self._folder_sections:
@@ -1062,8 +1066,11 @@ class AssetBrowser(QWidget):
         self._tag_bar_toggle_btn.setChecked(not self._tag_bar_toggle_btn.isChecked())
 
     def _request_visible_thumbs(self):
-        """Request thumbnails only for currently visible items + a lookahead buffer."""
+        """Request thumbnails for visible items + buffer; re-prioritize cache-all queue."""
         BUFFER = 40  # rows above/below viewport to pre-fetch
+        # If Cache All is active, move newly visible items to front of the worker queue
+        if self._cache_all_total > 0:
+            self._thumb_cache.reprioritize(self._visible_asset_ids())
 
         if self._view_stack.currentIndex() == 0:
             # Flat list view
@@ -1106,41 +1113,64 @@ class AssetBrowser(QWidget):
             if batch:
                 self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
 
-    def _on_cache_all_toggled(self, checked):
-        if not checked:
-            return
-        # Build batch in current view order, visible items first, then the rest
-        # of _filtered_assets, then any assets not in the current filter.
+    def _cache_ordered_batch(self) -> list[tuple[str, str]]:
+        """Build the full ordered cache list: visible first, then filtered view, then rest."""
         visible_ids = self._visible_asset_ids()
-        filtered_ids = {a.id for a in self._filtered_assets}
-
         ordered: list[tuple[str, str]] = []
         seen: set[str] = set()
-
-        # 1. Visible first
         for a in self._filtered_assets:
-            if a.id in visible_ids and a.id not in seen:
+            if a.id in visible_ids:
                 ordered.append((a.id, a.source_path))
                 seen.add(a.id)
-        # 2. Rest of current view in sort order
         for a in self._filtered_assets:
             if a.id not in seen:
                 ordered.append((a.id, a.source_path))
                 seen.add(a.id)
-        # 3. Assets outside the current filter last
         for a in self.project.assets:
             if a.id not in seen:
                 ordered.append((a.id, a.source_path))
                 seen.add(a.id)
+        return ordered
+
+    def _on_cache_all_toggled(self, checked):
+        if not checked:
+            # Pause: clear queue and remember remaining work
+            self._thumb_cache.clear_queue()
+            remaining = [(aid, path) for aid, path in self._cache_all_remaining
+                         if self._thumb_cache._gen_sizes.get(aid, 0) < THUMB_GEN_SIZE]
+            self._cache_all_remaining = remaining
+            self._cache_all_total = 0
+            self._cache_all_done = 0
+            try:
+                self.window().finish_progress("")
+            except Exception:
+                pass
+            return
+
+        # Resume if we have a saved queue, otherwise build fresh
+        if self._cache_all_remaining:
+            ordered = [(aid, path) for aid, path in self._cache_all_remaining
+                       if self._thumb_cache._gen_sizes.get(aid, 0) < THUMB_GEN_SIZE]
+            # Re-insert visible items at front without changing the overall order
+            visible_ids = self._visible_asset_ids()
+            front = [(a, p) for a, p in ordered if a in visible_ids]
+            rest  = [(a, p) for a, p in ordered if a not in visible_ids]
+            ordered = front + rest
+        else:
+            ordered = self._cache_ordered_batch()
 
         need_cache = sum(1 for aid, _ in ordered
                          if self._thumb_cache._gen_sizes.get(aid, 0) < THUMB_GEN_SIZE)
         if need_cache == 0:
+            self._cache_all_remaining = []
             try:
                 self.window().status.showMessage("All thumbnails already cached", 2000)
             except Exception:
                 pass
+            self.cache_all_check.setChecked(False)
             return
+
+        self._cache_all_remaining = ordered
         self._cache_all_total = need_cache
         self._cache_all_done = 0
         self._thumb_cache.request_batch(ordered, size=THUMB_GEN_SIZE)
@@ -1468,6 +1498,10 @@ class AssetBrowser(QWidget):
                 if self._cache_all_done >= self._cache_all_total:
                     self.window().finish_progress(f"Cached {self._cache_all_total} thumbnails")
                     self._cache_all_total = 0
+                    self._cache_all_remaining = []
+                    self.cache_all_check.blockSignals(True)
+                    self.cache_all_check.setChecked(False)
+                    self.cache_all_check.blockSignals(False)
             except Exception:
                 pass
 

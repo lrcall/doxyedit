@@ -1306,8 +1306,9 @@ class MainWindow(QMainWindow):
         self.status.showMessage(f"Opened folder: {Path(folder).name} ({n} images)")
 
     def _on_shortcut_changed(self, tag_id: str, key: str):
-        """Register or clear a keyboard shortcut for a tag and save to project."""
-        from doxyedit.models import TAG_SHORTCUTS
+        """Register or clear a keyboard shortcut for a tag and save to project + global config."""
+        from doxyedit.models import TAG_SHORTCUTS, TAG_ALL
+        from doxyedit.config import get_config
         # Remove any existing binding for this tag
         for k, v in list(TAG_SHORTCUTS.items()):
             if v == tag_id:
@@ -1316,7 +1317,10 @@ class MainWindow(QMainWindow):
             if v == tag_id:
                 del self.project.custom_shortcuts[k]
         if not key:
-            # Shortcut cleared
+            if tag_id in TAG_ALL:
+                cfg = get_config()
+                cfg.set_shortcut(key="", tag_id=tag_id)
+                cfg.save()
             self._dirty = True
             if self._project_path:
                 self.project.save(self._project_path)
@@ -1326,6 +1330,11 @@ class MainWindow(QMainWindow):
             del TAG_SHORTCUTS[key]
         TAG_SHORTCUTS[key] = tag_id
         self.project.custom_shortcuts[key] = tag_id
+        # Persist to global config for built-in tags so it survives new projects
+        if tag_id in TAG_ALL:
+            cfg = get_config()
+            cfg.set_shortcut(key, tag_id)
+            cfg.save()
         self._dirty = True
         if self._project_path:
             self.project.save(self._project_path)
@@ -1425,6 +1434,13 @@ class MainWindow(QMainWindow):
         for ct in self.project.custom_tags:
             if isinstance(ct, dict) and ct.get("id") == tag_id:
                 ct["color"] = hex_color
+        # If this is a built-in tag, also persist to global config
+        from doxyedit.models import TAG_ALL
+        from doxyedit.config import get_config
+        if tag_id in TAG_ALL:
+            cfg = get_config()
+            cfg.set_tag_preset(tag_id, color=hex_color)
+            cfg.save()
         self.browser.rebuild_tag_bar()
         self._dirty = True
 
