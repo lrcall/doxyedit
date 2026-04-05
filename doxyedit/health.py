@@ -2,7 +2,7 @@
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame, QSizePolicy,
+    QScrollArea, QFrame, QSizePolicy, QMessageBox,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
@@ -32,12 +32,14 @@ ISSUE_DEFS = [
 
 
 class HealthPanel(QWidget):
-    asset_selected = Signal(str)  # navigate browser to this asset_id
+    asset_selected = Signal(str)    # navigate browser to this asset_id
+    missing_removed = Signal(int)   # emitted with count after removal
 
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
         self.setObjectName("health_panel")
         self.project = project
+        self._missing_assets: list = []
         self._build()
 
     def _build(self):
@@ -55,6 +57,13 @@ class HealthPanel(QWidget):
         self._summary_lbl.setProperty("role", "muted")
         tb_layout.addWidget(self._summary_lbl)
         tb_layout.addStretch()
+
+        self._remove_missing_btn = QPushButton("Remove Missing")
+        self._remove_missing_btn.setStyleSheet("QPushButton { padding: 4px 16px; }")
+        self._remove_missing_btn.setToolTip("Delete all assets whose source file no longer exists")
+        self._remove_missing_btn.setEnabled(False)
+        self._remove_missing_btn.clicked.connect(self._confirm_remove_missing)
+        tb_layout.addWidget(self._remove_missing_btn)
 
         scan_btn = QPushButton("Scan Now")
         scan_btn.setStyleSheet("QPushButton { padding: 4px 16px; }")
@@ -97,6 +106,9 @@ class HealthPanel(QWidget):
                         buckets[key].append(asset)
                 except Exception:
                     pass
+
+        self._missing_assets = buckets.get("missing", [])
+        self._remove_missing_btn.setEnabled(bool(self._missing_assets))
 
         total_issues = sum(len(v) for v in buckets.values())
         if total_issues == 0:
@@ -170,8 +182,32 @@ class HealthPanel(QWidget):
         row.mousePressEvent = lambda _, aid=asset.id: self.asset_selected.emit(aid)
         return row
 
+    def _confirm_remove_missing(self):
+        missing = getattr(self, '_missing_assets', [])
+        if not missing:
+            return
+        n = len(missing)
+        reply = QMessageBox.question(
+            self, "Remove Missing Files",
+            f"Permanently remove {n} asset record{'s' if n != 1 else ''} whose source file no longer exists?\n\n"
+            "This cannot be undone. The source files themselves are not affected.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        missing_ids = {a.id for a in missing}
+        self.project.assets = [a for a in self.project.assets if a.id not in missing_ids]
+        self.project.invalidate_index()
+        self._missing_assets = []
+        self._remove_missing_btn.setEnabled(False)
+        self._summary_lbl.setText(f"Removed {n} missing asset record{'s' if n != 1 else ''}.")
+        self.missing_removed.emit(n)
+        self.run_scan()  # re-scan to update results
+
     def refresh(self):
         """Called on project switch — clear stale results."""
+        self._missing_assets = []
+        self._remove_missing_btn.setEnabled(False)
         while self._results_layout.count():
             item = self._results_layout.takeAt(0)
             if item.widget():

@@ -392,7 +392,7 @@ def generate_stylesheet(theme: Theme) -> str:
             border: 1px solid {theme.border}; font-size: {f}px;
         }}
 
-        QTextEdit {{
+        QTextEdit, QPlainTextEdit, QTextBrowser {{
             background: {theme.bg_input}; color: {theme.text_primary};
             border: 1px solid {theme.border}; border-radius: {rad}px;
             padding: {pad}px; font-size: {f}px;
@@ -450,6 +450,10 @@ def generate_stylesheet(theme: Theme) -> str:
         QWidget#health_panel, QWidget#stats_panel {{
             background: {theme.bg_deep};
         }}
+        QTextBrowser#project_info_panel, QTextBrowser#project_notes_preview {{
+            background: {theme.bg_deep};
+            border: none;
+        }}
         QWidget#health_toolbar {{
             background: {theme.bg_raised};
         }}
@@ -457,12 +461,16 @@ def generate_stylesheet(theme: Theme) -> str:
         /* Scroll area viewports inside new panels inherit bg_deep */
         QWidget#platform_panel QScrollArea,
         QWidget#platform_panel QScrollArea > QWidget,
+        QWidget#platform_panel QScrollArea QWidget,
         QWidget#checklist_panel QScrollArea,
         QWidget#checklist_panel QScrollArea > QWidget,
+        QWidget#checklist_panel QScrollArea QWidget,
         QWidget#health_panel QScrollArea,
         QWidget#health_panel QScrollArea > QWidget,
+        QWidget#health_panel QScrollArea QWidget,
         QWidget#stats_panel QScrollArea,
-        QWidget#stats_panel QScrollArea > QWidget {{
+        QWidget#stats_panel QScrollArea > QWidget,
+        QWidget#stats_panel QScrollArea QWidget {{
             background: {theme.bg_deep};
         }}
 

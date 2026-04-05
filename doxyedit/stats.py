@@ -15,6 +15,7 @@ class StatsPanel(QWidget):
         super().__init__(parent)
         self.setObjectName("stats_panel")
         self.project = project
+        self.folder_bar_color = "#93a167"
         self._build()
 
     def _build(self):
@@ -145,7 +146,7 @@ class StatsPanel(QWidget):
             fold_layout.setSpacing(3)
             for fname, count in top_folders:
                 fold_layout.addWidget(
-                    self._bar_row(fname, count, max_f, "#93a167", f"{count} assets"))
+                    self._bar_row(fname, count, max_f, self.folder_bar_color, f"{count} assets"))
             self._body_layout.addWidget(fold_widget)
 
         self._body_layout.addStretch()

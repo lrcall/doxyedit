@@ -1,7 +1,9 @@
 """Main application window — tabbed layout with all panels."""
+import html as _html
 import json
 import os
 import tempfile
+from collections import defaultdict
 from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QTabWidget, QTabBar, QToolBar, QFileDialog, QStatusBar,
@@ -190,9 +192,6 @@ class MainWindow(QMainWindow):
         self._project_notes_preview = QTextBrowser()
         self._project_notes_preview.setObjectName("project_notes_preview")
         self._project_notes_preview.setOpenExternalLinks(True)
-        self._project_notes_preview.setStyleSheet(
-            "QTextBrowser#project_notes_preview { border: none; background: transparent;"
-            " padding-left: 24px; }")
 
         self._project_notes_edit = QPlainTextEdit()
         self._project_notes_edit.setPlaceholderText(
@@ -210,18 +209,28 @@ class MainWindow(QMainWindow):
         _notes_splitter.setSizes([600, 400])
         _notes_splitter.setStretchFactor(0, 3)
         _notes_splitter.setStretchFactor(1, 2)
-        self.tabs.addTab(_notes_splitter, "Notes")
-
         # Tab 6: Overview — Stats (left) + Health (right)
         self.stats_panel = StatsPanel(self.project)
         self.health_panel = HealthPanel(self.project)
+
+        # Project Info panel — selectable text with project metadata
+        from PySide6.QtWidgets import QTextBrowser as _TB
+        self._project_info_panel = _TB()
+        self._project_info_panel.setObjectName("project_info_panel")
+        self._project_info_panel.setOpenExternalLinks(False)
+        self._project_info_panel.setStyleSheet(
+            "QTextBrowser#project_info_panel { border: none; padding: 8px; }")
+
         self._overview_split = QSplitter(Qt.Orientation.Horizontal)
         self._overview_split.addWidget(self.stats_panel)
         self._overview_split.addWidget(self.health_panel)
-        self._overview_split.setSizes([500, 500])
+        self._overview_split.addWidget(self._project_info_panel)
+        self._overview_split.setSizes([400, 400, 350])
         self._overview_split.setStretchFactor(0, 1)
         self._overview_split.setStretchFactor(1, 1)
+        self._overview_split.setStretchFactor(2, 0)
         self.tabs.addTab(self._overview_split, "Overview")
+        self.tabs.addTab(_notes_splitter, "Notes")
 
         # Refresh stats when Overview tab is activated
         self.tabs.currentChanged.connect(self._on_inner_tab_changed)
@@ -240,6 +249,7 @@ class MainWindow(QMainWindow):
         self.platform_panel.asset_selected.connect(self._navigate_to_asset)
         self.checklist_panel.modified.connect(lambda: setattr(self, '_dirty', True))
         self.health_panel.asset_selected.connect(self._navigate_to_asset)
+        self.health_panel.missing_removed.connect(self._on_missing_removed)
 
         # --- Toolbar & menu ---
         self._build_toolbar()
@@ -248,7 +258,6 @@ class MainWindow(QMainWindow):
         # Tray toggle button pinned to top-right of menu bar
         self._menubar_tray_btn = QPushButton("Tray")
         self._menubar_tray_btn.setCheckable(True)
-        self._menubar_tray_btn.setFixedHeight(22)
         self._menubar_tray_btn.setToolTip("Toggle Work Tray (Ctrl+Shift+W)")
         self._menubar_tray_btn.clicked.connect(self._toggle_work_tray)
         self.menuBar().setCornerWidget(self._menubar_tray_btn, Qt.Corner.TopRightCorner)
@@ -267,6 +276,10 @@ class MainWindow(QMainWindow):
             lambda: (self.browser.search_box.setFocus(), self.browser.search_box.selectAll()))
         # Alt+H temporary hide/unhide
         QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._temp_hide_toggle)
+        # Tab — compact mode: toggle tag panel + tray + tag bar all at once
+        self._compact_mode = False
+        self._pre_compact: dict = {}
+        QShortcut(QKeySequence("Tab"), self).activated.connect(self._toggle_compact_mode)
         # Ctrl+Shift+C copy full path
         QShortcut(QKeySequence("Ctrl+Shift+C"), self).activated.connect(self._copy_full_path)
         # Shift+E notes overlay
@@ -682,6 +695,8 @@ class MainWindow(QMainWindow):
         self.tag_panel.update_font_size(fs)
         self._settings.setValue("font_size", fs)
         self.status.showMessage(f"Font size: {fs}px", 2000)
+        self._refresh_project_info()
+        self._render_notes_preview(self.project.notes)
 
     def _build_toolbar(self):
         # Left toolbar — hidden, canvas tools only
@@ -790,6 +805,7 @@ class MainWindow(QMainWindow):
         # Tools menu
         tools_menu = menu.addMenu("&Tools")
         tools_menu.addAction("&Reload Project from Disk", self._reload_project, QKeySequence("F5"))
+        tools_menu.addAction("Remove Missing Files", self._remove_missing_files)
         tools_menu.addAction("Refresh Thumbnails", self._refresh_thumbs, QKeySequence("Shift+F5"))
         tools_menu.addAction("Rebuild Tag Bar", lambda: self.browser.rebuild_tag_bar())
         tools_menu.addAction("Clear Unused Tags", self._clear_unused_tags)
@@ -1010,6 +1026,45 @@ class MainWindow(QMainWindow):
         self.status.showMessage(message, 3000)
 
     # --- Tag panel toggle ---
+
+    def _toggle_compact_mode(self):
+        """Tab shortcut — hide/show tag panel + tray + tag bar together."""
+        self._compact_mode = not self._compact_mode
+        if self._compact_mode:
+            # Save state then hide everything
+            self._pre_compact = {
+                "tag_panel": self.tag_panel.isVisible(),
+                "tray": self._tray_open,
+                "tag_bar": self.browser._tag_bar_frame.isVisible(),
+            }
+            self.tag_panel.hide()
+            if hasattr(self, '_tags_toolbar_btn'):
+                self._tags_toolbar_btn.blockSignals(True)
+                self._tags_toolbar_btn.setChecked(False)
+                self._tags_toolbar_btn.blockSignals(False)
+            if self._tray_open:
+                self._toggle_work_tray()
+            self.browser._tag_bar_frame.setVisible(False)
+            if hasattr(self.browser, '_tag_bar_toggle_btn'):
+                self.browser._tag_bar_toggle_btn.blockSignals(True)
+                self.browser._tag_bar_toggle_btn.setChecked(False)
+                self.browser._tag_bar_toggle_btn.blockSignals(False)
+        else:
+            pre = getattr(self, '_pre_compact', {})
+            if pre.get("tag_panel", True):
+                self.tag_panel.show()
+                if hasattr(self, '_tags_toolbar_btn'):
+                    self._tags_toolbar_btn.blockSignals(True)
+                    self._tags_toolbar_btn.setChecked(True)
+                    self._tags_toolbar_btn.blockSignals(False)
+            if pre.get("tray", False):
+                self._toggle_work_tray()
+            if pre.get("tag_bar", True):
+                self.browser._tag_bar_frame.setVisible(True)
+                if hasattr(self.browser, '_tag_bar_toggle_btn'):
+                    self.browser._tag_bar_toggle_btn.blockSignals(True)
+                    self.browser._tag_bar_toggle_btn.setChecked(True)
+                    self.browser._tag_bar_toggle_btn.blockSignals(False)
 
     def _toggle_tag_panel(self):
         if self.tag_panel.isVisible():
@@ -1461,12 +1516,130 @@ class MainWindow(QMainWindow):
     def _on_inner_tab_changed(self, idx: int):
         widget = self.tabs.widget(idx)
         if widget is self._overview_split:
+            self.stats_panel.folder_bar_color = self._theme.accent_bright
             self.stats_panel.refresh()
+            self._refresh_project_info()
+
+    def _refresh_project_info(self):
+        p = self.project
+        t = self._theme
+
+        bg   = t.bg_deep
+        fg   = t.text_primary
+        fg2  = t.text_secondary
+        muted = t.text_muted
+        accent = t.accent_bright
+        code_bg = "rgba(255,255,255,0.07)"
+
+        def esc(s):
+            return _html.escape(str(s))
+
+        def section(title, count=None):
+            c = f" <span style='color:{muted}'>({count})</span>" if count is not None else ""
+            return (f"<p style='margin:14px 0 4px; font-weight:bold; color:{accent};"
+                    f" border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:3px'>"
+                    f"{esc(title)}{c}</p>")
+
+        def code(s):
+            return (f"<code style='font-family:Consolas,monospace; font-size:11px;"
+                    f" background:{code_bg}; padding:1px 4px; border-radius:3px;"
+                    f" word-break:break-all'>{esc(s)}</code>")
+
+        body = []
+
+        # ── Summary ─────────────────────────────────────────────────────
+        body.append(section("Project"))
+        body.append(f"<table style='border-spacing:0 2px'>")
+        body.append(f"<tr><td style='color:{fg2}; padding-right:12px'>Name</td>"
+                    f"<td>{code(p.name)}</td></tr>")
+        if self._project_path:
+            body.append(f"<tr><td style='color:{fg2}; padding-right:12px'>File</td>"
+                        f"<td>{code(self._project_path)}</td></tr>")
+        body.append(f"<tr><td style='color:{fg2}; padding-right:12px'>Assets</td>"
+                    f"<td><b>{len(p.assets)}</b></td></tr>")
+        body.append("</table>")
+
+        # ── Source folders ───────────────────────────────────────────────
+        folder_assets: dict[str, list] = defaultdict(list)
+        solo_files = []
+        for a in p.assets:
+            if a.source_folder:
+                folder_assets[a.source_folder].append(a)
+            else:
+                solo_files.append(a)
+
+        if folder_assets:
+            body.append(section("Source Folders", len(folder_assets)))
+            body.append("<table style='border-spacing:0 1px; width:100%'>")
+            for folder in sorted(folder_assets):
+                count = len(folder_assets[folder])
+                body.append(
+                    f"<tr><td style='padding:1px 10px 1px 0'>{code(folder)}</td>"
+                    f"<td style='color:{muted}; white-space:nowrap'>{count} file(s)</td></tr>")
+            body.append("</table>")
+
+        if solo_files:
+            body.append(section("Individual Files", len(solo_files)))
+            for a in solo_files:
+                body.append(f"{code(a.source_path)}<br>")
+
+        # ── Tags ─────────────────────────────────────────────────────────
+        tags = p.tag_definitions
+        if tags:
+            body.append(section("Tags", len(tags)))
+            body.append("<table style='border-spacing:0 1px'>")
+            for tid, defn in tags.items():
+                label = defn.get('label', tid) if isinstance(defn, dict) else tid
+                body.append(
+                    f"<tr><td style='padding-right:12px'>{code(tid)}</td>"
+                    f"<td style='color:{fg2}'>{esc(label)}</td></tr>")
+            body.append("</table>")
+
+        # ── Platforms ────────────────────────────────────────────────────
+        if p.platforms:
+            body.append(section("Platforms", len(p.platforms)))
+            body.append(f"<p style='margin:2px 0'>" +
+                        "  ".join(code(pl) for pl in p.platforms) + "</p>")
+
+        fs = self._theme.font_size
+        html = (f"<html><head><style>"
+                f"body{{background:{bg};color:{fg};font-family:'Segoe UI',sans-serif;"
+                f"padding:16px 20px;font-size:{fs}px;line-height:1.5}}"
+                f"</style></head><body>{''.join(body)}</body></html>")
+        self._project_info_panel.setHtml(html)
 
     def _navigate_to_asset(self, asset_id: str):
         """Switch to Assets tab and scroll to the given asset."""
         self.tabs.setCurrentWidget(self._assets_notes_split)
         self.browser.scroll_to_asset(asset_id)
+
+    def _remove_missing_files(self):
+        """Remove all asset records whose source file no longer exists."""
+        missing = [a for a in self.project.assets if not Path(a.source_path).exists()]
+        if not missing:
+            self.status.showMessage("No missing files found.", 3000)
+            return
+        n = len(missing)
+        reply = QMessageBox.question(
+            self, "Remove Missing Files",
+            f"Remove {n} asset record(s) whose source file no longer exists?\n\n"
+            "This cannot be undone. Source files themselves are not affected.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        missing_ids = {a.id for a in missing}
+        self.project.assets = [a for a in self.project.assets if a.id not in missing_ids]
+        self.project.invalidate_index()
+        self._after_missing_removed(n)
+
+    def _on_missing_removed(self, count: int):
+        self._after_missing_removed(count)
+
+    def _after_missing_removed(self, count: int):
+        self.browser.refresh()
+        self._dirty = True
+        self.status.showMessage(f"Removed {count} missing asset record(s).", 4000)
 
     def _on_asset_preview(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
@@ -2322,6 +2495,7 @@ Ctrl+Click tag — Search by tag
         self.platform_panel.project = self.project
         self.platform_panel.refresh()
         self.stats_panel.project = self.project
+        self.stats_panel.folder_bar_color = self._theme.accent_bright
         self.checklist_panel.project = self.project
         self.checklist_panel.refresh()
         self.health_panel.project = self.project

@@ -539,22 +539,28 @@ class AssetBrowser(QWidget):
         toolbar = FlowLayout(self._toolbar_widget, spacing=4)
         toolbar.setContentsMargins(0, 0, 0, 0)
 
+        # Track all plain toolbar buttons so update_font_size can refresh them
+        self._toolbar_plain_btns: list[QPushButton] = []
+
         # Tags + Tray toggles — first items
         self._tags_btn = QPushButton("Tags")
         self._tags_btn.setCheckable(True)
         self._tags_btn.setChecked(True)
         self._tags_btn.setStyleSheet(self._btn_style())
         toolbar.addWidget(self._tags_btn)
+        self._toolbar_plain_btns.append(self._tags_btn)
         self._tray_btn = QPushButton("Tray")
         self._tray_btn.setCheckable(True)
         self._tray_btn.setStyleSheet(self._btn_style())
         toolbar.addWidget(self._tray_btn)
+        self._toolbar_plain_btns.append(self._tray_btn)
 
         for label, handler in [("+ Folder", self.open_folder_dialog), ("+ Files", self.add_images_dialog)]:
             btn = QPushButton(label)
             btn.setStyleSheet(self._btn_style())
             btn.clicked.connect(handler)
             toolbar.addWidget(btn)
+            self._toolbar_plain_btns.append(btn)
 
         self.filter_starred = self._make_filter_btn("Starred")
         self.filter_starred.setToolTip("Show only starred images")
@@ -582,6 +588,10 @@ class AssetBrowser(QWidget):
         self.filter_show_ignored.setStyleSheet(self._btn_style())
         self.filter_show_ignored.toggled.connect(self._on_filter_changed)
         toolbar.addWidget(self.filter_show_ignored)
+        self._toolbar_plain_btns.append(self.filter_show_ignored)
+        for _fb in [self.filter_starred, self.filter_untagged, self.filter_tagged,
+                    self.filter_assigned, self.filter_posted, self.filter_needs_censor]:
+            self._toolbar_plain_btns.append(_fb)
 
 
         self.recursive_check = QCheckBox("Recursive")
@@ -625,12 +635,14 @@ class AssetBrowser(QWidget):
         self._fold_all_btn.clicked.connect(self._collapse_all_folders)
         self._fold_all_btn.setVisible(False)
         row2.addWidget(self._fold_all_btn)
+        self._toolbar_plain_btns.append(self._fold_all_btn)
         self._unfold_all_btn = QPushButton("Expand All")
         self._unfold_all_btn.setStyleSheet(self._btn_style())
         self._unfold_all_btn.setToolTip("Expand all folders")
         self._unfold_all_btn.clicked.connect(self._expand_all_folders)
         self._unfold_all_btn.setVisible(False)
         row2.addWidget(self._unfold_all_btn)
+        self._toolbar_plain_btns.append(self._unfold_all_btn)
 
         self.search_tags_check = QCheckBox("Tags")
         self.search_tags_check.setChecked(False)
@@ -862,6 +874,9 @@ class AssetBrowser(QWidget):
         self._list_view.viewport().update()
         for section in self._folder_sections:
             section.view.viewport().update()
+        style = self._btn_style()
+        for btn in self._toolbar_plain_btns:
+            btn.setStyleSheet(style)
 
     # --- Filtering / sorting ---
 

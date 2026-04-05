@@ -30,7 +30,8 @@
       "Bash(python -m py_compile doxyedit/models.py)",
       "Bash(python -m py_compile doxyedit/thumbcache.py)",
       "Bash(python -m py_compile doxyedit/censor.py)",
-      "Bash(python -m py_compile doxyedit/preview.py)"
+      "Bash(python -m py_compile doxyedit/preview.py)",
+      "Skill(commit-commands:commit)"
     ]
   }
 }
