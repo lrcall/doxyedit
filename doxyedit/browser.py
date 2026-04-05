@@ -837,8 +837,8 @@ class AssetBrowser(QWidget):
                 self.search_box.clear()
                 self.search_tags_check.setChecked(False)
             else:
-                self.search_tags_check.setChecked(True)
                 self.search_box.setText(tag_id)
+                self.search_tags_check.setChecked(True)
             return
         assets = self.get_selected_assets()
         if not assets:
