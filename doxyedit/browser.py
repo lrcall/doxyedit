@@ -232,32 +232,37 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self._scaled_cache: dict[tuple, QPixmap] = {}
 
     def sizeHint(self, option, index):
+        normal = QSize(self.thumb_size + 2 * self.PADDING,
+                       self.thumb_size + 70)
         if index.data(ThumbnailModel.FolderHeaderRole):
-            view = option.widget
+            view = getattr(self, '_list_view', None) or option.widget
             w = view.viewport().width() - 2 if view else 800
-            return QSize(w, 28)
-        return QSize(self.thumb_size + 2 * self.PADDING,
-                     self.thumb_size + 70)
+            # Width must exceed all columns to prevent items sharing the row
+            cols = max(1, w // normal.width())
+            return QSize(cols * normal.width(), 30)
+        return normal
 
     def paint(self, painter, option, index):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = option.rect
 
-        # Folder header row — paint full viewport width, clipped
+        # Folder header row — full-width separator bar
         if index.data(ThumbnailModel.FolderHeaderRole):
             view = option.widget
             vw = view.viewport().width() if view else rect.width()
-            full_rect = QRect(0, rect.y(), vw, rect.height())
-            painter.setClipRect(full_rect)
-            painter.fillRect(full_rect, QColor(128, 128, 128, 30))
+            bar_h = 26
+            bar_y = rect.y() + (rect.height() - bar_h) // 2
+            bar_rect = QRect(0, bar_y, vw, bar_h)
+            painter.setClipRect(QRect(0, rect.y(), vw, rect.height()))
+            painter.fillRect(bar_rect, QColor(128, 128, 128, 35))
             painter.setPen(QColor(200, 200, 200, 180))
             painter.setFont(QFont("Segoe UI", max(7, self.font_size - 2)))
             folder = index.data(Qt.ItemDataRole.DisplayRole) or ""
             model = index.model()
             item = model._items[index.row()] if hasattr(model, '_items') else None
             arrow = "\u25B6" if (item and item.collapsed) else "\u25BC"
-            painter.drawText(full_rect.adjusted(8, 0, -8, 0),
+            painter.drawText(bar_rect.adjusted(8, 0, -8, 0),
                              Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                              f"{arrow} {folder}")
             painter.setClipping(False)
@@ -473,6 +478,19 @@ class AssetBrowser(QWidget):
         self.sort_combo.addItems(["Name A-Z", "Name Z-A", "Newest", "Oldest", "Largest", "Smallest", "By Folder"])
         self.sort_combo.currentIndexChanged.connect(self._on_filter_changed)
         row2.addWidget(self.sort_combo)
+        self._fold_all_btn = QPushButton("▶All")
+        self._fold_all_btn.setFixedHeight(22)
+        self._fold_all_btn.setToolTip("Collapse all folders")
+        self._fold_all_btn.clicked.connect(self._collapse_all_folders)
+        self._fold_all_btn.setVisible(False)
+        row2.addWidget(self._fold_all_btn)
+        self._unfold_all_btn = QPushButton("▼All")
+        self._unfold_all_btn.setFixedHeight(22)
+        self._unfold_all_btn.setToolTip("Expand all folders")
+        self._unfold_all_btn.clicked.connect(self._expand_all_folders)
+        self._unfold_all_btn.setVisible(False)
+        row2.addWidget(self._unfold_all_btn)
+        self.sort_combo.currentTextChanged.connect(self._on_sort_mode_changed)
         root.addLayout(row2)
 
         # Row 3: Quick-tag bar
@@ -494,6 +512,7 @@ class AssetBrowser(QWidget):
         self._model = ThumbnailModel(self)
         self._delegate = ThumbnailDelegate(self._thumb_size, self)
         self._list_view = QListView()
+        self._delegate._list_view = self._list_view
         self._list_view.setObjectName("doxyedit_grid")
         self._list_view.setModel(self._model)
         self._list_view.setItemDelegate(self._delegate)
@@ -637,6 +656,21 @@ class AssetBrowser(QWidget):
         self._list_view.viewport().update()
 
     # --- Filtering / sorting ---
+
+    def _on_sort_mode_changed(self, text):
+        is_folder = text == "By Folder"
+        self._fold_all_btn.setVisible(is_folder)
+        self._unfold_all_btn.setVisible(is_folder)
+
+    def _collapse_all_folders(self):
+        for item in self._filtered_assets:
+            if isinstance(item, _FolderHeader):
+                self._collapsed_folders.add(item.folder)
+        self._refresh_grid()
+
+    def _expand_all_folders(self):
+        self._collapsed_folders.clear()
+        self._refresh_grid()
 
     def _on_filter_changed(self, *_):
         self._refresh_grid()
