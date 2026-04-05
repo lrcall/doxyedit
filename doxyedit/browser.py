@@ -243,21 +243,27 @@ class ThumbnailDelegate(QStyledItemDelegate):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = option.rect
 
-        # Folder header row — paint full viewport width
+        # Folder header row — paint full viewport width, clipped
         if index.data(ThumbnailModel.FolderHeaderRole):
             view = option.widget
             vw = view.viewport().width() if view else rect.width()
             full_rect = QRect(0, rect.y(), vw, rect.height())
+            painter.setClipRect(full_rect)
             painter.fillRect(full_rect, QColor(128, 128, 128, 30))
             painter.setPen(QColor(200, 200, 200, 180))
             painter.setFont(QFont("Segoe UI", max(8, self.font_size - 1), QFont.Weight.Bold))
             folder = index.data(Qt.ItemDataRole.DisplayRole) or ""
+            # Shorten long paths to last 3 components
+            parts = Path(folder).parts
+            if len(parts) > 3:
+                folder = str(Path(*parts[-3:]))
             model = index.model()
             item = model._items[index.row()] if hasattr(model, '_items') else None
             arrow = "\u25B6" if (item and item.collapsed) else "\u25BC"
-            painter.drawText(full_rect.adjusted(8, 0, 0, 0),
+            painter.drawText(full_rect.adjusted(8, 0, -8, 0),
                              Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                              f"{arrow} {folder}")
+            painter.setClipping(False)
             painter.restore()
             return
 
