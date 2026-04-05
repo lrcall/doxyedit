@@ -233,10 +233,8 @@ class ThumbnailDelegate(QStyledItemDelegate):
 
     def sizeHint(self, option, index):
         if index.data(ThumbnailModel.FolderHeaderRole):
-            # Full viewport width so the header spans the entire row
-            view = option.widget
-            w = view.viewport().width() if view else 800
-            return QSize(w, 28)
+            # Use a very large width to force all thumbnails to the next row
+            return QSize(16384, 28)
         return QSize(self.thumb_size + 2 * self.PADDING,
                      self.thumb_size + 70)
 
@@ -245,17 +243,19 @@ class ThumbnailDelegate(QStyledItemDelegate):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = option.rect
 
-        # Folder header row
+        # Folder header row — paint full viewport width
         if index.data(ThumbnailModel.FolderHeaderRole):
-            painter.fillRect(rect, QColor(128, 128, 128, 30))
+            view = option.widget
+            vw = view.viewport().width() if view else rect.width()
+            full_rect = QRect(0, rect.y(), vw, rect.height())
+            painter.fillRect(full_rect, QColor(128, 128, 128, 30))
             painter.setPen(QColor(200, 200, 200, 180))
             painter.setFont(QFont("Segoe UI", max(8, self.font_size - 1), QFont.Weight.Bold))
             folder = index.data(Qt.ItemDataRole.DisplayRole) or ""
-            # Get collapsed state from model item
             model = index.model()
             item = model._items[index.row()] if hasattr(model, '_items') else None
             arrow = "\u25B6" if (item and item.collapsed) else "\u25BC"
-            painter.drawText(rect.adjusted(8, 0, 0, 0),
+            painter.drawText(full_rect.adjusted(8, 0, 0, 0),
                              Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                              f"{arrow} {folder}")
             painter.restore()
