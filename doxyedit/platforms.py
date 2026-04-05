@@ -33,6 +33,7 @@ class PlatformPanel(QWidget):
 
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
+        self.setObjectName("platform_panel")
         self.project = project
         self._build()
 
@@ -111,15 +112,14 @@ class PlatformPanel(QWidget):
                 if item.widget():
                     item.widget().deleteLater()
 
-        # Build O(1) lookup: (platform_id, slot_name) → (asset, PlatformAssignment)
-        assign_map: dict[tuple, tuple] = {}
+        # Build lookup: (platform_id, slot_name) → list of (asset, PlatformAssignment)
+        assign_map: dict[tuple, list] = {}
         for asset in self.project.assets:
             for pa in asset.assignments:
-                assign_map[(pa.platform, pa.slot)] = (asset, pa)
+                assign_map.setdefault((pa.platform, pa.slot), []).append((asset, pa))
 
         total_slots = filled_slots = posted_slots = 0
 
-        platforms = [p for pid in self.project.platforms if (p := PLATFORMS.get(pid))]
         for i, (pid, platform) in enumerate(
             (pid, PLATFORMS[pid]) for pid in self.project.platforms if pid in PLATFORMS
         ):
@@ -129,9 +129,10 @@ class PlatformPanel(QWidget):
             for slot in platform.slots:
                 total_slots += 1
                 key = (pid, slot.name)
-                if key in assign_map:
+                entries = assign_map.get(key, [])
+                if entries:
                     filled_slots += 1
-                    if assign_map[key][1].status == "posted":
+                    if all(str(pa.status) == "posted" for _, pa in entries):
                         posted_slots += 1
 
         self._col0.addStretch()
@@ -153,23 +154,19 @@ class PlatformPanel(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
-        # Collect unique (asset, slot_label, platform_name) in platform order
-        seen_assets: set[str] = set()
-        entries = []
+        # Collect all (asset, slot_label, platform_name, status) in platform order
         for pid in self.project.platforms:
             platform = PLATFORMS.get(pid)
             if not platform:
                 continue
             for slot in platform.slots:
                 key = (pid, slot.name)
-                entry = assign_map.get(key)
-                if entry:
-                    asset, pa = entry
-                    entries.append((asset, slot.label, platform.name, pa.status))
-
-        for asset, slot_label, plat_name, status in entries:
-            cell = self._hive_cell(asset, slot_label, plat_name, status)
-            self._hive_layout.insertWidget(self._hive_layout.count() - 1, cell)
+                slot_entries = assign_map.get(key, [])
+                n = len(slot_entries)
+                for idx, (asset, pa) in enumerate(slot_entries):
+                    label = slot.label if n == 1 else f"{slot.label} {idx + 1}/{n}"
+                    cell = self._hive_cell(asset, label, platform.name, pa.status)
+                    self._hive_layout.insertWidget(self._hive_layout.count() - 1, cell)
 
     def _hive_cell(self, asset, slot_label: str, plat_name: str, status: str) -> QWidget:
         """One thumbnail cell in the image hive."""
@@ -184,11 +181,9 @@ class PlatformPanel(QWidget):
 
         # Thumbnail
         thumb = QLabel()
+        thumb.setObjectName("hive_thumb")
         thumb.setFixedSize(THUMB, THUMB)
         thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        thumb.setStyleSheet(
-            "QLabel { background: rgba(255,255,255,0.05); border-radius: 4px;"
-            " border: 1px solid rgba(255,255,255,0.08); }")
         pm = QPixmap(asset.source_path)
         if not pm.isNull():
             pm = pm.scaled(THUMB, THUMB, Qt.AspectRatioMode.KeepAspectRatio,
@@ -220,13 +215,6 @@ class PlatformPanel(QWidget):
     def _build_card(self, platform, pid: str, assign_map: dict) -> QFrame:
         card = QFrame()
         card.setObjectName("platform_card")
-        card.setStyleSheet(
-            "QFrame#platform_card {"
-            "  border: 1px solid rgba(255,255,255,0.09);"
-            "  border-radius: 8px;"
-            "  background: rgba(255,255,255,0.03);"
-            "}"
-        )
         layout = QVBoxLayout(card)
         layout.setContentsMargins(12, 10, 12, 12)
         layout.setSpacing(3)
@@ -240,41 +228,41 @@ class PlatformPanel(QWidget):
         header.addWidget(name_lbl)
         header.addStretch()
 
-        filled = sum(1 for s in platform.slots if (pid, s.name) in assign_map)
+        filled = sum(1 for s in platform.slots if assign_map.get((pid, s.name)))
         total = len(platform.slots)
         # Progress dots
-        dots = "".join("●" if (pid, s.name) in assign_map else "○" for s in platform.slots)
+        dots = "".join("●" if assign_map.get((pid, s.name)) else "○" for s in platform.slots)
         dots_lbl = QLabel(dots)
-        dots_lbl.setStyleSheet("color: rgba(150,150,150,0.5); letter-spacing: 1px;")
+        dots_lbl.setProperty("role", "muted")
+        dots_lbl.setStyleSheet("letter-spacing: 1px;")
         dots_lbl.setToolTip(f"{filled}/{total} slots filled")
         header.addWidget(dots_lbl)
 
         count_lbl = QLabel(f"{filled}/{total}")
-        count_lbl.setStyleSheet("color: rgba(180,180,180,0.5); margin-left: 6px;")
+        count_lbl.setProperty("role", "muted")
+        count_lbl.setStyleSheet("margin-left: 6px;")
         header.addWidget(count_lbl)
         layout.addLayout(header)
 
         # Divider
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("background: rgba(255,255,255,0.07); max-height: 1px; margin: 4px 0;")
+        line.setObjectName("card_divider")
         layout.addWidget(line)
 
         # ── Slot rows ─────────────────────────────────────────────────────
         for slot in platform.slots:
             key = (pid, slot.name)
-            entry = assign_map.get(key)
-            asset = entry[0] if entry else None
-            pa = entry[1] if entry else None
-            layout.addWidget(self._slot_row(slot, pid, asset, pa))
+            entries = assign_map.get(key, [])
+            layout.addWidget(self._slot_row(slot, pid, entries))
 
         return card
 
-    def _slot_row(self, slot, pid: str, asset, pa) -> QWidget:
+    def _slot_row(self, slot, pid: str, entries: list) -> QWidget:
         row = QWidget()
         row.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         row.customContextMenuRequested.connect(
-            lambda pos, p=pid, s=slot, a=asset: self._slot_context_menu(row, pos, p, s, a))
+            lambda pos, p=pid, s=slot, e=entries: self._slot_context_menu(row, pos, p, s, e))
         h = QHBoxLayout(row)
         h.setContentsMargins(0, 1, 0, 1)
         h.setSpacing(8)
@@ -287,65 +275,78 @@ class PlatformPanel(QWidget):
 
         # Size badge
         size_lbl = QLabel(f"{slot.width}×{slot.height}")
+        size_lbl.setObjectName("size_badge")
         size_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        size_lbl.setStyleSheet(
-            "color: rgba(160,160,160,0.55);"
-            "background: rgba(255,255,255,0.05); border-radius: 3px; padding: 0 5px;")
         h.addWidget(size_lbl)
 
-        # Asset name / thumbnail tooltip
-        if asset:
+        # Asset name label
+        if len(entries) == 0:
+            asset_lbl = QLabel("empty — right-click to assign")
+            if slot.required:
+                asset_lbl.setStyleSheet("color: #e06c6c; font-style: italic;")
+            else:
+                asset_lbl.setProperty("role", "muted")
+                asset_lbl.setStyleSheet("font-style: italic;")
+        elif len(entries) == 1:
+            asset, _ = entries[0]
             stem = Path(asset.source_path).stem
             display = stem if len(stem) <= 22 else stem[:20] + "…"
             asset_lbl = QLabel(display)
             asset_lbl.setToolTip(asset.source_path)
-            asset_lbl.setStyleSheet("color: rgba(200,200,200,0.85);")
-            # Show thumbnail in tooltip if available
-            self._set_thumb_tooltip(asset_lbl, asset)
         else:
-            asset_lbl = QLabel("empty — right-click to assign")
-            color = "#e06c6c" if slot.required else "rgba(110,110,110,0.5)"
-            asset_lbl.setStyleSheet(f"color: {color}; font-style: italic;")
+            asset_lbl = QLabel(f"{len(entries)} images")
+            asset_lbl.setProperty("role", "accent")
+
         asset_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         h.addWidget(asset_lbl, 2)
 
-        # Status badge — click to cycle
-        status = str(pa.status) if pa else "pending"
-        status_btn = QPushButton(STATUS_ICONS.get(status, "·"))
-        status_btn.setFixedSize(24, 20)
-        status_btn.setToolTip(f"{status} — click to cycle" if pa else "right-click row to assign")
-        self._style_status_btn(status_btn, status)
-        if pa:
+        # Status button — click to cycle
+        if entries:
+            first_status = str(entries[0][1].status)
+            status_btn = QPushButton(STATUS_ICONS.get(first_status, "·"))
+            status_btn.setFixedSize(24, 20)
+            status_btn.setToolTip(f"{first_status} — click to cycle")
+            self._style_status_btn(status_btn, first_status)
             status_btn.clicked.connect(
                 lambda _, p=pid, s=slot.name, b=status_btn: self._cycle_status(p, s, b))
         else:
+            status_btn = QPushButton("·")
+            status_btn.setFixedSize(24, 20)
+            status_btn.setToolTip("right-click row to assign")
+            self._style_status_btn(status_btn, "pending")
             status_btn.setEnabled(False)
         h.addWidget(status_btn)
 
         return row
 
-    def _set_thumb_tooltip(self, label: QLabel, asset):
-        """Set an image thumbnail as the tooltip for an assigned asset label."""
-        from PySide6.QtGui import QPixmap
-        try:
-            pm = QPixmap(asset.source_path)
-            if not pm.isNull():
-                pm = pm.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio,
-                               Qt.TransformationMode.SmoothTransformation)
-                label.setPixmap(pm)
-                label.setToolTip(asset.source_path)
-        except Exception:
-            pass
-
-    def _slot_context_menu(self, row, pos, pid: str, slot, current_asset):
+    def _slot_context_menu(self, row, pos, pid: str, slot, entries: list):
         from PySide6.QtWidgets import QMenu
         menu = QMenu(row)
-        menu.addAction("Assign selected asset", lambda: self.request_asset_pick.emit(pid, slot.name))
-        if current_asset:
-            menu.addAction("Clear assignment", lambda: self._clear_assignment(pid, slot.name))
+        menu.addAction("Add image to slot", lambda: self.request_asset_pick.emit(pid, slot.name))
+        if entries:
+            menu.addSeparator()
+            for asset, pa in entries:
+                name = Path(asset.source_path).name
+                a = menu.addAction(f"Remove: {name}")
+                a.triggered.connect(
+                    lambda checked=False, aid=asset.id, p=pid, s=slot.name:
+                        self._remove_asset_from_slot(aid, p, s))
+            menu.addSeparator()
+            menu.addAction("Clear all", lambda: self._clear_assignment(pid, slot.name))
         menu.exec(row.mapToGlobal(pos))
 
+    def _remove_asset_from_slot(self, asset_id: str, pid: str, slot_name: str):
+        """Remove only a specific asset's assignment for that slot."""
+        for asset in self.project.assets:
+            if asset.id == asset_id:
+                asset.assignments = [
+                    pa for pa in asset.assignments
+                    if not (pa.platform == pid and pa.slot == slot_name)
+                ]
+        self.refresh()
+
     def _clear_assignment(self, pid: str, slot_name: str):
+        """Clear ALL assets assigned to this slot."""
         for asset in self.project.assets:
             asset.assignments = [
                 pa for pa in asset.assignments
@@ -365,24 +366,25 @@ class PlatformPanel(QWidget):
         )
 
     def _cycle_status(self, pid: str, slot_name: str, btn: QPushButton):
-        for asset in self.project.assets:
-            for pa in asset.assignments:
-                if pa.platform == pid and pa.slot == slot_name:
-                    cur = str(pa.status)
-                    idx = STATUS_CYCLE.index(cur) if cur in STATUS_CYCLE else 0
-                    pa.status = STATUS_CYCLE[(idx + 1) % len(STATUS_CYCLE)]
-                    btn.setText(STATUS_ICONS.get(pa.status, "·"))
-                    self._style_status_btn(btn, pa.status)
-                    btn.setToolTip(f"{pa.status} — click to cycle")
-                    return
+        """Cycle ALL assignments in the slot to the same next status."""
+        pas = [pa for asset in self.project.assets for pa in asset.assignments
+               if pa.platform == pid and pa.slot == slot_name]
+        if not pas:
+            return
+        cur = str(pas[0].status)
+        idx = STATUS_CYCLE.index(cur) if cur in STATUS_CYCLE else 0
+        new_status = STATUS_CYCLE[(idx + 1) % len(STATUS_CYCLE)]
+        for pa in pas:
+            pa.status = new_status
+        btn.setText(STATUS_ICONS.get(new_status, "·"))
+        self._style_status_btn(btn, new_status)
+        btn.setToolTip(f"{new_status} — click to cycle")
 
     def assign_asset(self, asset: Asset, platform_id: str, slot_name: str):
-        """Assign an asset to a platform slot."""
-        for a in self.project.assets:
-            a.assignments = [
-                pa for pa in a.assignments
-                if not (pa.platform == platform_id and pa.slot == slot_name)
-            ]
+        """Add asset to slot without clearing existing — skip if already assigned."""
+        for pa in asset.assignments:
+            if pa.platform == platform_id and pa.slot == slot_name:
+                return  # already assigned
         asset.assignments.append(PlatformAssignment(
             platform=platform_id,
             slot=slot_name,

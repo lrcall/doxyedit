@@ -443,6 +443,69 @@ def generate_stylesheet(theme: Theme) -> str:
         QLabel {{ color: {theme.text_primary}; }}
         QLabel[role="muted"] {{ color: {theme.text_muted}; }}
         QLabel[role="secondary"] {{ color: {theme.text_secondary}; }}
+        QLabel[role="accent"] {{ color: {theme.accent_bright}; font-weight: bold; }}
+
+        /* ── New panel backgrounds ──────────────────────────────────────── */
+        QWidget#platform_panel, QWidget#checklist_panel,
+        QWidget#health_panel, QWidget#stats_panel {{
+            background: {theme.bg_deep};
+        }}
+        QWidget#health_toolbar {{
+            background: {theme.bg_raised};
+        }}
+
+        /* Scroll area viewports inside new panels inherit bg_deep */
+        QWidget#platform_panel QScrollArea,
+        QWidget#platform_panel QScrollArea > QWidget,
+        QWidget#checklist_panel QScrollArea,
+        QWidget#checklist_panel QScrollArea > QWidget,
+        QWidget#health_panel QScrollArea,
+        QWidget#health_panel QScrollArea > QWidget,
+        QWidget#stats_panel QScrollArea,
+        QWidget#stats_panel QScrollArea > QWidget {{
+            background: {theme.bg_deep};
+        }}
+
+        /* Platform cards */
+        QFrame#platform_card {{
+            border: 1px solid {theme.border};
+            border-radius: 6px;
+            background: {theme.bg_raised};
+        }}
+        QFrame#card_divider {{
+            background: {theme.border}; max-height: 1px; margin: 4px 0;
+        }}
+
+        /* Size badge in slot rows */
+        QLabel#size_badge {{
+            color: {theme.text_muted};
+            background: {theme.bg_input};
+            border-radius: 3px;
+            padding: 0 5px;
+        }}
+
+        /* Stats overview cards */
+        QFrame#stat_card {{
+            border: 1px solid {theme.border};
+            border-radius: 6px;
+            background: {theme.bg_raised};
+            padding: 4px;
+        }}
+
+        /* Image hive */
+        QWidget#hive_container {{
+            background: {theme.bg_main};
+            border-top: 1px solid {theme.border};
+        }}
+        QWidget#hive_container QScrollArea,
+        QWidget#hive_container QScrollArea > QWidget {{
+            background: {theme.bg_main};
+        }}
+        QLabel#hive_thumb {{
+            background: {theme.thumb_bg};
+            border: 1px solid {theme.border};
+            border-radius: 4px;
+        }}
 
         QDialog {{
             background: {theme.bg_main}; color: {theme.text_primary};

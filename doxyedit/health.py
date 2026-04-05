@@ -36,6 +36,7 @@ class HealthPanel(QWidget):
 
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
+        self.setObjectName("health_panel")
         self.project = project
         self._build()
 
@@ -64,7 +65,7 @@ class HealthPanel(QWidget):
         # Divider
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("background: rgba(255,255,255,0.07); max-height: 1px;")
+        line.setObjectName("card_divider")
         outer.addWidget(line)
 
         # Scrollable results

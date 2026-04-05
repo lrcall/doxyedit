@@ -13,6 +13,7 @@ class ChecklistPanel(QWidget):
 
     def __init__(self, project, parent=None):
         super().__init__(parent)
+        self.setObjectName("checklist_panel")
         self.project = project
         self._build()
 

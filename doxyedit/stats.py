@@ -13,6 +13,7 @@ from doxyedit.models import Project, PLATFORMS
 class StatsPanel(QWidget):
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
+        self.setObjectName("stats_panel")
         self.project = project
         self._build()
 
@@ -160,9 +161,7 @@ class StatsPanel(QWidget):
 
     def _stat_card(self, label: str, value: str) -> QFrame:
         card = QFrame()
-        card.setStyleSheet(
-            "QFrame { border: 1px solid rgba(255,255,255,0.08);"
-            " border-radius: 6px; background: rgba(255,255,255,0.03); padding: 4px; }")
+        card.setObjectName("stat_card")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(14, 10, 14, 10)
         layout.setSpacing(2)
