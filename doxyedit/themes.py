@@ -339,7 +339,14 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.border}; border-radius: 4px; min-height: 30px;
         }}
         QScrollBar::handle:vertical:hover {{ background: {theme.border_light}; }}
-        QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}
+        QScrollBar:horizontal {{
+            background: {theme.bg_main}; height: 10px; border: none;
+        }}
+        QScrollBar::handle:horizontal {{
+            background: {theme.border}; border-radius: 4px; min-width: 30px;
+        }}
+        QScrollBar::handle:horizontal:hover {{ background: {theme.border_light}; }}
+        QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
 
         QLineEdit {{
             background: {theme.bg_input}; color: {theme.text_primary};
