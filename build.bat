@@ -1,10 +1,23 @@
 @echo off
 title DoxyEdit Build
+cd /d "%~dp0"
 echo === Building DoxyEdit with Nuitka ===
 echo.
 
-echo Installing/updating dependencies...
-pip install nuitka ordered-set zstandard
+:: Resolve the same Python that has PySide6 installed
+:: Prefer 'py' launcher so we match start.bat; fall back to 'python'
+where py >nul 2>&1
+if %errorlevel% == 0 (
+    set PYTHON=py
+) else (
+    set PYTHON=python
+)
+
+echo Using: %PYTHON%
+echo.
+
+echo Installing/updating build tools into the same Python...
+%PYTHON% -m pip install nuitka ordered-set zstandard
 
 echo.
 echo Clearing Nuitka cache to ensure fresh build...
@@ -14,7 +27,7 @@ if exist "run.onefile-build" rmdir /s /q "run.onefile-build"
 
 echo.
 echo Building...
-python -m nuitka ^
+%PYTHON% -m nuitka ^
     --standalone ^
     --onefile ^
     --enable-plugin=pyside6 ^
@@ -26,6 +39,7 @@ python -m nuitka ^
     --include-module=PIL ^
     --include-module=psd_tools ^
     --include-module=numpy ^
+    --include-module=markdown ^
     --nofollow-import-to=matplotlib ^
     --nofollow-import-to=scipy ^
     --nofollow-import-to=skimage ^
