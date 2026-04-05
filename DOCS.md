@@ -1,6 +1,6 @@
 # DoxyEdit Documentation
 
-**Version 0.9** — Art Asset Manager
+**Version 1.0** — Art Asset Manager
 
 DoxyEdit is a desktop tool for artists and creators to browse, tag, organize, and export art assets across multiple platforms (Kickstarter, Steam, Patreon, social media).
 

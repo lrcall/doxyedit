@@ -1,5 +1,28 @@
 # DoxyEdit Changelog
 
+## v1.0.0 — 2026-04-05
+
+### v1.0 Release
+- Work Tray — collapsible right panel with ◀/▶ handle, persists across all tabs
+- Tray context menu: Preview, Copy Path/Filename, Open in Explorer, Move to Top/Bottom
+- Progress bar for cache-all and long tasks
+- Middle-click instant preview (works even with hover disabled)
+- Ctrl+click multi-select tag rows for batch Hide/Show/Delete
+- Ctrl+T toggles tray, Ctrl+L toggles tag panel
+- Tray button in left toolbar
+- Resizable notes area (vertical splitter)
+- Tokenized design system (font, padding, radius scale together)
+- Horizontal scrollbars themed
+- 3px rounded corners on thumbnails
+- Smooth pixel scrolling, zoom keeps focus on selected item
+- Hover preview customizable size (125-300%)
+- Thumbnail quality setting (128-1024px)
+- Alt+click tag toggles search on/off
+- Theme: Dark renamed to Grey
+- 7 themes fully applied to all widgets including tray, splitters, progress bar
+- Project backup (.bak) created on open
+- Sort mode, eye-hidden tags, tray items all persist in project file
+
 ## v0.9.0 — 2026-04-05
 
 ### QListView Migration (Major Performance Upgrade)
