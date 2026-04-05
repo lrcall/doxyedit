@@ -546,6 +546,8 @@ class MainWindow(QMainWindow):
         self._progress_bar.setValue(0)
         self._progress_bar.setFormat(f"{label} %v/%m")
         self._progress_bar.setVisible(True)
+        self.status.setStyleSheet(
+            f"QStatusBar {{ background: {self._theme.statusbar_bg}; color: {self._theme.statusbar_text}; }}")
         self.status.showMessage(label)
         QApplication.processEvents()
 
@@ -558,6 +560,7 @@ class MainWindow(QMainWindow):
     def finish_progress(self, message: str = "Done"):
         """Hide progress bar and show completion message."""
         self._progress_bar.setVisible(False)
+        self.status.setStyleSheet("")  # reset to theme default
         self.status.showMessage(message, 3000)
 
     # --- Tag panel toggle ---

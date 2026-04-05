@@ -166,6 +166,7 @@
 - [ ] Drag-select over tag rows (rubber band selection)
 - [ ] Drag-drop tags between groups / create new tag groups
 - [ ] Actual file browser (browse filesystem, preview before import, drag into project)
+- [ ] F2 to rename selected file on disk
 
 ### Low Priority / Future
 - [ ] Mass tag editing for AI training prompt files

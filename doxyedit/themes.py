@@ -320,7 +320,7 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
 
         QStatusBar {{
-            background: {theme.statusbar_bg}; color: {theme.statusbar_text};
+            background: {theme.bg_raised}; color: {theme.text_secondary};
             font-size: {f}px;
         }}
 
