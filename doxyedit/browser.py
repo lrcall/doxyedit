@@ -253,10 +253,6 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.setPen(QColor(200, 200, 200, 180))
             painter.setFont(QFont("Segoe UI", max(8, self.font_size - 1), QFont.Weight.Bold))
             folder = index.data(Qt.ItemDataRole.DisplayRole) or ""
-            # Shorten long paths to last 3 components
-            parts = Path(folder).parts
-            if len(parts) > 3:
-                folder = str(Path(*parts[-3:]))
             model = index.model()
             item = model._items[index.row()] if hasattr(model, '_items') else None
             arrow = "\u25B6" if (item and item.collapsed) else "\u25BC"
