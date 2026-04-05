@@ -1,5 +1,25 @@
 # DoxyEdit Changelog
 
+## v1.2.0 — 2026-04-05
+
+### Claude CLI Integration
+- 8 new CLI commands: search, starred, ignored, notes, add-tag, remove-tag, set-star, export-json
+- Auto-reload: DoxyEdit watches the project JSON and reloads when Claude CLI modifies it
+- Full bidirectional sync — Claude edits JSON, DoxyEdit updates live
+
+### Simplify Round 5
+- Removed duplicate auto_suggest_tags (dead code)
+- LRU eviction for delegate scaled pixmap cache (500 max)
+- get_asset uses dirty flag invalidation
+- Tag color dots no longer reset on image click (fitness overwrite removed)
+
+### Fixes
+- Star clicking works via delegate hit detection
+- Auto-hide images when tagged with eye-hidden tag
+- Cache All hides progress bar when nothing to cache
+- Ctrl+V handles multiple paths/files
+- Tag panel dots show tag color permanently
+
 ## v1.1.0 — 2026-04-05
 
 ### Post-1.0 Fixes & Features
