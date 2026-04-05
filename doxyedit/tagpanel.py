@@ -26,13 +26,16 @@ class TagRow(QFrame):
     rename_requested = Signal(str, str)
     pin_requested = Signal(str)
     shortcut_requested = Signal(str)
-    visibility_toggled = Signal(str, bool)  # tag_id, visible — filter images by tag
+    visibility_toggled = Signal(str, bool)
+    row_clicked = Signal(str, bool)  # tag_id, ctrl_held
 
     def __init__(self, tag: TagPreset, parent=None):
         super().__init__(parent)
         self.tag = tag
         self._pinned = False
+        self._row_selected = False
         self.setStyleSheet("TagRow { background: transparent; }")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(4, 2, 4, 2)
@@ -97,8 +100,22 @@ class TagRow(QFrame):
         self._set_fitness(level)
 
     def _on_eye_click(self, visible: bool):
-        self.eye_btn.setText("\u25C9" if visible else "\u25CB")  # ◉ vs ○
+        self.eye_btn.setText("\u25C9" if visible else "\u25CB")
         self.visibility_toggled.emit(self.tag.id, visible)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            ctrl = event.modifiers() & Qt.KeyboardModifier.ControlModifier
+            self.row_clicked.emit(self.tag.id, bool(ctrl))
+        super().mousePressEvent(event)
+
+    def set_row_selected(self, selected: bool):
+        self._row_selected = selected
+        if selected:
+            self.setStyleSheet("background: rgba(100,150,200,0.3); border-radius: 3px;")
+        else:
+            base = "border-left: 3px solid rgba(190,149,92,0.7);" if self._pinned else ""
+            self.setStyleSheet(base)
 
     def set_checked(self, checked: bool, block_signals=True):
         if block_signals:
@@ -150,8 +167,9 @@ class TagPanel(QWidget):
         self._tag_sections: dict[str, str] = {}  # tag_id → section name
         self._section_starts: dict[str, int] = {}  # section → layout index of first tag
         self._hidden_tags: set[str] = set()
-        self._eye_hidden: set[str] = set()  # tags with eye off — hide images with these
-        self._custom_shortcuts: dict[str, str] = {}  # tag_id → key
+        self._eye_hidden: set[str] = set()
+        self._custom_shortcuts: dict[str, str] = {}
+        self._selected_tag_rows: set[str] = set()  # multi-selected tag ids  # tag_id → key
         self._build()
 
     def _build(self):
@@ -270,6 +288,7 @@ class TagPanel(QWidget):
         row.pin_requested.connect(self._pin_tag)
         row.shortcut_requested.connect(self._set_shortcut)
         row.visibility_toggled.connect(self._on_eye_toggled)
+        row.row_clicked.connect(self._on_row_clicked)
         if tag_id in self._hidden_tags:
             row.setVisible(False)
         if insert_after is not None:
@@ -451,6 +470,69 @@ class TagPanel(QWidget):
             row = self._rows[tag_id]
             row.checkbox.setText(f"{row.tag.label} [{key}]")
         self.shortcut_changed.emit(tag_id, key)
+
+    def _on_row_clicked(self, tag_id: str, ctrl_held: bool):
+        """Ctrl+click to multi-select tag rows for batch operations."""
+        if ctrl_held:
+            if tag_id in self._selected_tag_rows:
+                self._selected_tag_rows.discard(tag_id)
+                if tag_id in self._rows:
+                    self._rows[tag_id].set_row_selected(False)
+            else:
+                self._selected_tag_rows.add(tag_id)
+                if tag_id in self._rows:
+                    self._rows[tag_id].set_row_selected(True)
+        else:
+            # Clear previous, select this one
+            for tid in self._selected_tag_rows:
+                if tid in self._rows:
+                    self._rows[tid].set_row_selected(False)
+            self._selected_tag_rows = {tag_id}
+            if tag_id in self._rows:
+                self._rows[tag_id].set_row_selected(True)
+
+        # If multiple selected, show batch context menu on right-click
+        if len(self._selected_tag_rows) > 1:
+            self.status_hint = f"{len(self._selected_tag_rows)} tags selected — right-click for batch actions"
+
+    def contextMenuEvent(self, event):
+        """Batch context menu when multiple tag rows are selected."""
+        if len(self._selected_tag_rows) > 1:
+            from PySide6.QtWidgets import QMenu
+            menu = QMenu(self)
+            n = len(self._selected_tag_rows)
+            menu.addAction(f"Hide All ({n})", self._batch_hide_selected)
+            menu.addAction(f"Show All ({n})", self._batch_show_selected)
+            menu.addAction(f"Delete All ({n})", self._batch_delete_selected)
+            menu.addSeparator()
+            menu.addAction("Clear Selection", self._clear_row_selection)
+            menu.exec(event.globalPos())
+
+    def _batch_hide_selected(self):
+        for tid in list(self._selected_tag_rows):
+            self._hide_tag(tid)
+        self._clear_row_selection()
+
+    def _batch_show_selected(self):
+        for tid in list(self._selected_tag_rows):
+            if tid in self._hidden_tags:
+                self._hidden_tags.discard(tid)
+            if tid in self._rows:
+                self._rows[tid].setVisible(True)
+        self._btn_show_all.setVisible(len(self._hidden_tags) > 0)
+        self.hidden_changed.emit(list(self._hidden_tags))
+        self._clear_row_selection()
+
+    def _batch_delete_selected(self):
+        for tid in list(self._selected_tag_rows):
+            self._delete_tag(tid)
+        self._clear_row_selection()
+
+    def _clear_row_selection(self):
+        for tid in list(self._selected_tag_rows):
+            if tid in self._rows:
+                self._rows[tid].set_row_selected(False)
+        self._selected_tag_rows.clear()
 
     def _on_eye_toggled(self, tag_id: str, visible: bool):
         """Eye button toggled — hide/show images tagged with this tag."""
