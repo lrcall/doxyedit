@@ -60,10 +60,11 @@ def load_pixmap(path: str) -> tuple[QPixmap, int, int]:
 
 
 def _get_shell_thumbnail(path: str, size: int = 256) -> PILImage.Image | None:
-    """Extract thumbnail via Windows Shell (works with SaiThumbs, etc.)."""
+    """Extract thumbnail via Windows Shell (works with SaiThumbs, etc.).
+    Uses pure ctypes — no win32gui/win32ui required."""
     try:
         import ctypes
-        from ctypes import byref, POINTER, c_void_p, c_int, HRESULT
+        from ctypes import byref, POINTER, c_void_p, c_int, c_uint32, c_int32, c_uint16, HRESULT
 
         ctypes.windll.ole32.CoInitialize(None)
 
@@ -74,37 +75,67 @@ def _get_shell_thumbnail(path: str, size: int = 256) -> PILImage.Image | None:
         class SIZE(ctypes.Structure):
             _fields_ = [('cx', c_int), ('cy', c_int)]
 
+        class BITMAP(ctypes.Structure):
+            _fields_ = [('bmType', c_int32), ('bmWidth', c_int32), ('bmHeight', c_int32),
+                        ('bmWidthBytes', c_int32), ('bmPlanes', c_uint16),
+                        ('bmBitsPixel', c_uint16), ('bmBits', c_void_p)]
+
+        class BITMAPINFOHEADER(ctypes.Structure):
+            _fields_ = [('biSize', c_uint32), ('biWidth', c_int32), ('biHeight', c_int32),
+                        ('biPlanes', c_uint16), ('biBitCount', c_uint16),
+                        ('biCompression', c_uint32), ('biSizeImage', c_uint32),
+                        ('biXPelsPerMeter', c_int32), ('biYPelsPerMeter', c_int32),
+                        ('biClrUsed', c_uint32), ('biClrImportant', c_uint32)]
+
+        # IShellItemImageFactory {BCC18B79-BA16-442F-80C4-8A59C30C463B}
         IID = GUID(0xbcc18b79, 0xba16, 0x442f,
             (ctypes.c_ubyte * 8)(0x80, 0xc4, 0x8a, 0x59, 0xc3, 0x0c, 0x46, 0x3b))
 
+        # Create shell item — SHCreateItemFromParsingName needs a wide string
+        path_resolved = str(Path(path).resolve())
         shell_item = c_void_p()
-        hr = ctypes.windll.shell32.SHCreateItemFromParsingName(
-            str(Path(path).resolve()), None, byref(IID), byref(shell_item))
-        if hr != 0:
+        SHCreate = ctypes.windll.shell32.SHCreateItemFromParsingName
+        SHCreate.restype = HRESULT
+        hr = SHCreate(path_resolved, None, byref(IID), byref(shell_item))
+        if hr != 0 or not shell_item.value:
             return None
 
-        vtable = ctypes.cast(
-            ctypes.cast(shell_item, POINTER(c_void_p))[0],
-            POINTER(c_void_p * 5))[0]
-
+        # Get vtable and call GetImage (slot 3: QI=0, AddRef=1, Release=2, GetImage=3)
+        vtable_ptr = ctypes.cast(shell_item, POINTER(c_void_p))[0]
+        vtable = ctypes.cast(vtable_ptr, POINTER(c_void_p * 8))[0]
         GetImage = ctypes.CFUNCTYPE(HRESULT, c_void_p, SIZE, c_int, POINTER(c_void_p))(vtable[3])
+        Release  = ctypes.CFUNCTYPE(ctypes.c_ulong, c_void_p)(vtable[2])
+
         hbitmap = c_void_p()
         hr2 = GetImage(shell_item, SIZE(size, size), 0, byref(hbitmap))
-
-        # Release shell item
-        Release = ctypes.CFUNCTYPE(ctypes.c_ulong, c_void_p)(vtable[2])
         Release(shell_item)
 
         if hr2 != 0 or not hbitmap.value:
             return None
 
-        import win32gui, win32ui
-        info = win32gui.GetObject(int(hbitmap.value))
-        w, h = info.bmWidth, info.bmHeight
-        bmp = win32ui.CreateBitmapFromHandle(int(hbitmap.value))
-        bits = bmp.GetBitmapBits(True)
-        img = PILImage.frombuffer('RGBA', (w, h), bits, 'raw', 'BGRA', 0, 1)
+        # Extract bitmap pixels using pure ctypes (no win32gui/win32ui needed)
+        bm = BITMAP()
+        ctypes.windll.gdi32.GetObjectW(hbitmap, ctypes.sizeof(BITMAP), byref(bm))
+        w, h = bm.bmWidth, abs(bm.bmHeight)
+        if w <= 0 or h <= 0:
+            ctypes.windll.gdi32.DeleteObject(hbitmap)
+            return None
+
+        bi = BITMAPINFOHEADER()
+        bi.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+        bi.biWidth = w
+        bi.biHeight = -h   # negative = top-down DIB
+        bi.biPlanes = 1
+        bi.biBitCount = 32
+        bi.biCompression = 0  # BI_RGB
+
+        buf = (ctypes.c_byte * (w * h * 4))()
+        hdc = ctypes.windll.user32.GetDC(None)
+        ctypes.windll.gdi32.GetDIBits(hdc, hbitmap, 0, h, buf, byref(bi), 0)
+        ctypes.windll.user32.ReleaseDC(None, hdc)
         ctypes.windll.gdi32.DeleteObject(hbitmap)
+
+        img = PILImage.frombuffer('RGBA', (w, h), bytes(buf), 'raw', 'BGRA', 0, 1)
         return img
     except Exception:
         return None

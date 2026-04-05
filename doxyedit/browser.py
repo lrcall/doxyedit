@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QStackedWidget, QScrollArea,
 )
 from PySide6.QtCore import (
-    Qt, Signal, QTimer, QSettings, QSize, QRect, QPoint,
+    Qt, Signal, QThread, QTimer, QSettings, QSize, QRect, QPoint,
     QAbstractListModel, QModelIndex,
 )
 from PySide6.QtGui import (
@@ -24,7 +24,7 @@ from doxyedit.models import (
 from doxyedit.preview import HoverPreview, ImagePreviewDialog
 from doxyedit.thumbcache import ThumbCache, THUMB_SIZE
 
-from PySide6.QtWidgets import QLayout
+from PySide6.QtWidgets import QLayout, QProgressDialog
 
 IMAGE_EXTS = {
     ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".svg", ".tiff", ".tif",
@@ -53,6 +53,70 @@ def auto_suggest_tags(filename: str) -> list[str]:
         if pattern in name and tag_id not in tags:
             tags.append(tag_id)
     return tags
+
+
+# ---------------------------------------------------------------------------
+# Background folder scanner — avoids blocking the UI on large folder imports
+# ---------------------------------------------------------------------------
+
+class FolderScanWorker(QThread):
+    """Discovers image files in a folder tree without blocking the UI."""
+    progress = Signal(int)      # running count of files found
+    batch_ready = Signal(list)  # list[str] of new file paths, emitted in chunks
+    finished = Signal(int)      # total count when scan is done
+
+    BATCH_SIZE = 500
+
+    def __init__(self, folder: str, recursive: bool,
+                 existing: frozenset, excluded: frozenset, exts: set, parent=None):
+        super().__init__(parent)
+        self._folder = folder
+        self._recursive = recursive
+        self._existing = existing
+        self._excluded = excluded
+        self._exts = exts
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def run(self):
+        folder_path = Path(self._folder)
+        it = folder_path.rglob("*") if self._recursive else folder_path.iterdir()
+        batch: list[str] = []
+        total = 0
+        try:
+            for f in it:
+                if self._cancelled:
+                    break
+                if (f.is_file()
+                        and f.suffix.lower() in self._exts
+                        and str(f) not in self._existing
+                        and str(f) not in self._excluded):
+                    batch.append(str(f))
+                    total += 1
+                    if len(batch) >= self.BATCH_SIZE:
+                        self.batch_ready.emit(list(batch))
+                        self.progress.emit(total)
+                        batch = []
+        except Exception:
+            pass
+        if batch:
+            self.batch_ready.emit(list(batch))
+        self.finished.emit(total)
+
+
+class _ScanWorker(QThread):
+    """Generic worker that runs a callable in a thread and emits the result."""
+    done = Signal(list)
+
+    def __init__(self, fn, parent=None):
+        super().__init__(parent)
+        self._fn = fn
+
+    def run(self):
+        result = self._fn()
+        self.done.emit(result if result is not None else [])
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +224,7 @@ class ThumbnailModel(QAbstractListModel):
         super().__init__(parent)
         self._assets: list[Asset] = []
         self._pixmaps: dict[str, QPixmap] = {}
+        self._id_to_row: dict[str, int] = {}  # O(1) lookup for update_pixmap
 
     def rowCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self._assets)
@@ -188,15 +253,15 @@ class ThumbnailModel(QAbstractListModel):
     def set_assets(self, assets: list[Asset]):
         self.beginResetModel()
         self._assets = assets
+        self._id_to_row = {a.id: i for i, a in enumerate(assets)}
         self.endResetModel()
 
     def update_pixmap(self, asset_id: str, pixmap: QPixmap):
         self._pixmaps[asset_id] = pixmap
-        for i, a in enumerate(self._assets):
-            if a.id == asset_id:
-                idx = self.index(i)
-                self.dataChanged.emit(idx, idx, [self.ThumbnailRole])
-                return
+        row = self._id_to_row.get(asset_id)
+        if row is not None:
+            idx = self.index(row)
+            self.dataChanged.emit(idx, idx, [self.ThumbnailRole])
 
     def get_asset(self, index: QModelIndex) -> Asset | None:
         if index.isValid() and 0 <= index.row() < len(self._assets):
@@ -530,6 +595,8 @@ class AssetBrowser(QWidget):
         self._hover_fixed_px = int(settings.value("hover_fixed_px", 0))  # 0 = use pct
         self._cache_all_total = 0
         self._cache_all_done = 0
+        self._active_import_worker = None  # prevents GC during async import
+        self._scan_running = False          # guard against concurrent folder scans
         self.setAcceptDrops(True)
         self._build()
 
@@ -717,6 +784,8 @@ class AssetBrowser(QWidget):
         self._list_view.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
         self._list_view.setHorizontalScrollMode(QListView.ScrollMode.ScrollPerPixel)
         self._list_view.verticalScrollBar().setSingleStep(20)
+        self._list_view.verticalScrollBar().valueChanged.connect(
+            lambda _: self._request_visible_thumbs())
         self._list_view.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
         self._list_view.setMouseTracking(True)
         self._list_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -741,6 +810,8 @@ class AssetBrowser(QWidget):
         self._folder_scroll.setWidgetResizable(True)
         self._folder_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._folder_scroll.verticalScrollBar().setSingleStep(20)
+        self._folder_scroll.verticalScrollBar().valueChanged.connect(
+            lambda _: self._request_visible_thumbs())
 
         self._view_stack = QStackedWidget()
         self._view_stack.addWidget(self._list_view)    # page 0: normal view
@@ -913,33 +984,64 @@ class AssetBrowser(QWidget):
             self._folder_scan_timer.stop()
 
     def _scan_folders(self):
-        """Scan all known source folders for new images."""
+        """Scan known source folders for new images (runs in background thread)."""
+        if self._scan_running:
+            return
+        self._scan_running = True
         folders = set()
         for a in self.project.assets:
             folders.add(a.source_folder or str(Path(a.source_path).parent))
-        existing = {a.source_path for a in self.project.assets}
+        existing = frozenset(a.source_path for a in self.project.assets)
         recursive = self.recursive_check.isChecked()
-        total_added = 0
-        for folder in folders:
-            folder_path = Path(folder)
-            if not folder_path.exists():
-                continue
-            files = folder_path.rglob("*") if recursive else folder_path.iterdir()
-            for f in files:
-                if f.is_file() and f.suffix.lower() in IMAGE_EXTS and str(f) not in existing:
+        excluded = frozenset(getattr(self.project, 'excluded_paths', set()))
+
+        # Collect all folders into one worker to avoid spawning many threads
+        all_new: list[str] = []
+
+        def _do_scan():
+            for folder in folders:
+                fp = Path(folder)
+                if not fp.exists():
+                    continue
+                it = fp.rglob("*") if recursive else fp.iterdir()
+                try:
+                    for f in it:
+                        if (f.is_file() and f.suffix.lower() in IMAGE_EXTS
+                                and str(f) not in existing and str(f) not in excluded):
+                            all_new.append(str(f))
+                except Exception:
+                    pass
+            return all_new
+
+        def _on_done(new_files):
+            self._scan_running = False
+            if not new_files:
+                return
+            ex = {a.source_path for a in self.project.assets}
+            added = 0
+            for path_str in new_files:
+                if path_str not in ex:
+                    p = Path(path_str)
                     self.project.assets.append(Asset(
-                        id=f.stem + "_" + str(len(self.project.assets)),
-                        source_path=str(f), source_folder=str(f.parent),
-                        tags=auto_suggest_tags(f.stem) if self.auto_tag_enabled else []))
-                    existing.add(str(f))
-                    total_added += 1
-        if total_added:
-            self._refresh_grid()
-            self.tags_modified.emit()
-            try:
-                self.window().status.showMessage(f"Folder scan: added {total_added} new image(s)", 3000)
-            except Exception:
-                pass
+                        id=p.stem + "_" + str(len(self.project.assets)),
+                        source_path=path_str, source_folder=str(p.parent),
+                        tags=auto_suggest_tags(p.stem) if self.auto_tag_enabled else []))
+                    ex.add(path_str)
+                    added += 1
+            if added:
+                self._refresh_grid()
+                self.tags_modified.emit()
+                try:
+                    self.window().status.showMessage(
+                        f"Folder scan: added {added} new image(s)", 3000)
+                except Exception:
+                    pass
+
+        # Run in QThread to avoid blocking the UI
+        worker = _ScanWorker(_do_scan, parent=self)
+        worker.done.connect(_on_done, Qt.ConnectionType.QueuedConnection)
+        worker.done.connect(lambda _: worker.deleteLater())
+        worker.start()
 
     def _on_filter_changed(self, *_):
         self._refresh_grid()
@@ -955,6 +1057,51 @@ class AssetBrowser(QWidget):
 
     def toggle_tag_bar(self):
         self._tag_bar_toggle_btn.setChecked(not self._tag_bar_toggle_btn.isChecked())
+
+    def _request_visible_thumbs(self):
+        """Request thumbnails only for currently visible items + a lookahead buffer."""
+        BUFFER = 40  # rows above/below viewport to pre-fetch
+
+        if self._view_stack.currentIndex() == 0:
+            # Flat list view
+            view = self._list_view
+            if not view.isVisible() or self._model.rowCount() == 0:
+                return
+            vr = view.viewport().rect()
+            top = view.indexAt(vr.topLeft())
+            bot = view.indexAt(QPoint(vr.center().x(), vr.bottom()))
+            r0 = max(0, (top.row() if top.isValid() else 0) - BUFFER)
+            r1 = min(self._model.rowCount() - 1,
+                     (bot.row() if bot.isValid() else r0 + BUFFER) + BUFFER)
+            batch = []
+            for i in range(r0, r1 + 1):
+                a = self._model.get_asset(self._model.index(i))
+                if a:
+                    batch.append((a.id, a.source_path))
+            if batch:
+                self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
+        else:
+            # Folder sections — find which sections overlap the visible viewport
+            sb = self._folder_scroll.verticalScrollBar()
+            vp_top = sb.value()
+            vp_bot = vp_top + self._folder_scroll.viewport().height()
+            batch = []
+            for section in self._folder_sections:
+                if section.isHidden():
+                    continue
+                sec_top = section.mapTo(self._folder_container, QPoint(0, 0)).y()
+                sec_bot = sec_top + section.height()
+                # Include sections within viewport + buffer
+                if sec_bot < vp_top - BUFFER * (self._thumb_size + 70):
+                    continue
+                if sec_top > vp_bot + BUFFER * (self._thumb_size + 70):
+                    break
+                for i in range(section.folder_model.rowCount()):
+                    a = section.folder_model.get_asset(section.folder_model.index(i))
+                    if a:
+                        batch.append((a.id, a.source_path))
+            if batch:
+                self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
 
     def _on_cache_all_toggled(self, checked):
         if checked:
@@ -1106,6 +1253,18 @@ class AssetBrowser(QWidget):
         return assets
 
     def _refresh_grid(self):
+        # Auto-reduce thumb size for large projects so the initial load is fast
+        n = len(self.project.assets)
+        if n >= 10_000 and self._thumb_size > 64:
+            settings = QSettings("DoxyEdit", "DoxyEdit")
+            if not settings.value("thumb_size_user_set"):
+                self._thumb_size = 64
+                self._delegate.thumb_size = 64
+                self._delegate.invalidate_cache()
+                self._list_view.setGridSize(QSize(64 + 16, 64 + 70))
+                for section in self._folder_sections:
+                    section.update_grid_size(64)
+
         saved_ids = set(self._selected_ids)
         self.project.invalidate_index()
         self._filtered_assets = self._compute_filtered()
@@ -1127,8 +1286,7 @@ class AssetBrowser(QWidget):
                         sel.select(idx, sel.SelectionFlag.Select)
                 sel.blockSignals(False)
 
-            batch = [(a.id, a.source_path) for a in self._filtered_assets]
-            self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
+            QTimer.singleShot(50, self._request_visible_thumbs)
 
         # Update counts
         total = len(self.project.assets)
@@ -1197,9 +1355,8 @@ class AssetBrowser(QWidget):
                         sel.select(idx, sel.SelectionFlag.Select)
                 sel.blockSignals(False)
 
-        # Request thumbnails
-        batch = [(a.id, a.source_path) for a in self._filtered_assets]
-        self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
+        # Request thumbnails for visible area only (scroll handler covers the rest)
+        QTimer.singleShot(50, self._request_visible_thumbs)
 
         # Trigger layout recalc once views have been sized
         QTimer.singleShot(0, self._folder_container.adjustSize)
@@ -1354,8 +1511,7 @@ class AssetBrowser(QWidget):
                 recursive = (reply == QMessageBox.StandardButton.Yes)
             else:
                 recursive = self.recursive_check.isChecked()
-            self.import_folder(folder, recursive=recursive)
-            self.folder_opened.emit(folder)
+            self._import_folder_async(folder, recursive=recursive)
 
     def _record_import_source(self, source_type: str, path: str, recursive: bool = False):
         """Record an import source so the project knows where its assets came from."""
@@ -1376,14 +1532,16 @@ class AssetBrowser(QWidget):
         })
 
     def import_folder(self, folder: str, recursive: bool = None):
+        """Synchronous folder import — used for auto-load, presets, drag-drop.
+        For interactive folder picker use _import_folder_async instead."""
         if recursive is None:
             recursive = self.recursive_check.isChecked()
         folder_path = Path(folder)
         existing = {a.source_path for a in self.project.assets}
         excluded = getattr(self.project, 'excluded_paths', set())
         count = 0
-        files = sorted(folder_path.rglob("*") if recursive else folder_path.iterdir())
-        for f in files:
+        it = folder_path.rglob("*") if recursive else folder_path.iterdir()
+        for f in it:
             if f.is_file() and f.suffix.lower() in IMAGE_EXTS and str(f) not in existing and str(f) not in excluded:
                 self.project.assets.append(Asset(
                     id=f.stem + "_" + str(len(self.project.assets)),
@@ -1394,6 +1552,50 @@ class AssetBrowser(QWidget):
         if count:
             self._refresh_grid()
         return count
+
+    def _import_folder_async(self, folder: str, recursive: bool):
+        """Non-blocking folder import with progress dialog — use for interactive picker."""
+        existing = frozenset(a.source_path for a in self.project.assets)
+        excluded = frozenset(getattr(self.project, 'excluded_paths', set()))
+
+        dlg = QProgressDialog(
+            f"Scanning {Path(folder).name}...", "Cancel", 0, 0, self.window())
+        dlg.setWindowTitle("Importing Folder")
+        dlg.setWindowModality(Qt.WindowModality.WindowModal)
+        dlg.setMinimumDuration(0)
+        dlg.setAutoClose(False)
+        dlg.setValue(0)
+        dlg.show()
+
+        added = [0]
+
+        def _on_batch(paths: list):
+            for path_str in paths:
+                p = Path(path_str)
+                self.project.assets.append(Asset(
+                    id=p.stem + "_" + str(len(self.project.assets)),
+                    source_path=path_str,
+                    source_folder=str(p.parent),
+                    tags=auto_suggest_tags(p.stem) if self.auto_tag_enabled else []))
+                added[0] += 1
+            dlg.setLabelText(
+                f"Scanning {Path(folder).name}...\n{added[0]:,} files found")
+
+        def _on_finished(_total: int):
+            dlg.close()
+            if added[0]:
+                self._record_import_source("folder", folder, recursive)
+                self._refresh_grid()
+            self.folder_opened.emit(folder)
+            self._active_import_worker = None
+
+        worker = FolderScanWorker(
+            folder, recursive, existing, excluded, IMAGE_EXTS, parent=self)
+        worker.batch_ready.connect(_on_batch, Qt.ConnectionType.QueuedConnection)
+        worker.finished.connect(_on_finished, Qt.ConnectionType.QueuedConnection)
+        dlg.canceled.connect(worker.cancel)
+        self._active_import_worker = worker  # prevent GC
+        worker.start()
 
     def add_images_dialog(self):
         settings = QSettings("DoxyEdit", "DoxyEdit")
@@ -1713,7 +1915,9 @@ class AssetBrowser(QWidget):
                         self._thumb_size = min(320, self._thumb_size + 20)
                     else:
                         self._thumb_size = max(80, self._thumb_size - 20)
-                    QSettings("DoxyEdit", "DoxyEdit").setValue("thumb_size", self._thumb_size)
+                    s = QSettings("DoxyEdit", "DoxyEdit")
+                    s.setValue("thumb_size", self._thumb_size)
+                    s.setValue("thumb_size_user_set", True)  # don't auto-override after manual zoom
                     self._delegate.thumb_size = self._thumb_size
                     self._delegate.invalidate_cache()  # full clear on zoom change
                     self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
