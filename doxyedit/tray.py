@@ -16,8 +16,8 @@ class WorkTray(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("doxyedit_tray")
-        self.setMinimumWidth(120)
-        self.setMaximumWidth(300)
+        self.setMinimumWidth(150)
+        self.setMaximumWidth(400)
         self._asset_ids: list[str] = []
         self._pixmaps: dict[str, QPixmap] = {}
         self._paths: dict[str, str] = {}  # asset_id → source_path
@@ -138,12 +138,45 @@ class WorkTray(QWidget):
         asset_id = item.data(Qt.ItemDataRole.UserRole)
         menu = QMenu(self)
         menu.addAction("Preview", lambda: self.asset_preview.emit(asset_id))
+        menu.addSeparator()
         menu.addAction("Copy Path", lambda: self._copy_path(asset_id))
+        menu.addAction("Copy Filename", lambda: self._copy_filename(asset_id))
         menu.addAction("Open in Explorer", lambda: self._open_explorer(asset_id))
         menu.addSeparator()
+        menu.addAction("Move to Top", lambda: self._move_to_top(asset_id))
+        menu.addAction("Move to Bottom", lambda: self._move_to_bottom(asset_id))
+        menu.addSeparator()
         menu.addAction("Remove from Tray", lambda: self.remove_asset(asset_id))
-        menu.addAction("Clear All", self.clear)
+        n = self._list.count()
+        if n > 1:
+            menu.addAction(f"Clear All ({n})", self.clear)
         menu.exec(self._list.viewport().mapToGlobal(pos))
+
+    def _copy_filename(self, asset_id: str):
+        from PySide6.QtWidgets import QApplication
+        path = self._paths.get(asset_id, "")
+        if path:
+            QApplication.clipboard().setText(Path(path).name)
+
+    def _move_to_top(self, asset_id: str):
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            if item.data(Qt.ItemDataRole.UserRole) == asset_id:
+                taken = self._list.takeItem(i)
+                self._list.insertItem(0, taken)
+                self._asset_ids.remove(asset_id)
+                self._asset_ids.insert(0, asset_id)
+                break
+
+    def _move_to_bottom(self, asset_id: str):
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            if item.data(Qt.ItemDataRole.UserRole) == asset_id:
+                taken = self._list.takeItem(i)
+                self._list.addItem(taken)
+                self._asset_ids.remove(asset_id)
+                self._asset_ids.append(asset_id)
+                break
 
     def _copy_path(self, asset_id: str):
         from PySide6.QtWidgets import QApplication
