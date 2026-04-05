@@ -3,7 +3,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsScene, QGraphicsView,
     QGraphicsPixmapItem, QGraphicsRectItem, QGraphicsTextItem,
-    QApplication, QPushButton, QInputDialog,
+    QApplication, QPushButton, QInputDialog, QWidget,
 )
 from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF
 from PySide6.QtGui import (
@@ -14,7 +14,7 @@ from PySide6.QtGui import (
 from doxyedit.imaging import load_pixmap
 
 
-class HoverPreview(QLabel):
+class HoverPreview(QWidget):
     """Floating preview that appears near the cursor on hover."""
 
     _instance = None
@@ -25,9 +25,18 @@ class HoverPreview(QLabel):
         self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setStyleSheet(
-            "QLabel { background: rgba(20,20,20,0.95); border: 2px solid rgba(128,128,128,0.3); border-radius: 6px; padding: 4px; }"
+            "HoverPreview { background: rgba(20,20,20,0.95); border: 2px solid rgba(128,128,128,0.3); border-radius: 6px; padding: 4px; }"
         )
-        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(2)
+        self._img_label = QLabel()
+        self._img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._img_label)
+        self._info_label = QLabel()
+        self._info_label.setStyleSheet("color: rgba(200,200,200,0.8); font-size: 9px;")
+        self._info_label.setWordWrap(True)
+        layout.addWidget(self._info_label)
         self.hide()
         self._path = None
 
@@ -41,16 +50,18 @@ class HoverPreview(QLabel):
         if self._path == image_path and self.isVisible():
             return
         self._path = image_path
-        pm, _, _ = load_pixmap(image_path)
+        pm, w, h = load_pixmap(image_path)
         if pm.isNull():
             self.hide()
             return
+        orig_w, orig_h = pm.width(), pm.height()
         pm = pm.scaled(
             self.PREVIEW_SIZE, self.PREVIEW_SIZE,
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
-        self.setPixmap(pm)
+        self._img_label.setPixmap(pm)
+        self._info_label.setText(f"{orig_w} x {orig_h}px\n{image_path}")
         self.adjustSize()
 
         screen = QApplication.screenAt(global_pos)
