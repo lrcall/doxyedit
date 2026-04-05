@@ -41,12 +41,12 @@ class WorkTray(QWidget):
         self._handle.clicked.connect(lambda: self.toggle_requested.emit())
         outer.addWidget(self._handle)
 
-        # Content
-        content = QWidget()
-        layout = QVBoxLayout(content)
+        # Content (hideable)
+        self._content = QWidget()
+        layout = QVBoxLayout(self._content)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
-        outer.addWidget(content)
+        outer.addWidget(self._content)
 
         # Header
         header = QHBoxLayout()

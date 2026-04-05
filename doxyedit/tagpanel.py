@@ -383,9 +383,9 @@ class TagPanel(QWidget):
             name = Path(a.source_path).stem
             self.header.setText(name)
             if a.tags:
-                self.hint_label.setText(f"{len(a.tags)} tag(s) applied — green dot = good fit")
+                self.hint_label.hide()
             else:
-                self.hint_label.setText("No tags yet — check boxes below to assign")
+                self.hint_label.hide()
             w, h = self._get_dims(a)
             if w and h:
                 ratio = f"{w/h:.2f}" if h else "?"

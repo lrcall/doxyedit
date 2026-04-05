@@ -5,3 +5,11 @@ __pycache__/
 *.pyo
 *.exe
 *.spec
+*.bak
+*.dll
+run.build/
+run.dist/
+run.onefile-build/
+.doxyedit_cache/
+*.doxyproj.json
+!doxyedit/

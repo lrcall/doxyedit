@@ -52,8 +52,9 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.work_tray = WorkTray()
         self._tray_open = False
-        self.work_tray.setMaximumWidth(20)
-        self.work_tray.setMinimumWidth(20)
+        self.work_tray._content.hide()
+        self.work_tray.setMaximumWidth(16)
+        self.work_tray.setMinimumWidth(16)
 
         self._main_split = QSplitter(Qt.Orientation.Horizontal)
         self._main_split.addWidget(self.tabs)
@@ -612,13 +613,15 @@ class MainWindow(QMainWindow):
         is_open = hasattr(self, '_tray_open') and self._tray_open
         if is_open:
             self._tray_open = False
-            self.work_tray.setMaximumWidth(20)
-            self.work_tray.setMinimumWidth(20)
+            self.work_tray._content.hide()
+            self.work_tray.setMaximumWidth(16)
+            self.work_tray.setMinimumWidth(16)
             self.work_tray._handle.setText("\u25B6")  # ▶ closed
             self._toggle_tray_action.setText("Show Work Tray")
             self._tray_btn.setChecked(False)
         else:
             self._tray_open = True
+            self.work_tray._content.show()
             self.work_tray.setMinimumWidth(150)
             self.work_tray.setMaximumWidth(400)
             self.work_tray._handle.setText("\u25C0")  # ◀ open
