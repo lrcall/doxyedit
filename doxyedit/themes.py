@@ -466,6 +466,20 @@ def generate_stylesheet(theme: Theme) -> str:
         QWidget#health_toolbar {{
             background: {theme.bg_raised};
         }}
+        QPushButton#folder_section_header {{
+            background: {theme.bg_raised};
+            color: {theme.text_secondary};
+            text-align: left;
+            padding: 3px 8px;
+            font-weight: bold;
+            font-size: {f}px;
+            border: none;
+            border-bottom: 1px solid {theme.border};
+        }}
+        QPushButton#folder_section_header:hover {{
+            background: {theme.accent_dim};
+            color: {theme.text_primary};
+        }}
 
         /* Scroll area viewports inside new panels inherit bg_deep */
         QWidget#platform_panel QScrollArea,

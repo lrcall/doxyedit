@@ -415,10 +415,8 @@ class FolderSection(QWidget):
         self._short = short
         self._header = QPushButton()
         self._header.setFlat(True)
+        self._header.setObjectName("folder_section_header")
         self._header.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._header.setStyleSheet(
-            "QPushButton { text-align: left; padding: 3px 6px; font-weight: bold; }"
-        )
         self._header.clicked.connect(self._toggle_collapse)
         layout.addWidget(self._header)
 
