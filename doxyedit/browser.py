@@ -152,32 +152,19 @@ class ThumbnailModel(QAbstractListModel):
     DimsRole = Qt.ItemDataRole.UserRole + 3
     StarRole = Qt.ItemDataRole.UserRole + 4
     TagsRole = Qt.ItemDataRole.UserRole + 5
-    FolderHeaderRole = Qt.ItemDataRole.UserRole + 6
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._items: list = []  # Asset or _FolderHeader
+        self._assets: list[Asset] = []
         self._pixmaps: dict[str, QPixmap] = {}
 
     def rowCount(self, parent=QModelIndex()):
-        return 0 if parent.isValid() else len(self._items)
-
-    def flags(self, index):
-        if index.isValid() and isinstance(self._items[index.row()], _FolderHeader):
-            return Qt.ItemFlag.ItemIsEnabled  # visible but not selectable
-        return super().flags(index)
+        return 0 if parent.isValid() else len(self._assets)
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return None
-        item = self._items[index.row()]
-        if isinstance(item, _FolderHeader):
-            if role == Qt.ItemDataRole.DisplayRole:
-                return item.folder
-            if role == self.FolderHeaderRole:
-                return True
-            return None
-        asset = item
+        asset = self._assets[index.row()]
         if role == Qt.ItemDataRole.DisplayRole:
             p = Path(asset.source_path)
             return f"{p.stem[:16]}{p.suffix}"
@@ -191,29 +178,24 @@ class ThumbnailModel(QAbstractListModel):
             return asset.starred
         elif role == self.TagsRole:
             return asset.tags
-        elif role == self.FolderHeaderRole:
-            return False
         return None
 
-    def set_assets(self, assets: list):
+    def set_assets(self, assets: list[Asset]):
         self.beginResetModel()
-        self._items = assets
+        self._assets = assets
         self.endResetModel()
 
     def update_pixmap(self, asset_id: str, pixmap: QPixmap):
         self._pixmaps[asset_id] = pixmap
-        for i, item in enumerate(self._items):
-            if isinstance(item, _FolderHeader):
-                continue
-            if item.id == asset_id:
+        for i, a in enumerate(self._assets):
+            if a.id == asset_id:
                 idx = self.index(i)
                 self.dataChanged.emit(idx, idx, [self.ThumbnailRole])
                 return
 
     def get_asset(self, index: QModelIndex) -> Asset | None:
-        if index.isValid() and 0 <= index.row() < len(self._items):
-            item = self._items[index.row()]
-            return item if not isinstance(item, _FolderHeader) else None
+        if index.isValid() and 0 <= index.row() < len(self._assets):
+            return self._assets[index.row()]
         return None
 
 
@@ -232,42 +214,13 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self._scaled_cache: dict[tuple, QPixmap] = {}
 
     def sizeHint(self, option, index):
-        normal = QSize(self.thumb_size + 2 * self.PADDING,
-                       self.thumb_size + 70)
-        if index.data(ThumbnailModel.FolderHeaderRole):
-            view = getattr(self, '_list_view', None) or option.widget
-            w = view.viewport().width() - 2 if view else 800
-            # Width must exceed all columns to prevent items sharing the row
-            cols = max(1, w // normal.width())
-            return QSize(cols * normal.width(), 30)
-        return normal
+        return QSize(self.thumb_size + 2 * self.PADDING,
+                     self.thumb_size + 70)
 
     def paint(self, painter, option, index):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = option.rect
-
-        # Folder header row — full-width separator bar
-        if index.data(ThumbnailModel.FolderHeaderRole):
-            view = option.widget
-            vw = view.viewport().width() if view else rect.width()
-            bar_h = 26
-            bar_y = rect.y() + (rect.height() - bar_h) // 2
-            bar_rect = QRect(0, bar_y, vw, bar_h)
-            painter.setClipRect(QRect(0, rect.y(), vw, rect.height()))
-            painter.fillRect(bar_rect, QColor(128, 128, 128, 35))
-            painter.setPen(QColor(200, 200, 200, 180))
-            painter.setFont(QFont("Segoe UI", max(7, self.font_size - 2)))
-            folder = index.data(Qt.ItemDataRole.DisplayRole) or ""
-            model = index.model()
-            item = model._items[index.row()] if hasattr(model, '_items') else None
-            arrow = "\u25B6" if (item and item.collapsed) else "\u25BC"
-            painter.drawText(bar_rect.adjusted(8, 0, -8, 0),
-                             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                             f"{arrow} {folder}")
-            painter.setClipping(False)
-            painter.restore()
-            return
 
         ts = self.thumb_size
 
@@ -463,6 +416,19 @@ class AssetBrowser(QWidget):
         self.search_box.textChanged.connect(self._on_filter_changed)
         row2.addWidget(self.search_box, 1)
 
+        self._fold_all_btn = QPushButton("Collapse All")
+        self._fold_all_btn.setStyleSheet(self._btn_style())
+        self._fold_all_btn.setToolTip("Collapse all folders")
+        self._fold_all_btn.clicked.connect(self._collapse_all_folders)
+        self._fold_all_btn.setVisible(False)
+        row2.addWidget(self._fold_all_btn)
+        self._unfold_all_btn = QPushButton("Expand All")
+        self._unfold_all_btn.setStyleSheet(self._btn_style())
+        self._unfold_all_btn.setToolTip("Expand all folders")
+        self._unfold_all_btn.clicked.connect(self._expand_all_folders)
+        self._unfold_all_btn.setVisible(False)
+        row2.addWidget(self._unfold_all_btn)
+
         self.search_tags_check = QCheckBox("Tags")
         self.search_tags_check.setChecked(False)
         self.search_tags_check.toggled.connect(self._on_search_mode_changed)
@@ -477,20 +443,8 @@ class AssetBrowser(QWidget):
         self.sort_combo = QComboBox()
         self.sort_combo.addItems(["Name A-Z", "Name Z-A", "Newest", "Oldest", "Largest", "Smallest", "By Folder"])
         self.sort_combo.currentIndexChanged.connect(self._on_filter_changed)
-        row2.addWidget(self.sort_combo)
-        self._fold_all_btn = QPushButton("▶All")
-        self._fold_all_btn.setFixedHeight(22)
-        self._fold_all_btn.setToolTip("Collapse all folders")
-        self._fold_all_btn.clicked.connect(self._collapse_all_folders)
-        self._fold_all_btn.setVisible(False)
-        row2.addWidget(self._fold_all_btn)
-        self._unfold_all_btn = QPushButton("▼All")
-        self._unfold_all_btn.setFixedHeight(22)
-        self._unfold_all_btn.setToolTip("Expand all folders")
-        self._unfold_all_btn.clicked.connect(self._expand_all_folders)
-        self._unfold_all_btn.setVisible(False)
-        row2.addWidget(self._unfold_all_btn)
         self.sort_combo.currentTextChanged.connect(self._on_sort_mode_changed)
+        row2.addWidget(self.sort_combo)
         root.addLayout(row2)
 
         # Row 3: Quick-tag bar
@@ -663,9 +617,9 @@ class AssetBrowser(QWidget):
         self._unfold_all_btn.setVisible(is_folder)
 
     def _collapse_all_folders(self):
-        for item in self._filtered_assets:
-            if isinstance(item, _FolderHeader):
-                self._collapsed_folders.add(item.folder)
+        for a in self.project.assets:
+            folder = a.source_folder or Path(a.source_path).parent.as_posix()
+            self._collapsed_folders.add(folder)
         self._refresh_grid()
 
     def _expand_all_folders(self):
@@ -732,17 +686,15 @@ class AssetBrowser(QWidget):
 
         sort_mode = self.sort_combo.currentText()
         if sort_mode == "By Folder":
-            from collections import defaultdict
-            groups = defaultdict(list)
-            for a in assets:
-                groups[a.source_folder or Path(a.source_path).parent.as_posix()].append(a)
-            result = []
-            for folder in sorted(groups.keys(), key=str.lower):
-                collapsed = folder in self._collapsed_folders
-                result.append(_FolderHeader(folder, collapsed))
-                if not collapsed:
-                    result.extend(sorted(groups[folder], key=lambda a: Path(a.source_path).stem.lower()))
-            return result
+            assets.sort(key=lambda a: (
+                (a.source_folder or Path(a.source_path).parent.as_posix()).lower(),
+                Path(a.source_path).stem.lower()))
+            # Filter out collapsed folders
+            if self._collapsed_folders:
+                assets = [a for a in assets
+                          if (a.source_folder or Path(a.source_path).parent.as_posix())
+                          not in self._collapsed_folders]
+            return assets
 
         key_funcs = {
             "Name A-Z": (lambda a: Path(a.source_path).stem.lower(), False),
@@ -774,14 +726,13 @@ class AssetBrowser(QWidget):
                     sel.select(idx, sel.SelectionFlag.Select)
             sel.blockSignals(False)
 
-        # Request thumbnails for visible items (skip folder headers)
-        batch = [(a.id, a.source_path) for a in self._filtered_assets
-                 if not isinstance(a, _FolderHeader)]
+        # Request thumbnails for visible items
+        batch = [(a.id, a.source_path) for a in self._filtered_assets]
         self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
 
-        # Update counts (exclude headers)
+        # Update counts
         total = len(self.project.assets)
-        shown = sum(1 for a in self._filtered_assets if not isinstance(a, _FolderHeader))
+        shown = len(self._filtered_assets)
         starred = sum(1 for a in self.project.assets if a.starred > 0)
         tagged = sum(1 for a in self.project.assets if a.tags)
         self.count_label.setText(f"{shown}/{total} shown, {starred} starred, {tagged} tagged")
@@ -1103,9 +1054,51 @@ class AssetBrowser(QWidget):
 
     # --- Zoom (event filter intercepts Ctrl+Scroll on the list view) ---
 
+    def _paint_folder_overlays(self):
+        """Paint folder separator labels on top of the grid when in By Folder mode."""
+        if self.sort_combo.currentText() != "By Folder":
+            return
+        if not self._filtered_assets:
+            return
+        vp = self._list_view.viewport()
+        painter = QPainter(vp)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        vw = vp.width()
+        fs = self._delegate.font_size
+        painter.setFont(QFont("Segoe UI", max(7, fs - 2)))
+
+        prev_folder = None
+        for i, asset in enumerate(self._filtered_assets):
+            folder = asset.source_folder or Path(asset.source_path).parent.as_posix()
+            if folder == prev_folder:
+                continue
+            prev_folder = folder
+            # Get the visual rect of the first item in this folder group
+            idx = self._model.index(i)
+            item_rect = self._list_view.visualRect(idx)
+            if item_rect.isNull() or item_rect.bottom() < 0 or item_rect.top() > vp.height():
+                continue  # off-screen
+            bar_y = item_rect.top() - 22
+            bar_rect = QRect(0, bar_y, vw, 20)
+            painter.fillRect(bar_rect, QColor(128, 128, 128, 40))
+            painter.setPen(QColor(200, 200, 200, 180))
+            collapsed = folder in self._collapsed_folders
+            arrow = "\u25B6" if collapsed else "\u25BC"
+            painter.drawText(bar_rect.adjusted(6, 0, -6, 0),
+                             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                             f"{arrow} {folder}")
+        painter.end()
+
     def eventFilter(self, obj, event):
         vp = self._list_view.viewport()
         if obj is self._list_view or obj is vp:
+            # Folder overlays — paint after viewport renders
+            if obj is vp and event.type() == event.Type.Paint:
+                # Let the viewport paint normally first, then overlay
+                obj.event(event)  # process the paint
+                self._paint_folder_overlays()
+                return True  # we handled it
+
             # Ctrl+Scroll zoom
             if event.type() == event.Type.Wheel:
                 if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
@@ -1121,19 +1114,6 @@ class AssetBrowser(QWidget):
                     self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
                     if current.isValid():
                         self._list_view.scrollTo(current, QListView.ScrollHint.PositionAtCenter)
-                    return True
-
-            # Folder header click — toggle collapse
-            if event.type() == event.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
-                pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
-                index = self._list_view.indexAt(pos)
-                if index.isValid() and index.data(ThumbnailModel.FolderHeaderRole):
-                    item = self._model._items[index.row()]
-                    if item.folder in self._collapsed_folders:
-                        self._collapsed_folders.discard(item.folder)
-                    else:
-                        self._collapsed_folders.add(item.folder)
-                    self._refresh_grid()
                     return True
 
             # Star click — detect click in star area of a thumbnail
