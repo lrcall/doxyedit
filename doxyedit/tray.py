@@ -2,13 +2,39 @@
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QListWidget, QListWidgetItem, QAbstractItemView, QMenu,
+    QListWidget, QListWidgetItem, QAbstractItemView, QMenu, QApplication,
 )
-from PySide6.QtCore import Qt, Signal, QSize
-from PySide6.QtGui import QPixmap, QIcon, QFont
+from PySide6.QtCore import Qt, Signal, QSize, QUrl, QMimeData
+from PySide6.QtGui import QPixmap, QIcon, QFont, QDrag
 
 
 NAME_ROLE = Qt.ItemDataRole.UserRole + 1  # stores display name for view mode switching
+PATH_ROLE = Qt.ItemDataRole.UserRole + 2  # stores source_path for drag-out
+
+
+class DragOutListWidget(QListWidget):
+    """QListWidget that supports dragging items out as file URLs to external apps."""
+
+    def startDrag(self, supportedActions):
+        items = self.selectedItems()
+        if not items:
+            return
+        mime = QMimeData()
+        urls = []
+        for item in items:
+            path = item.data(PATH_ROLE)
+            if path:
+                urls.append(QUrl.fromLocalFile(path))
+        if not urls:
+            return
+        mime.setUrls(urls)
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        # Use the first item's icon as drag pixmap
+        icon = items[0].icon()
+        if not icon.isNull():
+            drag.setPixmap(icon.pixmap(64, 64))
+        drag.exec(Qt.DropAction.CopyAction)
 
 
 class WorkTray(QWidget):
@@ -88,11 +114,11 @@ class WorkTray(QWidget):
         layout.addWidget(self._count_label)
 
         # List widget — shows thumbnails vertically
-        self._list = QListWidget()
+        self._list = DragOutListWidget()
         self._list.setIconSize(QSize(80, 80))
         self._list.setSpacing(2)
-        self._list.setDragDropMode(QAbstractItemView.DragDropMode.DropOnly)
-        self._list.setAcceptDrops(True)
+        self._list.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
+        self._list.setDragEnabled(True)
         self._list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._list.customContextMenuRequested.connect(self._on_context_menu)
@@ -113,6 +139,7 @@ class WorkTray(QWidget):
         item.setText(name if self._view_mode == 0 else "")
         item.setData(Qt.ItemDataRole.UserRole, asset_id)
         item.setData(NAME_ROLE, name)  # store name for mode switching
+        item.setData(PATH_ROLE, path)  # store path for drag-out
         if pixmap and not pixmap.isNull():
             scaled = pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio,
                                    Qt.TransformationMode.SmoothTransformation)
