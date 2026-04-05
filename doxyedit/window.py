@@ -1696,9 +1696,22 @@ class MainWindow(QMainWindow):
 
     def _on_asset_preview(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
-        if asset:
-            dlg = ImagePreviewDialog(asset.source_path, asset=asset, parent=self)
-            dlg.exec()
+        if not asset:
+            return
+        filtered = self.browser._filtered_assets
+        try:
+            idx = next(i for i, a in enumerate(filtered) if a.id == asset_id)
+        except StopIteration:
+            idx = 0
+        dlg = ImagePreviewDialog(
+            asset.source_path, asset=asset, parent=self,
+            assets=filtered, current_index=idx)
+        dlg.navigated.connect(self._navigate_to_asset_in_browser)
+        dlg.exec()
+
+    def _navigate_to_asset_in_browser(self, asset_id: str):
+        """Select an asset in the browser while preview dialog is open."""
+        self.browser.scroll_to_asset(asset_id)
 
     def _send_to_canvas(self, asset_id: str):
         """Ctrl+click — load image onto canvas and switch to Canvas tab."""
@@ -2107,10 +2120,18 @@ class MainWindow(QMainWindow):
         self.status.showMessage(f"Reloaded project from disk", 2000)
 
     def _refresh_thumbs(self):
-        self.browser._thumb_cache.clear()
+        """Force-regenerate all thumbnails, bypassing disk cache."""
+        cache = self.browser._thumb_cache
+        cache.clear_queue()
+        cache._pixmaps.clear()
+        cache._gen_sizes.clear()
+        cache._dims.clear()
         self.browser._delegate.invalidate_cache()
-        self.browser.refresh()
-        self.status.showMessage("Recaching thumbnails...", 2000)
+        # Re-request visible items with force=True so disk cache is bypassed
+        assets = self.browser._filtered_assets
+        batch = [(a.id, a.source_path) for a in assets]
+        cache.request_batch(batch, size=self.browser._thumb_size, force=True)
+        self.status.showMessage("Refreshing thumbnails (bypassing cache)...", 2000)
 
     def _clear_thumb_cache(self):
         import shutil

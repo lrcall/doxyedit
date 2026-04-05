@@ -80,19 +80,22 @@ class ThumbWorker(QThread):
         self._mutex = QMutex()
         self._stop = False
         self._save_counter = 0
+        self._force_regen: set[str] = set()  # asset IDs that must bypass disk cache
 
     def enqueue(self, asset_id: str, path: str, size: int = THUMB_SIZE):
         with QMutexLocker(self._mutex):
             self._queue = deque((a, p, s) for a, p, s in self._queue if a != asset_id)
             self._queue.append((asset_id, path, size))
 
-    def enqueue_batch(self, items: list[tuple[str, str, int]]):
+    def enqueue_batch(self, items: list[tuple[str, str, int]], force: bool = False):
         with QMutexLocker(self._mutex):
             existing = {}
             for aid, path, size in self._queue:
                 existing[aid] = (path, size)
             for aid, path, size in items:
                 existing[aid] = (path, size)
+                if force:
+                    self._force_regen.add(aid)
             self._queue = deque((aid, p, s) for aid, (p, s) in existing.items())
 
     def reprioritize(self, priority_ids: set):
@@ -122,8 +125,11 @@ class ThumbWorker(QThread):
 
             asset_id, path, target_size = item
 
-            # Try disk cache first
-            cached = self._disk_cache.get(path, target_size)
+            # Try disk cache (skip if force-regen requested for this asset)
+            force = asset_id in self._force_regen
+            if force:
+                self._force_regen.discard(asset_id)
+            cached = None if force else self._disk_cache.get(path, target_size)
             if cached:
                 pm, w, h = cached
                 self.thumb_ready.emit(asset_id, pm, w, h, target_size)
@@ -238,14 +244,21 @@ class ThumbCache:
             return
         self._worker.enqueue(asset_id, path, size)
 
-    def request_batch(self, items: list[tuple[str, str]], size: int = THUMB_SIZE):
+    def request_batch(self, items: list[tuple[str, str]], size: int = THUMB_SIZE,
+                      force: bool = False):
         needed = [(aid, path, size) for aid, path in items
-                  if self._gen_sizes.get(aid, 0) < size]
+                  if force or self._gen_sizes.get(aid, 0) < size]
         if needed:
-            # Prioritize: never-cached first, then upgrades (already have smaller version)
-            fresh = [(a, p, s) for a, p, s in needed if a not in self._gen_sizes]
-            upgrades = [(a, p, s) for a, p, s in needed if a in self._gen_sizes]
-            self._worker.enqueue_batch(fresh + upgrades)
+            if force:
+                # Force-regen: invalidate memory cache entries too
+                for aid, _, _ in needed:
+                    self._pixmaps.pop(aid, None)
+                    self._gen_sizes.pop(aid, None)
+                self._worker.enqueue_batch(needed, force=True)
+            else:
+                fresh    = [(a, p, s) for a, p, s in needed if a not in self._gen_sizes]
+                upgrades = [(a, p, s) for a, p, s in needed if a in self._gen_sizes]
+                self._worker.enqueue_batch(fresh + upgrades)
 
     def on_ready(self, asset_id: str, pixmap: QPixmap, w: int, h: int, gen_size: int):
         # Move to end (most-recently-used)

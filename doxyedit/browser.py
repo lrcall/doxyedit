@@ -2000,7 +2000,16 @@ class AssetBrowser(QWidget):
             # Ctrl+Scroll zoom
             if event.type() == event.Type.Wheel:
                 if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-                    current = view.currentIndex()
+                    # Anchor to item under the mouse, fall back to viewport center
+                    mouse_vp = view.mapFromGlobal(
+                        event.globalPosition().toPoint()
+                        if hasattr(event, 'globalPosition') else event.globalPos())
+                    anchor = view.indexAt(mouse_vp)
+                    if not anchor.isValid():
+                        anchor = view.indexAt(view.viewport().rect().center())
+                    if not anchor.isValid():
+                        anchor = view.currentIndex()
+
                     delta = event.angleDelta().y()
                     if delta > 0:
                         self._thumb_size = min(320, self._thumb_size + 20)
@@ -2008,18 +2017,17 @@ class AssetBrowser(QWidget):
                         self._thumb_size = max(80, self._thumb_size - 20)
                     s = QSettings("DoxyEdit", "DoxyEdit")
                     s.setValue("thumb_size", self._thumb_size)
-                    s.setValue("thumb_size_user_set", True)  # don't auto-override after manual zoom
+                    s.setValue("thumb_size_user_set", True)
                     self._delegate.thumb_size = self._thumb_size
-                    self._delegate.invalidate_cache()  # full clear on zoom change
+                    self._delegate.invalidate_cache()
                     self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
                     for section in self._folder_sections:
                         section.update_grid_size(self._thumb_size)
-                    if current.isValid():
+                    if anchor.isValid():
                         if view is self._list_view:
-                            QTimer.singleShot(0, lambda v=view, c=current: v.scrollTo(c, QListView.ScrollHint.PositionAtCenter))
+                            QTimer.singleShot(0, lambda v=view, c=anchor: v.scrollTo(c, QListView.ScrollHint.PositionAtCenter))
                         else:
-                            # Folder section — scroll the outer QScrollArea to the item
-                            def _scroll_to_item(v=view, c=current):
+                            def _scroll_to_item(v=view, c=anchor):
                                 for section in self._folder_sections:
                                     if section.view is v:
                                         ir = v.visualRect(c)
@@ -2030,6 +2038,29 @@ class AssetBrowser(QWidget):
                                             sb.setValue(max(0, min(item_y - vp_h // 2, sb.maximum())))
                                         break
                             QTimer.singleShot(0, _scroll_to_item)
+                    return True
+
+            # Alt+Scroll — jump between folder section headers (folder view only)
+            if event.type() == event.Type.Wheel:
+                if (event.modifiers() & Qt.KeyboardModifier.AltModifier
+                        and self._view_stack.currentIndex() == 1):
+                    delta = event.angleDelta().y()
+                    sb = self._folder_scroll.verticalScrollBar()
+                    current_y = sb.value()
+                    headers_y = sorted(
+                        section.mapTo(self._folder_container, QPoint(0, 0)).y()
+                        for section in self._folder_sections
+                        if not section.isHidden()
+                    )
+                    if delta > 0:
+                        # Scroll up — jump to previous section above current position
+                        candidates = [y for y in headers_y if y < current_y - 4]
+                        target = candidates[-1] if candidates else (headers_y[0] if headers_y else current_y)
+                    else:
+                        # Scroll down — jump to next section below current position
+                        candidates = [y for y in headers_y if y > current_y + 4]
+                        target = candidates[0] if candidates else (headers_y[-1] if headers_y else current_y)
+                    sb.setValue(max(0, min(target, sb.maximum())))
                     return True
 
             # Star click — detect click in star area of a thumbnail

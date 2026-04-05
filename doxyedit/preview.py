@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QGraphicsPixmapItem, QGraphicsRectItem,
     QApplication, QPushButton, QInputDialog, QWidget,
 )
-from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF
+from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF, Signal
 from PySide6.QtGui import (
     QPixmap, QPainter, QFont, QColor, QKeySequence, QShortcut,
     QTransform, QPen, QBrush,
@@ -130,11 +130,17 @@ class NoteRectItem(QGraphicsRectItem):
 
 
 class ImagePreviewDialog(QDialog):
-    """Full image preview — zoomable, with annotation notes."""
+    """Full image preview — zoomable, with annotation notes and prev/next navigation."""
 
-    def __init__(self, image_path: str, asset=None, parent=None):
+    navigated = Signal(str)   # emitted with asset_id when user navigates to a different asset
+
+    def __init__(self, image_path: str, asset=None, parent=None,
+                 assets: list = None, current_index: int = 0):
         super().__init__(parent)
         self._asset = asset
+        self._assets = assets or []   # ordered list of Asset objects for navigation
+        self._nav_index = current_index
+        self._is_fullscreen = False
         self.setWindowTitle(f"Preview — {Path(image_path).name}")
         self.setMinimumSize(800, 600)
         settings = QSettings("DoxyEdit", "DoxyEdit")
@@ -187,12 +193,17 @@ class ImagePreviewDialog(QDialog):
         self._view_notes_btn.toggled.connect(self._toggle_view_notes)
         info_bar.addWidget(self._view_notes_btn)
 
-        hint = QLabel("Scroll to zoom  |  Drag to pan  |  N = note  |  V = toggle  |  Esc = close")
+        nav_hint = " |  ← → Space to navigate" if self._assets else ""
+        hint = QLabel(f"Scroll to zoom  |  Drag to pan  |  N = note  |  V = toggle  |  F11 = fullscreen  |  Esc = close{nav_hint}")
         hint.setFont(QFont("Segoe UI", 9))
         hint.setStyleSheet("color: rgba(128,128,128,0.5);")
         info_bar.addWidget(hint)
 
-        layout.addLayout(info_bar)
+        # Info bar widget — double-click toggles fullscreen
+        info_bar_widget = QWidget()
+        info_bar_widget.setLayout(info_bar)
+        info_bar_widget.mouseDoubleClickEvent = lambda e: self._toggle_fullscreen()
+        layout.addWidget(info_bar_widget)
 
         # Zoomable view
         self.scene = QGraphicsScene()
@@ -229,6 +240,12 @@ class ImagePreviewDialog(QDialog):
         QShortcut(QKeySequence("N"), self, lambda: self._note_btn.toggle())
         QShortcut(QKeySequence("V"), self, lambda: self._view_notes_btn.toggle())
         QShortcut(QKeySequence("Delete"), self, self._delete_selected_note)
+        QShortcut(QKeySequence("F11"), self, self._toggle_fullscreen)
+        if self._assets:
+            QShortcut(QKeySequence("Space"), self, lambda: self._navigate(1))
+            QShortcut(QKeySequence("Backspace"), self, lambda: self._navigate(-1))
+            QShortcut(QKeySequence("Right"), self, lambda: self._navigate(1))
+            QShortcut(QKeySequence("Left"), self, lambda: self._navigate(-1))
 
         # Load existing annotations from asset notes
         self._load_saved_notes()
@@ -325,6 +342,39 @@ class ImagePreviewDialog(QDialog):
         existing_lines = [l for l in existing.split("\n") if l.strip() and not l.strip().startswith("[")]
         all_lines = existing_lines + note_lines
         self._asset.notes = "\n".join(all_lines)
+
+    def _navigate(self, direction: int):
+        """Move to the next (+1) or previous (-1) asset."""
+        if not self._assets:
+            return
+        self._nav_index = (self._nav_index + direction) % len(self._assets)
+        asset = self._assets[self._nav_index]
+        self._load_asset(asset)
+        self.navigated.emit(asset.id)
+
+    def _load_asset(self, asset):
+        """Swap the displayed image for a new asset without recreating the dialog."""
+        self._save_notes_to_asset()
+        self._asset = asset
+        pm, w, h = load_pixmap(asset.source_path)
+        self.setWindowTitle(f"Preview — {Path(asset.source_path).name}")
+        self.scene.clear()
+        self._notes = []
+        if not pm.isNull():
+            item = QGraphicsPixmapItem(pm)
+            item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+            self.scene.addItem(item)
+            self.scene.setSceneRect(QRectF(pm.rect()))
+            self.view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
+        self._load_saved_notes()
+
+    def _toggle_fullscreen(self):
+        if self._is_fullscreen:
+            self.showNormal()
+            self._is_fullscreen = False
+        else:
+            self.showFullScreen()
+            self._is_fullscreen = True
 
     def _fit_to_view(self):
         self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
