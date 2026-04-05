@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListView, QStyledItemDelegate,
     QLabel, QPushButton, QFileDialog, QFrame, QLineEdit, QComboBox,
     QMenu, QApplication, QSizePolicy, QStyle, QCheckBox,
+    QStackedWidget, QScrollArea,
 )
 from PySide6.QtCore import (
     Qt, Signal, QTimer, QSettings, QSize, QRect, QPoint,
@@ -361,6 +362,125 @@ class ThumbnailDelegate(QStyledItemDelegate):
 
 
 # ---------------------------------------------------------------------------
+# FolderListView — auto-heights itself to show all items without scrollbar
+# ---------------------------------------------------------------------------
+
+class FolderListView(QListView):
+    """QListView that reports a sizeHint tall enough to show all items unwrapped."""
+
+    def sizeHint(self):
+        m = self.model()
+        if not m or m.rowCount() == 0:
+            return QSize(200, 0)
+        w = max(self.width(), 200)
+        grid = self.gridSize()
+        if not grid.isValid():
+            return super().sizeHint()
+        col_w = max(1, grid.width() + self.spacing() * 2)
+        cols = max(1, w // col_w)
+        rows = (m.rowCount() + cols - 1) // cols
+        h = rows * grid.height() + 8
+        return QSize(w, h)
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.updateGeometry()
+
+
+# ---------------------------------------------------------------------------
+# FolderSection — header button + FolderListView for one folder group
+# ---------------------------------------------------------------------------
+
+class FolderSection(QWidget):
+    """One collapsible folder group: header label + FolderListView."""
+
+    collapsed_changed = Signal(str, bool)  # (folder_path, is_collapsed)
+
+    def __init__(self, folder: str, assets: list, delegate, thumb_size: int,
+                 collapsed: bool = False, parent=None):
+        super().__init__(parent)
+        self._folder = folder
+        self._thumb_size = thumb_size
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 2, 0, 0)
+        layout.setSpacing(0)
+
+        # Header
+        parts = Path(folder).parts
+        short = str(Path(*parts[-2:])) if len(parts) >= 2 else folder
+        self._short = short
+        self._header = QPushButton()
+        self._header.setFlat(True)
+        self._header.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._header.setStyleSheet(
+            "QPushButton { text-align: left; padding: 3px 6px; font-weight: bold; }"
+        )
+        self._header.clicked.connect(self._toggle_collapse)
+        layout.addWidget(self._header)
+
+        # QListView
+        self._model = ThumbnailModel(self)
+        self._model.set_assets(assets)
+
+        self._view = FolderListView()
+        self._view.setModel(self._model)
+        self._view.setItemDelegate(delegate)
+        self._view.setViewMode(QListView.ViewMode.IconMode)
+        self._view.setFlow(QListView.Flow.LeftToRight)
+        self._view.setWrapping(True)
+        self._view.setResizeMode(QListView.ResizeMode.Adjust)
+        self._view.setMovement(QListView.Movement.Static)
+        self._view.setUniformItemSizes(False)
+        self._view.setGridSize(QSize(thumb_size + 16, thumb_size + 70))
+        self._view.setSpacing(4)
+        self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._view.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
+        self._view.setMouseTracking(True)
+        self._view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._view.setStyleSheet("QListView { border: none; }")
+        layout.addWidget(self._view)
+
+        self._set_collapsed(collapsed, animate=False)
+
+    @property
+    def view(self) -> FolderListView:
+        return self._view
+
+    @property
+    def folder_model(self) -> "ThumbnailModel":
+        return self._model
+
+    @property
+    def folder(self) -> str:
+        return self._folder
+
+    @property
+    def is_collapsed(self) -> bool:
+        return not self._view.isVisible()
+
+    def _set_collapsed(self, collapsed: bool, animate=True):
+        self._view.setVisible(not collapsed)
+        n = self._model.rowCount()
+        arrow = "▶" if collapsed else "▼"
+        self._header.setText(f"{arrow}  {self._short}  ({n})")
+
+    def _toggle_collapse(self):
+        new_state = not self.is_collapsed
+        self._set_collapsed(new_state)
+        self.collapsed_changed.emit(self._folder, new_state)
+
+    def update_grid_size(self, thumb_size: int):
+        self._thumb_size = thumb_size
+        self._view.setGridSize(QSize(thumb_size + 16, thumb_size + 70))
+        self._view.updateGeometry()
+
+
+# ---------------------------------------------------------------------------
 # Asset Browser — main widget
 # ---------------------------------------------------------------------------
 
@@ -395,6 +515,7 @@ class AssetBrowser(QWidget):
         self.show_hidden_only = False
         self._collapsed_folders: set[str] = set()
         self._folder_filter: set[str] | None = None  # None = show all
+        self._folder_sections: list[FolderSection] = []
         self._current_font_size = 10
         self._hover_id = None
         self._hover_timer = QTimer(self)
@@ -588,7 +709,24 @@ class AssetBrowser(QWidget):
         self._list_view.setStyleSheet("QListView { border: none; }")
         self._list_view.installEventFilter(self)
         self._list_view.viewport().installEventFilter(self)
-        root.addWidget(self._list_view)
+
+        # Folder scroll area (page 1 of the stack) — built lazily in _refresh_grid
+        self._folder_container = QWidget()
+        self._folder_container_layout = QVBoxLayout(self._folder_container)
+        self._folder_container_layout.setContentsMargins(0, 0, 0, 0)
+        self._folder_container_layout.setSpacing(4)
+        self._folder_container_layout.addStretch()
+
+        self._folder_scroll = QScrollArea()
+        self._folder_scroll.setWidget(self._folder_container)
+        self._folder_scroll.setWidgetResizable(True)
+        self._folder_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._folder_scroll.verticalScrollBar().setSingleStep(20)
+
+        self._view_stack = QStackedWidget()
+        self._view_stack.addWidget(self._list_view)    # page 0: normal view
+        self._view_stack.addWidget(self._folder_scroll) # page 1: folder groups
+        root.addWidget(self._view_stack)
 
         # Status line
         status = QHBoxLayout()
@@ -597,6 +735,11 @@ class AssetBrowser(QWidget):
         status.addWidget(self.page_label)
         status.addStretch()
         root.addLayout(status)
+
+    @property
+    def active_view(self) -> QListView:
+        """Return the currently active QListView (single view now; per-folder view later)."""
+        return self._list_view
 
     def _btn_style(self):
         f = self._current_font_size
@@ -717,6 +860,8 @@ class AssetBrowser(QWidget):
         self._apply_tag_button_styles(font_size)
         self._delegate.font_size = font_size
         self._list_view.viewport().update()
+        for section in self._folder_sections:
+            section.view.viewport().update()
 
     # --- Filtering / sorting ---
 
@@ -724,16 +869,17 @@ class AssetBrowser(QWidget):
         is_folder = text == "By Folder"
         self._fold_all_btn.setVisible(is_folder)
         self._unfold_all_btn.setVisible(is_folder)
+        self._view_stack.setCurrentIndex(1 if is_folder else 0)
 
     def _collapse_all_folders(self):
-        for a in self.project.assets:
-            folder = a.source_folder or Path(a.source_path).parent.as_posix()
-            self._collapsed_folders.add(folder)
-        self._refresh_grid()
+        for section in self._folder_sections:
+            self._collapsed_folders.add(section.folder)
+            section._set_collapsed(True)
 
     def _expand_all_folders(self):
         self._collapsed_folders.clear()
-        self._refresh_grid()
+        for section in self._folder_sections:
+            section._set_collapsed(False)
 
     def _on_folder_scan_toggled(self, checked):
         if checked:
@@ -864,12 +1010,7 @@ class AssetBrowser(QWidget):
             assets.sort(key=lambda a: (
                 (a.source_folder or Path(a.source_path).parent.as_posix()).lower(),
                 Path(a.source_path).stem.lower()))
-            # Filter out collapsed folders
-            if self._collapsed_folders:
-                assets = [a for a in assets
-                          if (a.source_folder or Path(a.source_path).parent.as_posix())
-                          not in self._collapsed_folders]
-            return assets
+            return assets  # collapse handled by FolderSection visibility
 
         # For stat-based sorts, batch all os.stat calls once (O(n)) before sort
         if sort_mode in ("Newest", "Oldest", "Largest", "Smallest"):
@@ -914,33 +1055,26 @@ class AssetBrowser(QWidget):
         saved_ids = set(self._selected_ids)
         self.project.invalidate_index()
         self._filtered_assets = self._compute_filtered()
-        self._model.set_assets(self._filtered_assets)
 
-        # Compute folder boundaries for delegate overlay painting
-        folder_starts = {}
         if self.sort_combo.currentText() == "By Folder":
-            prev = None
-            for i, a in enumerate(self._filtered_assets):
-                folder = a.source_folder or Path(a.source_path).parent.as_posix()
-                if folder != prev:
-                    folder_starts[i] = folder
-                    prev = folder
-        self._delegate._folder_starts = folder_starts
+            self._rebuild_folder_sections(saved_ids)
+        else:
+            self._model.set_assets(self._filtered_assets)
+            self._delegate._folder_starts = {}
 
-        # Restore selection (block signals to avoid N redundant emissions)
-        if saved_ids:
-            sel = self._list_view.selectionModel()
-            sel.blockSignals(True)
-            for i in range(self._model.rowCount()):
-                idx = self._model.index(i)
-                asset = self._model.get_asset(idx)
-                if asset and asset.id in saved_ids:
-                    sel.select(idx, sel.SelectionFlag.Select)
-            sel.blockSignals(False)
+            # Restore selection
+            if saved_ids:
+                sel = self._list_view.selectionModel()
+                sel.blockSignals(True)
+                for i in range(self._model.rowCount()):
+                    idx = self._model.index(i)
+                    asset = self._model.get_asset(idx)
+                    if asset and asset.id in saved_ids:
+                        sel.select(idx, sel.SelectionFlag.Select)
+                sel.blockSignals(False)
 
-        # Request thumbnails for visible items
-        batch = [(a.id, a.source_path) for a in self._filtered_assets]
-        self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
+            batch = [(a.id, a.source_path) for a in self._filtered_assets]
+            self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
 
         # Update counts
         total = len(self.project.assets)
@@ -956,11 +1090,107 @@ class AssetBrowser(QWidget):
         self.count_label.setText(f"{shown}/{total} shown, {starred}★, {tagged} tagged{filtered_marker}")
         self.page_label.setText(f"{shown} images")
 
+    def _rebuild_folder_sections(self, saved_ids=None):
+        """Rebuild per-folder QListView sections from current filtered assets."""
+        from collections import defaultdict
+
+        # Group assets by folder (order preserved from sorted filtered list)
+        groups: dict[str, list] = defaultdict(list)
+        for a in self._filtered_assets:
+            folder = a.source_folder or Path(a.source_path).parent.as_posix()
+            groups[folder].append(a)
+
+        # Remove old sections (keep layout's trailing stretch)
+        for section in self._folder_sections:
+            self._folder_container_layout.removeWidget(section)
+            section.deleteLater()
+        self._folder_sections.clear()
+
+        # Build new sections
+        for folder, assets in groups.items():
+            collapsed = folder in self._collapsed_folders
+            section = FolderSection(
+                folder=folder,
+                assets=assets,
+                delegate=self._delegate,
+                thumb_size=self._thumb_size,
+                collapsed=collapsed,
+                parent=self._folder_container,
+            )
+            section.collapsed_changed.connect(self._on_folder_collapsed)
+            section.view.customContextMenuRequested.connect(
+                lambda pos, s=section: self._on_folder_context_menu_pos(pos, s))
+            section.view.doubleClicked.connect(self._on_folder_double_click)
+            section.view.selectionModel().selectionChanged.connect(
+                self._on_folder_selection_changed)
+            section.view.installEventFilter(self)
+            section.view.viewport().installEventFilter(self)
+
+            # Insert before trailing stretch
+            idx = max(0, self._folder_container_layout.count() - 1)
+            self._folder_container_layout.insertWidget(idx, section)
+            self._folder_sections.append(section)
+
+        # Restore selection
+        if saved_ids:
+            for section in self._folder_sections:
+                sel = section.view.selectionModel()
+                sel.blockSignals(True)
+                for i in range(section.folder_model.rowCount()):
+                    idx = section.folder_model.index(i)
+                    asset = section.folder_model.get_asset(idx)
+                    if asset and asset.id in saved_ids:
+                        sel.select(idx, sel.SelectionFlag.Select)
+                sel.blockSignals(False)
+
+        # Request thumbnails
+        batch = [(a.id, a.source_path) for a in self._filtered_assets]
+        self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
+
+        # Trigger layout recalc once views have been sized
+        QTimer.singleShot(0, self._folder_container.adjustSize)
+
+    def _on_folder_collapsed(self, folder: str, is_collapsed: bool):
+        if is_collapsed:
+            self._collapsed_folders.add(folder)
+        else:
+            self._collapsed_folders.discard(folder)
+
+    def _on_folder_selection_changed(self):
+        self._selected_ids = set()
+        for section in self._folder_sections:
+            for idx in section.view.selectionModel().selectedIndexes():
+                asset = section.folder_model.get_asset(idx)
+                if asset:
+                    self._selected_ids.add(asset.id)
+        id_list = list(self._selected_ids)
+        self.selection_changed.emit(id_list)
+        if len(id_list) == 1:
+            self.asset_selected.emit(id_list[0])
+
+    def _on_folder_double_click(self, index: QModelIndex):
+        # Identify which section emitted this
+        sender_view = self.sender()
+        for section in self._folder_sections:
+            if section.view is sender_view:
+                asset = section.folder_model.get_asset(index)
+                if asset:
+                    self.asset_preview.emit(asset.id)
+                return
+
+    def _on_folder_context_menu_pos(self, pos, section: "FolderSection"):
+        index = section.view.indexAt(pos)
+        asset = section.folder_model.get_asset(index) if index.isValid() else None
+        if asset:
+            self._on_context_menu(asset.id, section.view.viewport().mapToGlobal(pos))
+
     # --- Thumb cache callbacks ---
 
     def _on_thumb_ready(self, asset_id: str, pixmap: QPixmap, w: int, h: int, gen_size: int):
         self._thumb_cache.on_ready(asset_id, pixmap, w, h, gen_size)
         self._model.update_pixmap(asset_id, pixmap)
+        for section in self._folder_sections:
+            section.folder_model.update_pixmap(asset_id, pixmap)
         self.thumb_loaded.emit(asset_id, pixmap)
         # Update progress bar if caching all
         if self._cache_all_total > 0:
@@ -1406,15 +1636,24 @@ class AssetBrowser(QWidget):
 
     # --- Zoom (event filter intercepts Ctrl+Scroll on the list view) ---
 
-
+    def _view_for_obj(self, obj):
+        """Return (view, model) if obj is a managed view or its viewport, else (None, None)."""
+        if obj is self._list_view or obj is self._list_view.viewport():
+            return self._list_view, self._model
+        for section in self._folder_sections:
+            v = section.view
+            if obj is v or obj is v.viewport():
+                return v, section.folder_model
+        return None, None
 
     def eventFilter(self, obj, event):
-        vp = self._list_view.viewport()
-        if obj is self._list_view or obj is vp:
+        view, model = self._view_for_obj(obj)
+        vp = view.viewport() if view is not None else None
+        if view is not None:
             # Ctrl+Scroll zoom
             if event.type() == event.Type.Wheel:
                 if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-                    current = self._list_view.currentIndex()
+                    current = view.currentIndex()
                     delta = event.angleDelta().y()
                     if delta > 0:
                         self._thumb_size = min(320, self._thumb_size + 20)
@@ -1424,23 +1663,25 @@ class AssetBrowser(QWidget):
                     self._delegate.thumb_size = self._thumb_size
                     self._delegate.invalidate_cache()  # full clear on zoom change
                     self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
+                    for section in self._folder_sections:
+                        section.update_grid_size(self._thumb_size)
                     if current.isValid():
-                        self._list_view.scrollTo(current, QListView.ScrollHint.PositionAtCenter)
+                        view.scrollTo(current, QListView.ScrollHint.PositionAtCenter)
                     return True
 
             # Star click — detect click in star area of a thumbnail
             if event.type() == event.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
                 pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
-                index = self._list_view.indexAt(pos)
+                index = view.indexAt(pos)
                 if index.isValid():
-                    item_rect = self._list_view.visualRect(index)
+                    item_rect = view.visualRect(index)
                     ts = self._delegate.thumb_size
                     star_rect = QRect(item_rect.right() - 24, item_rect.y() + ts + 34, 22, 22)
                     if star_rect.contains(pos):
-                        asset = self._model.get_asset(index)
+                        asset = model.get_asset(index)
                         if asset:
                             asset.cycle_star()
-                            self._model.dataChanged.emit(index, index)
+                            model.dataChanged.emit(index, index)
                         return True
 
             # Middle-click — instant preview regardless of hover setting
@@ -1449,8 +1690,8 @@ class AssetBrowser(QWidget):
                     self._hover_timer.stop()
                     self._middle_held = True
                     pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
-                    index = self._list_view.indexAt(pos)
-                    asset = self._model.get_asset(index) if index.isValid() else None
+                    index = view.indexAt(pos)
+                    asset = model.get_asset(index) if index.isValid() else None
                     if asset:
                         hp = HoverPreview.instance()
                         hp.PREVIEW_SIZE = self._hover_px()
@@ -1467,8 +1708,8 @@ class AssetBrowser(QWidget):
             if (event.type() == event.Type.MouseMove
                     and getattr(self, '_middle_held', False)):
                 pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
-                index = self._list_view.indexAt(pos)
-                asset = self._model.get_asset(index) if index.isValid() else None
+                index = view.indexAt(pos)
+                asset = model.get_asset(index) if index.isValid() else None
                 if asset and asset.id != self._hover_id:
                     self._hover_id = asset.id
                     hp = HoverPreview.instance()
@@ -1481,8 +1722,8 @@ class AssetBrowser(QWidget):
                     and self.hover_preview_enabled
                     and not getattr(self, '_middle_held', False)):
                 pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
-                index = self._list_view.indexAt(pos)
-                asset = self._model.get_asset(index) if index.isValid() else None
+                index = view.indexAt(pos)
+                asset = model.get_asset(index) if index.isValid() else None
                 if asset and asset.id != self._hover_id:
                     self._hover_id = asset.id
                     HoverPreview.instance().hide_preview()

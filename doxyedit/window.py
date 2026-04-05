@@ -1579,7 +1579,7 @@ class MainWindow(QMainWindow):
 
     def _select_all(self):
         if self.tabs.currentIndex() == 0:
-            self.browser._list_view.selectAll()
+            self.browser.active_view.selectAll()
 
     def _copy_full_path(self):
         if self.tabs.currentIndex() != 0:
@@ -1593,7 +1593,7 @@ class MainWindow(QMainWindow):
 
     def _select_none(self):
         if self.tabs.currentIndex() == 0:
-            self.browser._list_view.clearSelection()
+            self.browser.active_view.clearSelection()
 
     def _clear_unused_tags(self):
         """Remove tag definitions and custom tags not used by any asset."""
@@ -1772,7 +1772,7 @@ class MainWindow(QMainWindow):
 
     def _select_all_with_tag(self, tag_id: str):
         """Select all assets in the grid that have the given tag."""
-        sel = self.browser._list_view.selectionModel()
+        sel = self.browser.active_view.selectionModel()
         sel.clearSelection()
         model = self.browser._model
         count = 0
@@ -1786,7 +1786,7 @@ class MainWindow(QMainWindow):
 
     def _toggle_dims(self, on: bool):
         self.browser._delegate.show_dims = on
-        self.browser._list_view.viewport().update()
+        self.browser.active_view.viewport().update()
 
     def _toggle_show_hidden_only(self, checked: bool):
         self.browser.show_hidden_only = checked
@@ -1800,7 +1800,7 @@ class MainWindow(QMainWindow):
         if assets:
             ids = {a.id for a in assets}
             self.browser._temp_hidden_ids |= ids
-            self.browser._list_view.clearSelection()
+            self.browser.active_view.clearSelection()
             self.browser._refresh_grid()
             n = len(ids)
             self.status.showMessage(f"Temporarily hidden {n} asset(s) — Alt+H with nothing selected to restore")
@@ -1814,7 +1814,7 @@ class MainWindow(QMainWindow):
         if self.tabs.currentIndex() != 0:
             return
         model = self.browser._model
-        sel = self.browser._list_view.selectionModel()
+        sel = self.browser.active_view.selectionModel()
         for i in range(model.rowCount()):
             idx = model.index(i)
             sel.select(idx, sel.SelectionFlag.Toggle)
