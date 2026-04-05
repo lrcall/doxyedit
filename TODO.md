@@ -48,7 +48,7 @@
 - [x] Pin tag to top of section
 - [x] Right-click: rename, hide, delete, set shortcut, pin
 - [x] Ctrl+click multi-select tags for batch operations
-- [x] Alt+click tag bar button → search/unsearch
+- [x] Ctrl+click tag bar button → search/unsearch
 - [x] Tag bar excludes platform tags
 - [x] Quick Tag in context menu with sections
 - [x] Add Tag dialog in context menu
@@ -139,16 +139,18 @@
 ## Pending / Requested But Not Yet Implemented
 
 ### High Priority
-- [ ] Hover preview delay time setting (in View or Tools)
-- [ ] Thumbnail filename text doesn't resize with Ctrl+=/- (hardcoded in delegate)
-- [ ] Per-thumbnail resolution display toggle (on/off in View)
-- [ ] Collapsible tag sections (click section header to collapse)
-- [ ] Name first tag section "Default"
-- [ ] Tray collapse button in header should close the whole tray (not just content)
-- [ ] Auto-tagging toggle (on/off in Tools)
+- [x] Hover preview delay time setting (in View or Tools)
+- [x] Thumbnail filename text doesn't resize with Ctrl+=/- (hardcoded in delegate)
+- [x] Per-thumbnail resolution display toggle (on/off in View)
+- [x] Collapsible tag sections (click section header to collapse)
+- [x] Name first tag section "Default"
+- [x] Tray collapse button in header should close the whole tray (not just content)
+- [x] Auto-tagging toggle (on/off in Tools)
 - [ ] Sort by folder with folder headers in thumbnail mode
 
 ### Medium Priority
+- [ ] Rebuild custom tag bar buttons from tags that exist in project JSON (not hardcoded)
+- [ ] Move selected assets to another .doxyproj.json (push + remove)
 - [ ] Kanban/Gantt posting schedule board
 - [ ] Project color mode (window accent per project)
 - [ ] Duplicate file finder/unifier
@@ -157,11 +159,12 @@
 - [ ] Shift+E → notes overlay popup (center screen)
 - [ ] Crop region selector tool
 - [ ] N key → notes overlay (same as bottom-left but center)
-- [ ] Tray group tagging / quick tag for tray items
+- [x] Tray group tagging / quick tag for tray items
 - [ ] Tray column modes (detail/2-col/3-col)
-- [ ] "Show Hidden Only" filter in View
-- [ ] Right-click Quick Tag multi-column layout (max 10 per column)
+- [x] "Show Hidden Only" filter in View
+- [x] Right-click Quick Tag multi-column layout (max 10 per column)
 - [ ] Drag-select over tag rows (rubber band selection)
+- [ ] Drag-drop tags between groups / create new tag groups
 
 ### Low Priority / Future
 - [ ] Mass tag editing for AI training prompt files
@@ -171,6 +174,6 @@
 - [ ] LRU eviction for in-memory pixmap cache
 - [ ] Stat syscall caching for sort-by-date/size
 - [ ] Tray button in menu bar (right side, same line as File/Edit)
-- [ ] File menu font size still mismatches with hover in some themes
-- [ ] Save notes area splitter size per project
-- [ ] Canvas tools hidden when not on Canvas tab
+- [x] File menu font size still mismatches with hover in some themes
+- [x] Save notes area splitter size per project
+- [x] Canvas tools hidden when not on Canvas tab

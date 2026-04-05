@@ -1,5 +1,50 @@
 # DoxyEdit Changelog
 
+## v1.3.0 — 2026-04-05
+
+### Tag System Improvements
+- Both tag locations (top bar + side panel) now refresh on every tag-modifying event
+- Custom tags sorted alphabetically in side panel
+- Collapsible tag sections — click section header (▼/▶) to collapse/expand
+- First tag section labeled "Default"
+- Tags preserve user's exact casing and spaces (no more forced lowercase/underscores)
+- "Select all with tag" in tag panel right-click menu
+- Quick Tag multi-column submenu in browser right-click (✓ marks, splits at 10)
+- Tray Quick Tag — right-click tray items to tag them directly
+- Auto-tag toggle in Tools menu (guards filename + visual auto-tagging)
+
+### New Shortcuts & Controls
+- Escape — deselect all
+- Alt+A — add tag to selected assets
+- Ctrl+H — temporary hide selected (Ctrl+H again with nothing selected restores all)
+- Ctrl+F — focus search box
+- Ctrl+Click tag bar button — search by tag (was Alt+Click)
+- F5 — reload project from disk (picks up external edits from Claude CLI)
+- Shift+F5 — refresh thumbnails
+
+### View Menu Additions
+- Show Resolution toggle (per-thumbnail dimensions on/off)
+- Show Tag Bar toggle (hide/show top tag buttons)
+- Show Hidden Only filter (invert eye filter to see hidden items)
+- Hover Preview Delay setting (200-1200ms, persisted)
+- "Has Notes" filter checkbox on search bar
+
+### UI & UX Fixes
+- Thumbnail filename text now scales with Ctrl+=/- (was hardcoded)
+- Menu font hover no longer mismatches in some themes
+- Notes area splitter size persists across sessions
+- Canvas tools (Select/Text/Line/Box/Marker/Color) hidden when not on Canvas tab
+- Tray collapse button closes the entire tray (not just content)
+- Hover preview hides before re-triggering delay when moving between thumbnails
+- Middle-click drag properly updates preview without interfering with hover timer
+- Clear All Tags now refreshes the browser grid
+- Copy Filename added to browser right-click menu
+- Filter button tooltips (Starred/Untagged/Tagged)
+
+### Checklist Progress
+- 17 items completed from TODO.md (7 high, 6 medium, 4 low priority)
+- Added future items: rebuild tag bar from JSON, move assets between projects, drag-drop tag groups
+
 ## v1.2.0 — 2026-04-05
 
 ### Claude CLI Integration

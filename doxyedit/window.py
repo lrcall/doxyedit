@@ -69,15 +69,18 @@ class MainWindow(QMainWindow):
         self.tag_panel.setMinimumWidth(220)
         self.tag_panel.setMaximumWidth(400)
         self.tag_panel.tags_changed.connect(self._on_data_changed)
+        self.tag_panel.tags_changed.connect(lambda: self.browser.refresh())
         self.tag_panel.tag_deleted.connect(self._on_tag_deleted)
         self.tag_panel.tag_renamed.connect(self._on_tag_renamed)
         self.tag_panel.shortcut_changed.connect(self._on_shortcut_changed)
         self.tag_panel.hidden_changed.connect(self._on_hidden_changed)
         self.tag_panel.filter_by_eye.connect(self._on_eye_filter)
+        self.tag_panel.select_all_with_tag.connect(self._select_all_with_tag)
 
         self.work_tray.asset_selected.connect(self._on_asset_selected)
         self.work_tray.asset_preview.connect(self._on_asset_preview)
         self.work_tray.toggle_requested.connect(self._toggle_work_tray)
+        self.work_tray.tags_modified.connect(self._on_tags_modified)
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
         self._browse_split.addWidget(self.tag_panel)
@@ -90,6 +93,10 @@ class MainWindow(QMainWindow):
             self._browse_split.setSizes(sizes[:2] if len(sizes) >= 2 else [260, 1000])
         else:
             self._browse_split.setSizes([260, 1000])
+        # Restore tag-notes splitter
+        saved_notes_split = self._settings_early.value("tag_notes_splitter", None)
+        if saved_notes_split:
+            self.tag_panel._tag_notes_split.setSizes([int(s) for s in saved_notes_split])
         self.tabs.addTab(self._browse_split, "Assets")
 
         # Tab 2: Canvas Editor
@@ -120,6 +127,15 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self._build_menu()
         self._setup_tag_shortcuts()
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+        self._on_tab_changed(0)  # hide canvas tools initially
+
+        # Escape to deselect, Ctrl+F to focus search
+        QShortcut(QKeySequence("Escape"), self).activated.connect(self._select_none)
+        QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(
+            lambda: self.browser.search_box.setFocus())
+        # Alt+H temporary hide/unhide
+        QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._temp_hide_toggle)
 
         # --- Status bar with progress ---
         self.status = QStatusBar()
@@ -224,6 +240,11 @@ class MainWindow(QMainWindow):
         self._settings.setValue("hover_size_pct", pct)
         self.status.showMessage(f"Hover preview: {pct}% of thumbnail size", 2000)
 
+    def _set_hover_delay(self, ms: int):
+        self.browser._hover_timer.setInterval(ms)
+        self._settings.setValue("hover_delay_ms", ms)
+        self.status.showMessage(f"Hover preview delay: {ms}ms", 2000)
+
     def _set_thumb_gen_size(self, size: int):
         from doxyedit import browser
         browser.THUMB_GEN_SIZE = size
@@ -267,9 +288,9 @@ class MainWindow(QMainWindow):
         # Asset ops
         tb.addAction(QAction("+ Folder", self, triggered=lambda: self.browser.open_folder_dialog()))
         tb.addAction(QAction("+ Files", self, triggered=lambda: self.browser.add_images_dialog()))
-        tb.addSeparator()
 
         # Canvas tools (active when on Canvas tab)
+        self._canvas_sep_before = tb.addSeparator()
         tools = [
             ("Select", Tool.SELECT, "V"),
             ("Text", Tool.TEXT, "T"),
@@ -285,10 +306,12 @@ class MainWindow(QMainWindow):
             tb.addAction(action)
             self._tool_actions.append((action, tool))
         self._tool_actions[0][0].setChecked(True)
-        tb.addSeparator()
+
+        self._color_action = QAction("Color", self, triggered=self._change_color)
+        tb.addAction(self._color_action)
+        self._canvas_sep_after = tb.addSeparator()
 
         tb.addAction(QAction("Delete", self, triggered=self._handle_delete))
-        tb.addAction(QAction("Color", self, triggered=self._change_color))
 
     def _build_menu(self):
         menu = self.menuBar()
@@ -330,14 +353,19 @@ class MainWindow(QMainWindow):
         edit_menu.addAction("Unstar Selected", lambda: self._batch_star(0))
         edit_menu.addSeparator()
         edit_menu.addAction("Clear Tags on Selected", self._clear_tags_selected)
-        edit_menu.addAction("Add Tag to Selected...", self._add_tag_to_selected)
+        edit_menu.addAction("Add Tag to Selected...", self._add_tag_to_selected, QKeySequence("Alt+A"))
 
         # Tools menu
         tools_menu = menu.addMenu("&Tools")
-        tools_menu.addAction("&Refresh Thumbnails", self._refresh_thumbs, QKeySequence("F5"))
+        tools_menu.addAction("&Reload Project from Disk", self._reload_project, QKeySequence("F5"))
+        tools_menu.addAction("Refresh Thumbnails", self._refresh_thumbs, QKeySequence("Shift+F5"))
         tools_menu.addAction("Rebuild Tag Bar", lambda: self.browser.rebuild_tag_bar())
         tools_menu.addSeparator()
         tools_menu.addAction("Clear Thumbnail Cache", self._clear_thumb_cache)
+        self._auto_tag_action = tools_menu.addAction("Auto-Tag on Import")
+        self._auto_tag_action.setCheckable(True)
+        self._auto_tag_action.setChecked(True)
+        self._auto_tag_action.toggled.connect(lambda on: setattr(self.browser, 'auto_tag_enabled', on))
         tools_menu.addSeparator()
         tools_menu.addAction("Project &Summary (CLI)", self._show_summary)
         tools_menu.addAction("Show Project File...", self._show_project_file)
@@ -367,9 +395,24 @@ class MainWindow(QMainWindow):
         hover_menu = view_menu.addMenu("Hover Preview Size")
         for pct in [125, 150, 200, 250, 300]:
             hover_menu.addAction(f"{pct}%", lambda p=pct: self._set_hover_size(p))
+        delay_menu = view_menu.addMenu("Hover Preview Delay")
+        for ms in [200, 300, 400, 600, 800, 1200]:
+            delay_menu.addAction(f"{ms}ms", lambda d=ms: self._set_hover_delay(d))
         view_menu.addSeparator()
+        self._show_dims_action = view_menu.addAction("Show Resolution")
+        self._show_dims_action.setCheckable(True)
+        self._show_dims_action.setChecked(True)
+        self._show_dims_action.toggled.connect(self._toggle_dims)
+        self._toggle_tag_bar_action = view_menu.addAction("Show Tag Bar")
+        self._toggle_tag_bar_action.setCheckable(True)
+        self._toggle_tag_bar_action.setChecked(True)
+        self._toggle_tag_bar_action.toggled.connect(
+            lambda on: self.browser._tag_bar_frame.setVisible(on))
+        self._show_hidden_only = view_menu.addAction("Show Hidden Only")
+        self._show_hidden_only.setCheckable(True)
+        self._show_hidden_only.toggled.connect(self._toggle_show_hidden_only)
         view_menu.addAction("Show All Hidden Tags", lambda: self.tag_panel._show_all_tags())
-        view_menu.addAction("Refresh Grid", lambda: self.browser.refresh(), QKeySequence("F5"))
+        view_menu.addAction("Refresh Grid", lambda: self.browser.refresh())
 
         # Help menu
         help_menu = menu.addMenu("&Help")
@@ -615,9 +658,14 @@ class MainWindow(QMainWindow):
         self.project.hidden_tags = hidden_list
         self._dirty = True
 
-    def _on_tags_modified(self):
-        """Browser added/removed a custom tag — sync the side panel."""
+    def _refresh_all_tags(self):
+        """Rebuild both tag locations: browser tag bar + side panel."""
+        self.browser.rebuild_tag_bar()
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
+
+    def _on_tags_modified(self):
+        """Browser added/removed a custom tag — sync both tag locations."""
+        self._refresh_all_tags()
         self._dirty = True
 
     def _toggle_work_tray(self):
@@ -681,6 +729,7 @@ class MainWindow(QMainWindow):
         self.project.custom_tags = [
             ct for ct in self.project.custom_tags if ct.get("id") != tag_id
         ]
+        self._refresh_all_tags()
         self.browser.refresh()
         self._dirty = True
         self.status.showMessage(f"Deleted tag '{tag_id}' from all assets")
@@ -697,7 +746,7 @@ class MainWindow(QMainWindow):
             if isinstance(ct, dict) and ct.get("id") == old_id:
                 ct["id"] = new_id
                 ct["label"] = new_label
-        self.browser.rebuild_tag_bar()
+        self._refresh_all_tags()
         self.browser.refresh()
         self._dirty = True
         self.status.showMessage(f"Renamed tag '{old_id}' → '{new_label}'")
@@ -717,6 +766,7 @@ class MainWindow(QMainWindow):
             asset.tags.clear()
         self.project.custom_tags.clear()
         self.tag_panel.set_assets([])
+        self._refresh_all_tags()
         self.browser.refresh()
         self._dirty = True
         self.status.showMessage(f"Cleared all tags from {n} assets")
@@ -773,6 +823,15 @@ class MainWindow(QMainWindow):
 
     # --- Canvas tools ---
 
+    def _on_tab_changed(self, index: int):
+        """Show/hide canvas tools based on active tab."""
+        on_canvas = index == 1  # Canvas tab
+        self._canvas_sep_before.setVisible(on_canvas)
+        for action, _ in self._tool_actions:
+            action.setVisible(on_canvas)
+        self._color_action.setVisible(on_canvas)
+        self._canvas_sep_after.setVisible(on_canvas)
+
     def _set_tool(self, tool: Tool):
         self.scene.set_tool(tool)
         for action, t in self._tool_actions:
@@ -816,6 +875,46 @@ class MainWindow(QMainWindow):
     def _select_none(self):
         if self.tabs.currentIndex() == 0:
             self.browser._list_view.clearSelection()
+
+    def _select_all_with_tag(self, tag_id: str):
+        """Select all assets in the grid that have the given tag."""
+        sel = self.browser._list_view.selectionModel()
+        sel.clearSelection()
+        model = self.browser._model
+        count = 0
+        for i in range(model.rowCount()):
+            idx = model.index(i)
+            asset = model.get_asset(idx)
+            if asset and tag_id in asset.tags:
+                sel.select(idx, sel.SelectionFlag.Select)
+                count += 1
+        self.status.showMessage(f"Selected {count} asset(s) with tag '{tag_id}'")
+
+    def _toggle_dims(self, on: bool):
+        self.browser._delegate.show_dims = on
+        self.browser._list_view.viewport().update()
+
+    def _toggle_show_hidden_only(self, checked: bool):
+        self.browser.show_hidden_only = checked
+        self.browser._refresh_grid()
+
+    def _temp_hide_toggle(self):
+        """Alt+H: hide selected assets temporarily, or unhide all if nothing selected."""
+        if self.tabs.currentIndex() != 0:
+            return
+        assets = self.browser.get_selected_assets()
+        if assets:
+            ids = {a.id for a in assets}
+            self.browser._temp_hidden_ids |= ids
+            self.browser._list_view.clearSelection()
+            self.browser._refresh_grid()
+            n = len(ids)
+            self.status.showMessage(f"Temporarily hidden {n} asset(s) — Alt+H with nothing selected to restore")
+        elif self.browser._temp_hidden_ids:
+            n = len(self.browser._temp_hidden_ids)
+            self.browser._temp_hidden_ids.clear()
+            self.browser._refresh_grid()
+            self.status.showMessage(f"Restored {n} temporarily hidden asset(s)")
 
     def _invert_selection(self):
         if self.tabs.currentIndex() != 0:
@@ -861,13 +960,27 @@ class MainWindow(QMainWindow):
         tag, ok = QInputDialog.getText(self, "Add Tag", "Tag to add to selected:")
         if not ok or not tag.strip():
             return
-        tag_id = tag.strip().lower().replace(" ", "_")
+        tag_label = tag.strip()
+        tag_id = tag_label  # preserve user's casing and spaces
         assets = self.browser.get_selected_assets()
         for a in assets:
             if tag_id not in a.tags:
                 a.tags.append(tag_id)
+        self._refresh_all_tags()
+        self.tag_panel.set_assets(assets)
         self._dirty = True
         self.status.showMessage(f"Added '{tag_id}' to {len(assets)} asset(s)")
+
+    def _reload_project(self):
+        """Reload the current project file from disk (F5)."""
+        if not self._project_path or not Path(self._project_path).exists():
+            self.browser.refresh()
+            self.status.showMessage("No project file to reload — refreshed grid", 2000)
+            return
+        self.project = Project.load(self._project_path)
+        self._rebind_project()
+        self._dirty = False
+        self.status.showMessage(f"Reloaded project from disk", 2000)
 
     def _refresh_thumbs(self):
         self.browser._thumb_cache.clear()
@@ -938,13 +1051,18 @@ Ctrl+E — Export All Platforms
 Ctrl+V — Paste Image/Path
 Ctrl+A — Select All
 Ctrl+D — Deselect All
+Escape — Deselect All
+Alt+A — Add Tag to Selected
+Ctrl+H — Temporary Hide (nothing selected = restore all)
 Ctrl+T — Toggle Tag Panel
 Ctrl+= — Increase Font
 Ctrl+- — Decrease Font
 Ctrl+0 — Reset Font
 Ctrl+Scroll — Zoom Thumbnails
 Delete — Soft-delete (tag as ignore)
-F5 — Refresh Thumbnails
+F5 — Reload Project from Disk
+Shift+F5 — Refresh Thumbnails
+Ctrl+F — Focus Search Box
 
 Preview:
 N — Add Note
@@ -955,7 +1073,7 @@ Esc — Close
 Tags (Assets tab):
 1-8 — Toggle content tags
 0 — Toggle Ignore
-Alt+Click tag — Search by tag
+Ctrl+Click tag — Search by tag
 """
         from doxyedit.models import TAG_SHORTCUTS
         for key, tid in self.project.custom_shortcuts.items():
@@ -1041,6 +1159,7 @@ Alt+Click tag — Search by tag
 
     def _rebind_project(self):
         self.browser.project = self.project
+        self.work_tray._project = self.project
         self.browser.rebuild_tag_bar()
         self.browser.refresh()
         self.platform_panel.project = self.project
@@ -1171,6 +1290,7 @@ Alt+Click tag — Search by tag
             self.project.save(self._project_path)
         # Save splitter and window position/size
         self._settings.setValue("splitter_sizes", self._browse_split.sizes())
+        self._settings.setValue("tag_notes_splitter", self.tag_panel._tag_notes_split.sizes())
         self._settings.setValue("window_width", self.width())
         self._settings.setValue("window_height", self.height())
         self._settings.setValue("window_x", self.x())

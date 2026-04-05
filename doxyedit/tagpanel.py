@@ -28,6 +28,7 @@ class TagRow(QFrame):
     shortcut_requested = Signal(str)
     visibility_toggled = Signal(str, bool)
     row_clicked = Signal(str, bool)  # tag_id, ctrl_held
+    select_all_requested = Signal(str)  # tag_id
 
     def __init__(self, tag: TagPreset, parent=None):
         super().__init__(parent)
@@ -136,6 +137,8 @@ class TagRow(QFrame):
         menu.addAction(f"Rename '{self.tag.label}'", self._request_rename)
         menu.addAction(f"Hide '{self.tag.label}'", lambda: self.hide_requested.emit(self.tag.id))
         menu.addAction(f"Delete '{self.tag.label}' from project", lambda: self.delete_requested.emit(self.tag.id))
+        menu.addSeparator()
+        menu.addAction(f"Select all with '{self.tag.label}'", lambda: self.select_all_requested.emit(self.tag.id))
         menu.exec(event.globalPos())
 
     def _request_rename(self):
@@ -159,6 +162,7 @@ class TagPanel(QWidget):
     shortcut_changed = Signal(str, str)
     hidden_changed = Signal(list)
     filter_by_eye = Signal(list)  # list of tag_ids to HIDE from grid
+    select_all_with_tag = Signal(str)  # select all assets with this tag
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -229,32 +233,47 @@ class TagPanel(QWidget):
         self._tag_layout = tag_layout
         self._tag_scroll_widget = tag_widget
 
-        # Content/workflow tags (no size requirements)
-        self._section_starts["content"] = tag_layout.count()
-        for tag_id, tag in TAG_PRESETS.items():
-            self._add_tag_row(tag_id, tag, section="content")
+        self._collapsed_sections: set[str] = set()
+        _lbl_style = ("QPushButton { color: rgba(128,128,128,0.4); padding: 2px 4px;"
+                       " background: transparent; border: none; text-align: left; }"
+                       "QPushButton:hover { color: rgba(128,128,128,0.7); }")
 
-        def _make_sep(label_text, visible=True):
+        def _make_section_label(text, section_id):
+            btn = QPushButton(f"\u25BC {text}")  # ▼ expanded
+            btn.setFont(QFont("Segoe UI", 8))
+            btn.setStyleSheet(_lbl_style)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda: self._toggle_section(section_id, btn, text))
+            return btn
+
+        def _make_sep(label_text, section_id, visible=True):
             sep = QFrame()
             sep.setFrameShape(QFrame.Shape.HLine)
             sep.setStyleSheet("color: rgba(128,128,128,0.2);")
             sep.setVisible(visible)
             tag_layout.addWidget(sep)
-            lbl = QLabel(label_text)
-            lbl.setFont(QFont("Segoe UI", 8))
-            lbl.setStyleSheet("color: rgba(128,128,128,0.4); padding: 2px 4px;")
+            lbl = _make_section_label(label_text, section_id)
             lbl.setVisible(visible)
             tag_layout.addWidget(lbl)
             return sep, lbl
 
-        self._sep1, self._sep1_label = _make_sep("Platform / Size targets")
+        # "Default" section label (no separator line above — it's the first section)
+        self._default_lbl = _make_section_label("Default", "content")
+        tag_layout.addWidget(self._default_lbl)
+
+        # Content/workflow tags
+        self._section_starts["content"] = tag_layout.count()
+        for tag_id, tag in TAG_PRESETS.items():
+            self._add_tag_row(tag_id, tag, section="content")
+
+        self._sep1, self._sep1_label = _make_sep("Platform / Size targets", "sized")
 
         self._section_starts["sized"] = tag_layout.count()
         for tag_id, tag in TAG_SIZED.items():
             self._add_tag_row(tag_id, tag, section="sized")
 
-        self._sep2, self._sep2_label = _make_sep("Custom / Project tags", visible=False)
-        self._sep3, self._sep3_label = _make_sep("Visual / Mood / Dimension", visible=False)
+        self._sep2, self._sep2_label = _make_sep("Custom / Project tags", "custom", visible=False)
+        self._sep3, self._sep3_label = _make_sep("Visual / Mood / Dimension", "visual", visible=False)
 
         self._stretch = tag_layout.addStretch()
         scroll.setWidget(tag_widget)
@@ -291,6 +310,7 @@ class TagPanel(QWidget):
         row.shortcut_requested.connect(self._set_shortcut)
         row.visibility_toggled.connect(self._on_eye_toggled)
         row.row_clicked.connect(self._on_row_clicked)
+        row.select_all_requested.connect(lambda tid: self.select_all_with_tag.emit(tid))
         if tag_id in self._hidden_tags:
             row.setVisible(False)
         if insert_after is not None:
@@ -337,26 +357,38 @@ class TagPanel(QWidget):
                     else:
                         custom_tags[t] = preset
 
-        # Add custom/project tags — insert after _sep2_label
+        # Add custom/project tags — insert after _sep2_label, sorted alphabetically
         if custom_tags:
             self._sep2.setVisible(True)
             self._sep2_label.setVisible(True)
             last_custom = self._sep2_label
-            for tid, preset in custom_tags.items():
+            for tid, preset in sorted(custom_tags.items(), key=lambda x: x[1].label.lower()):
                 self._add_tag_row(tid, preset, section="custom", insert_after=last_custom)
                 last_custom = self._rows[tid]
                 existing_ids.add(tid)
 
-        # Add visual property tags — insert after _sep3_label (always last)
+        # Add visual property tags — insert after _sep3_label (always last), sorted
         if visual_tags:
             self._sep3.setVisible(True)
             self._sep3_label.setVisible(True)
             last_visual = self._sep3_label
-            for tid, preset in visual_tags.items():
+            for tid, preset in sorted(visual_tags.items(), key=lambda x: x[1].label.lower()):
                 self._add_tag_row(tid, preset, section="visual", insert_after=last_visual)
                 last_visual = self._rows[tid]
                 existing_ids.add(tid)
-                existing_ids.add(tid)
+
+    def _toggle_section(self, section_id: str, btn, label_text: str):
+        """Collapse/expand a tag section."""
+        if section_id in self._collapsed_sections:
+            self._collapsed_sections.discard(section_id)
+            btn.setText(f"\u25BC {label_text}")  # ▼ expanded
+        else:
+            self._collapsed_sections.add(section_id)
+            btn.setText(f"\u25B6 {label_text}")  # ▶ collapsed
+        for tag_id, row in self._rows.items():
+            if self._tag_sections.get(tag_id) == section_id:
+                row.setVisible(section_id not in self._collapsed_sections
+                               and tag_id not in self._hidden_tags)
 
     def _btn_style(self):
         return "QPushButton { padding: 4px 10px; }"

@@ -201,6 +201,8 @@ class ThumbnailDelegate(QStyledItemDelegate):
     def __init__(self, thumb_size=THUMB_SIZE, parent=None):
         super().__init__(parent)
         self.thumb_size = thumb_size
+        self.font_size = 10  # updated by update_font_size
+        self.show_dims = True
         self._scaled_cache: dict[tuple, QPixmap] = {}
 
     def sizeHint(self, option, index):
@@ -258,20 +260,23 @@ class ThumbnailDelegate(QStyledItemDelegate):
             dot_x += 13
 
         # Dimensions text
-        dims = index.data(ThumbnailModel.DimsRole)
-        dim_text = f"{dims[0]}x{dims[1]}" if dims else ""
-        dim_rect = QRect(rect.x(), rect.y() + ts + 22, rect.width(), 16)
-        painter.setPen(QColor(128, 128, 128, 150))
-        painter.setFont(QFont("Segoe UI", 7))
-        painter.drawText(dim_rect, Qt.AlignmentFlag.AlignHCenter, dim_text)
+        fs = self.font_size
+        if self.show_dims:
+            dims = index.data(ThumbnailModel.DimsRole)
+            dim_text = f"{dims[0]}x{dims[1]}" if dims else ""
+            dim_rect = QRect(rect.x(), rect.y() + ts + 22, rect.width(), 16)
+            painter.setPen(QColor(128, 128, 128, 150))
+            painter.setFont(QFont("Segoe UI", max(6, fs - 3)))
+            painter.drawText(dim_rect, Qt.AlignmentFlag.AlignHCenter, dim_text)
 
         # Filename
         name = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        name_font = QFont("Segoe UI", max(7, fs - 2))
         name_rect = QRect(rect.x() + self.PADDING, rect.y() + ts + 38,
                           rect.width() - 30, 18)
         painter.setPen(option.palette.text().color())
-        painter.setFont(QFont("Segoe UI", 8))
-        fm = QFontMetrics(QFont("Segoe UI", 8))
+        painter.setFont(name_font)
+        fm = QFontMetrics(name_font)
         elided = fm.elidedText(name, Qt.TextElideMode.ElideRight, name_rect.width())
         painter.drawText(name_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided)
 
@@ -282,7 +287,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.setPen(QColor(STAR_COLORS[star_val]))
         else:
             painter.setPen(QColor(150, 150, 150, 100))
-        painter.setFont(QFont("Segoe UI", 14))
+        painter.setFont(QFont("Segoe UI", fs + 4))
         star_rect = QRect(rect.right() - 24, rect.y() + ts + 34, 22, 22)
         painter.drawText(star_rect, Qt.AlignmentFlag.AlignCenter, star_char)
 
@@ -327,11 +332,14 @@ class AssetBrowser(QWidget):
         self._thumb_size = max(80, min(320, int(settings.value("thumb_size", THUMB_SIZE))))
         self.hover_preview_enabled = True
         self._eye_hidden_tags: set[str] = set()
+        self._temp_hidden_ids: set[str] = set()  # Alt+H temporary hide (not saved)
+        self.auto_tag_enabled = True
+        self.show_hidden_only = False
         self._current_font_size = 10
         self._hover_id = None
         self._hover_timer = QTimer(self)
         self._hover_timer.setSingleShot(True)
-        self._hover_timer.setInterval(400)
+        self._hover_timer.setInterval(int(settings.value("hover_delay_ms", 400)))
         self._hover_timer.timeout.connect(self._show_hover)
         self._hover_size_pct = int(settings.value("hover_size_pct", 150))
         self._cache_all_total = 0
@@ -353,8 +361,11 @@ class AssetBrowser(QWidget):
 
         toolbar.addSpacing(8)
         self.filter_starred = self._make_filter_btn("Starred")
+        self.filter_starred.setToolTip("Show only starred images")
         self.filter_untagged = self._make_filter_btn("Untagged")
+        self.filter_untagged.setToolTip("Show only images with no tags")
         self.filter_tagged = self._make_filter_btn("Tagged")
+        self.filter_tagged.setToolTip("Show only tagged images")
         toolbar.addWidget(self.filter_starred)
         toolbar.addWidget(self.filter_untagged)
         toolbar.addWidget(self.filter_tagged)
@@ -399,6 +410,11 @@ class AssetBrowser(QWidget):
         self.search_tags_check.setChecked(False)
         self.search_tags_check.toggled.connect(self._on_search_mode_changed)
         row2.addWidget(self.search_tags_check)
+
+        self.filter_has_notes = QCheckBox("Notes")
+        self.filter_has_notes.setChecked(False)
+        self.filter_has_notes.toggled.connect(self._on_filter_changed)
+        row2.addWidget(self.filter_has_notes)
 
         row2.addWidget(QLabel("Sort:"))
         self.sort_combo = QComboBox()
@@ -520,7 +536,7 @@ class AssetBrowser(QWidget):
         if not ok or not name.strip():
             return
         name = name.strip()
-        tag_id = name.lower().replace(" ", "_").replace("/", "_")
+        tag_id = name  # preserve user's casing and spaces
         try:
             all_tags = self.project.get_tags()
         except Exception:
@@ -557,6 +573,8 @@ class AssetBrowser(QWidget):
 
     def update_font_size(self, font_size: int):
         self._apply_tag_button_styles(font_size)
+        self._delegate.font_size = font_size
+        self._list_view.viewport().update()
 
     # --- Filtering / sorting ---
 
@@ -606,10 +624,17 @@ class AssetBrowser(QWidget):
             assets = [a for a in assets if a.tags]
         if not self.filter_show_ignored.isChecked():
             assets = [a for a in assets if "ignore" not in a.tags]
+        if self.filter_has_notes.isChecked():
+            assets = [a for a in assets if a.notes and a.notes.strip()]
 
         # Eye filter — hide images with any eye-hidden tags
-        if self._eye_hidden_tags:
+        if self.show_hidden_only and self._eye_hidden_tags:
+            assets = [a for a in assets if set(a.tags) & self._eye_hidden_tags]
+        elif self._eye_hidden_tags:
             assets = [a for a in assets if not (set(a.tags) & self._eye_hidden_tags)]
+        # Temp hide (Alt+H) — not persisted
+        if self._temp_hidden_ids:
+            assets = [a for a in assets if a.id not in self._temp_hidden_ids]
 
         sort_mode = self.sort_combo.currentText()
         key_funcs = {
@@ -660,6 +685,8 @@ class AssetBrowser(QWidget):
                 pass
 
     def _on_visual_tags(self, asset_id: str, vtags: list):
+        if not self.auto_tag_enabled:
+            return
         asset = self.project.get_asset(asset_id)
         if asset:
             for t in vtags:
@@ -689,7 +716,7 @@ class AssetBrowser(QWidget):
 
     def _quick_tag(self, tag_id: str):
         modifiers = QApplication.keyboardModifiers()
-        if modifiers & Qt.KeyboardModifier.AltModifier:
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
             # Toggle: if already searching this tag, clear it
             if self.search_tags_check.isChecked() and self.search_box.text().strip() == tag_id:
                 self.search_box.clear()
@@ -748,7 +775,7 @@ class AssetBrowser(QWidget):
                 self.project.assets.append(Asset(
                     id=f.stem + "_" + str(len(self.project.assets)),
                     source_path=str(f), source_folder=str(f.parent),
-                    tags=auto_suggest_tags(f.stem)))
+                    tags=auto_suggest_tags(f.stem) if self.auto_tag_enabled else []))
                 count += 1
         if count:
             self._refresh_grid()
@@ -771,7 +798,7 @@ class AssetBrowser(QWidget):
                 self.project.assets.append(Asset(
                     id=p.stem + "_" + str(len(self.project.assets)),
                     source_path=f, source_folder=str(p.parent),
-                    tags=auto_suggest_tags(p.stem)))
+                    tags=auto_suggest_tags(p.stem) if self.auto_tag_enabled else []))
                 added += 1
         if added:
             self._refresh_grid()
@@ -825,6 +852,7 @@ class AssetBrowser(QWidget):
         menu.addSeparator()
         menu.addAction("Open in Explorer", lambda: _open_explorer(asset))
         menu.addAction("Copy Path", lambda: QApplication.clipboard().setText(asset.source_path))
+        menu.addAction("Copy Filename", lambda: QApplication.clipboard().setText(Path(asset.source_path).name))
         menu.addSeparator()
 
         if asset.starred > 0:
@@ -845,6 +873,27 @@ class AssetBrowser(QWidget):
             menu.addAction(f"Star All ({n})", self._star_all_selected)
             menu.addAction(f"Unstar All ({n})", self._unstar_all_selected)
             menu.addSeparator()
+        # Quick Tag submenu — all available tags in columns
+        all_tags = list(self.project.get_tags().values())
+        if all_tags:
+            qt_menu = menu.addMenu("Quick Tag")
+            MAX_PER_COL = 10
+            if len(all_tags) <= MAX_PER_COL:
+                for tag in all_tags:
+                    checked = tag.id in asset.tags
+                    a = qt_menu.addAction(f"{'✓ ' if checked else '   '}{tag.label}")
+                    a.triggered.connect(lambda _, tid=tag.id: self._toggle_tag_multi(asset, tid))
+            else:
+                # Split into column submenus
+                for col_start in range(0, len(all_tags), MAX_PER_COL):
+                    chunk = all_tags[col_start:col_start + MAX_PER_COL]
+                    first, last = chunk[0].label, chunk[-1].label
+                    col_menu = qt_menu.addMenu(f"{first} – {last}")
+                    for tag in chunk:
+                        checked = tag.id in asset.tags
+                        a = col_menu.addAction(f"{'✓ ' if checked else '   '}{tag.label}")
+                        a.triggered.connect(lambda _, tid=tag.id: self._toggle_tag_multi(asset, tid))
+
         menu.addAction("Add Tag...", lambda: self._add_tag_dialog(asset))
         menu.addAction("Remove from Project", lambda: self._remove_asset(asset))
         menu.exec(pos)
@@ -853,13 +902,14 @@ class AssetBrowser(QWidget):
         from PySide6.QtWidgets import QInputDialog
         tag, ok = QInputDialog.getText(self.window(), "Add Tag", "Tag to add:")
         if ok and tag.strip():
-            tag_id = tag.strip().lower().replace(" ", "_")
+            tag_id = tag.strip()  # preserve user's casing and spaces
             # Apply to all selected if multiple selected
             assets = self.get_selected_assets() or [asset]
             for a in assets:
                 if tag_id not in a.tags:
                     a.tags.append(tag_id)
             self.selection_changed.emit(list(self._selected_ids))
+            self.tags_modified.emit()
 
     def _toggle_star(self, asset):
         asset.cycle_star()
@@ -873,6 +923,14 @@ class AssetBrowser(QWidget):
         toggle_tags([asset], tag_id)
         self._refresh_grid()
         self.selection_changed.emit(list(self._selected_ids))
+
+    def _toggle_tag_multi(self, asset, tag_id):
+        """Toggle tag on all selected assets (or just the clicked one)."""
+        assets = self.get_selected_assets() or [asset]
+        toggle_tags(assets, tag_id)
+        self._refresh_grid()
+        self.selection_changed.emit(list(self._selected_ids))
+        self.tags_modified.emit()
 
     def _star_all_selected(self):
         for a in self.project.assets:
@@ -944,6 +1002,7 @@ class AssetBrowser(QWidget):
             if event.type() == event.Type.MouseButtonPress:
                 if event.button() == Qt.MouseButton.MiddleButton:
                     self._hover_timer.stop()
+                    self._middle_held = True
                     pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
                     index = self._list_view.indexAt(pos)
                     asset = self._model.get_asset(index) if index.isValid() else None
@@ -955,16 +1014,33 @@ class AssetBrowser(QWidget):
 
             if event.type() == event.Type.MouseButtonRelease:
                 if event.button() == Qt.MouseButton.MiddleButton:
+                    self._middle_held = False
                     HoverPreview.instance().hide_preview()
                     return True
 
-            # Hover preview
-            if event.type() == event.Type.MouseMove and self.hover_preview_enabled:
+            # Middle-drag — update preview as you drag over thumbnails
+            if (event.type() == event.Type.MouseMove
+                    and getattr(self, '_middle_held', False)):
                 pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
                 index = self._list_view.indexAt(pos)
                 asset = self._model.get_asset(index) if index.isValid() else None
                 if asset and asset.id != self._hover_id:
                     self._hover_id = asset.id
+                    hp = HoverPreview.instance()
+                    hp.PREVIEW_SIZE = max(300, int(self._thumb_size * self._hover_size_pct / 100))
+                    hp.show_for(asset.source_path, QCursor.pos())
+                return True
+
+            # Hover preview (skip if middle button held)
+            if (event.type() == event.Type.MouseMove
+                    and self.hover_preview_enabled
+                    and not getattr(self, '_middle_held', False)):
+                pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
+                index = self._list_view.indexAt(pos)
+                asset = self._model.get_asset(index) if index.isValid() else None
+                if asset and asset.id != self._hover_id:
+                    self._hover_id = asset.id
+                    HoverPreview.instance().hide_preview()
                     self._hover_timer.start()
                 elif not asset:
                     self._hover_id = None

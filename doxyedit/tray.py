@@ -12,6 +12,7 @@ class WorkTray(QWidget):
     """Collapsible right panel — drag images here as a work area / quickslot."""
     asset_selected = Signal(str)
     asset_preview = Signal(str)
+    tags_modified = Signal()
     toggle_requested = Signal()    # handle clicked — parent toggles visibility
 
     def __init__(self, parent=None):
@@ -58,7 +59,7 @@ class WorkTray(QWidget):
         self._collapse_btn = QPushButton("\u25B6")  # ▶ collapsed, ▼ expanded
         self._collapse_btn.setFixedSize(22, 22)
         self._collapse_btn.setStyleSheet("QPushButton { background: transparent; border: none; }")
-        self._collapse_btn.clicked.connect(self._toggle_collapse)
+        self._collapse_btn.clicked.connect(lambda: self.toggle_requested.emit())
         header.addWidget(self._collapse_btn)
 
         self._clear_btn = QPushButton("Clear")
@@ -165,6 +166,17 @@ class WorkTray(QWidget):
         menu.addSeparator()
         menu.addAction("Move to Top", lambda: self._move_to_top(asset_id))
         menu.addAction("Move to Bottom", lambda: self._move_to_bottom(asset_id))
+        # Quick Tag
+        if hasattr(self, '_project') and self._project:
+            asset = self._project.get_asset(asset_id)
+            if asset:
+                all_tags = list(self._project.get_tags().values())
+                if all_tags:
+                    qt_menu = menu.addMenu("Quick Tag")
+                    for tag in all_tags:
+                        checked = tag.id in asset.tags
+                        a = qt_menu.addAction(f"{'✓ ' if checked else '   '}{tag.label}")
+                        a.triggered.connect(lambda _, aid=asset_id, tid=tag.id: self._toggle_tray_tag(aid, tid))
         menu.addSeparator()
         menu.addAction("Remove from Tray", lambda: self.remove_asset(asset_id))
         n = self._list.count()
@@ -203,6 +215,15 @@ class WorkTray(QWidget):
         path = self._paths.get(asset_id, "")
         if path:
             QApplication.clipboard().setText(path)
+
+    def _toggle_tray_tag(self, asset_id: str, tag_id: str):
+        if not hasattr(self, '_project') or not self._project:
+            return
+        from doxyedit.models import toggle_tags
+        asset = self._project.get_asset(asset_id)
+        if asset:
+            toggle_tags([asset], tag_id)
+            self.tags_modified.emit()
 
     def _open_explorer(self, asset_id: str):
         import subprocess

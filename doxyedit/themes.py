@@ -327,7 +327,7 @@ def generate_stylesheet(theme: Theme) -> str:
             border: 1px solid {theme.border}; font-size: {f}px;
         }}
         QMenu::item {{ padding: {pad_lg}px {pad_lg * 3}px; font-size: {f}px; }}
-        QMenu::item:selected {{
+        QMenu::item:selected, QMenu::item:hover {{
             background: {theme.accent_dim}; color: {theme.text_on_accent};
             font-size: {f}px;
         }}
