@@ -393,12 +393,16 @@ class AssetBrowser(QWidget):
         toolbar = FlowLayout(self._toolbar_widget, spacing=4)
         toolbar.setContentsMargins(0, 0, 0, 0)
 
-        # Tags toggle — first item (left, matches tag panel position)
+        # Tags + Tray toggles — first items
         self._tags_btn = QPushButton("Tags")
         self._tags_btn.setCheckable(True)
         self._tags_btn.setChecked(True)
         self._tags_btn.setStyleSheet(self._btn_style())
         toolbar.addWidget(self._tags_btn)
+        self._tray_btn = QPushButton("Tray")
+        self._tray_btn.setCheckable(True)
+        self._tray_btn.setStyleSheet(self._btn_style())
+        toolbar.addWidget(self._tray_btn)
 
         for label, handler in [("+ Folder", self.open_folder_dialog), ("+ Files", self.add_images_dialog)]:
             btn = QPushButton(label)
@@ -440,12 +444,6 @@ class AssetBrowser(QWidget):
         toolbar.addWidget(self.cache_all_check)
 
         self.count_label = QLabel("0 assets")  # shown in status bar by window
-
-        # Tray toggle — last item (right, matches tray panel position)
-        self._tray_btn = QPushButton("Tray")
-        self._tray_btn.setCheckable(True)
-        self._tray_btn.setStyleSheet(self._btn_style())
-        toolbar.addWidget(self._tray_btn)
 
         root.addWidget(self._toolbar_widget)
 
