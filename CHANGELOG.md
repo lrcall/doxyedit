@@ -1,5 +1,20 @@
 # DoxyEdit Changelog
 
+## v1.1.0 — 2026-04-05
+
+### Post-1.0 Fixes & Features
+- Star clicking works again (delegate hit detection in star rect area)
+- Auto-hide images when tagged with an eye-hidden tag
+- Ctrl+V handles multiple paths/files, discards unsupported types
+- Cache All hides progress bar when all already cached
+- Tag dots show tag's own color (not fitness), labels bolded
+- Eye button 120% larger (24px)
+- Hint label hidden for cleaner UI
+- Tray fully collapses to 16px handle
+- Full menu bar: Edit (8 actions), Tools (7 actions), Help (2 actions)
+- Project Summary compact dialog
+- Comprehensive TODO.md tracking all implemented/pending features
+
 ## v1.0.0 — 2026-04-05
 
 ### v1.0 Release
