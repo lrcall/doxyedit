@@ -361,15 +361,16 @@ class AssetBrowser(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
 
-        # Row 1: import + filters
-        toolbar = QHBoxLayout()
+        # Row 1: import + filters (FlowLayout so buttons wrap on narrow windows)
+        self._toolbar_widget = FlowWidget()
+        toolbar = FlowLayout(self._toolbar_widget, spacing=4)
+        toolbar.setContentsMargins(0, 0, 0, 0)
         for label, handler in [("+ Folder", self.open_folder_dialog), ("+ Files", self.add_images_dialog)]:
             btn = QPushButton(label)
             btn.setStyleSheet(self._btn_style())
             btn.clicked.connect(handler)
             toolbar.addWidget(btn)
 
-        toolbar.addSpacing(8)
         self.filter_starred = self._make_filter_btn("Starred")
         self.filter_starred.setToolTip("Show only starred images")
         self.filter_untagged = self._make_filter_btn("Untagged")
@@ -403,10 +404,9 @@ class AssetBrowser(QWidget):
         self.cache_all_check.toggled.connect(self._on_cache_all_toggled)
         toolbar.addWidget(self.cache_all_check)
 
-        toolbar.addStretch()
         self.count_label = QLabel("0 assets")
         toolbar.addWidget(self.count_label)
-        root.addLayout(toolbar)
+        root.addWidget(self._toolbar_widget)
 
         # Row 2: search + sort
         row2 = QHBoxLayout()

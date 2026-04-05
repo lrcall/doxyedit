@@ -174,6 +174,12 @@ class ThumbCache:
     def get_dims(self, asset_id: str) -> tuple[int, int] | None:
         return self._dims.get(asset_id)
 
+    def invalidate(self, asset_id: str):
+        """Remove cached pixmap so the next request regenerates it."""
+        self._pixmaps.pop(asset_id, None)
+        self._gen_sizes.pop(asset_id, None)
+        self._dims.pop(asset_id, None)
+
     def request(self, asset_id: str, path: str, size: int = THUMB_SIZE):
         if self._gen_sizes.get(asset_id, 0) >= size:
             return

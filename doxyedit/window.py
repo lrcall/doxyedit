@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QTabWidget, QToolBar, QFileDialog, QStatusBar,
     QGraphicsTextItem, QGraphicsRectItem, QGraphicsLineItem,
     QGraphicsPixmapItem, QColorDialog, QMessageBox, QSplitter,
-    QWidget, QVBoxLayout, QApplication, QLabel, QProgressBar,
+    QWidget, QVBoxLayout, QApplication, QLabel, QProgressBar, QPushButton,
 )
 from PySide6.QtCore import Qt, QTimer, QSettings, QSize
 from PySide6.QtGui import (
@@ -14,7 +14,7 @@ from PySide6.QtGui import (
 
 from doxyedit.models import Project, PLATFORMS, TAG_ALL, TAG_SHORTCUTS, toggle_tags
 from doxyedit.canvas import CanvasScene, CanvasView, Tool, EditableTextItem, TagItem
-from doxyedit.browser import AssetBrowser, IMAGE_EXTS
+from doxyedit.browser import AssetBrowser, IMAGE_EXTS, THUMB_GEN_SIZE
 from doxyedit.themes import THEMES, DEFAULT_THEME, generate_stylesheet, Theme
 from doxyedit.censor import CensorEditor
 from doxyedit.platforms import PlatformPanel
@@ -129,6 +129,22 @@ class MainWindow(QMainWindow):
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._on_tab_changed(0)  # hide canvas tools initially
 
+        # Add Tray and Tags toggle buttons to browser toolbar
+        tray_btn = QPushButton("Tray")
+        tray_btn.setCheckable(True)
+        tray_btn.setStyleSheet(self.browser._btn_style())
+        tray_btn.toggled.connect(lambda checked: self._toggle_work_tray())
+        self._tray_toolbar_btn = tray_btn
+        self.browser._toolbar_widget.layout().addWidget(tray_btn)
+
+        tags_btn = QPushButton("Tags")
+        tags_btn.setCheckable(True)
+        tags_btn.setChecked(True)
+        tags_btn.setStyleSheet(self.browser._btn_style())
+        tags_btn.toggled.connect(self._toggle_tag_panel_btn)
+        self._tags_toolbar_btn = tags_btn
+        self.browser._toolbar_widget.layout().addWidget(tags_btn)
+
         # Escape to deselect, Ctrl+F to focus search
         QShortcut(QKeySequence("Escape"), self).activated.connect(self._select_none)
         QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(
@@ -160,6 +176,10 @@ class MainWindow(QMainWindow):
         from PySide6.QtCore import QFileSystemWatcher
         self._file_watcher = QFileSystemWatcher(self)
         self._file_watcher.fileChanged.connect(self._on_project_file_changed_raw)
+
+        # --- Asset file watcher — detect edits to source images ---
+        self._asset_watcher = QFileSystemWatcher(self)
+        self._asset_watcher.fileChanged.connect(self._on_asset_file_changed)
         self._reload_debounce = QTimer(self)
         self._reload_debounce.setSingleShot(True)
         self._reload_debounce.setInterval(500)
@@ -260,35 +280,19 @@ class MainWindow(QMainWindow):
         self.status.showMessage(f"Font size: {fs}px", 2000)
 
     def _build_toolbar(self):
-        # Left toolbar — general app actions, always visible
+        # Left toolbar — hidden, canvas tools only
         tb = QToolBar("Main")
         tb.setMovable(False)
         tb.setIconSize(QSize(20, 20))
         self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tb)
+        tb.hide()
+        self._left_toolbar = tb
 
-        # Navigation
-        tb.addAction(QAction("Assets", self, triggered=lambda: self.tabs.setCurrentIndex(0)))
-        tb.addAction(QAction("Canvas", self, triggered=lambda: self.tabs.setCurrentIndex(1)))
-        tb.addAction(QAction("Censor", self, triggered=lambda: self.tabs.setCurrentIndex(2)))
-        tb.addAction(QAction("Platforms", self, triggered=lambda: self.tabs.setCurrentIndex(3)))
-        tb.addSeparator()
-
-        # File ops
-        tb.addAction(QAction("Open", self, triggered=self._open_project))
-        tb.addAction(QAction("Save", self, triggered=self._save_project))
-        tb.addSeparator()
-
-        # Tray toggle
+        # Tray/Tags toggle buttons — created here, added to browser toolbar
         self._tray_btn = QAction("Tray", self)
         self._tray_btn.setCheckable(True)
         self._tray_btn.setChecked(False)
         self._tray_btn.triggered.connect(lambda checked: self._toggle_work_tray())
-        tb.addAction(self._tray_btn)
-        tb.addSeparator()
-
-        # Asset ops
-        tb.addAction(QAction("+ Folder", self, triggered=lambda: self.browser.open_folder_dialog()))
-        tb.addAction(QAction("+ Files", self, triggered=lambda: self.browser.add_images_dialog()))
 
         # Canvas tools (active when on Canvas tab)
         self._canvas_sep_before = tb.addSeparator()
@@ -568,9 +572,17 @@ class MainWindow(QMainWindow):
         if self.tag_panel.isVisible():
             self.tag_panel.hide()
             self._toggle_tags_action.setText("Show Tag Panel")
+            if hasattr(self, '_tags_toolbar_btn'):
+                self._tags_toolbar_btn.setChecked(False)
         else:
             self.tag_panel.show()
             self._toggle_tags_action.setText("Hide Tag Panel")
+            if hasattr(self, '_tags_toolbar_btn'):
+                self._tags_toolbar_btn.setChecked(True)
+
+    def _toggle_tag_panel_btn(self, checked):
+        if checked != self.tag_panel.isVisible():
+            self._toggle_tag_panel()
 
     # --- Recent files/folders ---
 
@@ -681,13 +693,16 @@ class MainWindow(QMainWindow):
             self.work_tray.hide()
             self._toggle_tray_action.setText("Show Work Tray")
             self._tray_btn.setChecked(False)
+            if hasattr(self, '_tray_toolbar_btn'):
+                self._tray_toolbar_btn.blockSignals(True)
+                self._tray_toolbar_btn.setChecked(False)
+                self._tray_toolbar_btn.blockSignals(False)
         else:
             self._tray_open = True
             self.work_tray._content.show()
             self.work_tray.setMinimumWidth(150)
             self.work_tray.setMaximumWidth(400)
             self.work_tray.show()
-            # Restore previous tray width
             if self._saved_tray_sizes:
                 self._main_split.setSizes(self._saved_tray_sizes)
             else:
@@ -697,6 +712,10 @@ class MainWindow(QMainWindow):
                     self._main_split.setSizes(sizes)
             self._toggle_tray_action.setText("Hide Work Tray")
             self._tray_btn.setChecked(True)
+            if hasattr(self, '_tray_toolbar_btn'):
+                self._tray_toolbar_btn.blockSignals(True)
+                self._tray_toolbar_btn.setChecked(True)
+                self._tray_toolbar_btn.blockSignals(False)
 
     def _send_to_tray(self):
         """Send selected assets to work tray."""
@@ -1226,6 +1245,30 @@ Ctrl+Click tag — Search by tag
 
     # --- Auto-save ---
 
+    def _on_asset_file_changed(self, path: str):
+        """Source image changed on disk — regenerate its thumbnail."""
+        # Re-add to watcher (Qt removes on some platforms)
+        if path not in self._asset_watcher.files():
+            self._asset_watcher.addPath(path)
+        # Find the asset and invalidate its cached thumb
+        path_norm = path.replace("\\", "/")
+        for asset in self.project.assets:
+            if asset.source_path.replace("\\", "/") == path_norm:
+                self.browser._thumb_cache.invalidate(asset.id)
+                self.browser._thumb_cache.request_batch(
+                    [(asset.id, asset.source_path)], size=THUMB_GEN_SIZE)
+                self.status.showMessage(f"Regenerating thumbnail: {Path(path).name}", 2000)
+                break
+
+    def _watch_asset_files(self):
+        """Watch all asset source files for changes."""
+        old = self._asset_watcher.files()
+        if old:
+            self._asset_watcher.removePaths(old)
+        paths = [a.source_path for a in self.project.assets if Path(a.source_path).exists()]
+        if paths:
+            self._asset_watcher.addPaths(paths)
+
     def _on_project_file_changed_raw(self, path: str):
         """Debounce — wait 500ms before reloading to avoid partial writes."""
         # Re-add to watcher (Qt removes it after change on some platforms)
@@ -1283,6 +1326,7 @@ Ctrl+Click tag — Search by tag
         self.tag_panel.set_assets([])
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self._update_progress()
+        self._watch_asset_files()
         # Restore work tray
         if self.project.tray_items:
             self.work_tray.load_state(self.project.tray_items, self.project)
