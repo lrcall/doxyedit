@@ -46,12 +46,6 @@ AUTO_TAG_PATTERNS = {
 
 def auto_suggest_tags(filename: str) -> list[str]:
     name = filename.lower()
-    return [tid for pat, tid in AUTO_TAG_PATTERNS.items()
-            if pat in name and tid not in name[:0]]  # dedup handled below
-
-
-def auto_suggest_tags(filename: str) -> list[str]:
-    name = filename.lower()
     tags = []
     for pattern, tag_id in AUTO_TAG_PATTERNS.items():
         if pattern in name and tag_id not in tags:
@@ -296,6 +290,13 @@ class ThumbnailDelegate(QStyledItemDelegate):
 
     def invalidate_cache(self):
         self._scaled_cache.clear()
+
+    def _ensure_cache_limit(self):
+        """Evict old entries if cache grows too large."""
+        if len(self._scaled_cache) > 500:
+            keys = list(self._scaled_cache.keys())
+            for k in keys[:200]:
+                del self._scaled_cache[k]
 
 
 # ---------------------------------------------------------------------------
@@ -625,6 +626,7 @@ class AssetBrowser(QWidget):
         return assets
 
     def _refresh_grid(self):
+        self.project.invalidate_index()
         self._filtered_assets = self._compute_filtered()
         self._model.set_assets(self._filtered_assets)
 
@@ -927,7 +929,7 @@ class AssetBrowser(QWidget):
                         self._thumb_size = max(80, self._thumb_size - 20)
                     QSettings("DoxyEdit", "DoxyEdit").setValue("thumb_size", self._thumb_size)
                     self._delegate.thumb_size = self._thumb_size
-                    self._delegate.invalidate_cache()
+                    self._delegate.invalidate_cache()  # full clear on zoom change
                     self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
                     if current.isValid():
                         self._list_view.scrollTo(current, QListView.ScrollHint.PositionAtCenter)

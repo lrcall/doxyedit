@@ -404,9 +404,12 @@ class Project:
             proj.assets.append(asset)
         return proj
 
+    def invalidate_index(self):
+        """Call after adding/removing assets."""
+        self._asset_index = None
+
     def get_asset(self, asset_id: str) -> Optional[Asset]:
-        # Build index on first call or when stale
-        if not hasattr(self, '_asset_index') or len(self._asset_index) != len(self.assets):
+        if not getattr(self, '_asset_index', None):
             self._asset_index = {a.id: a for a in self.assets}
         return self._asset_index.get(asset_id)
 

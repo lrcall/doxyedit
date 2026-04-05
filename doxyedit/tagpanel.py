@@ -395,10 +395,8 @@ class TagPanel(QWidget):
             else:
                 self.dim_label.setText("dimensions unknown")
 
-            # Update fitness dots
+            # Update checkboxes
             for tag_id, row in self._rows.items():
-                if w and h:
-                    row.update_fitness(w, h)
                 row.set_checked(tag_id in a.tags)
 
             self.notes_edit.blockSignals(True)
