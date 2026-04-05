@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QGraphicsTextItem, QGraphicsRectItem, QGraphicsLineItem,
     QGraphicsPixmapItem, QColorDialog, QMessageBox, QSplitter,
     QWidget, QVBoxLayout, QHBoxLayout, QApplication, QLabel, QProgressBar, QPushButton,
+    QSizePolicy,
 )
 from PySide6.QtCore import Qt, QTimer, QSettings, QSize
 from PySide6.QtGui import (
@@ -250,16 +251,16 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self._build_menu()
         self._setup_tag_shortcuts()
-        # Hide the QTabWidget's built-in tab bar — tabs live in the menu bar instead
+        # Hide the QTabWidget's built-in tab bar — tabs live in a compact toolbar
         self.tabs.tabBar().setVisible(False)
 
-        # Build combined menu-bar right widget: [tab buttons ... | Tray]
+        # Dedicated tab toolbar (sits directly below menu bar, always visible)
         _TAB_NAMES = ["Assets", "Canvas", "Censor", "Platforms", "Overview", "Notes"]
-        _menubar_right = QWidget()
-        _menubar_right.setObjectName("menubar_right")
-        _right_layout = QHBoxLayout(_menubar_right)
-        _right_layout.setContentsMargins(0, 0, 2, 0)
-        _right_layout.setSpacing(0)
+        self._tab_toolbar = QToolBar("Tabs")
+        self._tab_toolbar.setObjectName("tab_toolbar")
+        self._tab_toolbar.setMovable(False)
+        self._tab_toolbar.setFloatable(False)
+        self._tab_toolbar.setIconSize(QSize(0, 0))
 
         self._menubar_tab_btns: list[QPushButton] = []
         for i, name in enumerate(_TAB_NAMES):
@@ -267,19 +268,22 @@ class MainWindow(QMainWindow):
             btn.setObjectName("menubar_tab_btn")
             btn.setCheckable(True)
             btn.clicked.connect(lambda _, idx=i: self.tabs.setCurrentIndex(idx))
-            _right_layout.addWidget(btn)
+            self._tab_toolbar.addWidget(btn)
             self._menubar_tab_btns.append(btn)
 
-        _right_layout.addSpacing(6)
+        # Spacer to push Tray to the right
+        _spacer = QWidget()
+        _spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self._tab_toolbar.addWidget(_spacer)
 
         self._menubar_tray_btn = QPushButton("Tray")
         self._menubar_tray_btn.setObjectName("menubar_tab_btn")
         self._menubar_tray_btn.setCheckable(True)
         self._menubar_tray_btn.setToolTip("Toggle Work Tray (Ctrl+Shift+W)")
         self._menubar_tray_btn.clicked.connect(self._toggle_work_tray)
-        _right_layout.addWidget(self._menubar_tray_btn)
+        self._tab_toolbar.addWidget(self._menubar_tray_btn)
 
-        self.menuBar().setCornerWidget(_menubar_right, Qt.Corner.TopRightCorner)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._tab_toolbar)
 
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.tabs.currentChanged.connect(self._sync_menubar_tabs)

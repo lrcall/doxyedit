@@ -368,22 +368,26 @@ class ThumbnailDelegate(QStyledItemDelegate):
 class FolderListView(QListView):
     """QListView that reports a sizeHint tall enough to show all items unwrapped."""
 
-    def sizeHint(self):
+    def _compute_height(self) -> int:
         m = self.model()
         if not m or m.rowCount() == 0:
-            return QSize(200, 0)
-        w = max(self.width(), 200)
+            return 0
         grid = self.gridSize()
         if not grid.isValid():
-            return super().sizeHint()
+            return 0
+        # Use viewport width — the actual drawable area
+        vp_w = self.viewport().width()
+        w = vp_w if vp_w > 0 else max(self.width(), 200)
         col_w = max(1, grid.width() + self.spacing() * 2)
         cols = max(1, w // col_w)
         rows = (m.rowCount() + cols - 1) // cols
-        h = rows * grid.height() + 8
-        return QSize(w, h)
+        return rows * grid.height() + 8
+
+    def sizeHint(self):
+        return QSize(0, self._compute_height())
 
     def minimumSizeHint(self):
-        return self.sizeHint()
+        return QSize(0, 0)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

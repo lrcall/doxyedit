@@ -471,6 +471,13 @@ def generate_stylesheet(theme: Theme) -> str:
         QWidget#health_toolbar {{
             background: {theme.bg_raised};
         }}
+        QToolBar#tab_toolbar {{
+            background: {theme.bg};
+            border: none;
+            border-bottom: 1px solid {theme.border};
+            padding: 0px;
+            spacing: 0px;
+        }}
         QPushButton#menubar_tab_btn {{
             background: transparent;
             color: {theme.text_secondary};
