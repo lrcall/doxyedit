@@ -17,7 +17,20 @@
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('custom_shortcuts:', d.get\\('custom_shortcuts', 'MISSING'\\)\\)\")",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(type\\(d\\)\\); print\\(list\\(d.keys\\(\\)\\)[:5] if isinstance\\(d,dict\\) else 'list of ' + str\\(len\\(d\\)\\)\\)\")",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); a=d['assets'][0]; print\\(json.dumps\\(a, indent=2\\)\\)\")",
-      "Bash(python -c 'import sys; sys.argv=['\\\\''d'\\\\'','\\\\''__TRACKED_VAR__'\\\\'']; from doxyedit.__main__ import main; main\\(\\)')"
+      "Bash(python -c 'import sys; sys.argv=['\\\\''d'\\\\'','\\\\''__TRACKED_VAR__'\\\\'']; from doxyedit.__main__ import main; main\\(\\)')",
+      "Bash(grep:*)",
+      "Bash(python -m py_compile doxyedit/window.py)",
+      "Bash(python -m py_compile doxyedit/tagpanel.py)",
+      "Bash(python -m py_compile doxyedit/themes.py)",
+      "Bash(python -m py_compile doxyedit/browser.py)",
+      "Bash(python -m py_compile doxyedit/tray.py)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(python -m py_compile doxyedit/models.py)",
+      "Bash(python -m py_compile doxyedit/thumbcache.py)",
+      "Bash(python -m py_compile doxyedit/censor.py)",
+      "Bash(python -m py_compile doxyedit/preview.py)"
     ]
   }
 }

@@ -67,7 +67,7 @@ class WorkTray(QWidget):
         self._handle.setToolTip("Close tray (Ctrl+T)")
         self._handle.setStyleSheet(
             "QPushButton { background: rgba(128,128,128,0.15); border: none;"
-            " border-radius: 0; font-size: 10px; color: rgba(128,128,128,0.6); }"
+            " border-radius: 0; color: rgba(128,128,128,0.6); }"
             "QPushButton:hover { background: rgba(128,128,128,0.3); }")
         self._handle.clicked.connect(lambda: self.toggle_requested.emit())
         outer.addWidget(self._handle)
@@ -82,7 +82,7 @@ class WorkTray(QWidget):
         # Header
         header = QHBoxLayout()
         title = QLabel("Work Tray")
-        title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        title.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
         header.addWidget(title)
         header.addStretch()
 

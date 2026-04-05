@@ -41,7 +41,7 @@ class PlatformPanel(QWidget):
         outer.setSpacing(6)
 
         self.summary_label = QLabel()
-        self.summary_label.setStyleSheet("color: rgba(180,180,180,0.7); font-size: 11px; padding: 2px 0;")
+        self.summary_label.setStyleSheet("color: rgba(180,180,180,0.7); padding: 2px 0;")
         outer.addWidget(self.summary_label)
 
         scroll = QScrollArea()
@@ -123,7 +123,7 @@ class PlatformPanel(QWidget):
         # ── Card header ──────────────────────────────────────────────────
         header = QHBoxLayout()
         name_lbl = QLabel(platform.name)
-        name_lbl.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        name_lbl.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
         if platform.needs_censor:
             name_lbl.setStyleSheet("color: #ff6b6b;")
         header.addWidget(name_lbl)
@@ -134,12 +134,12 @@ class PlatformPanel(QWidget):
         # Progress dots
         dots = "".join("●" if (pid, s.name) in assign_map else "○" for s in platform.slots)
         dots_lbl = QLabel(dots)
-        dots_lbl.setStyleSheet("color: rgba(150,150,150,0.5); font-size: 8px; letter-spacing: 1px;")
+        dots_lbl.setStyleSheet("color: rgba(150,150,150,0.5); letter-spacing: 1px;")
         dots_lbl.setToolTip(f"{filled}/{total} slots filled")
         header.addWidget(dots_lbl)
 
         count_lbl = QLabel(f"{filled}/{total}")
-        count_lbl.setStyleSheet("color: rgba(180,180,180,0.5); font-size: 10px; margin-left: 6px;")
+        count_lbl.setStyleSheet("color: rgba(180,180,180,0.5); margin-left: 6px;")
         header.addWidget(count_lbl)
         layout.addLayout(header)
 
@@ -161,6 +161,9 @@ class PlatformPanel(QWidget):
 
     def _slot_row(self, slot, pid: str, asset, pa) -> QWidget:
         row = QWidget()
+        row.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        row.customContextMenuRequested.connect(
+            lambda pos, p=pid, s=slot, a=asset: self._slot_context_menu(row, pos, p, s, a))
         h = QHBoxLayout(row)
         h.setContentsMargins(0, 1, 0, 1)
         h.setSpacing(8)
@@ -169,29 +172,29 @@ class PlatformPanel(QWidget):
         label_text = slot.label + (" *" if slot.required else "")
         name_lbl = QLabel(label_text)
         name_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        name_lbl.setStyleSheet("font-size: 12px;")
         h.addWidget(name_lbl, 3)
 
         # Size badge
         size_lbl = QLabel(f"{slot.width}×{slot.height}")
         size_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         size_lbl.setStyleSheet(
-            "color: rgba(160,160,160,0.55); font-size: 10px;"
+            "color: rgba(160,160,160,0.55);"
             "background: rgba(255,255,255,0.05); border-radius: 3px; padding: 0 5px;")
         h.addWidget(size_lbl)
 
-        # Asset name
+        # Asset name / thumbnail tooltip
         if asset:
             stem = Path(asset.source_path).stem
-            # Truncate long names
             display = stem if len(stem) <= 22 else stem[:20] + "…"
             asset_lbl = QLabel(display)
-            asset_lbl.setToolTip(stem)
-            asset_lbl.setStyleSheet("color: rgba(200,200,200,0.85); font-size: 11px;")
+            asset_lbl.setToolTip(asset.source_path)
+            asset_lbl.setStyleSheet("color: rgba(200,200,200,0.85);")
+            # Show thumbnail in tooltip if available
+            self._set_thumb_tooltip(asset_lbl, asset)
         else:
-            asset_lbl = QLabel("empty")
-            color = "#e06c6c" if slot.required else "rgba(110,110,110,0.7)"
-            asset_lbl.setStyleSheet(f"color: {color}; font-size: 11px;")
+            asset_lbl = QLabel("empty — right-click to assign")
+            color = "#e06c6c" if slot.required else "rgba(110,110,110,0.5)"
+            asset_lbl.setStyleSheet(f"color: {color}; font-style: italic;")
         asset_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         h.addWidget(asset_lbl, 2)
 
@@ -199,7 +202,7 @@ class PlatformPanel(QWidget):
         status = str(pa.status) if pa else "pending"
         status_btn = QPushButton(STATUS_ICONS.get(status, "·"))
         status_btn.setFixedSize(24, 20)
-        status_btn.setToolTip(f"{status} — click to cycle" if pa else "no asset assigned")
+        status_btn.setToolTip(f"{status} — click to cycle" if pa else "right-click row to assign")
         self._style_status_btn(status_btn, status)
         if pa:
             status_btn.clicked.connect(
@@ -210,12 +213,41 @@ class PlatformPanel(QWidget):
 
         return row
 
+    def _set_thumb_tooltip(self, label: QLabel, asset):
+        """Set an image thumbnail as the tooltip for an assigned asset label."""
+        from PySide6.QtGui import QPixmap
+        try:
+            pm = QPixmap(asset.source_path)
+            if not pm.isNull():
+                pm = pm.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio,
+                               Qt.TransformationMode.SmoothTransformation)
+                label.setPixmap(pm)
+                label.setToolTip(asset.source_path)
+        except Exception:
+            pass
+
+    def _slot_context_menu(self, row, pos, pid: str, slot, current_asset):
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(row)
+        menu.addAction("Assign selected asset", lambda: self.request_asset_pick.emit(pid, slot.name))
+        if current_asset:
+            menu.addAction("Clear assignment", lambda: self._clear_assignment(pid, slot.name))
+        menu.exec(row.mapToGlobal(pos))
+
+    def _clear_assignment(self, pid: str, slot_name: str):
+        for asset in self.project.assets:
+            asset.assignments = [
+                pa for pa in asset.assignments
+                if not (pa.platform == pid and pa.slot == slot_name)
+            ]
+        self.refresh()
+
     def _style_status_btn(self, btn: QPushButton, status: str):
         color = STATUS_COLORS.get(status, "#666")
         btn.setStyleSheet(
             f"QPushButton {{"
             f"  color: {color}; background: transparent;"
-            f"  border: 1px solid {color}; border-radius: 3px; font-size: 11px;"
+            f"  border: 1px solid {color}; border-radius: 3px;"
             f"}}"
             f"QPushButton:hover {{ background: rgba(255,255,255,0.08); }}"
             f"QPushButton:disabled {{ color: #333; border-color: #333; }}"

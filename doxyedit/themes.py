@@ -441,6 +441,8 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
 
         QLabel {{ color: {theme.text_primary}; }}
+        QLabel[role="muted"] {{ color: {theme.text_muted}; }}
+        QLabel[role="secondary"] {{ color: {theme.text_secondary}; }}
 
         QDialog {{
             background: {theme.bg_main}; color: {theme.text_primary};

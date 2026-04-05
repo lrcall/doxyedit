@@ -212,7 +212,7 @@ class TagRow(QFrame):
         # Object name scopes the rule so it beats the global theme QCheckBox selector
         self.checkbox = QCheckBox(tag.label)
         self.checkbox.setObjectName("tag_checkbox")
-        self.checkbox.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        self.checkbox.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
         self.checkbox.setStyleSheet(
             f"QCheckBox#tag_checkbox {{ color: {tag.color}; }}"
             f"QCheckBox#tag_checkbox::indicator {{ width: 13px; height: 13px; }}")
@@ -236,12 +236,12 @@ class TagRow(QFrame):
             hints.append(f"[{shortcut_key}]")
 
         hint_label = QLabel("  ".join(hints) if hints else "any")
-        hint_label.setFont(QFont("Segoe UI", 8))
+        hint_label.setFont(QFont("Segoe UI"))
         hint_label.setStyleSheet("color: rgba(128,128,128,0.5);")
         layout.addWidget(hint_label)
 
         self._count_lbl = QLabel("")
-        self._count_lbl.setFont(QFont("Segoe UI", 8))
+        self._count_lbl.setFont(QFont("Segoe UI"))
         self._count_lbl.setStyleSheet("color: rgba(128,128,128,0.35); min-width: 24px;")
         self._count_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self._count_lbl)
@@ -361,19 +361,19 @@ class TagPanel(QWidget):
 
         # Header
         self.header = QLabel("Select an image to tag it")
-        self.header.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self.header.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
         self.header.setStyleSheet("color: rgba(128,128,128,0.6); padding-bottom: 4px;")
         self.header.setWordWrap(True)
         root.addWidget(self.header)
 
         self.hint_label = QLabel("Click an image on the left, then check tags below")
-        self.hint_label.setFont(QFont("Segoe UI", 9))
+        self.hint_label.setFont(QFont("Segoe UI"))
         self.hint_label.setStyleSheet("color: rgba(128,128,128,0.5); font-style: italic;")
         self.hint_label.setWordWrap(True)
         root.addWidget(self.hint_label)
 
         self.dim_label = QLabel("")
-        self.dim_label.setFont(QFont("Segoe UI", 9))
+        self.dim_label.setFont(QFont("Segoe UI"))
         self.dim_label.setStyleSheet("color: rgba(128,128,128,0.7);")
         root.addWidget(self.dim_label)
 
@@ -426,7 +426,7 @@ class TagPanel(QWidget):
 
         def _make_section_label(text, section_id):
             btn = QPushButton(f"\u25BC {text}")  # ▼ expanded
-            btn.setFont(QFont("Segoe UI", 8))
+            btn.setFont(QFont("Segoe UI"))
             btn.setStyleSheet(_lbl_style)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda: self._toggle_section(section_id, btn, text))
@@ -477,7 +477,7 @@ class TagPanel(QWidget):
         notes_layout.setContentsMargins(0, 0, 0, 0)
         notes_layout.setSpacing(2)
         notes_label = QLabel("Notes:")
-        notes_label.setFont(QFont("Segoe UI", 9))
+        notes_label.setFont(QFont("Segoe UI"))
         notes_layout.addWidget(notes_label)
         self.notes_edit = QTextEdit()
         self.notes_edit.setMinimumHeight(30)
@@ -612,7 +612,7 @@ class TagPanel(QWidget):
         self._collapse_all_btn.setText("Expand All" if any_expanded else "Collapse All")
 
     def _btn_style(self):
-        return "QPushButton { padding: 3px 8px; font-size: 10px; }"
+        return "QPushButton { padding: 3px 8px; }"
 
     def update_font_size(self, font_size: int):
         """Scale all fonts in the tag panel."""

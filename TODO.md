@@ -152,8 +152,8 @@
 - [x] Rebuild custom tag bar buttons from tags that exist in project JSON (not hardcoded)
 - [x] Move selected assets to another .doxyproj.json (push + remove)
 - [ ] Kanban/Gantt posting schedule board
-- [ ] Project color mode (window accent per project)
-- [ ] Duplicate file finder/unifier
+- [x] Project color mode (window accent per project)
+- [x] Duplicate file finder/unifier
 - [ ] Platform panel with asset thumbnails in slots
 - [ ] Markdown-driven project config (UI from .md files)
 - [x] Shift+E → notes overlay popup (center screen)
@@ -166,19 +166,52 @@
 - [ ] Drag-select over tag rows (rubber band selection)
 - [ ] Drag-drop tags between groups / create new tag groups
 - [ ] Actual file browser (browse filesystem, preview before import, drag into project)
-- [ ] F2 to rename selected file on disk
+- [x] F2 to rename selected file on disk
 - [ ] Multiple tray views (tabs or named trays)
-- [ ] Tag bar buttons function as hide/show toggles (click to filter view) not tag assignment
-- [ ] Hover preview size as fixed px (e.g. 400px) not percent of thumbnail — consistent size regardless of zoom
+- [x] Tag bar buttons function as hide/show toggles (click to filter view) not tag assignment
+- [x] Hover preview size as fixed px (e.g. 400px) not percent of thumbnail — consistent size regardless of zoom
+
+### New — From Codebase Review (April 2026)
+
+#### Small
+- [x] Status badge on thumbnails — pending/ready/posted indicator per platform (uses existing PlatformAssignment model)
+- [x] Quick filter presets bar — Assigned + Posted filter buttons added to toolbar
+- [x] Batch platform assignment — multi-select → right-click → "Assign to Platform X"
+- [x] Copy stem (no extension) in tray/context menu — "Copy Filename Without Extension"
+- [x] Reverse tag search — select asset → "Find similar" → shows all assets with same tag set
+
+#### Medium
+- [ ] Platform status dashboard tab — per-platform slot grid with thumbnails + status badges
+- [x] Smart export gap detection — warn when a required platform slot has no asset assigned
+- [x] Posting checklist / campaign timeline — markdown-editable per-project checklist linked to asset readiness
+
+#### Large
+- [ ] Perceptual hash variant detection — group visually similar files, mark canonical vs. variant
+- [ ] Platform-specific crop presets UI — visual overlay crop tool per platform slot dimensions
 
 ### Low Priority / Future
-- [ ] Mass tag editing for AI training prompt files
+- [x] Sort by star rating ("Starred First" in sort combo)
+- [x] Sort by tag count ("Most Tagged" in sort combo)
+- [x] Tag color picker — right-click tag in side panel → Change Color
+- [x] Platform assignment status quick-change — right-click thumbnail → Update Status submenu
+- [x] Filter active indicator in count label — shows ⬡ FILTERED when grid is filtered
+- [x] Open Project File Location — Tools menu → Explorer select
+- [x] Scroll/jump to pasted asset after Ctrl+V paste
+- [x] Ctrl+V paste → scrolls to newly added asset in grid
+- [x] Copy all selected paths to clipboard (right-click when multi-selected)
+- [x] Escape clears active tag bar filters
+- [x] Tag count badge next to each tag in side panel
+- [x] Tag usage stats dialog (Tools menu)
+- [x] Needs Censor filter button (assets assigned to censor platforms without censor regions)
+- [x] Export selected to folder (right-click when multi-selected)
+- [x] Project notes panel (View menu toggle, collapsible at bottom of Assets tab)
+- [x] Mass tag editing for AI training prompt files — bulk edit tags as CSV, export .txt sidecar files
 - [ ] Nuitka build optimization (speed + final size)
 - [ ] OpenGL viewport for grid rendering
 - [ ] QListView model-view for tray (currently QListWidget)
-- [ ] LRU eviction for in-memory pixmap cache
-- [ ] Stat syscall caching for sort-by-date/size
-- [ ] Tray button in menu bar (right side, same line as File/Edit)
+- [x] LRU eviction for in-memory pixmap cache
+- [x] Stat syscall caching for sort-by-date/size
+- [x] Tray button in menu bar (right side, same line as File/Edit)
 - [x] File menu font size still mismatches with hover in some themes
 - [x] Save notes area splitter size per project
 - [x] Canvas tools hidden when not on Canvas tab

@@ -24,6 +24,9 @@ from doxyedit.exporter import export_project
 from doxyedit.preview import ImagePreviewDialog
 from doxyedit.tray import WorkTray
 from doxyedit.project import save_project, load_project
+from doxyedit.stats import StatsPanel
+from doxyedit.checklist import ChecklistPanel
+from doxyedit.health import HealthPanel
 
 AUTOSAVE_INTERVAL_MS = 30_000
 
@@ -61,7 +64,7 @@ class MainWindow(QMainWindow):
         self._proj_tab_bar.setExpanding(False)
         self._proj_tab_bar.setStyleSheet(
             "QTabBar { background: transparent; }"
-            "QTabBar::tab { padding: 4px 12px; font-size: 11px; }"
+            "QTabBar::tab { padding: 4px 12px; }"
             "QTabBar::tab:selected { font-weight: bold; }"
         )
         self._proj_tab_bar.currentChanged.connect(self._on_proj_tab_changed)
@@ -170,39 +173,57 @@ class MainWindow(QMainWindow):
         self.censor_editor = CensorEditor()
         self.tabs.addTab(self.censor_editor, "Censor")
 
-        # Tab 4: Platforms
+        # Tab 4: Platforms (left) + Checklist (right)
         self.platform_panel = PlatformPanel(self.project)
-        self.tabs.addTab(self.platform_panel, "Platforms")
+        self.checklist_panel = ChecklistPanel(self.project)
+        _plat_check_split = QSplitter(Qt.Orientation.Horizontal)
+        _plat_check_split.addWidget(self.platform_panel)
+        _plat_check_split.addWidget(self.checklist_panel)
+        _plat_check_split.setSizes([700, 300])
+        _plat_check_split.setStretchFactor(0, 3)
+        _plat_check_split.setStretchFactor(1, 1)
+        self.tabs.addTab(_plat_check_split, "Platforms")
 
-        # Tab 5: Project Notes (full markdown scratchpad)
-        from PySide6.QtWidgets import QPlainTextEdit
+        # Tab 5: Project Notes — preview (left) + markdown source (right)
+        from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser
+        self._project_notes_preview = QTextBrowser()
+        self._project_notes_preview.setObjectName("project_notes_preview")
+        self._project_notes_preview.setOpenExternalLinks(True)
+        self._project_notes_preview.setStyleSheet(
+            "QTextBrowser#project_notes_preview { border: none; background: transparent;"
+            " padding-left: 24px; }")
+
         self._project_notes_edit = QPlainTextEdit()
         self._project_notes_edit.setPlaceholderText(
-            "Project notes — supports markdown\n\n# Section\n- bullet\n**bold**  _italic_")
+            "# Project Notes\n\nWrite markdown here — preview updates live.\n\n"
+            "**bold**  _italic_  `code`\n- bullet\n1. numbered\n\n> blockquote")
         self._project_notes_edit.setObjectName("project_notes_tab")
         self._project_notes_edit.setStyleSheet(
-            "QPlainTextEdit#project_notes_tab {"
-            "  font-family: 'Segoe UI', sans-serif;"
-            "  font-size: 15px;"
-            "  line-height: 1.6;"
-            "  border: none;"
-            "  background: transparent;"
-            "}")
+            "QPlainTextEdit#project_notes_tab { font-family: Consolas, monospace; border: none;"
+            " padding-left: 24px; }")
         self._project_notes_edit.textChanged.connect(self._on_project_notes_tab_changed)
-        # Centered column with left/right padding
-        _notes_outer = QWidget()
-        _notes_outer_layout = QHBoxLayout(_notes_outer)
-        _notes_outer_layout.setContentsMargins(0, 0, 0, 0)
-        _notes_outer_layout.setSpacing(0)
-        _notes_col = QWidget()
-        _notes_col.setMaximumWidth(860)
-        _notes_col_layout = QVBoxLayout(_notes_col)
-        _notes_col_layout.setContentsMargins(48, 32, 48, 32)
-        _notes_col_layout.addWidget(self._project_notes_edit)
-        _notes_outer_layout.addStretch()
-        _notes_outer_layout.addWidget(_notes_col, 1)
-        _notes_outer_layout.addStretch()
-        self.tabs.addTab(_notes_outer, "Notes")
+
+        _notes_splitter = QSplitter(Qt.Orientation.Horizontal)
+        _notes_splitter.addWidget(self._project_notes_preview)
+        _notes_splitter.addWidget(self._project_notes_edit)
+        _notes_splitter.setSizes([600, 400])
+        _notes_splitter.setStretchFactor(0, 3)
+        _notes_splitter.setStretchFactor(1, 2)
+        self.tabs.addTab(_notes_splitter, "Notes")
+
+        # Tab 6: Overview — Stats (left) + Health (right)
+        self.stats_panel = StatsPanel(self.project)
+        self.health_panel = HealthPanel(self.project)
+        self._overview_split = QSplitter(Qt.Orientation.Horizontal)
+        self._overview_split.addWidget(self.stats_panel)
+        self._overview_split.addWidget(self.health_panel)
+        self._overview_split.setSizes([500, 500])
+        self._overview_split.setStretchFactor(0, 1)
+        self._overview_split.setStretchFactor(1, 1)
+        self.tabs.addTab(self._overview_split, "Overview")
+
+        # Refresh stats when Overview tab is activated
+        self.tabs.currentChanged.connect(self._on_inner_tab_changed)
 
         # --- Signals ---
         self.browser.asset_selected.connect(self._on_asset_selected)
@@ -214,6 +235,9 @@ class MainWindow(QMainWindow):
         self.browser.thumb_loaded.connect(self._on_thumb_for_tray)
         self.browser.asset_to_tray.connect(self._send_single_to_tray)
         self.browser.tags_modified.connect(self._on_tags_modified)
+        self.platform_panel.request_asset_pick.connect(self._assign_selected_to_slot)
+        self.checklist_panel.modified.connect(lambda: setattr(self, '_dirty', True))
+        self.health_panel.asset_selected.connect(self._navigate_to_asset)
 
         # --- Toolbar & menu ---
         self._build_toolbar()
@@ -301,23 +325,67 @@ class MainWindow(QMainWindow):
 
         # Auto-load last project, or re-open last folder if no project
         if not _skip_autoload:
-            last_project = self._settings.value("last_project", "")
-            if last_project and Path(last_project).exists():
-                self.project = Project.load(last_project)
-                self._project_path = last_project
-                self._register_initial_slot(last_project, Path(last_project).stem)
-                self._rebind_project()
-                self.setWindowTitle(f"DoxyEdit — {Path(last_project).name}")
-                self.status.showMessage(f"Restored: {Path(last_project).name}")
-            else:
-                self._register_initial_slot(None, "New Project")
-                last_folder = self._settings.value("last_folder", "")
-                if last_folder and Path(last_folder).exists():
-                    n = self.browser.import_folder(last_folder)
-                    if n:
-                        self.status.showMessage(f"Reopened folder: {Path(last_folder).name} ({n} images)")
+            self._restore_last_session()
         else:
             self._register_initial_slot(None, "New Project")
+
+    def _restore_last_session(self):
+        """Restore last collection if one was saved, otherwise restore last project."""
+        last_coll = self._settings.value("last_collection", "")
+        if last_coll and Path(last_coll).exists():
+            if self._restore_collection(last_coll):
+                return
+            # Collection file exists but projects are missing — fall through to last_project
+            self.status.showMessage("Collection projects not found, restoring last project…")
+        self._restore_last_project()
+
+    def _restore_last_project(self):
+        """Restore last single project, or last folder, or blank slate."""
+        last_project = self._settings.value("last_project", "")
+        if last_project and Path(last_project).exists():
+            self.project = Project.load(last_project)
+            self._project_path = last_project
+            self._register_initial_slot(last_project, Path(last_project).stem)
+            self._rebind_project()
+            self.setWindowTitle(f"DoxyEdit — {Path(last_project).name}")
+            self.status.showMessage(f"Restored: {Path(last_project).name}")
+            return
+        self._register_initial_slot(None, "New Project")
+        last_folder = self._settings.value("last_folder", "")
+        if last_folder and Path(last_folder).exists():
+            n = self.browser.import_folder(last_folder)
+            if n:
+                self.status.showMessage(
+                    f"Reopened folder: {Path(last_folder).name} ({n} images)")
+
+    def _restore_collection(self, coll_path: str) -> bool:
+        """Load all projects from a collection file as tabs. Returns True on success."""
+        try:
+            data = json.loads(Path(coll_path).read_text(encoding="utf-8"))
+        except Exception:
+            return False
+        paths = [p for p in data.get("projects", []) if Path(p).exists()]
+        if not paths:
+            return False
+        # Load first project into the initial slot
+        first = paths[0]
+        self.project = Project.load(first)
+        self._project_path = first
+        self._register_initial_slot(first, Path(first).stem)
+        self._rebind_project()
+        self.setWindowTitle(f"DoxyEdit — {Path(first).name}")
+        # Load remaining projects as additional tabs
+        for path in paths[1:]:
+            try:
+                project = Project.load(path)
+                self._add_project_tab(project, path, Path(path).stem)
+            except Exception:
+                pass
+        # Switch back to first tab
+        self._proj_tab_bar.setCurrentIndex(0)
+        self._switch_to_slot(0)
+        self.status.showMessage(
+            f"Restored collection: {len(paths)} project(s)")
 
     # ── Project tab management ──────────────────────────────────────────────
 
@@ -415,9 +483,11 @@ class MainWindow(QMainWindow):
 
     def _open_project_in_tab(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open Project", "", "DoxyEdit Projects (*.doxyproj.json)")
+            self, "Open Project", self._dialog_dir(),
+            "DoxyEdit Projects (*.doxyproj.json)")
         if not path:
             return
+        self._remember_dir(path)
         for i, slot in enumerate(self._project_slots):
             if slot["path"] == path:
                 self._proj_tab_bar.setCurrentIndex(i)
@@ -426,9 +496,10 @@ class MainWindow(QMainWindow):
         self._add_project_tab(project, path, Path(path).stem)
 
     def _open_folder_in_tab(self):
-        folder = QFileDialog.getExistingDirectory(self, "Open Folder", "")
+        folder = QFileDialog.getExistingDirectory(self, "Open Folder", self._dialog_dir())
         if not folder:
             return
+        self._remember_dir(folder)
         project = Project(name=Path(folder).name)
         self._add_project_tab(project, None, Path(folder).name)
         self.browser.import_folder(folder)
@@ -439,6 +510,27 @@ class MainWindow(QMainWindow):
         self._add_project_tab(project, None, "New Project")
 
     # ── end project tab management ───────────────────────────────────────────
+
+    def _dialog_dir(self, hint_path: str = "") -> str:
+        """Return the best starting directory for a file dialog."""
+        # Prefer last-used dialog directory
+        saved = self._settings.value("last_dialog_dir", "")
+        if saved and Path(saved).is_dir():
+            return saved
+        # Fall back to the directory of the hint path
+        if hint_path:
+            p = Path(hint_path)
+            d = p.parent if p.is_file() else p
+            if d.is_dir():
+                return str(d)
+        return ""
+
+    def _remember_dir(self, path: str):
+        """Persist the parent directory of path as the last-used dialog directory."""
+        p = Path(path)
+        d = p.parent if p.is_file() else p
+        if d.is_dir():
+            self._settings.setValue("last_dialog_dir", str(d))
 
     def _apply_theme(self, theme_id: str):
         from dataclasses import replace
@@ -517,6 +609,40 @@ class MainWindow(QMainWindow):
             self._notes_edit.blockSignals(True)
             self._notes_edit.setPlainText(text)
             self._notes_edit.blockSignals(False)
+        # Render markdown preview
+        self._render_notes_preview(text)
+
+    def _render_notes_preview(self, text: str):
+        try:
+            import markdown as _md
+            html_body = _md.markdown(text, extensions=["tables", "fenced_code", "nl2br"])
+        except Exception:
+            html_body = f"<pre>{text}</pre>"
+        bg = self._theme.bg_deep
+        fg = self._theme.text_primary
+        fg2 = self._theme.text_secondary
+        accent = self._theme.accent
+        html = f"""<html><head><style>
+            body {{ background:{bg}; color:{fg}; font-family:'Segoe UI',sans-serif;
+                   padding:32px 48px; max-width:820px; margin:0 auto; }}
+            h1,h2,h3 {{ color:{accent}; border-bottom:1px solid rgba(255,255,255,0.1);
+                        padding-bottom:4px; }}
+            h4,h5,h6 {{ color:{accent}; }}
+            a {{ color:{accent}; }}
+            code {{ background:rgba(255,255,255,0.08); padding:1px 5px;
+                    border-radius:3px; font-family:Consolas,monospace; }}
+            pre {{ background:rgba(255,255,255,0.05); padding:12px 16px;
+                   border-radius:5px; overflow-x:auto; }}
+            pre code {{ background:transparent; padding:0; }}
+            blockquote {{ border-left:3px solid {accent}; margin:0; padding:4px 16px;
+                          color:{fg2}; }}
+            table {{ border-collapse:collapse; width:100%; }}
+            th,td {{ border:1px solid rgba(255,255,255,0.1); padding:6px 10px; text-align:left; }}
+            th {{ background:rgba(255,255,255,0.06); }}
+            hr {{ border:none; border-top:1px solid rgba(255,255,255,0.1); }}
+            li {{ margin:2px 0; }}
+        </style></head><body>{html_body}</body></html>"""
+        self._project_notes_preview.setHtml(html)
 
     def _clear_project_color(self):
         self.project.accent_color = ""
@@ -614,6 +740,7 @@ class MainWindow(QMainWindow):
         # Collection (workspace) — save/load all open windows as a group
         file_menu.addAction("Save Collection...", self._save_collection)
         file_menu.addAction("Open Collection...", self._open_collection)
+        file_menu.addAction("Locate Last Collection", self._locate_last_collection)
         file_menu.addSeparator()
 
         file_menu.addAction("Import Project...", self._open_project_in_tab)
@@ -1188,6 +1315,35 @@ class MainWindow(QMainWindow):
             n_tags = len(asset.tags)
             tag_hint = f" | {n_tags} tags" if n_tags else " | press 1-9 to tag, or use panel ->"
             self.status.showMessage(f"Selected: {name}{tag_hint}")
+
+    def _assign_selected_to_slot(self, platform_id: str, slot_name: str):
+        """Assign the selected asset (tray first, then browser) to a platform slot."""
+        asset_id = None
+        tray_items = self.work_tray._list.selectedItems()
+        if tray_items:
+            asset_id = tray_items[0].data(Qt.ItemDataRole.UserRole)
+        if not asset_id and self.browser._selected_ids:
+            asset_id = next(iter(self.browser._selected_ids))
+        if not asset_id:
+            self.status.showMessage("Select an asset in the tray or browser first", 3000)
+            return
+        asset = self.project.get_asset(asset_id)
+        if not asset:
+            return
+        self.platform_panel.assign_asset(asset, platform_id, slot_name)
+        self._dirty = True
+        self.status.showMessage(
+            f"Assigned {Path(asset.source_path).name} → {slot_name}", 2000)
+
+    def _on_inner_tab_changed(self, idx: int):
+        widget = self.tabs.widget(idx)
+        if widget is self._overview_split:
+            self.stats_panel.refresh()
+
+    def _navigate_to_asset(self, asset_id: str):
+        """Switch to Assets tab and scroll to the given asset."""
+        self.tabs.setCurrentWidget(self._assets_notes_split)
+        self.browser.scroll_to_asset(asset_id)
 
     def _on_asset_preview(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
@@ -2001,6 +2157,7 @@ Ctrl+Click tag — Search by tag
             self.project.save(self._project_path)
             self._dirty = False
             self.status.showMessage("Auto-saved", 3000)
+            self._autosave_collection()
 
     # --- Project file ops ---
 
@@ -2033,9 +2190,6 @@ Ctrl+Click tag — Search by tag
             if key not in TAG_SHORTCUTS_DEFAULT:
                 del TAG_SHORTCUTS[key]
 
-        # Rebuild folder preset tabs for the new project
-        self._rebuild_preset_tabs()
-
         # Re-apply theme so project accent color takes effect
         self._apply_theme(getattr(self, '_current_theme_id', DEFAULT_THEME))
         self.browser.project = self.project
@@ -2044,6 +2198,11 @@ Ctrl+Click tag — Search by tag
         self.browser.refresh()
         self.platform_panel.project = self.project
         self.platform_panel.refresh()
+        self.stats_panel.project = self.project
+        self.checklist_panel.project = self.project
+        self.checklist_panel.refresh()
+        self.health_panel.project = self.project
+        self.health_panel.refresh()
         self.tag_panel.set_assets([])
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self.tag_panel.update_tag_counts(self.project.assets)
@@ -2054,6 +2213,7 @@ Ctrl+Click tag — Search by tag
         self._project_notes_edit.blockSignals(True)
         self._project_notes_edit.setPlainText(self.project.notes)
         self._project_notes_edit.blockSignals(False)
+        self._render_notes_preview(self.project.notes)
         self._update_progress()
         self._watch_asset_files()
         # Restore work tray
@@ -2125,15 +2285,20 @@ Ctrl+Click tag — Search by tag
             self.status.setStyleSheet(
                 f"QStatusBar {{ background: {self._theme.accent}; color: {self._theme.text_on_accent}; }}")
             QTimer.singleShot(800, lambda: self.status.setStyleSheet(""))
+            self._autosave_collection()
         else:
             self._save_project_as()
 
     def _save_project_as(self):
+        hint = self._project_path or (
+            str(Path(self._dialog_dir()) / "project.doxyproj.json")
+            if self._dialog_dir() else "project.doxyproj.json")
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save Project", "project.doxyproj.json",
+            self, "Save Project", hint,
             "DoxyEdit Projects (*.doxyproj.json);;All Files (*)"
         )
         if path:
+            self._remember_dir(path)
             self.project.save(path)
             self._project_path = path
             self._watch_project()
@@ -2142,31 +2307,109 @@ Ctrl+Click tag — Search by tag
             self._add_recent_project(path)
             self.setWindowTitle(f"DoxyEdit — {Path(path).name}")
             self._proj_tab_bar.setTabText(0, Path(path).stem)
+            if 0 <= self._current_slot < len(self._project_slots):
+                self._project_slots[self._current_slot]["path"] = path
+                self._project_slots[self._current_slot]["label"] = Path(path).stem
             self.status.showMessage(f"Saved {Path(path).name}")
+            self._autosave_collection()
+
+    def _collect_open_project_paths(self) -> list[str]:
+        """Return paths of all saved projects across all open windows and slots."""
+        paths = []
+        seen = set()
+        # Always include the current window's active project path first
+        if self._project_path and self._project_path not in seen:
+            paths.append(self._project_path)
+            seen.add(self._project_path)
+        # Gather from all slots in this window
+        for slot in self._project_slots:
+            p = slot.get("path")
+            if p and p not in seen:
+                paths.append(p)
+                seen.add(p)
+        # Gather from other MainWindow instances
+        for w in MainWindow._open_windows:
+            if w is not self and w.isVisible():
+                if getattr(w, '_project_path', None) and w._project_path not in seen:
+                    paths.append(w._project_path)
+                    seen.add(w._project_path)
+                for slot in getattr(w, "_project_slots", []):
+                    p = slot.get("path")
+                    if p and p not in seen:
+                        paths.append(p)
+                        seen.add(p)
+        return paths
+
+    def _autosave_collection(self):
+        """Silently overwrite the last-saved collection file if one exists."""
+        coll_path = self._settings.value("last_collection", "")
+        if not coll_path:
+            return
+        projects = self._collect_open_project_paths()
+        if not projects:
+            return
+        try:
+            Path(coll_path).write_text(
+                json.dumps({"_type": "doxycoll", "projects": projects}, indent=2),
+                encoding="utf-8")
+        except Exception:
+            pass
+
+    def _locate_last_collection(self):
+        """Show where the last saved collection is (or was) on disk."""
+        path = self._settings.value("last_collection", "")
+        if not path:
+            QMessageBox.information(self, "Last Collection", "No collection has been saved yet.")
+            return
+        if Path(path).exists():
+            import subprocess
+            subprocess.Popen(f'explorer /select,"{path}"')
+        else:
+            QMessageBox.warning(self, "Last Collection",
+                f"File no longer exists:\n{path}\n\n"
+                "Use 'Save Collection…' to create a new one.")
 
     def _save_collection(self):
-        """Save all open project windows as a named collection (.doxycoll.json)."""
-        all_wins = [self] + [w for w in MainWindow._open_windows if w is not self and w.isVisible()]
-        projects = [w._project_path for w in all_wins if w._project_path]
+        """Save all open project tabs/windows as a named collection (.doxycoll.json)."""
+        projects = self._collect_open_project_paths()
         if not projects:
             QMessageBox.information(self, "Save Collection",
-                "No saved projects are open. Save each project first.")
+                "No saved projects are open. Save each project to disk first (Ctrl+S).")
             return
+        last = self._settings.value("last_collection", "")
+        # Default to project directory so user knows where it's going
+        if last and Path(last).parent.exists():
+            default_path = last
+        elif projects:
+            default_path = str(Path(projects[0]).parent / "workspace.doxycoll.json")
+        else:
+            default_path = str(Path(self._dialog_dir()) / "workspace.doxycoll.json") \
+                if self._dialog_dir() else "workspace.doxycoll.json"
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save Collection", "workspace.doxycoll.json",
+            self, "Save Collection", default_path,
             "DoxyEdit Collection (*.doxycoll.json);;All Files (*)")
         if not path:
             return
-        data = {"_type": "doxycoll", "projects": projects}
-        Path(path).write_text(json.dumps(data, indent=2), encoding="utf-8")
+        try:
+            Path(path).write_text(
+                json.dumps({"_type": "doxycoll", "projects": projects}, indent=2),
+                encoding="utf-8")
+        except Exception as e:
+            QMessageBox.warning(self, "Save Collection", f"Failed to write file:\n{e}")
+            return
+        self._remember_dir(path)
         self._settings.setValue("last_collection", path)
-        self.status.showMessage(f"Collection saved: {len(projects)} project(s)")
+        names = ", ".join(Path(p).stem for p in projects)
+        QMessageBox.information(self, "Collection Saved",
+            f"Saved {len(projects)} project(s) to:\n{path}\n\n{names}")
+        self.status.showMessage(f"Collection saved → {path}")
 
     def _open_collection(self):
         """Open a saved collection — each project opens in its own window."""
         last = self._settings.value("last_collection", "")
+        start = last if last and Path(last).exists() else self._dialog_dir()
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open Collection", last,
+            self, "Open Collection", start,
             "DoxyEdit Collection (*.doxycoll.json);;All Files (*)")
         if not path:
             return
