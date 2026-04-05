@@ -251,7 +251,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.setClipRect(full_rect)
             painter.fillRect(full_rect, QColor(128, 128, 128, 30))
             painter.setPen(QColor(200, 200, 200, 180))
-            painter.setFont(QFont("Segoe UI", max(8, self.font_size - 1), QFont.Weight.Bold))
+            painter.setFont(QFont("Segoe UI", max(7, self.font_size - 2)))
             folder = index.data(Qt.ItemDataRole.DisplayRole) or ""
             model = index.model()
             item = model._items[index.row()] if hasattr(model, '_items') else None
