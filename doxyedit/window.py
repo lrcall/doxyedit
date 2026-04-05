@@ -753,11 +753,28 @@ class MainWindow(QMainWindow):
         self.status.showMessage("Thumbnail cache cleared")
 
     def _show_summary(self):
-        summary = self.project.summary()
-        import json
+        s = self.project.summary()
+        total = s.get("total_assets", 0)
+        starred = s.get("starred", 0)
+        censored = s.get("needs_censor", 0)
+        tagged = sum(1 for a in self.project.assets if a.tags)
+        ignored = sum(1 for a in self.project.assets if "ignore" in a.tags)
+        customs = len(self.project.custom_tags)
+
+        lines = [
+            f"Assets: {total}  |  Tagged: {tagged}  |  Starred: {starred}  |  Ignored: {ignored}",
+            f"Censored: {censored}  |  Custom Tags: {customs}",
+            "",
+        ]
+        for pid, info in s.get("platforms", {}).items():
+            name = info["name"]
+            assigned = info["assigned"]
+            posted = info["posted"]
+            slots = info["slots_total"]
+            lines.append(f"{name}: {assigned}/{slots} slots filled, {posted} posted")
+
         from PySide6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Project Summary",
-            json.dumps(summary, indent=2))
+        QMessageBox.information(self, "Project Summary", "\n".join(lines))
 
     def _show_project_file(self):
         if self._project_path:
