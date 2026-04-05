@@ -450,7 +450,12 @@ def generate_stylesheet(theme: Theme) -> str:
         QWidget#health_panel, QWidget#stats_panel {{
             background: {theme.bg_deep};
         }}
-        QTextBrowser#project_info_panel, QTextBrowser#project_notes_preview {{
+        QTextBrowser#project_info_panel {{
+            background: {theme.bg_deep};
+            border: none;
+            padding: 8px;
+        }}
+        QTextBrowser#project_notes_preview {{
             background: {theme.bg_deep};
             border: none;
             padding-left: 20px;
@@ -465,6 +470,22 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
         QWidget#health_toolbar {{
             background: {theme.bg_raised};
+        }}
+        QPushButton#menubar_tab_btn {{
+            background: transparent;
+            color: {theme.text_secondary};
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 3px 10px;
+            font-size: {f}px;
+        }}
+        QPushButton#menubar_tab_btn:hover {{
+            color: {theme.text_primary};
+            background: {theme.accent_dim};
+        }}
+        QPushButton#menubar_tab_btn:checked {{
+            color: {theme.text_primary};
+            border-bottom: 2px solid {theme.accent_bright};
         }}
         QPushButton#folder_section_header {{
             background: {theme.bg_raised};

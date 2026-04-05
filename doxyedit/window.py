@@ -215,8 +215,6 @@ class MainWindow(QMainWindow):
         self._project_info_panel = _TB()
         self._project_info_panel.setObjectName("project_info_panel")
         self._project_info_panel.setOpenExternalLinks(False)
-        self._project_info_panel.setStyleSheet(
-            "QTextBrowser#project_info_panel { border: none; padding: 8px; }")
 
         self._overview_split = QSplitter(Qt.Orientation.Horizontal)
         self._overview_split.addWidget(self.stats_panel)
@@ -252,13 +250,42 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self._build_menu()
         self._setup_tag_shortcuts()
-        # Tray toggle button pinned to top-right of menu bar
+        # Hide the QTabWidget's built-in tab bar — tabs live in the menu bar instead
+        self.tabs.tabBar().setVisible(False)
+
+        # Build combined menu-bar right widget: [tab buttons ... | Tray]
+        _TAB_NAMES = ["Assets", "Canvas", "Censor", "Platforms", "Overview", "Notes"]
+        _menubar_right = QWidget()
+        _menubar_right.setObjectName("menubar_right")
+        _right_layout = QHBoxLayout(_menubar_right)
+        _right_layout.setContentsMargins(0, 0, 2, 0)
+        _right_layout.setSpacing(0)
+
+        self._menubar_tab_btns: list[QPushButton] = []
+        for i, name in enumerate(_TAB_NAMES):
+            btn = QPushButton(name)
+            btn.setObjectName("menubar_tab_btn")
+            btn.setCheckable(True)
+            btn.setFlat(True)
+            btn.clicked.connect(lambda _, idx=i: self.tabs.setCurrentIndex(idx))
+            _right_layout.addWidget(btn)
+            self._menubar_tab_btns.append(btn)
+
+        _right_layout.addSpacing(6)
+
         self._menubar_tray_btn = QPushButton("Tray")
+        self._menubar_tray_btn.setObjectName("menubar_tab_btn")
         self._menubar_tray_btn.setCheckable(True)
+        self._menubar_tray_btn.setFlat(True)
         self._menubar_tray_btn.setToolTip("Toggle Work Tray (Ctrl+Shift+W)")
         self._menubar_tray_btn.clicked.connect(self._toggle_work_tray)
-        self.menuBar().setCornerWidget(self._menubar_tray_btn, Qt.Corner.TopRightCorner)
+        _right_layout.addWidget(self._menubar_tray_btn)
+
+        self.menuBar().setCornerWidget(_menubar_right, Qt.Corner.TopRightCorner)
+
         self.tabs.currentChanged.connect(self._on_tab_changed)
+        self.tabs.currentChanged.connect(self._sync_menubar_tabs)
+        self._sync_menubar_tabs(0)
         self._on_tab_changed(0)  # hide canvas tools initially
 
         # Wire Tray and Tags toggle buttons (created by browser as first toolbar items)
@@ -1679,6 +1706,10 @@ class MainWindow(QMainWindow):
             self.status.showMessage(f"{n} selected — press 1-9 to batch tag, Ctrl+click to add/remove")
 
     # --- Canvas tools ---
+
+    def _sync_menubar_tabs(self, index: int):
+        for i, btn in enumerate(self._menubar_tab_btns):
+            btn.setChecked(i == index)
 
     def _on_tab_changed(self, index: int):
         """Show/hide canvas tools based on active tab."""
