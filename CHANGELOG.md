@@ -1,5 +1,60 @@
 # DoxyEdit Changelog
 
+## v1.4.0 — 2026-04-05
+
+### Tag Definitions & Aliases
+- New `tag_definitions` dict in project JSON — maps tag IDs to display properties (label, color, group)
+- New `tag_aliases` for backward-compat rename resolution (old → canonical ID auto-resolved on load)
+- Legacy `custom_tags` list auto-migrated to `tag_definitions` on save
+- Renaming a tag creates an alias so old references resolve automatically
+- `TagPreset.from_dict()` class method eliminates repeated construction
+
+### Asset Specs vs Notes
+- New `specs` dict field on Asset for CLI/tool metadata (size, palette, relations)
+- Auto-migrates CLI-generated notes (e.g. "2356x3333 | palette:...") into `specs.cli_info` on load
+- Notes panel now only shows human-written notes
+
+### Project Management
+- Edit > Move to Another Project — pick existing .doxyproj.json, transfer selected assets
+- Edit > Move to New Project — create new .doxyproj.json from selection with Save dialog
+- F5 reloads project from disk (picks up external edits from Claude CLI)
+- Shift+F5 for thumbnail recache
+
+### Work Tray Overhaul
+- Tray fully hides when closed (no more lingering 16px strip)
+- Remembers width when toggling with Ctrl+T
+- Column view modes: ☰ button cycles list → 2-col grid → 3-col grid (icon-only, clean layout)
+- ✕ close button in header
+- Quick Tag submenu in tray right-click context menu
+- Tray thumbnails preserved on project reload
+
+### Context Menu Improvements
+- Tags submenu shows union of ALL selected assets' tags (not just clicked asset)
+- Click tag in submenu removes it from all selected (with − prefix and display labels)
+- Quick Tag submenu with ✓ marks, splits into columns when >10 tags
+- Copy Filename added alongside Copy Path
+- Selection preserved when using any context menu action
+
+### More Shortcuts & Filters
+- Escape — deselect all
+- Alt+A — add tag to selected
+- Ctrl+H — temporary hide/restore
+- Ctrl+F — focus search box
+- Shift+E — notes overlay popup
+- Ctrl+Click tag bar → search by tag (was Alt+Click)
+- "Has Notes" filter checkbox on search bar
+- "Select all with tag" in tag panel right-click
+
+### Code Quality (simplify round)
+- NAME_ROLE constant replaces magic UserRole+1
+- Dead _collapsed state and _toggle_collapse removed from tray
+- _remove_assets_by_ids helper deduplicates move methods
+- blockSignals during selection restore (avoids N redundant emissions)
+- hasattr guards removed (proper __init__ instead)
+- import re moved to module level
+
+### Checklist: 22 items completed, 13 remaining (all medium-to-large features)
+
 ## v1.3.0 — 2026-04-05
 
 ### Tag System Improvements
