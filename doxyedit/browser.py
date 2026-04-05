@@ -380,7 +380,7 @@ class AssetBrowser(QWidget):
         toolbar.addWidget(self.filter_starred)
         toolbar.addWidget(self.filter_untagged)
         toolbar.addWidget(self.filter_tagged)
-        toolbar.addSpacing(8)
+
 
         self.filter_show_ignored = QPushButton("Show Ignored")
         self.filter_show_ignored.setCheckable(True)
@@ -388,7 +388,7 @@ class AssetBrowser(QWidget):
         self.filter_show_ignored.setStyleSheet(self._btn_style())
         self.filter_show_ignored.toggled.connect(self._on_filter_changed)
         toolbar.addWidget(self.filter_show_ignored)
-        toolbar.addSpacing(8)
+
 
         self.recursive_check = QCheckBox("Recursive")
         self.recursive_check.setChecked(False)
