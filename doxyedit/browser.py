@@ -432,6 +432,7 @@ class AssetBrowser(QWidget):
         self._list_view.selectionModel().selectionChanged.connect(self._on_selection_changed_internal)
         self._list_view.setStyleSheet("QListView { border: none; }")
         self._list_view.installEventFilter(self)
+        self._list_view.viewport().installEventFilter(self)
         root.addWidget(self._list_view)
 
         # Status line
@@ -836,7 +837,7 @@ class AssetBrowser(QWidget):
     # --- Zoom (event filter intercepts Ctrl+Scroll on the list view) ---
 
     def eventFilter(self, obj, event):
-        if obj is self._list_view and event.type() == event.Type.Wheel:
+        if (obj is self._list_view or obj is self._list_view.viewport()) and event.type() == event.Type.Wheel:
             if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
                 current = self._list_view.currentIndex()
                 delta = event.angleDelta().y()
