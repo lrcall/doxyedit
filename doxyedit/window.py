@@ -615,7 +615,7 @@ class MainWindow(QMainWindow):
             self._toggle_work_tray()
         for a in assets:
             pm = self.browser._thumb_cache.get(a.id)
-            self.work_tray.add_asset(a.id, a.name, pm)
+            self.work_tray.add_asset(a.id, a.name, pm, path=a.source_path)
         self.status.showMessage(f"Sent {len(assets)} to tray")
 
     def _on_thumb_for_tray(self, asset_id: str, pixmap):
@@ -628,7 +628,7 @@ class MainWindow(QMainWindow):
             if not self.work_tray.isVisible():
                 self._toggle_work_tray()
             pm = self.browser._thumb_cache.get(asset_id)
-            self.work_tray.add_asset(asset_id, asset.name, pm)
+            self.work_tray.add_asset(asset_id, asset.name, pm, path=asset.source_path)
 
     # --- Tag management ---
 

@@ -18,8 +18,9 @@ class WorkTray(QWidget):
         self.setObjectName("doxyedit_tray")
         self.setMinimumWidth(120)
         self.setMaximumWidth(300)
-        self._asset_ids: list[str] = []  # ordered list of asset ids in tray
+        self._asset_ids: list[str] = []
         self._pixmaps: dict[str, QPixmap] = {}
+        self._paths: dict[str, str] = {}  # asset_id → source_path
         self._build()
 
     def _build(self):
@@ -68,11 +69,13 @@ class WorkTray(QWidget):
         self._list.setStyleSheet("QListWidget { border: none; }")
         layout.addWidget(self._list)
 
-    def add_asset(self, asset_id: str, name: str, pixmap: QPixmap = None):
+    def add_asset(self, asset_id: str, name: str, pixmap: QPixmap = None, path: str = ""):
         """Add an asset to the tray."""
         if asset_id in self._asset_ids:
-            return  # no duplicates
+            return
         self._asset_ids.append(asset_id)
+        if path:
+            self._paths[asset_id] = path
 
         item = QListWidgetItem()
         item.setText(name)
@@ -95,6 +98,7 @@ class WorkTray(QWidget):
         if asset_id in self._asset_ids:
             self._asset_ids.remove(asset_id)
         self._pixmaps.pop(asset_id, None)
+        self._paths.pop(asset_id, None)
         self._update_count()
 
     def clear(self):
@@ -133,9 +137,25 @@ class WorkTray(QWidget):
             return
         asset_id = item.data(Qt.ItemDataRole.UserRole)
         menu = QMenu(self)
+        menu.addAction("Preview", lambda: self.asset_preview.emit(asset_id))
+        menu.addAction("Copy Path", lambda: self._copy_path(asset_id))
+        menu.addAction("Open in Explorer", lambda: self._open_explorer(asset_id))
+        menu.addSeparator()
         menu.addAction("Remove from Tray", lambda: self.remove_asset(asset_id))
         menu.addAction("Clear All", self.clear)
         menu.exec(self._list.viewport().mapToGlobal(pos))
+
+    def _copy_path(self, asset_id: str):
+        from PySide6.QtWidgets import QApplication
+        path = self._paths.get(asset_id, "")
+        if path:
+            QApplication.clipboard().setText(path)
+
+    def _open_explorer(self, asset_id: str):
+        import subprocess
+        path = self._paths.get(asset_id, "").replace("/", "\\")
+        if path:
+            subprocess.Popen(f'explorer /select,"{path}"')
 
     # --- Save/Load ---
 
@@ -148,7 +168,7 @@ class WorkTray(QWidget):
         for aid in asset_ids:
             asset = project.get_asset(aid)
             if asset:
-                self.add_asset(aid, Path(asset.source_path).name)
+                self.add_asset(aid, Path(asset.source_path).name, path=asset.source_path)
 
     def update_pixmap(self, asset_id: str, pixmap: QPixmap):
         """Update thumbnail for an item already in the tray."""

@@ -3,7 +3,7 @@ from pathlib import Path
 from PIL import Image
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox,
-    QFrame, QScrollArea, QTextEdit, QPushButton,
+    QFrame, QScrollArea, QTextEdit, QPushButton, QSplitter,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QColor
@@ -238,19 +238,28 @@ class TagPanel(QWidget):
 
         self._stretch = tag_layout.addStretch()
         scroll.setWidget(tag_widget)
-        root.addWidget(scroll)
 
-        # Notes
+        # Notes panel
+        notes_widget = QWidget()
+        notes_layout = QVBoxLayout(notes_widget)
+        notes_layout.setContentsMargins(0, 0, 0, 0)
+        notes_layout.setSpacing(2)
         notes_label = QLabel("Notes:")
         notes_label.setFont(QFont("Segoe UI", 9))
-        notes_label.setStyleSheet("padding-top: 8px;")
-        root.addWidget(notes_label)
-
+        notes_layout.addWidget(notes_label)
         self.notes_edit = QTextEdit()
-        self.notes_edit.setMinimumHeight(40)
-        # Inherits from theme
+        self.notes_edit.setMinimumHeight(30)
         self.notes_edit.textChanged.connect(self._on_notes_changed)
-        root.addWidget(self.notes_edit)
+        notes_layout.addWidget(self.notes_edit)
+
+        # Splitter between tags and notes — draggable boundary
+        self._tag_notes_split = QSplitter(Qt.Orientation.Vertical)
+        self._tag_notes_split.addWidget(scroll)
+        self._tag_notes_split.addWidget(notes_widget)
+        self._tag_notes_split.setStretchFactor(0, 1)
+        self._tag_notes_split.setStretchFactor(1, 0)
+        self._tag_notes_split.setSizes([400, 80])
+        root.addWidget(self._tag_notes_split)
 
     def _add_tag_row(self, tag_id: str, tag: TagPreset, section: str = "discovered", insert_after=None):
         row = TagRow(tag)
