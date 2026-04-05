@@ -569,11 +569,20 @@ class AssetBrowser(QWidget):
     def _on_cache_all_toggled(self, checked):
         if checked:
             batch = [(a.id, a.source_path) for a in self.project.assets]
-            self._cache_all_total = len(batch)
+            # Count how many actually need caching
+            need_cache = sum(1 for aid, _ in batch
+                            if self._thumb_cache._gen_sizes.get(aid, 0) < THUMB_GEN_SIZE)
+            if need_cache == 0:
+                try:
+                    self.window().status.showMessage("All thumbnails already cached", 2000)
+                except Exception:
+                    pass
+                return
+            self._cache_all_total = need_cache
             self._cache_all_done = 0
             self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
             try:
-                self.window().start_progress("Caching thumbnails", len(batch))
+                self.window().start_progress("Caching thumbnails", need_cache)
             except Exception:
                 pass
 

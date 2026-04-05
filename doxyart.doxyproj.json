@@ -13224,7 +13224,8 @@
       "tags": [
         "warm",
         "detailed",
-        "panoramic"
+        "panoramic",
+        "graphic_design"
       ],
       "notes": ""
     },
@@ -13239,7 +13240,8 @@
       "tags": [
         "dark",
         "flat",
-        "landscape"
+        "landscape",
+        "graphic_design"
       ],
       "notes": ""
     },
@@ -13268,7 +13270,8 @@
       "assignments": [],
       "tags": [
         "flat",
-        "square"
+        "square",
+        "graphic_design"
       ],
       "notes": ""
     },
@@ -13281,7 +13284,8 @@
       "censors": [],
       "assignments": [],
       "tags": [
-        "square"
+        "square",
+        "graphic_design"
       ],
       "notes": ""
     },
@@ -13308,7 +13312,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "graphic_design"
+      ],
       "notes": ""
     },
     {
@@ -13319,7 +13325,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "graphic_design"
+      ],
       "notes": ""
     },
     {
@@ -13330,7 +13338,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "graphic_design"
+      ],
       "notes": ""
     },
     {
@@ -13341,7 +13351,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "graphic_design"
+      ],
       "notes": ""
     },
     {
@@ -13352,7 +13364,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "graphic_design"
+      ],
       "notes": ""
     },
     {
@@ -13363,7 +13377,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "graphic_design"
+      ],
       "notes": ""
     },
     {
@@ -13374,7 +13390,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "graphic_design"
+      ],
       "notes": ""
     },
     {
@@ -13385,7 +13403,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "graphic_design"
+      ],
       "notes": ""
     },
     {
@@ -13396,7 +13416,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "graphic_design"
+      ],
       "notes": ""
     },
     {
@@ -13407,7 +13429,9 @@
       "crops": [],
       "censors": [],
       "assignments": [],
-      "tags": [],
+      "tags": [
+        "graphic_design"
+      ],
       "notes": ""
     },
     {
