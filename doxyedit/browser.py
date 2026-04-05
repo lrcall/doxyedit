@@ -233,8 +233,9 @@ class ThumbnailDelegate(QStyledItemDelegate):
 
     def sizeHint(self, option, index):
         if index.data(ThumbnailModel.FolderHeaderRole):
-            # Use a very large width to force all thumbnails to the next row
-            return QSize(16384, 28)
+            view = option.widget
+            w = view.viewport().width() - 2 if view else 800
+            return QSize(w, 28)
         return QSize(self.thumb_size + 2 * self.PADDING,
                      self.thumb_size + 70)
 
