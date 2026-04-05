@@ -167,6 +167,7 @@
 - [ ] Drag-drop tags between groups / create new tag groups
 - [ ] Actual file browser (browse filesystem, preview before import, drag into project)
 - [ ] F2 to rename selected file on disk
+- [ ] Multiple tray views (tabs or named trays)
 
 ### Low Priority / Future
 - [ ] Mass tag editing for AI training prompt files
