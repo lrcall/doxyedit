@@ -349,6 +349,7 @@ class MainWindow(QMainWindow):
         edit_menu.addAction("&Delete Selected (Ignore)", self._handle_delete, QKeySequence("Delete"))
         edit_menu.addAction("&Remove from Project", self._remove_selected)
         edit_menu.addAction("Move to Another Project...", self._move_to_project)
+        edit_menu.addAction("Move to New Project...", self._move_to_new_project)
         edit_menu.addSeparator()
         edit_menu.addAction("Star Selected", lambda: self._batch_star(1))
         edit_menu.addAction("Unstar Selected", lambda: self._batch_star(0))
@@ -916,6 +917,33 @@ class MainWindow(QMainWindow):
         self.browser.refresh()
         self._dirty = True
         self.status.showMessage(f"Moved {moved} asset(s) to {Path(path).name}")
+
+    def _move_to_new_project(self):
+        """Create a new .doxyproj.json and move selected assets into it."""
+        assets = self.browser.get_selected_assets()
+        if not assets:
+            self.status.showMessage("Select assets to move first", 2000)
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Create New Project", "", "DoxyEdit Projects (*.doxyproj.json)")
+        if not path:
+            return
+        if not path.endswith(".doxyproj.json"):
+            path += ".doxyproj.json"
+        name = Path(path).stem.replace(".doxyproj", "")
+        target = Project(name=name)
+        ids_to_remove = set()
+        for a in assets:
+            target.assets.append(a)
+            ids_to_remove.add(a.id)
+        target.save(path)
+        # Remove from current project
+        self.project.assets = [a for a in self.project.assets if a.id not in ids_to_remove]
+        self.project.invalidate_index()
+        self._refresh_all_tags()
+        self.browser.refresh()
+        self._dirty = True
+        self.status.showMessage(f"Created '{name}' with {len(assets)} asset(s)")
 
     def _show_notes_overlay(self):
         """Shift+E: centered notes popup for the selected asset."""
