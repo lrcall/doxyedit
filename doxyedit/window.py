@@ -198,9 +198,6 @@ class MainWindow(QMainWindow):
             "# Project Notes\n\nWrite markdown here — preview updates live.\n\n"
             "**bold**  _italic_  `code`\n- bullet\n1. numbered\n\n> blockquote")
         self._project_notes_edit.setObjectName("project_notes_tab")
-        self._project_notes_edit.setStyleSheet(
-            "QPlainTextEdit#project_notes_tab { font-family: Consolas, monospace; border: none;"
-            " padding-left: 24px; }")
         self._project_notes_edit.textChanged.connect(self._on_project_notes_tab_changed)
 
         _notes_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -560,6 +557,11 @@ class MainWindow(QMainWindow):
         self._theme = replace(base, **overrides)
         self.setStyleSheet(generate_stylesheet(self._theme))
         self._settings.setValue("theme", theme_id)
+        # Re-render HTML panels with new theme colors
+        if hasattr(self, '_project_notes_preview'):
+            self._render_notes_preview(self.project.notes)
+        if hasattr(self, '_project_info_panel'):
+            self._refresh_project_info()
         # Match Windows title bar to theme
         self._update_title_bar_color()
 
@@ -875,6 +877,7 @@ class MainWindow(QMainWindow):
         view_menu.addAction("Refresh Grid", lambda: self.browser.refresh())
         self._toggle_project_notes_action = view_menu.addAction("Project Notes Panel")
         self._toggle_project_notes_action.setCheckable(True)
+        self._toggle_project_notes_action.setChecked(False)
         self._toggle_project_notes_action.toggled.connect(self._toggle_project_notes)
 
         # Help menu

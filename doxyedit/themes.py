@@ -453,6 +453,15 @@ def generate_stylesheet(theme: Theme) -> str:
         QTextBrowser#project_info_panel, QTextBrowser#project_notes_preview {{
             background: {theme.bg_deep};
             border: none;
+            padding-left: 20px;
+        }}
+        QPlainTextEdit#project_notes_tab {{
+            background: {theme.bg_deep};
+            color: {theme.text_primary};
+            border: none;
+            font-family: Consolas, monospace;
+            font-size: {f}px;
+            padding-left: 24px;
         }}
         QWidget#health_toolbar {{
             background: {theme.bg_raised};

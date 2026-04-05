@@ -2,3 +2,4 @@ PySide6>=6.6
 Pillow>=10.0
 psd-tools>=1.9
 anthropic>=0.40
+markdown>=3.5
