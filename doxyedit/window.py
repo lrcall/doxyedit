@@ -243,6 +243,14 @@ class MainWindow(QMainWindow):
         tb.addAction(QAction("Save", self, triggered=self._save_project))
         tb.addSeparator()
 
+        # Tray toggle
+        self._tray_btn = QAction("Tray", self)
+        self._tray_btn.setCheckable(True)
+        self._tray_btn.setChecked(False)
+        self._tray_btn.triggered.connect(lambda checked: self._toggle_work_tray())
+        tb.addAction(self._tray_btn)
+        tb.addSeparator()
+
         # Asset ops
         tb.addAction(QAction("+ Folder", self, triggered=lambda: self.browser.open_folder_dialog()))
         tb.addAction(QAction("+ Files", self, triggered=lambda: self.browser.add_images_dialog()))
@@ -598,13 +606,15 @@ class MainWindow(QMainWindow):
         if self.work_tray.isVisible():
             self.work_tray.hide()
             self._toggle_tray_action.setText("Show Work Tray")
+            self._tray_btn.setChecked(False)
         else:
             self.work_tray.show()
             sizes = self._main_split.sizes()
-            if len(sizes) > 1 and sizes[1] < 120:
+            if len(sizes) > 1 and sizes[1] < 150:
                 sizes[1] = 200
                 self._main_split.setSizes(sizes)
             self._toggle_tray_action.setText("Hide Work Tray")
+            self._tray_btn.setChecked(True)
 
     def _send_to_tray(self):
         """Send selected assets to work tray."""
