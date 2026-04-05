@@ -269,12 +269,16 @@ DEFAULT_THEME = "vinik24"
 
 def generate_stylesheet(theme: Theme) -> str:
     """Generate a complete Qt stylesheet from a theme."""
-    f = theme.font_size
-    fs = f - 1       # small
-    fxs = f - 2      # extra small
-    fl = f + 1       # large
+    # --- Design tokens ---
+    f = theme.font_size          # base font
+    fs = max(8, f - 1)           # small (labels, hints)
+    fxs = max(7, f - 2)          # extra small (dim text)
+    fl = f + 1                   # large (headers)
     ff = theme.font_family
-    cb = max(14, f + 2)  # checkbox indicator scales with font
+    cb = max(14, f + 2)          # checkbox indicator
+    pad = max(4, f // 3)         # standard padding
+    pad_lg = max(6, f // 2)      # large padding
+    rad = max(3, f // 4)         # border radius
 
     return f"""
         * {{ font-family: "{ff}"; font-size: {f}px; }}
@@ -293,17 +297,18 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
 
         QToolBar {{
-            background: {theme.bg_raised}; border: none; spacing: 4px; padding: 4px;
+            background: {theme.bg_raised}; border: none;
+            spacing: {pad}px; padding: {pad}px;
         }}
         QToolBar QToolButton {{
             background: {theme.bg_input}; color: {theme.text_primary};
-            border: 1px solid {theme.border}; border-radius: 4px;
-            padding: 6px 12px; font-size: {f}px;
+            border: 1px solid {theme.border}; border-radius: {rad}px;
+            padding: {pad_lg}px {pad_lg * 2}px; font-size: {f}px;
         }}
-        QToolBar QToolButton:hover {{ background: {theme.bg_hover}; }}
+        QToolBar QToolButton:hover {{ background: {theme.bg_hover}; font-size: {f}px; }}
         QToolBar QToolButton:checked {{
             background: {theme.accent}; border-color: {theme.accent_bright};
-            color: {theme.text_on_accent};
+            color: {theme.text_on_accent}; font-size: {f}px;
         }}
 
         QStatusBar {{
@@ -311,25 +316,32 @@ def generate_stylesheet(theme: Theme) -> str:
             font-size: {f}px;
         }}
 
-        QMenuBar {{ background: {theme.bg_raised}; color: {theme.text_secondary}; font-size: {f}px; }}
-        QMenuBar::item:selected {{ background: {theme.accent_dim}; }}
+        QMenuBar {{
+            background: {theme.bg_raised}; color: {theme.text_secondary};
+            font-size: {f}px; padding: {pad // 2}px;
+        }}
+        QMenuBar::item {{ padding: {pad}px {pad_lg}px; font-size: {f}px; }}
+        QMenuBar::item:selected {{ background: {theme.accent_dim}; font-size: {f}px; }}
         QMenu {{
             background: {theme.bg_raised}; color: {theme.text_primary};
             border: 1px solid {theme.border}; font-size: {f}px;
         }}
-        QMenu::item {{ padding: 5px 20px; }}
-        QMenu::item:selected {{ background: {theme.accent_dim}; color: {theme.text_on_accent}; }}
-        QMenu::separator {{ background: {theme.border}; height: 1px; margin: 4px 8px; }}
+        QMenu::item {{ padding: {pad_lg}px {pad_lg * 3}px; font-size: {f}px; }}
+        QMenu::item:selected {{
+            background: {theme.accent_dim}; color: {theme.text_on_accent};
+            font-size: {f}px;
+        }}
+        QMenu::separator {{ background: {theme.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
 
         QSplitter::handle {{ background: {theme.border}; width: 2px; }}
 
         QTabWidget::pane {{ border: none; background: {theme.bg_deep}; }}
         QTabBar::tab {{
             background: {theme.bg_raised}; color: {theme.text_muted}; border: none;
-            padding: 8px 20px; font-size: {f}px; min-width: 100px;
+            padding: {pad_lg}px {pad_lg * 3}px; font-size: {f}px; min-width: 80px;
         }}
-        QTabBar::tab:selected {{ background: {theme.bg_deep}; color: {theme.text_primary}; }}
-        QTabBar::tab:hover {{ color: {theme.text_secondary}; }}
+        QTabBar::tab:selected {{ background: {theme.bg_deep}; color: {theme.text_primary}; font-size: {f}px; }}
+        QTabBar::tab:hover {{ color: {theme.text_secondary}; font-size: {f}px; }}
 
         QScrollArea {{ border: none; background: {theme.bg_deep}; }}
         QScrollBar:vertical {{
@@ -350,34 +362,34 @@ def generate_stylesheet(theme: Theme) -> str:
 
         QLineEdit {{
             background: {theme.bg_input}; color: {theme.text_primary};
-            border: 1px solid {theme.border}; border-radius: 4px;
-            padding: 5px 10px; font-size: {f}px;
+            border: 1px solid {theme.border}; border-radius: {rad}px;
+            padding: {pad}px {pad_lg}px; font-size: {f}px;
             selection-background-color: {theme.selection_bg};
         }}
         QLineEdit:focus {{ border-color: {theme.accent_bright}; }}
 
         QComboBox {{
             background: {theme.bg_input}; color: {theme.text_primary};
-            border: 1px solid {theme.border}; border-radius: 4px;
-            padding: 4px 8px; font-size: {fs}px;
+            border: 1px solid {theme.border}; border-radius: {rad}px;
+            padding: {pad}px {pad_lg}px; font-size: {f}px;
         }}
         QComboBox QAbstractItemView {{
             background: {theme.bg_raised}; color: {theme.text_primary};
             selection-background-color: {theme.selection_bg};
-            border: 1px solid {theme.border};
+            border: 1px solid {theme.border}; font-size: {f}px;
         }}
 
         QTextEdit {{
             background: {theme.bg_input}; color: {theme.text_primary};
-            border: 1px solid {theme.border}; border-radius: 4px;
-            padding: 4px; font-size: {fs}px;
+            border: 1px solid {theme.border}; border-radius: {rad}px;
+            padding: {pad}px; font-size: {f}px;
             selection-background-color: {theme.selection_bg};
         }}
 
-        QCheckBox {{ color: {theme.text_secondary}; font-size: {fs}px; }}
+        QCheckBox {{ color: {theme.text_secondary}; font-size: {f}px; }}
         QCheckBox::indicator {{
             width: {cb}px; height: {cb}px; border: 1px solid {theme.border};
-            border-radius: 3px; background: {theme.bg_input};
+            border-radius: {rad}px; background: {theme.bg_input};
         }}
         QCheckBox::indicator:checked {{
             background: {theme.accent}; border-color: {theme.accent_bright};
@@ -387,23 +399,32 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.bg_deep}; color: {theme.text_primary};
             border: none; font-size: {f}px;
         }}
-        QTreeWidget::item {{ padding: 4px; }}
+        QTreeWidget::item {{ padding: {pad}px; }}
         QTreeWidget::item:selected {{ background: {theme.accent_dim}; }}
         QHeaderView::section {{
             background: {theme.bg_raised}; color: {theme.text_muted};
-            border: none; padding: 4px 8px; font-size: {fs}px;
+            border: none; padding: {pad}px {pad_lg}px; font-size: {fs}px;
         }}
 
         QPushButton {{
             background: {theme.bg_input}; color: {theme.text_primary};
-            border: 1px solid {theme.border}; border-radius: 4px;
-            padding: 6px 12px; font-size: {fs}px;
+            border: 1px solid {theme.border}; border-radius: {rad}px;
+            padding: {pad_lg}px {pad_lg * 2}px; font-size: {f}px;
         }}
-        QPushButton:hover {{ background: {theme.bg_hover}; }}
+        QPushButton:hover {{ background: {theme.bg_hover}; font-size: {f}px; }}
         QPushButton:pressed {{ background: {theme.accent_dim}; }}
         QPushButton:checked {{
             background: {theme.accent}; border-color: {theme.accent_bright};
             color: {theme.text_on_accent};
+        }}
+
+        QProgressBar {{
+            background: {theme.bg_input}; border: 1px solid {theme.border};
+            border-radius: {rad}px; font-size: {fs}px;
+            color: {theme.text_primary}; text-align: center;
+        }}
+        QProgressBar::chunk {{
+            background: {theme.accent}; border-radius: {rad}px;
         }}
 
         QLabel {{ color: {theme.text_primary}; }}
