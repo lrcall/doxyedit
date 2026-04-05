@@ -168,6 +168,7 @@
 - [ ] Actual file browser (browse filesystem, preview before import, drag into project)
 - [ ] F2 to rename selected file on disk
 - [ ] Multiple tray views (tabs or named trays)
+- [ ] Tag bar buttons function as hide/show toggles (click to filter view) not tag assignment
 
 ### Low Priority / Future
 - [ ] Mass tag editing for AI training prompt files
