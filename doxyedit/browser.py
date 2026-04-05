@@ -437,6 +437,15 @@ class AssetBrowser(QWidget):
         self.cache_all_check.toggled.connect(self._on_cache_all_toggled)
         toolbar.addWidget(self.cache_all_check)
 
+        self.folder_scan_check = QCheckBox("Folder Scan")
+        self.folder_scan_check.setChecked(False)
+        self.folder_scan_check.setToolTip("Auto-detect new images in imported folders")
+        self.folder_scan_check.toggled.connect(self._on_folder_scan_toggled)
+        toolbar.addWidget(self.folder_scan_check)
+        self._folder_scan_timer = QTimer(self)
+        self._folder_scan_timer.setInterval(5000)  # scan every 5 seconds
+        self._folder_scan_timer.timeout.connect(self._scan_folders)
+
         self.count_label = QLabel("0 assets")  # shown in status bar by window
 
         root.addWidget(self._toolbar_widget)
@@ -658,6 +667,42 @@ class AssetBrowser(QWidget):
     def _expand_all_folders(self):
         self._collapsed_folders.clear()
         self._refresh_grid()
+
+    def _on_folder_scan_toggled(self, checked):
+        if checked:
+            self._folder_scan_timer.start()
+            self._scan_folders()  # scan immediately
+        else:
+            self._folder_scan_timer.stop()
+
+    def _scan_folders(self):
+        """Scan all known source folders for new images."""
+        folders = set()
+        for a in self.project.assets:
+            folders.add(a.source_folder or str(Path(a.source_path).parent))
+        existing = {a.source_path for a in self.project.assets}
+        recursive = self.recursive_check.isChecked()
+        total_added = 0
+        for folder in folders:
+            folder_path = Path(folder)
+            if not folder_path.exists():
+                continue
+            files = folder_path.rglob("*") if recursive else folder_path.iterdir()
+            for f in files:
+                if f.is_file() and f.suffix.lower() in IMAGE_EXTS and str(f) not in existing:
+                    self.project.assets.append(Asset(
+                        id=f.stem + "_" + str(len(self.project.assets)),
+                        source_path=str(f), source_folder=str(f.parent),
+                        tags=auto_suggest_tags(f.stem) if self.auto_tag_enabled else []))
+                    existing.add(str(f))
+                    total_added += 1
+        if total_added:
+            self._refresh_grid()
+            self.tags_modified.emit()
+            try:
+                self.window().status.showMessage(f"Folder scan: added {total_added} new image(s)", 3000)
+            except Exception:
+                pass
 
     def _on_filter_changed(self, *_):
         self._refresh_grid()
