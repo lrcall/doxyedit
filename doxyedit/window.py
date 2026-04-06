@@ -12,12 +12,13 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QApplication, QLabel, QProgressBar, QPushButton,
     QSizePolicy,
 )
-from PySide6.QtCore import Qt, QTimer, QSettings, QSize
+from PySide6.QtCore import Qt, QTimer, QSettings, QSize, QUrl, QMimeData
 from PySide6.QtGui import (
     QAction, QKeySequence, QColor, QPen, QBrush, QShortcut, QImage,
 )
 
 from doxyedit.models import Project, PLATFORMS, TAG_ALL, TAG_SHORTCUTS, TAG_SHORTCUTS_DEFAULT, toggle_tags
+from doxyedit import windroptarget
 from doxyedit.canvas import CanvasScene, CanvasView, Tool, EditableTextItem, TagItem
 from doxyedit.browser import AssetBrowser, IMAGE_EXTS, THUMB_GEN_SIZE
 from doxyedit.themes import THEMES, DEFAULT_THEME, generate_stylesheet, Theme
@@ -306,7 +307,8 @@ class MainWindow(QMainWindow):
         self._compact_mode = False
         self._pre_compact: dict = {}
         QShortcut(QKeySequence("Tab"), self).activated.connect(self._toggle_compact_mode)
-        # Ctrl+Shift+C copy full path
+        # Ctrl+C copy as files (Explorer-style), Ctrl+Shift+C copy full path text
+        QShortcut(QKeySequence("Ctrl+C"), self).activated.connect(self._copy_as_files)
         QShortcut(QKeySequence("Ctrl+Shift+C"), self).activated.connect(self._copy_full_path)
         # Shift+E notes overlay
         QShortcut(QKeySequence("Shift+E"), self).activated.connect(self._show_notes_overlay)
@@ -1871,7 +1873,21 @@ class MainWindow(QMainWindow):
         if self.tabs.currentIndex() == 0:
             self.browser.active_view.selectAll()
 
+    def _copy_as_files(self):
+        """Ctrl+C — copy selected assets as file objects (Explorer-compatible)."""
+        if self.tabs.currentIndex() != 0:
+            return
+        assets = self.browser.get_selected_assets()
+        if not assets:
+            return
+        mime = QMimeData()
+        mime.setUrls([QUrl.fromLocalFile(a.source_path) for a in assets])
+        QApplication.clipboard().setMimeData(mime)
+        n = len(assets)
+        self.status.showMessage(f"Copied {n} file{'s' if n != 1 else ''}", 2000)
+
     def _copy_full_path(self):
+        """Ctrl+Shift+C — copy selected asset paths as plain text."""
         if self.tabs.currentIndex() != 0:
             return
         assets = self.browser.get_selected_assets()
@@ -1879,7 +1895,8 @@ class MainWindow(QMainWindow):
             return
         paths = "\n".join(a.source_path for a in assets)
         QApplication.clipboard().setText(paths)
-        self.status.showMessage(f"Copied {len(assets)} path(s)", 2000)
+        n = len(assets)
+        self.status.showMessage(f"Copied {n} path{'s' if n != 1 else ''}", 2000)
 
     def _select_none(self):
         if self.tabs.currentIndex() == 0:
@@ -2908,7 +2925,21 @@ Ctrl+Click tag — Search by tag
             f"Errors: {n_errors}"
         )
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not windroptarget.register_hotkey(int(self.winId())):
+            self.status.showMessage("Warning: could not register Ctrl+Alt+Shift+V hotkey", 4000)
+
+    def nativeEvent(self, event_type, message):
+        if windroptarget.is_hotkey_message(int(message)):
+            text = QApplication.clipboard().text()
+            ok, msg = windroptarget.simulate_drop_from_clipboard(text)
+            self.status.showMessage(msg, 3000)
+            return True, 0
+        return super().nativeEvent(event_type, message)
+
     def closeEvent(self, event):
+        windroptarget.unregister_hotkey(int(self.winId()))
         if self._dirty and self._project_path:
             self.project.save(self._project_path)
         # Save splitter and window position/size
