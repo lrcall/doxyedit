@@ -1431,7 +1431,7 @@ class AssetBrowser(QWidget):
                 lambda pos, s=section: self._on_folder_context_menu_pos(pos, s))
             section.view.doubleClicked.connect(self._on_folder_double_click)
             section.view.selectionModel().selectionChanged.connect(
-                self._on_folder_selection_changed)
+                lambda _sel, _des, s=section: self._on_folder_selection_changed(s))
             section.view.selectionModel().currentChanged.connect(
                 lambda cur, _, v=section.view: v.scrollTo(cur, v.ScrollHint.EnsureVisible)
                 if cur.isValid() else None)
@@ -1467,7 +1467,14 @@ class AssetBrowser(QWidget):
         else:
             self._collapsed_folders.discard(folder)
 
-    def _on_folder_selection_changed(self):
+    def _on_folder_selection_changed(self, active_section=None):
+        # Clear other sections so cross-folder sticky selection doesn't accumulate
+        if active_section is not None:
+            for section in self._folder_sections:
+                if section is not active_section:
+                    section.view.selectionModel().blockSignals(True)
+                    section.view.clearSelection()
+                    section.view.selectionModel().blockSignals(False)
         self._selected_ids = set()
         for section in self._folder_sections:
             for idx in section.view.selectionModel().selectedIndexes():
@@ -2174,6 +2181,21 @@ class AssetBrowser(QWidget):
                     if self._selected_ids:
                         aid = next(iter(self._selected_ids))
                         self.asset_preview.emit(aid)
+                    return True
+                if event.key() == Qt.Key.Key_Escape:
+                    if self._bar_tag_filters:
+                        self.clear_bar_filters()
+                        try:
+                            self.window().status.showMessage("Tag filters cleared", 1500)
+                        except Exception:
+                            pass
+                    self._list_view.clearSelection()
+                    for section in self._folder_sections:
+                        section.view.selectionModel().blockSignals(True)
+                        section.view.clearSelection()
+                        section.view.selectionModel().blockSignals(False)
+                    self._selected_ids.clear()
+                    self.selection_changed.emit([])
                     return True
 
         return super().eventFilter(obj, event)
