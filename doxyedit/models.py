@@ -425,10 +425,12 @@ class Project:
             # Resolve tag aliases
             raw_tags = a.get("tags", [])
             if aliases:
+                seen: set[str] = set()
                 resolved = []
                 for t in raw_tags:
                     canonical = aliases.get(t, t)
-                    if canonical not in resolved:
+                    if canonical not in seen:
+                        seen.add(canonical)
                         resolved.append(canonical)
                 raw_tags = resolved
             raw_notes = a.get("notes", "")

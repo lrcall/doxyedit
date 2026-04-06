@@ -1,4 +1,5 @@
 """Asset browser — QListView with custom delegate for high-performance thumbnail grid."""
+import fnmatch
 import os
 import subprocess
 from pathlib import Path
@@ -1232,7 +1233,6 @@ class AssetBrowser(QWidget):
             if self.search_tags_check.isChecked():
                 assets = [a for a in assets if any(query in t.lower() for t in a.tags)]
             elif "*" in query or "?" in query:
-                import fnmatch
                 assets = [a for a in assets if fnmatch.fnmatch(Path(a.source_path).name.lower(), query)]
             else:
                 assets = [a for a in assets if query in Path(a.source_path).name.lower()]

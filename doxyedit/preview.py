@@ -197,6 +197,13 @@ class ImagePreviewDialog(QDialog):
         self._view_notes_btn.toggled.connect(self._toggle_view_notes)
         info_bar.addWidget(self._view_notes_btn)
 
+        self._pin_btn = QPushButton("Pin")
+        self._pin_btn.setCheckable(True)
+        self._pin_btn.setToolTip("Always on top")
+        self._pin_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._pin_btn.toggled.connect(self._toggle_always_on_top)
+        info_bar.addWidget(self._pin_btn)
+
         nav_hint = " |  ← → Space to navigate" if self._assets else ""
         hint = QLabel(f"Scroll to zoom  |  Drag to pan  |  N = note  |  V = toggle  |  F11 = fullscreen  |  Esc = close{nav_hint}")
         hint.setFont(QFont("Segoe UI", 9))
@@ -313,7 +320,6 @@ class ImagePreviewDialog(QDialog):
             pos = self.view.mapToScene(event.position().toPoint())
             r = QRectF(self._draw_start, pos).normalized()
             self._temp_rect.setRect(r)
-            self._temp_rect._text_item.setPos(r.x() + 4, r.y() + 2)
             return
         QGraphicsView.mouseMoveEvent(self.view, event)
 
@@ -403,6 +409,15 @@ class ImagePreviewDialog(QDialog):
             self.view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
             self.view.centerOn(item)
         self._load_saved_notes()
+
+    def _toggle_always_on_top(self, on: bool):
+        flags = self.windowFlags()
+        if on:
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+        else:
+            flags &= ~Qt.WindowType.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
+        self.show()  # re-show after flag change to apply
 
     def _toggle_fullscreen(self):
         if self._is_fullscreen:
