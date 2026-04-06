@@ -84,7 +84,11 @@ _global_index: GlobalCacheIndex | None = None
 
 
 class DiskCache:
-    """Simple disk-based thumbnail cache. Stores PNGs keyed by path+mtime+size."""
+    """Simple disk-based thumbnail cache. Stores images keyed by path+mtime+size.
+
+    Dims (original w/h) are stored in a per-project SQLite DB (cache.db) instead
+    of index.json. Existing index.json files are migrated on first open.
+    """
 
     def __init__(self, cache_dir: str = None):
         if cache_dir:
@@ -92,14 +96,33 @@ class DiskCache:
         else:
             self._dir = Path.home() / ".doxyedit" / "thumbcache"
         self._dir.mkdir(parents=True, exist_ok=True)
-        # Load dims index
-        self._index_path = self._dir / "index.json"
-        self._index: dict = {}
-        if self._index_path.exists():
-            try:
-                self._index = json.loads(self._index_path.read_text())
-            except Exception:
-                self._index = {}
+        self._con = sqlite3.connect(str(self._dir / "cache.db"), check_same_thread=False)
+        self._con.execute(
+            "CREATE TABLE IF NOT EXISTS dims (key TEXT PRIMARY KEY, w INTEGER, h INTEGER)"
+            " WITHOUT ROWID")
+        self._con.execute("PRAGMA journal_mode=WAL")
+        self._con.execute("PRAGMA synchronous=NORMAL")
+        self._con.commit()
+        self._migrate_json_index()
+
+    def _migrate_json_index(self):
+        """One-time migration: import any existing index.json into cache.db."""
+        old = self._dir / "index.json"
+        if not old.exists():
+            return
+        try:
+            data = json.loads(old.read_text())
+            self._con.executemany(
+                "INSERT OR IGNORE INTO dims (key, w, h) VALUES (?,?,?)",
+                ((k, v.get("w", 0), v.get("h", 0)) for k, v in data.items()))
+            self._con.commit()
+            old.rename(self._dir / "index.json.bak")
+        except Exception:
+            pass
+
+    def _get_dims(self, key: str) -> tuple[int, int]:
+        row = self._con.execute("SELECT w, h FROM dims WHERE key=?", (key,)).fetchone()
+        return (row[0], row[1]) if row else (0, 0)
 
     def get(self, path: str, size: int) -> tuple[QPixmap, int, int] | None:
         """Try to load a cached thumbnail. Returns (pixmap, orig_w, orig_h) or None."""
@@ -110,16 +133,16 @@ class DiskCache:
             if cached_file.exists():
                 pm = QPixmap(str(cached_file))
                 if not pm.isNull():
-                    dims = self._index.get(key, {})
-                    return pm, dims.get("w", 0), dims.get("h", 0)
+                    w, h = self._get_dims(key)
+                    return pm, w, h
         # Check cross-project global index
         if _global_index:
             other = _global_index.lookup(key)
             if other:
                 pm = QPixmap(str(other))
                 if not pm.isNull():
-                    dims = self._index.get(key, {})
-                    return pm, dims.get("w", 0), dims.get("h", 0)
+                    w, h = self._get_dims(key)
+                    return pm, w, h
         return None
 
     def put(self, path: str, size: int, pixmap: QPixmap, orig_w: int, orig_h: int):
@@ -128,14 +151,17 @@ class DiskCache:
         key = _cache_key(path, size)
         cached_file = self._dir / f"{key}{ext}"
         pixmap.save(str(cached_file), fmt)
-        self._index[key] = {"w": orig_w, "h": orig_h}
+        self._con.execute(
+            "INSERT OR REPLACE INTO dims (key, w, h) VALUES (?,?,?)", (key, orig_w, orig_h))
         if _global_index:
             _global_index.register(key, cached_file)
 
     def save_index(self):
-        """Flush the dims index to disk."""
+        """Flush pending writes."""
         try:
-            self._index_path.write_text(json.dumps(self._index))
+            self._con.commit()
+            if _global_index:
+                _global_index.save()
         except Exception:
             pass
 

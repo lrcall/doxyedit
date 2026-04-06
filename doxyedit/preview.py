@@ -137,6 +137,11 @@ class ImagePreviewDialog(QDialog):
     def __init__(self, image_path: str, asset=None, parent=None,
                  assets: list = None, current_index: int = 0):
         super().__init__(parent)
+        self.setWindowFlags(
+            Qt.WindowType.Window |
+            Qt.WindowType.WindowMinimizeButtonHint |
+            Qt.WindowType.WindowMaximizeButtonHint |
+            Qt.WindowType.WindowCloseButtonHint)
         self._asset = asset
         self._assets = assets or []   # ordered list of Asset objects for navigation
         self._nav_index = current_index
