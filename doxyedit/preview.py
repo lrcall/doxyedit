@@ -262,10 +262,11 @@ class ImagePreviewDialog(QDialog):
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.KeyPress and self._assets:
             key = event.key()
-            if key in (Qt.Key.Key_Space, Qt.Key.Key_Right, Qt.Key.Key_Tab):
+            if key in (Qt.Key.Key_Space, Qt.Key.Key_Right, Qt.Key.Key_Tab,
+                       Qt.Key.Key_Down):
                 self._navigate(1)
                 return True
-            if key in (Qt.Key.Key_Backspace, Qt.Key.Key_Left):
+            if key in (Qt.Key.Key_Backspace, Qt.Key.Key_Left, Qt.Key.Key_Up):
                 self._navigate(-1)
                 return True
         return super().eventFilter(obj, event)
