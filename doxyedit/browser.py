@@ -795,6 +795,9 @@ class AssetBrowser(QWidget):
         self._list_view.customContextMenuRequested.connect(self._on_context_menu_pos)
         self._list_view.doubleClicked.connect(self._on_double_click)
         self._list_view.selectionModel().selectionChanged.connect(self._on_selection_changed_internal)
+        self._list_view.selectionModel().currentChanged.connect(
+            lambda cur, _: self._list_view.scrollTo(cur, self._list_view.ScrollHint.EnsureVisible)
+            if cur.isValid() else None)
         self._list_view.setStyleSheet("QListView { border: none; }")
         self._list_view.installEventFilter(self)
         self._list_view.viewport().installEventFilter(self)
@@ -1429,6 +1432,9 @@ class AssetBrowser(QWidget):
             section.view.doubleClicked.connect(self._on_folder_double_click)
             section.view.selectionModel().selectionChanged.connect(
                 self._on_folder_selection_changed)
+            section.view.selectionModel().currentChanged.connect(
+                lambda cur, _, v=section.view: v.scrollTo(cur, v.ScrollHint.EnsureVisible)
+                if cur.isValid() else None)
             section.view.installEventFilter(self)
             section.view.viewport().installEventFilter(self)
 
