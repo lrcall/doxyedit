@@ -189,6 +189,103 @@ class EagleLibrary:
 
 ---
 
+---
+
+## Phase 4 — Export to Eagle Format (Planned)
+
+Export a DoxyEdit project as a valid Eagle `.library` folder that Eagle can open directly.
+
+### Output Structure
+
+```
+MyProject.library/
+  metadata.json
+  images/
+    <asset-id>/
+      metadata.json     ← mapped from DoxyEdit asset
+      <filename>        ← copy or hardlink of source file
+      <filename>_thumbnail.png  ← copy from DoxyEdit thumb cache
+```
+
+### Mapping: DoxyEdit → Eagle
+
+| DoxyEdit field | Eagle metadata.json field |
+|---------------|--------------------------|
+| `asset.id` | `id` (use as-is or generate Eagle-format ID) |
+| `asset.source_path` (filename) | `name` |
+| `asset.tags[]` | `tags[]` |
+| `asset.starred` (1–5) | `rating` (1–5) |
+| `asset.notes` | `annotation` |
+| `asset.source_folder` (last component) | `folders[]` → create matching folder entry |
+| dims from `ThumbCache` | `width`, `height` |
+| file extension | `ext` |
+| file size (os.path.getsize) | `size` |
+| current time | `modificationTime` (ms epoch) |
+
+### library/metadata.json
+
+```json
+{
+  "name": "<project name>",
+  "description": "Exported from DoxyEdit",
+  "folders": [
+    { "id": "FOLDER_001", "name": "Characters", "children": [] },
+    ...
+  ],
+  "smartFolders": [],
+  "quickAccess": [],
+  "tagsGroups": [],
+  "modificationTime": 1712345678000,
+  "applicationVersion": "4.0.0"
+}
+```
+
+Folders are built from the unique `source_folder` values in the project, one Eagle folder per unique source folder.
+
+### Per-Asset metadata.json
+
+```json
+{
+  "id": "DOXYEDIT_cover_0",
+  "name": "cover.psd",
+  "size": 4820234,
+  "ext": "psd",
+  "tags": ["character", "cover", "finished"],
+  "folders": ["FOLDER_001"],
+  "isDeleted": false,
+  "url": "",
+  "annotation": "asset notes text",
+  "rating": 4,
+  "palettes": [],
+  "width": 3000,
+  "height": 4000,
+  "noThumbnail": false,
+  "modificationTime": 1712345678000
+}
+```
+
+### File Handling Options
+
+On export, present the user with a choice:
+- **Copy files** — full copy of each source file into the `.library/images/<id>/` folder (large but fully portable)
+- **Thumbnails only** — copy only the cached thumbnail as the "file" (small, but Eagle preview only)
+- **Skip file copy** — write metadata only; Eagle will show broken previews but metadata is intact
+
+### Menu Location
+
+`File > Export > Export as Eagle Library…`
+
+Opens a folder picker (choose where to save `<ProjectName>.library`), then a small options dialog (file handling mode), then runs export with a progress bar.
+
+### Implementation Notes
+
+- Eagle item IDs must be 13-char alphanumeric strings. Use `asset.id` padded/hashed to fit, or generate with `secrets.token_hex(6).upper()[:13]`.
+- Thumbnail filenames in Eagle are `<original_filename>_thumbnail.png`. Copy from `DiskCache` if available.
+- Eagle expects the source file to be **inside** the item folder — it does not reference external paths. For "copy" mode, `shutil.copy2` each file.
+- Folder IDs also need to be Eagle-format strings — generate deterministically from folder path hash.
+
+---
+
 ## Related
 
 - [[Import & Export]] — existing import workflow
