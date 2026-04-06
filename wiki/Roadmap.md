@@ -13,6 +13,10 @@ Features still pending from TODO.md, organized by estimated effort. Items marked
 
 These are well-scoped features that are close to the existing codebase.
 
+### Taskbar Flash on Cache Complete
+
+Flash the DoxyEdit taskbar button when a Cache All operation finishes. Use `QWinTaskbarButton` (Qt Windows Extras / `PySide6.QtWinExtras` if available) or the raw Win32 `FlashWindowEx` API (`FLASHWINFO` struct, `FLASHW_TRAY | FLASHW_TIMERNOFG` flags so it only flashes when DoxyEdit is not the foreground window). Wire to the existing cache-all completion signal in `browser.py`.
+
 ### Zoom Slider
 
 Visible drag slider in the toolbar for thumbnail size (80–320px). Supplements existing Ctrl+scroll. One `QSlider` wired to the existing `_thumb_size` logic. Show current px value as a label next to it.
