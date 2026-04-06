@@ -1748,6 +1748,13 @@ class MainWindow(QMainWindow):
         dlg.setStyleSheet(self.styleSheet())
         dlg.show()
         self._theme_dialog_titlebar(dlg)
+        # Ensure window starts as a normal (non-topmost) window
+        try:
+            import ctypes
+            ctypes.windll.user32.SetWindowPos(
+                int(dlg.winId()), -2, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010)
+        except Exception:
+            pass
         dlg.navigated.connect(self._navigate_to_asset_in_browser)
         self._preview_dlg = dlg
         dlg.exec()
