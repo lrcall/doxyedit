@@ -1,0 +1,143 @@
+/* ============================================================
+   Vinik24 Original — deep purple base, pink-magenta accents
+   First iteration of the DoxyEdit Obsidian theme
+   ============================================================ */
+
+:root {
+  --background-primary:          #332c50;
+  --background-primary-alt:      #3a3057;
+  --background-secondary:        #46394a;
+  --background-secondary-alt:    #4e4055;
+  --background-modifier-border:  #614e6e;
+  --background-modifier-hover:   #614e6e;
+  --text-normal:                 #e8c0e0;
+  --text-muted:                  #8677a0;
+  --text-faint:                  #6b5a6e;
+  --text-accent:                 #c97db8;
+  --text-accent-hover:           #e8c0e0;
+  --interactive-accent:          #8d5f8d;
+  --interactive-accent-hover:    #c97db8;
+  --nav-item-color:              #b899b8;
+  --nav-item-color-hover:        #e8c0e0;
+  --nav-item-background-hover:   #614e6e;
+  --nav-item-background-active:  #8d5f8d;
+  --icon-color:                  #b899b8;
+  --icon-color-hover:            #e8c0e0;
+  --icon-color-active:           #c97db8;
+  --scrollbar-bg:                #332c50;
+  --scrollbar-thumb-bg:          #8d5f8d;
+}
+
+::-webkit-scrollbar            { width: 7px; height: 7px; }
+::-webkit-scrollbar-track      { background: #332c50; }
+::-webkit-scrollbar-thumb      { background: #8d5f8d; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover{ background: #c97db8; }
+
+.markdown-source-view, .markdown-preview-view,
+.cm-editor, .cm-scroller { background-color: #332c50 !important; }
+
+.markdown-preview-view .markdown-preview-section {
+  max-width: 820px; margin: 0 auto; padding: 28px 36px;
+}
+
+/* Headings */
+.markdown-preview-view h1 {
+  color: #c97db8; font-size: 2em; font-weight: 700;
+  border-bottom: 1px solid #614e6e; padding-bottom: 6px; margin-bottom: 18px;
+}
+.markdown-preview-view h2 {
+  color: #c97db8; font-size: 1.4em; font-weight: 600;
+  border-left: 3px solid #8d5f8d; padding-left: 10px; margin-top: 32px;
+}
+.markdown-preview-view h3 { color: #b899b8; font-size: 1.12em; font-weight: 600; }
+.markdown-preview-view h4 { color: #8677a0; font-size: 0.95em; text-transform: uppercase; letter-spacing: 0.07em; }
+
+.markdown-preview-view p,
+.markdown-preview-view li { color: #e8c0e0; line-height: 1.78; }
+
+/* Links */
+.markdown-preview-view a, .cm-hmd-internal-link, .cm-link { color: #6db5c8; text-decoration: none; }
+.markdown-preview-view a:hover { color: #c97db8; text-decoration: underline; }
+
+/* Bold / Italic */
+.markdown-preview-view strong, .cm-strong { color: #d4a96a; font-weight: 700; }
+.markdown-preview-view em,     .cm-em     { color: #b899b8; font-style: italic; }
+
+/* Inline code */
+.markdown-preview-view code, .cm-inline-code {
+  background: #614e6e; color: #c97db8;
+  border: 1px solid #614e6e; border-radius: 4px; padding: 1px 6px; font-size: 0.875em;
+}
+
+/* Code blocks */
+.markdown-preview-view pre {
+  background: #46394a !important;
+  border: 1px solid #614e6e; border-left: 3px solid #c97db8;
+  border-radius: 6px; padding: 14px 18px;
+}
+.markdown-preview-view pre code { background: transparent !important; border: none !important; color: #e8c0e0 !important; padding: 0; }
+
+/* Blockquotes */
+.markdown-preview-view blockquote {
+  border-left: 4px solid #8d5f8d; background: #46394a;
+  color: #b899b8; padding: 10px 18px; margin: 14px 0; border-radius: 0 6px 6px 0;
+}
+
+/* Callouts */
+.callout { background: #46394a !important; border-left: 4px solid #8d5f8d !important; border-radius: 6px; padding: 10px 16px; }
+.callout-title  { color: #c97db8; font-weight: 600; }
+.callout-content{ color: #b899b8; }
+.callout[data-callout="note"]    { border-color: #6db5c8 !important; } .callout[data-callout="note"]    .callout-title { color: #6db5c8; }
+.callout[data-callout="tip"]     { border-color: #4d8a6a !important; } .callout[data-callout="tip"]     .callout-title { color: #93a167; }
+.callout[data-callout="warning"] { border-color: #e87b55 !important; } .callout[data-callout="warning"] .callout-title { color: #e87b55; }
+.callout[data-callout="danger"]  { border-color: #c85a5a !important; } .callout[data-callout="danger"]  .callout-title { color: #c85a5a; }
+.callout[data-callout="info"]    { border-color: #5a8ec8 !important; } .callout[data-callout="info"]    .callout-title { color: #5a8ec8; }
+
+/* Tables */
+.markdown-preview-view table { border-collapse: collapse; width: 100%; }
+.markdown-preview-view th { background: #614e6e; color: #c97db8; font-weight: 700; padding: 8px 14px; border: 1px solid #614e6e; }
+.markdown-preview-view td { color: #e8c0e0; padding: 6px 14px; border: 1px solid #614e6e; background: #3a3057; }
+.markdown-preview-view tr:nth-child(even) td { background: #46394a; }
+.markdown-preview-view tr:hover td           { background: #614e6e; }
+
+/* Tags */
+.tag, .cm-hashtag { background: #8d5f8d; color: #e8c0e0; border-radius: 10px; padding: 1px 8px; font-size: 0.82em; }
+
+/* Task lists */
+.task-list-item-checkbox   { accent-color: #4d8a6a; }
+.task-list-item.is-checked { color: #8677a0; text-decoration: line-through; }
+
+/* HR */
+.markdown-preview-view hr { border-color: #614e6e; margin: 24px 0; }
+
+/* Search */
+.search-result-file-matched-text, .cm-searching {
+  background: rgba(201,125,184,0.28); color: #c97db8; border-radius: 2px;
+}
+
+/* Left ribbon */
+.workspace-ribbon, .side-dock-ribbon {
+  background: #46394a !important; border-right: 1px solid #614e6e; padding: 8px 4px;
+}
+.side-dock-ribbon-action, .workspace-ribbon-collapse-btn {
+  color: #b899b8 !important; border-radius: 6px; padding: 6px; margin: 2px 4px;
+}
+.side-dock-ribbon-action:hover, .workspace-ribbon-collapse-btn:hover {
+  background: #614e6e !important; color: #c97db8 !important;
+}
+.side-dock-ribbon-action.is-active { background: #8d5f8d !important; color: #e8c0e0 !important; }
+
+/* Nav folders */
+.nav-folder-title-content { color: #8677a0; font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* Tabs */
+.workspace-tab-header { color: #8677a0; }
+.workspace-tab-header.is-active { background: #46394a; color: #e8c0e0; border-bottom: 2px solid #c97db8; }
+
+/* Modal */
+.modal, .prompt { background: #614e6e; border: 1px solid #614e6e; color: #e8c0e0; border-radius: 8px; }
+.modal-title, .prompt-title { color: #c97db8; font-weight: 700; }
+.prompt-input { background: #332c50; color: #e8c0e0; border: 1px solid #614e6e; border-radius: 4px; }
+
+/* Status bar */
+.status-bar { background: #614e6e !important; color: #e8c0e0 !important; font-size: 0.8em; }
