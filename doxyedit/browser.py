@@ -2197,7 +2197,12 @@ class AssetBrowser(QWidget):
             if self._bar_tag_filters:
                 self.clear_bar_filters()
                 self.window().status.showMessage("Tag filters cleared", 1500)
-                return
+            self._list_view.clearSelection()
+            for section in self._folder_sections:
+                section.view.clearSelection()
+            self._selected_ids.clear()
+            self.selection_changed.emit([])
+            return
         super().keyPressEvent(event)
 
 
