@@ -1,121 +1,121 @@
-/* Vinik24 — DoxyEdit Obsidian Theme (black bg edition) */
+/* ============================================================
+   Vinik24 — DoxyEdit Obsidian Theme
+   Faithful to the actual DoxyEdit VINIK24 Theme object
+   ============================================================ */
 
 :root {
-  /* Backgrounds — true black base, subtle purple tints for elevation */
-  --v-bg:          #0d0d0d;
-  --v-bg-sidebar:  #111114;
-  --v-bg-surface:  #161618;
-  --v-bg-raised:   #1e1c24;
-  --v-bg-card:     #26222f;
-  --v-border:      #2e2a38;
+  /* Exact Vinik24 palette from DoxyEdit themes.py */
+  --v-bg-deep:     #000000;
+  --v-bg-main:     #433455;
+  --v-bg-input:    #332845;
+  --v-bg-hover:    #5d6872;
+  --v-accent:      #666092;
+  --v-accent-bright: #7ca1c0;
+  --v-text:        #c5ccb8;
+  --v-text-sub:    #9a9a97;
+  --v-text-muted:  #6f6776;
+  --v-statusbar:   #387080;
+  --v-border:      #666092;
+  --v-border-light:#6f6776;
+  --v-selection:   #666092;
 
-  /* Vinik24 accent palette */
-  --v-accent:        #8d5f8d;
-  --v-accent-bright: #c97db8;
-  --v-accent-dim:    #5c3e5c;
+  /* Derived surface layers */
+  --v-bg-surface:  #1a1428;   /* between deep and main */
+  --v-bg-raised:   #2e2540;   /* slightly above surface */
+  --v-bg-card:     #3a2e4e;   /* card / popover */
 
-  /* Text */
-  --v-text:        #dcc8d8;
-  --v-text-sub:    #a88caa;
-  --v-text-muted:  #6b5a6e;
-
-  /* Semantic colours */
-  --v-green:  #4d8a6a;
-  --v-olive:  #93a167;
-  --v-gold:   #d4a96a;
-  --v-orange: #e87b55;
-  --v-red:    #c85a5a;
-  --v-blue:   #5a8ec8;
-  --v-cyan:   #6db5c8;
-
-  /* Wire Obsidian's own vars so built-in components inherit */
-  --background-primary:          var(--v-bg);
-  --background-primary-alt:      var(--v-bg-surface);
-  --background-secondary:        var(--v-bg-sidebar);
-  --background-secondary-alt:    var(--v-bg-raised);
-  --background-modifier-border:  var(--v-border);
-  --background-modifier-hover:   var(--v-bg-card);
-  --background-modifier-active-hover: var(--v-accent-dim);
-  --text-normal:                 var(--v-text);
-  --text-muted:                  var(--v-text-muted);
-  --text-faint:                  var(--v-text-muted);
-  --text-accent:                 var(--v-accent-bright);
-  --text-accent-hover:           var(--v-cyan);
-  --interactive-accent:          var(--v-accent);
-  --interactive-accent-hover:    var(--v-accent-bright);
-  --scrollbar-bg:                var(--v-bg);
-  --scrollbar-thumb-bg:          var(--v-accent-dim);
+  /* Wire Obsidian's own vars */
+  --background-primary:           var(--v-bg-deep);
+  --background-primary-alt:       var(--v-bg-surface);
+  --background-secondary:         var(--v-bg-raised);
+  --background-secondary-alt:     var(--v-bg-card);
+  --background-modifier-border:   var(--v-border);
+  --background-modifier-hover:    var(--v-bg-hover);
+  --background-modifier-active-hover: var(--v-accent);
+  --text-normal:                  var(--v-text);
+  --text-muted:                   var(--v-text-muted);
+  --text-faint:                   var(--v-text-muted);
+  --text-accent:                  var(--v-accent-bright);
+  --text-accent-hover:            var(--v-accent-bright);
+  --interactive-accent:           var(--v-accent);
+  --interactive-accent-hover:     var(--v-accent-bright);
+  --nav-item-color:               var(--v-text-sub);
+  --nav-item-color-hover:         var(--v-text);
+  --nav-item-background-hover:    var(--v-bg-card);
+  --nav-item-background-active:   var(--v-accent);
+  --scrollbar-bg:                 var(--v-bg-deep);
+  --scrollbar-thumb-bg:           var(--v-accent);
+  --icon-color:                   var(--v-text-sub);
+  --icon-color-hover:             var(--v-text);
+  --icon-color-active:            var(--v-accent-bright);
 }
 
 /* ── Scrollbars ── */
 ::-webkit-scrollbar            { width: 7px; height: 7px; }
-::-webkit-scrollbar-track      { background: var(--v-bg); }
-::-webkit-scrollbar-thumb      { background: var(--v-accent-dim); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover{ background: var(--v-accent); }
+::-webkit-scrollbar-track      { background: var(--v-bg-deep); }
+::-webkit-scrollbar-thumb      { background: var(--v-accent); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover{ background: var(--v-accent-bright); }
 
-/* ── Note content area ── */
+/* ── Note content ── */
 .markdown-source-view,
 .markdown-preview-view,
-.cm-editor,
-.cm-scroller {
-  background-color: var(--v-bg) !important;
+.cm-editor, .cm-scroller {
+  background-color: var(--v-bg-deep) !important;
 }
 
-/* Reading view padding */
 .markdown-preview-view .markdown-preview-section {
-  max-width: 780px;
+  max-width: 820px;
   margin: 0 auto;
-  padding: 24px 32px;
+  padding: 28px 36px;
 }
 
 /* ── Headings ── */
-.markdown-preview-view h1, .HyperMD-header-1 .cm-header {
+.markdown-preview-view h1 {
   color: var(--v-accent-bright);
-  font-size: 2em;
-  font-weight: 700;
+  font-size: 2em; font-weight: 700;
   border-bottom: 1px solid var(--v-border);
-  padding-bottom: 6px;
-  margin-bottom: 16px;
+  padding-bottom: 6px; margin-bottom: 18px;
 }
-.markdown-preview-view h2, .HyperMD-header-2 .cm-header {
-  color: var(--v-accent);
-  font-size: 1.45em;
-  font-weight: 600;
-  margin-top: 28px;
+.markdown-preview-view h2 {
+  color: var(--v-accent-bright);
+  font-size: 1.4em; font-weight: 600;
+  border-left: 3px solid var(--v-accent);
+  padding-left: 10px; margin-top: 32px;
 }
-.markdown-preview-view h3, .HyperMD-header-3 .cm-header {
+.markdown-preview-view h3 {
+  color: var(--v-text);
+  font-size: 1.12em; font-weight: 600; margin-top: 22px;
+}
+.markdown-preview-view h4 {
   color: var(--v-text-sub);
-  font-size: 1.15em;
-  font-weight: 600;
-}
-.markdown-preview-view h4, .HyperMD-header-4 .cm-header {
-  color: var(--v-text-muted);
-  font-size: 1em;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.95em; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.07em;
 }
 
 /* ── Body text ── */
 .markdown-preview-view p,
-.markdown-preview-view li {
-  color: var(--v-text);
-  line-height: 1.75;
-}
+.markdown-preview-view li { color: var(--v-text); line-height: 1.78; }
 
 /* ── Links ── */
 .markdown-preview-view a,
-.cm-hmd-internal-link,
-.cm-link { color: var(--v-cyan); text-decoration: none; }
-.markdown-preview-view a:hover { color: var(--v-accent-bright); text-decoration: underline; }
+.cm-hmd-internal-link, .cm-link {
+  color: var(--v-accent-bright); text-decoration: none;
+}
+.markdown-preview-view a:hover {
+  color: var(--v-text); text-decoration: underline;
+}
 
 /* ── Bold / Italic ── */
-.markdown-preview-view strong, .cm-strong { color: var(--v-gold); font-weight: 700; }
-.markdown-preview-view em,     .cm-em     { color: var(--v-text-sub); font-style: italic; }
+.markdown-preview-view strong, .cm-strong {
+  color: var(--v-statusbar); /* teal highlight for bold */
+  font-weight: 700;
+}
+.markdown-preview-view em, .cm-em {
+  color: var(--v-text-sub); font-style: italic;
+}
 
 /* ── Inline code ── */
-.markdown-preview-view code,
-.cm-inline-code {
+.markdown-preview-view code, .cm-inline-code {
   background: var(--v-bg-card);
   color: var(--v-accent-bright);
   border: 1px solid var(--v-border);
@@ -128,7 +128,7 @@
 .markdown-preview-view pre {
   background: var(--v-bg-raised) !important;
   border: 1px solid var(--v-border);
-  border-left: 3px solid var(--v-accent);
+  border-left: 3px solid var(--v-accent-bright);
   border-radius: 6px;
   padding: 14px 18px;
 }
@@ -141,7 +141,7 @@
 
 /* ── Blockquotes ── */
 .markdown-preview-view blockquote {
-  border-left: 4px solid var(--v-accent-dim);
+  border-left: 4px solid var(--v-accent);
   background: var(--v-bg-raised);
   color: var(--v-text-sub);
   padding: 10px 18px;
@@ -153,35 +153,32 @@
 .callout {
   background: var(--v-bg-raised) !important;
   border-left: 4px solid var(--v-accent) !important;
-  border-radius: 6px;
-  padding: 10px 16px;
+  border-radius: 6px; padding: 10px 16px;
 }
-.callout-title { color: var(--v-accent-bright); font-weight: 600; }
-.callout-content { color: var(--v-text-sub); }
+.callout-title  { color: var(--v-accent-bright); font-weight: 600; }
+.callout-content{ color: var(--v-text-sub); }
 
-.callout[data-callout="note"]    { border-color: var(--v-cyan)   !important; }
-.callout[data-callout="note"]    .callout-title { color: var(--v-cyan); }
-.callout[data-callout="tip"]     { border-color: var(--v-green)  !important; }
-.callout[data-callout="tip"]     .callout-title { color: var(--v-olive); }
-.callout[data-callout="warning"] { border-color: var(--v-orange) !important; }
-.callout[data-callout="warning"] .callout-title { color: var(--v-orange); }
-.callout[data-callout="danger"]  { border-color: var(--v-red)    !important; }
-.callout[data-callout="danger"]  .callout-title { color: var(--v-red); }
-.callout[data-callout="info"]    { border-color: var(--v-blue)   !important; }
-.callout[data-callout="info"]    .callout-title { color: var(--v-blue); }
+.callout[data-callout="note"]    { border-color: var(--v-accent-bright) !important; }
+.callout[data-callout="note"]    .callout-title { color: var(--v-accent-bright); }
+.callout[data-callout="tip"]     { border-color: var(--v-statusbar) !important; }
+.callout[data-callout="tip"]     .callout-title { color: var(--v-statusbar); }
+.callout[data-callout="warning"] { border-color: #c0a050 !important; }
+.callout[data-callout="warning"] .callout-title { color: #c0a050; }
+.callout[data-callout="danger"]  { border-color: #c85a5a !important; }
+.callout[data-callout="danger"]  .callout-title { color: #c85a5a; }
+.callout[data-callout="info"]    { border-color: var(--v-bg-hover) !important; }
+.callout[data-callout="info"]    .callout-title { color: var(--v-text-sub); }
 
 /* ── Tables ── */
 .markdown-preview-view table { border-collapse: collapse; width: 100%; }
 .markdown-preview-view th {
   background: var(--v-bg-card);
   color: var(--v-accent-bright);
-  font-weight: 700;
-  padding: 8px 14px;
+  font-weight: 700; padding: 8px 14px;
   border: 1px solid var(--v-border);
 }
 .markdown-preview-view td {
-  color: var(--v-text);
-  padding: 6px 14px;
+  color: var(--v-text); padding: 6px 14px;
   border: 1px solid var(--v-border);
   background: var(--v-bg-surface);
 }
@@ -190,16 +187,14 @@
 
 /* ── Tags ── */
 .tag, .cm-hashtag {
-  background: var(--v-accent-dim);
-  color: var(--v-accent-bright);
-  border-radius: 10px;
-  padding: 1px 8px;
-  font-size: 0.82em;
+  background: var(--v-accent);
+  color: var(--v-text);
+  border-radius: 10px; padding: 1px 8px; font-size: 0.82em;
 }
 
 /* ── Task lists ── */
-.task-list-item-checkbox { accent-color: var(--v-green); }
-.task-list-item.is-checked { color: var(--v-text-muted); text-decoration: line-through; }
+.task-list-item-checkbox          { accent-color: var(--v-statusbar); }
+.task-list-item.is-checked        { color: var(--v-text-muted); text-decoration: line-through; }
 
 /* ── HR ── */
 .markdown-preview-view hr { border-color: var(--v-border); margin: 24px 0; }
@@ -207,21 +202,45 @@
 /* ── Search highlight ── */
 .search-result-file-matched-text,
 .cm-searching {
-  background: rgba(212,169,106,0.35);
-  color: var(--v-gold);
+  background: rgba(124,161,192,0.28);
+  color: var(--v-accent-bright);
   border-radius: 2px;
 }
 
+/* ── Left ribbon (icon buttons) ── */
+.workspace-ribbon,
+.side-dock-ribbon {
+  background: var(--v-bg-raised) !important;
+  border-right: 1px solid var(--v-border);
+  padding: 8px 4px;
+}
+.side-dock-ribbon-action,
+.workspace-ribbon-collapse-btn {
+  color: var(--v-text-sub) !important;
+  border-radius: 6px;
+  padding: 6px;
+  margin: 2px 4px;
+}
+.side-dock-ribbon-action:hover,
+.workspace-ribbon-collapse-btn:hover {
+  background: var(--v-bg-card) !important;
+  color: var(--v-accent-bright) !important;
+}
+.side-dock-ribbon-action.is-active {
+  background: var(--v-accent) !important;
+  color: var(--v-text) !important;
+}
+
 /* ── Sidebar / File explorer ── */
-.nav-folder-title,
-.nav-file-title    { color: var(--v-text-sub); padding: 2px 8px; }
-.nav-file-title:hover,
-.nav-folder-title:hover  { background: var(--v-bg-card);    color: var(--v-text); }
-.nav-file-title.is-active { background: var(--v-accent-dim); color: var(--v-accent-bright); border-radius: 4px; }
-.nav-folder-title-content { color: var(--v-text-muted); font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em; }
+.nav-folder-title-content {
+  color: var(--v-text-muted);
+  font-size: 0.82em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
 
 /* ── Tabs ── */
-.workspace-tab-header        { color: var(--v-text-muted); }
+.workspace-tab-header { color: var(--v-text-muted); }
 .workspace-tab-header.is-active {
   background: var(--v-bg-raised);
   color: var(--v-text);
@@ -230,20 +249,22 @@
 
 /* ── Modal / Prompt ── */
 .modal, .prompt {
-  background: var(--v-bg-raised);
+  background: var(--v-bg-card);
   border: 1px solid var(--v-border);
   color: var(--v-text);
   border-radius: 8px;
 }
 .modal-title, .prompt-title { color: var(--v-accent-bright); font-weight: 700; }
-
-/* ── Prompt input ── */
 .prompt-input {
-  background: var(--v-bg-card);
+  background: var(--v-bg-input);
   color: var(--v-text);
   border: 1px solid var(--v-border);
   border-radius: 4px;
 }
 
 /* ── Status bar ── */
-.status-bar { background: var(--v-bg-sidebar); color: var(--v-text-muted); font-size: 0.8em; }
+.status-bar {
+  background: var(--v-statusbar) !important;
+  color: var(--v-text) !important;
+  font-size: 0.8em;
+}
