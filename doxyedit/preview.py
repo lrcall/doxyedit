@@ -411,13 +411,20 @@ class ImagePreviewDialog(QDialog):
         self._load_saved_notes()
 
     def _toggle_always_on_top(self, on: bool):
-        flags = self.windowFlags()
-        if on:
-            flags |= Qt.WindowType.WindowStaysOnTopHint
-        else:
-            flags &= ~Qt.WindowType.WindowStaysOnTopHint
-        self.setWindowFlags(flags)
-        self.show()  # re-show after flag change to apply
+        try:
+            import ctypes
+            HWND_TOPMOST    = -1
+            HWND_NOTOPMOST  = -2
+            SWP_NOMOVE      = 0x0002
+            SWP_NOSIZE      = 0x0001
+            SWP_NOACTIVATE  = 0x0010
+            hwnd = int(self.winId())
+            insert_after = HWND_TOPMOST if on else HWND_NOTOPMOST
+            ctypes.windll.user32.SetWindowPos(
+                hwnd, insert_after, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+        except Exception:
+            pass
 
     def _toggle_fullscreen(self):
         if self._is_fullscreen:
