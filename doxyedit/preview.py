@@ -197,9 +197,16 @@ class ImagePreviewDialog(QDialog):
         self._view_notes_btn.toggled.connect(self._toggle_view_notes)
         info_bar.addWidget(self._view_notes_btn)
 
+        self._on_top_btn = QPushButton("On Top")
+        self._on_top_btn.setCheckable(True)
+        self._on_top_btn.setToolTip("Stay above DoxyEdit window")
+        self._on_top_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._on_top_btn.toggled.connect(self._toggle_on_top)
+        info_bar.addWidget(self._on_top_btn)
+
         self._pin_btn = QPushButton("Pin")
         self._pin_btn.setCheckable(True)
-        self._pin_btn.setToolTip("Always on top")
+        self._pin_btn.setToolTip("Always on top (system-wide)")
         self._pin_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._pin_btn.toggled.connect(self._toggle_always_on_top)
         info_bar.addWidget(self._pin_btn)
@@ -267,6 +274,13 @@ class ImagePreviewDialog(QDialog):
         self._load_saved_notes()
 
     def eventFilter(self, obj, event):
+        # Parent window activated — raise preview above it (On Top mode)
+        if obj is self.parent() and event.type() == QEvent.Type.WindowActivate:
+            if self.isVisible():
+                self.raise_()
+            return False  # don't consume
+
+        # Navigation keys — intercept before any child widget
         if event.type() == QEvent.Type.KeyPress and self._assets:
             key = event.key()
             if key in (Qt.Key.Key_Space, Qt.Key.Key_Right, Qt.Key.Key_Tab,
@@ -410,6 +424,17 @@ class ImagePreviewDialog(QDialog):
             self.view.centerOn(item)
         self._load_saved_notes()
 
+    def _toggle_on_top(self, on: bool):
+        """Stay above the DoxyEdit parent window but not other apps."""
+        if on:
+            # Install event filter on parent to raise preview when parent activates
+            if self.parent():
+                self.parent().installEventFilter(self)
+            self.raise_()
+        else:
+            if self.parent():
+                self.parent().removeEventFilter(self)
+
     def _toggle_always_on_top(self, on: bool):
         try:
             import ctypes
@@ -425,6 +450,11 @@ class ImagePreviewDialog(QDialog):
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
         except Exception:
             pass
+
+    def closeEvent(self, event):
+        if self.parent():
+            self.parent().removeEventFilter(self)
+        super().closeEvent(event)
 
     def _toggle_fullscreen(self):
         if self._is_fullscreen:
