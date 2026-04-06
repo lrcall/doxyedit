@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import (
     Qt, Signal, QThread, QTimer, QSettings, QSize, QRect, QPoint,
-    QAbstractListModel, QModelIndex,
+    QAbstractListModel, QModelIndex, QItemSelectionModel,
 )
 from PySide6.QtGui import (
     QPixmap, QFont, QColor, QCursor, QPainter, QPen, QFontMetrics, QPainterPath,
@@ -1581,13 +1581,14 @@ class AssetBrowser(QWidget):
     def scroll_to_asset(self, asset_id: str):
         """Scroll the grid to show the given asset and select it."""
         self._selected_ids = {asset_id}
+        flag = QItemSelectionModel.SelectionFlag.ClearAndSelect
         if self._view_stack.currentIndex() == 0:
             # Flat view
             for i, a in enumerate(self._filtered_assets):
                 if a.id == asset_id:
                     idx = self._model.index(i)
                     self._list_view.scrollTo(idx, self._list_view.ScrollHint.PositionAtCenter)
-                    self._list_view.setCurrentIndex(idx)
+                    self._list_view.selectionModel().setCurrentIndex(idx, flag)
                     break
         else:
             # Folder view — find the section and row
@@ -1597,7 +1598,7 @@ class AssetBrowser(QWidget):
                     if a and a.id == asset_id:
                         idx = section.folder_model.index(i)
                         section.view.scrollTo(idx, section.view.ScrollHint.PositionAtCenter)
-                        section.view.setCurrentIndex(idx)
+                        section.view.selectionModel().setCurrentIndex(idx, flag)
                         # Scroll the outer scroll area to the section
                         section_y = section.mapTo(self._folder_container, QPoint(0, 0)).y()
                         self._folder_scroll.verticalScrollBar().setValue(section_y)
