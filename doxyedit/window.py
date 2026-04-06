@@ -869,8 +869,7 @@ class MainWindow(QMainWindow):
         self._fast_cache_action.setChecked(bool(self._settings.value("fast_cache", 0, type=int)))
         self._fast_cache_action.setToolTip(
             "Store thumbnails as uncompressed BMP for faster reads at the cost of disk space")
-        self._fast_cache_action.toggled.connect(
-            lambda on: self._settings.setValue("fast_cache", int(on)))
+        self._fast_cache_action.toggled.connect(self._on_fast_cache_toggled)
         tools_menu.addSeparator()
         tools_menu.addAction("Find Duplicate Files...", self._find_duplicates)
         tools_menu.addAction("Tag Usage Stats...", self._show_tag_stats)
@@ -1082,13 +1081,10 @@ class MainWindow(QMainWindow):
         self.status.setStyleSheet(
             f"QStatusBar {{ background: {self._theme.statusbar_bg}; color: {self._theme.statusbar_text}; }}")
         self.status.showMessage(label)
-        QApplication.processEvents()
 
     def update_progress(self, value: int):
         """Update progress bar value."""
         self._progress_bar.setValue(value)
-        if value % 10 == 0:
-            QApplication.processEvents()
 
     def finish_progress(self, message: str = "Done"):
         """Hide progress bar and show completion message."""
@@ -1755,6 +1751,10 @@ class MainWindow(QMainWindow):
 
     def _on_preview_closed(self):
         self._preview_dlg = None
+
+    def _on_fast_cache_toggled(self, on: bool):
+        self._settings.setValue("fast_cache", int(on))
+        self.browser._thumb_cache._disk_cache.set_fast_cache(on)
 
     def _navigate_to_asset_in_browser(self, asset_id: str):
         """Select an asset in the browser while preview dialog is open."""

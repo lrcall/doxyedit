@@ -96,6 +96,7 @@ class DiskCache:
         else:
             self._dir = Path.home() / ".doxyedit" / "thumbcache"
         self._dir.mkdir(parents=True, exist_ok=True)
+        self._fmt, self._ext = _cache_fmt()  # read once in main thread; update via set_fast_cache()
         self._con = sqlite3.connect(str(self._dir / "cache.db"), check_same_thread=False)
         self._con.execute(
             "CREATE TABLE IF NOT EXISTS dims (key TEXT PRIMARY KEY, w INTEGER, h INTEGER)"
@@ -145,9 +146,13 @@ class DiskCache:
                     return pm, w, h
         return None
 
+    def set_fast_cache(self, on: bool):
+        """Call from main thread when fast cache setting changes."""
+        self._fmt, self._ext = (_FAST_FMT, _FAST_EXT) if on else (_STD_FMT, _STD_EXT)
+
     def put(self, path: str, size: int, pixmap: QPixmap, orig_w: int, orig_h: int):
         """Save a thumbnail to disk cache."""
-        fmt, ext = _cache_fmt()
+        fmt, ext = self._fmt, self._ext
         key = _cache_key(path, size)
         cached_file = self._dir / f"{key}{ext}"
         pixmap.save(str(cached_file), fmt)

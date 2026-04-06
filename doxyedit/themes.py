@@ -361,17 +361,30 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.bg_main}; width: 10px; border: none;
         }}
         QScrollBar::handle:vertical {{
-            background: {theme.accent}; border-radius: 4px; min-height: 30px;
+            background: {theme.text_secondary}; border-radius: 4px; min-height: 30px;
         }}
-        QScrollBar::handle:vertical:hover {{ background: {theme.accent_bright}; }}
+        QScrollBar::handle:vertical:hover {{ background: {theme.text_primary}; }}
         QScrollBar:horizontal {{
             background: {theme.bg_main}; height: 10px; border: none;
         }}
         QScrollBar::handle:horizontal {{
-            background: {theme.accent}; border-radius: 4px; min-width: 30px;
+            background: {theme.text_secondary}; border-radius: 4px; min-width: 30px;
         }}
-        QScrollBar::handle:horizontal:hover {{ background: {theme.accent_bright}; }}
+        QScrollBar::handle:horizontal:hover {{ background: {theme.text_primary}; }}
         QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
+
+        QListView#doxyedit_grid QScrollBar:vertical {{
+            width: 15px;
+        }}
+        QListView#doxyedit_grid QScrollBar::handle:vertical {{
+            border-radius: 5px; min-height: 40px;
+        }}
+        QListView#doxyedit_grid QScrollBar:horizontal {{
+            height: 15px;
+        }}
+        QListView#doxyedit_grid QScrollBar::handle:horizontal {{
+            border-radius: 5px; min-width: 40px;
+        }}
 
         QLineEdit {{
             background: {theme.bg_input}; color: {theme.text_primary};
