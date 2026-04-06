@@ -2,11 +2,14 @@ import subprocess
 import sys
 import os
 
-here = os.path.dirname(os.path.abspath(sys.executable))
+desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+log = os.path.join(desktop, "launcher.log")
+
+here = os.path.dirname(os.path.abspath(sys.argv[0]))
 bat = os.path.join(here, "doxyedit.bat")
-log = os.path.join(here, "launcher.log")
 
 with open(log, "w") as f:
+    f.write(f"sys.argv[0]: {sys.argv[0]}\n")
     f.write(f"sys.executable: {sys.executable}\n")
     f.write(f"here: {here}\n")
     f.write(f"bat: {bat}\n")
