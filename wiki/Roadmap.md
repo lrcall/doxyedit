@@ -13,6 +13,10 @@ Features still pending from TODO.md, organized by estimated effort. Items marked
 
 These are well-scoped features that are close to the existing codebase.
 
+### Project Accent Color — Title Bar Tint
+
+When a project accent color is set, apply it to the Windows title bar as well. Use `DwmSetWindowAttribute` with `DWMWA_CAPTION_COLOR` (Windows 11) or `DWMWA_COLORIZATION_COLOR` (Windows 10) via ctypes. Fall back gracefully on older Windows. Wire to the existing `_set_project_color` / `_apply_theme` flow in `window.py`.
+
 ### Taskbar Flash on Cache Complete
 
 Flash the DoxyEdit taskbar button when a Cache All operation finishes. Use `QWinTaskbarButton` (Qt Windows Extras / `PySide6.QtWinExtras` if available) or the raw Win32 `FlashWindowEx` API (`FLASHWINFO` struct, `FLASHW_TRAY | FLASHW_TIMERNOFG` flags so it only flashes when DoxyEdit is not the foreground window). Wire to the existing cache-all completion signal in `browser.py`.
