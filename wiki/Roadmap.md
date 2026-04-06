@@ -13,6 +13,10 @@ Features still pending from TODO.md, organized by estimated effort. Items marked
 
 These are well-scoped features that are close to the existing codebase.
 
+### Right-Click to Dismiss from Recent Lists
+
+Right-click any entry in File > Recent Projects or File > Recent Folders to get a "Remove from list" option. Recent lists are stored in QSettings — just filter out the chosen path and rebuild the menu. Wire to the existing `_rebuild_recent_menus()` call in `window.py`.
+
 ### Project Accent Color — Title Bar Tint
 
 When a project accent color is set, apply it to the Windows title bar as well. Use `DwmSetWindowAttribute` with `DWMWA_CAPTION_COLOR` (Windows 11) or `DWMWA_COLORIZATION_COLOR` (Windows 10) via ctypes. Fall back gracefully on older Windows. Wire to the existing `_set_project_color` / `_apply_theme` flow in `window.py`.
