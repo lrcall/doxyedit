@@ -889,7 +889,7 @@ class MainWindow(QMainWindow):
         view_menu.addAction("Reset Font Size", self._font_reset, QKeySequence("Ctrl+0"))
         view_menu.addSeparator()
         gen_menu = view_menu.addMenu("Thumbnail Quality")
-        for n in [128, 256, 512, 768, 1024]:
+        for n in [64, 128, 256, 512, 768, 1024]:
             gen_menu.addAction(f"{n}px", lambda size=n: self._set_thumb_gen_size(size))
         view_menu.addSeparator()
         theme_menu = view_menu.addMenu("Theme")
