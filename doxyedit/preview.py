@@ -364,11 +364,11 @@ class ImagePreviewDialog(QDialog):
         self._asset.notes = "\n".join(all_lines)
 
     def jump_to(self, asset, assets: list, index: int):
-        """Switch to a different asset (called externally when reusing the dialog)."""
+        """Switch to a different asset (called externally when reusing the dialog).
+        Does NOT emit navigated — the browser already knows the selection."""
         self._assets = assets
         self._nav_index = index
         self._load_asset(asset)
-        self.navigated.emit(asset.id)
         self.raise_()
         self.activateWindow()
 
