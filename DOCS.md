@@ -1,6 +1,6 @@
 # DoxyEdit Documentation
 
-**Version 1.2** — Art Asset Manager
+**Version 1.9** — Art Asset Manager
 
 DoxyEdit is a desktop tool for artists and creators to browse, tag, organize, and export art assets across multiple platforms (Kickstarter, Steam, Patreon, social media).
 
@@ -39,12 +39,14 @@ The primary workspace. Left sidebar has the tag panel, main area shows the thumb
 - Click **+ Folder** or **+ Files** in the toolbar
 - Drag files/folders from Windows Explorer onto the window
 - **Ctrl+V** to paste — accepts images, file paths, folder paths, or URLs
+- **File > Paste Folder** — imports a folder path currently on the clipboard
 - Supports: PNG, JPG, BMP, GIF, WebP, TIFF, TGA, SVG, PSD, PSB, SAI, SAI2, CLIP, KRA, XCF
 
 **Browsing:**
 - **Smooth virtual scrolling** — no paging, all images accessible by scrolling
 - **Ctrl+Scroll** — zoom thumbnails instantly (80px to 320px, no rebuild)
-- **Double-click** — open full zoomable preview (Scroll to zoom, Drag to pan, N = add note, Esc to close)
+- **Enter** or **Double-click** — open full zoomable preview (Scroll to zoom, Drag to pan, N = add note, Esc to close)
+- **Up/Down arrows** — navigate between thumbnails; auto-scrolls to keep selection visible
 - **Recursive** checkbox — when checked, + Folder imports subfolders too
 - **Hover** — shows larger preview popup (toggle with "Hover Preview" checkbox)
 - **Cache All** checkbox — pre-generate thumbnails for entire project in background
@@ -169,9 +171,34 @@ Free-form annotation surface for composing layouts.
 
 ---
 
-## Preview Annotations
+## Preview Window
 
-In the double-click preview dialog, you can draw annotation notes directly on the image:
+Open by pressing **Enter** or **double-clicking** a thumbnail. Only one preview window is ever open at a time — opening again on a different image updates the same window.
+
+**Navigation inside preview:**
+| Key | Action |
+|-----|--------|
+| Space / Tab / Down | Next image |
+| Backspace / Up / Left | Previous image |
+| Esc | Close preview |
+| Ctrl+0 | Fit image to view |
+| N | Add note annotation |
+| V | Toggle View Notes |
+
+Navigation also syncs the thumbnail selection in the main browser grid.
+
+**Mouse:**
+- Scroll to zoom
+- Drag to pan (free overpan — you can scroll past image edges)
+
+**Window controls:**
+- Minimize, maximize, and restore buttons in the preview title bar
+- Title bar and buttons are fully themed (accent color via DWM)
+- Scrollbar handles use the accent color and brighten on hover
+
+### Preview Annotations
+
+Draw annotation notes directly on the image:
 
 1. Press **N** or click **Add Note** button
 2. Drag a rectangle on the image
@@ -179,6 +206,8 @@ In the double-click preview dialog, you can draw annotation notes directly on th
 4. Note is saved to the asset's notes field
 5. **Delete** key removes selected notes
 6. **Ctrl+0** to fit image to view
+
+**View Notes** button (or **V** key) toggles saved annotations visible/hidden. View Notes defaults to off when the preview opens.
 
 Notes are stored as text coordinates in the asset's notes field and persist with the project.
 
@@ -222,7 +251,10 @@ Each slot shows: name, target size, assigned asset, and status (pending/ready/po
 | Ctrl+= | Increase font size |
 | Ctrl+- | Decrease font size |
 | Ctrl+0 | Reset font size |
-| Left/Right | Page through thumbnails |
+| Up/Down arrows | Navigate thumbnails (browser) |
+| Enter | Open preview for selected thumbnail |
+| Space / Tab / Down | Next image (inside preview) |
+| Backspace / Up / Left | Previous image (inside preview) |
 
 ### Project File (.doxyproj.json)
 Human-readable JSON. Can be edited by Claude CLI or by hand.
@@ -273,15 +305,43 @@ python -m doxyedit status project.doxyproj.json     # Platform slot assignments
 
 | Theme | Style |
 |-------|-------|
-| Vinik 24 | Dark purple/teal (default) |
+| Soot | Cool dark purple (default) |
+| Vinik 24 | Dark purple/teal |
 | Warm Charcoal | Warm dark tones |
-| Soot | Cool dark purple |
 | Bone | Light warm beige |
 | Milk Glass | Light cool grey |
 | Forest | Dark green |
 | Dark | Classic IDE dark |
 
-Windows title bar color matches the active theme. Theme persists across sessions.
+Windows title bar color matches the active theme. Theme persists across sessions. Scrollbar handles use the theme accent color and highlight on hover.
+
+---
+
+## Thumbnail Cache
+
+Thumbnails are cached to `~/.doxyedit/thumbcache/` as PNGs and reused across sessions.
+
+**Cross-project cache sharing:** A shared `content_index.db` (SQLite) at the base cache directory maps cache keys to PNG paths. When you open a new project containing files already cached by another project, the thumbnails are reused instantly — no re-generation needed.
+
+**Per-project dims index:** Stored in `cache.db` (SQLite, WAL mode) alongside each project's cache. Old `index.json` files auto-migrate on first run.
+
+**Fast Cache Mode** (Tools menu): stores thumbnails as uncompressed BMP files instead of PNG for faster reads, at the cost of more disk space. Useful for very large projects on slow drives.
+
+| Cache setting | Location |
+|---------------|----------|
+| Tools > Cache All | Pre-generate all thumbnails for the current project |
+| Tools > Fast Cache Mode | Toggle BMP vs PNG storage |
+| Tools > Clear Cache | Delete all cached thumbnails for the current project |
+| Tools > Set Cache Location | Move cache to a custom directory |
+| Tools > Open Cache | Open cache folder in Explorer |
+
+---
+
+## Health Panel
+
+Accessible via **Tools > Remove Missing Files** or the Remove Missing button in the Health panel.
+
+- **Remove Missing**: scans all assets and removes any whose source file no longer exists on disk. Shows a confirmation dialog listing how many will be removed before proceeding.
 
 ---
 

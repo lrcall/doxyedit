@@ -147,6 +147,20 @@
 - [x] Tray collapse button in header should close the whole tray (not just content)
 - [x] Auto-tagging toggle (on/off in Tools)
 - [x] Sort by folder with folder headers in thumbnail mode
+- [x] Preview window: single-instance (reuse instead of spawning second window)
+- [x] Preview navigation via Space/Tab/Down (next) and Backspace/Up/Left (previous) — always works regardless of focus
+- [x] Preview syncs thumbnail selection in browser (flat + folder views)
+- [x] Enter key opens preview for selected thumbnail
+- [x] Arrow key navigation in thumbnail view scrolls selection into view
+- [x] Preview window themed (title bar via DWM, full stylesheet)
+- [x] Preview minimize/maximize/restore buttons
+- [x] SQLite cache index (O(1) key lookups, WAL mode, auto-migrates from index.json)
+- [x] Cross-project thumbnail cache sharing via content_index.db
+- [x] Fast Cache Mode (BMP storage, Tools menu)
+- [x] Remove Missing Files (Health panel + Tools menu)
+- [x] Folder view depth indent (3 spaces per depth level)
+- [x] Scrollbar handles use accent color, brighten on hover
+- [x] Paste Folder in File menu
 
 ### Medium Priority
 - [x] Rebuild custom tag bar buttons from tags that exist in project JSON (not hardcoded)

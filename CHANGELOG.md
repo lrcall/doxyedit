@@ -1,5 +1,45 @@
 # DoxyEdit Changelog
 
+## v1.9.0 — 2026-04-06
+
+### Preview Window (Major Overhaul)
+- Single preview window: opening preview when one is already open reuses and updates it instead of spawning a second
+- Minimize/maximize/restore buttons on preview window
+- Preview window fully themed: title bar color via DWM, full stylesheet applied
+- Image centered on load and on every navigation
+- Free overpan: scene rect has a large margin so you can pan past image edges
+- Space, Tab, Down arrow = next image; Backspace, Up arrow, Left arrow = previous image
+- Keys always navigate regardless of which button has focus
+- Add Note / View Notes buttons are non-focusable so they never steal Space key
+- View Notes defaults to off on open
+- Enter key opens preview for selected thumbnail
+- Thumbnail selection syncs with preview navigation in both flat and folder views (uses ClearAndSelect so highlight is always visible)
+
+### Thumbnail Navigation
+- Up/Down arrow keys in the thumbnail view navigate images and sync thumbnail selection
+- Arrow key navigation auto-scrolls to keep the selected thumbnail visible (EnsureVisible)
+- Fixed: navigating via arrows in preview no longer causes browser scroll-jump on click (jump_to no longer emits navigated signal)
+
+### Thumbnail Cache
+- Cross-project cache sharing: `content_index.db` (SQLite) stored at the base cache dir maps cache keys to PNG paths across all projects — new projects automatically reuse already-cached thumbnails from other projects
+- Per-project dimension index moved from `index.json` to `cache.db` (SQLite, WAL mode); old `index.json` files auto-migrate on first run
+- Fast Cache Mode (Tools menu): stores thumbnails as uncompressed BMP for faster reads at the cost of disk space
+- Fixed re-entrant call crash when Cache All completes and the user immediately hits cache again
+
+### Theming
+- Scrollbar handles use the accent color (bright on hover)
+- Default theme changed from Vinik 24 to Soot
+
+### Folder View
+- Section headers indent 3 spaces per depth level relative to the shallowest folder in the current view
+
+### Health Panel
+- "Remove Missing" button: removes all assets whose source file no longer exists, with confirmation dialog
+- Connected to Tools > Remove Missing Files menu action
+
+### Import
+- Paste Folder (File menu): imports a folder path from clipboard
+
 ## v1.5.1 — 2026-04-05
 
 ### Hover Preview
