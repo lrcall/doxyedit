@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QApplication, QLabel, QProgressBar, QPushButton,
     QSizePolicy,
 )
-from PySide6.QtCore import Qt, QTimer, QSettings, QSize, QUrl, QMimeData
+from PySide6.QtCore import Qt, QTimer, QSettings, QSize, QUrl, QMimeData, QAbstractNativeEventFilter
 from PySide6.QtGui import (
     QAction, QKeySequence, QColor, QPen, QBrush, QShortcut, QImage,
 )
@@ -2927,19 +2927,35 @@ Ctrl+Click tag — Search by tag
 
     def showEvent(self, event):
         super().showEvent(event)
-        if not windroptarget.register_hotkey(int(self.winId())):
-            self.status.showMessage("Warning: could not register Ctrl+Alt+Shift+V hotkey", 4000)
+        if not getattr(self, '_hotkey_registered', False):
+            if windroptarget.register_hotkey(int(self.winId())):
+                self._hotkey_registered = True
 
-    def nativeEvent(self, event_type, message):
-        if windroptarget.is_hotkey_message(int(message)):
-            text = QApplication.clipboard().text()
-            ok, msg = windroptarget.simulate_drop_from_clipboard(text)
-            self.status.showMessage(msg, 3000)
-            return True, 0
-        return super().nativeEvent(event_type, message)
+                class _HotkeyFilter(QAbstractNativeEventFilter):
+                    def __init__(self_, callback):
+                        super().__init__()
+                        self_._cb = callback
+                    def nativeEventFilter(self_, event_type, message):
+                        if windroptarget.is_hotkey_message(int(message)):
+                            self_._cb()
+                            return True, 0
+                        return False, 0
+
+                self._hotkey_filter = _HotkeyFilter(self._on_drop_hotkey)
+                QApplication.instance().installNativeEventFilter(self._hotkey_filter)
+            else:
+                self.status.showMessage("Warning: could not register Ctrl+Alt+Shift+V hotkey", 4000)
+
+    def _on_drop_hotkey(self):
+        text = QApplication.clipboard().text()
+        ok, msg = windroptarget.simulate_drop_from_clipboard(text)
+        self.status.showMessage(msg, 3000)
 
     def closeEvent(self, event):
-        windroptarget.unregister_hotkey(int(self.winId()))
+        if getattr(self, '_hotkey_registered', False):
+            windroptarget.unregister_hotkey(int(self.winId()))
+            if hasattr(self, '_hotkey_filter'):
+                QApplication.instance().removeNativeEventFilter(self._hotkey_filter)
         if self._dirty and self._project_path:
             self.project.save(self._project_path)
         # Save splitter and window position/size
