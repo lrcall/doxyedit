@@ -183,15 +183,17 @@ class ImagePreviewDialog(QDialog):
         info_bar.addWidget(info)
         info_bar.addStretch()
 
-        # Note button
+        # Note button — NoFocus so Space/Tab never get captured by button
         self._note_btn = QPushButton("Add Note")
         self._note_btn.setCheckable(True)
+        self._note_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._note_btn.toggled.connect(self._toggle_note_mode)
         info_bar.addWidget(self._note_btn)
 
         self._view_notes_btn = QPushButton("View Notes")
         self._view_notes_btn.setCheckable(True)
         self._view_notes_btn.setChecked(False)
+        self._view_notes_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._view_notes_btn.toggled.connect(self._toggle_view_notes)
         info_bar.addWidget(self._view_notes_btn)
 
@@ -246,8 +248,9 @@ class ImagePreviewDialog(QDialog):
         QShortcut(QKeySequence("V"), self, lambda: self._view_notes_btn.toggle())
         QShortcut(QKeySequence("Delete"), self, self._delete_selected_note)
         QShortcut(QKeySequence("F11"), self, self._toggle_fullscreen)
-        # Space/Backspace/arrows are intercepted via event filter on the view
-        # viewport because QGraphicsView (ScrollHandDrag) consumes them first.
+        # Navigation keys are intercepted at dialog level so they always fire
+        # regardless of which child widget has focus.
+        self.installEventFilter(self)
         self.view.viewport().installEventFilter(self)
         self.view.installEventFilter(self)
 
@@ -257,7 +260,7 @@ class ImagePreviewDialog(QDialog):
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.KeyPress and self._assets:
             key = event.key()
-            if key in (Qt.Key.Key_Space, Qt.Key.Key_Right):
+            if key in (Qt.Key.Key_Space, Qt.Key.Key_Right, Qt.Key.Key_Tab):
                 self._navigate(1)
                 return True
             if key in (Qt.Key.Key_Backspace, Qt.Key.Key_Left):
