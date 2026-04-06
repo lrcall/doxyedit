@@ -115,17 +115,48 @@
   background: rgba(201,125,184,0.28); color: #c97db8; border-radius: 2px;
 }
 
-/* Left ribbon */
+/* Left ribbon — visible pill-shaped buttons */
 .workspace-ribbon, .side-dock-ribbon {
-  background: #46394a !important; border-right: 1px solid #614e6e; padding: 8px 4px;
+  background: #2a2238 !important;
+  border-right: 1px solid #614e6e;
+  padding: 10px 5px;
+  width: 44px !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
-.side-dock-ribbon-action, .workspace-ribbon-collapse-btn {
-  color: #b899b8 !important; border-radius: 6px; padding: 6px; margin: 2px 4px;
+
+/* Each ribbon icon as a shaped button */
+.side-dock-ribbon-action,
+.workspace-ribbon-collapse-btn {
+  background: #433455 !important;
+  color: #b899b8 !important;
+  border: 1px solid #614e6e !important;
+  border-radius: 8px !important;
+  padding: 7px !important;
+  margin: 0 !important;
+  width: 34px !important;
+  height: 34px !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.side-dock-ribbon-action:hover, .workspace-ribbon-collapse-btn:hover {
-  background: #614e6e !important; color: #c97db8 !important;
+
+.side-dock-ribbon-action:hover,
+.workspace-ribbon-collapse-btn:hover {
+  background: #614e6e !important;
+  color: #e8c0e0 !important;
+  border-color: #c97db8 !important;
 }
-.side-dock-ribbon-action.is-active { background: #8d5f8d !important; color: #e8c0e0 !important; }
+
+.side-dock-ribbon-action.is-active {
+  background: #8d5f8d !important;
+  color: #e8c0e0 !important;
+  border-color: #c97db8 !important;
+  box-shadow: 0 0 6px rgba(201,125,184,0.4);
+}
 
 /* Nav folders */
 .nav-folder-title-content { color: #8677a0; font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.06em; }
