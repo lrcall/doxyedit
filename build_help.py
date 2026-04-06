@@ -41,7 +41,6 @@ C = {
     "border":       "#2a2535",
     "border2":      "#332c50",
     "code_bg":      "#151520",
-    "tag_bg":       "#1e1c2a",
     "green":        "#4d8a6a",
     "gold":         "#c5a84a",
     "orange":       "#c87a45",
@@ -73,8 +72,7 @@ def resolve_wikilinks(text: str) -> str:
     """Convert [[Page Name]] to anchor links."""
     def replace(m):
         page = m.group(1)
-        anchor = page.lower().replace(" ", "-").replace("&", "").replace("--", "-")
-        return f'<a href="#{anchor}">{page}</a>'
+        return f'<a href="#{page_id(page)}">{page}</a>'
     return re.sub(r'\[\[([^\]]+)\]\]', replace, text)
 
 
@@ -85,7 +83,6 @@ def render_callouts(html: str) -> str:
     """
     def replace_callout(m):
         inner = m.group(1)
-        # Check if starts with [!type]
         cm = re.match(r'<p>\[!(\w+)\](.*?)</p>(.*)', inner, re.DOTALL | re.IGNORECASE)
         if not cm:
             return m.group(0)

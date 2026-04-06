@@ -1747,11 +1747,14 @@ class MainWindow(QMainWindow):
             assets=filtered, current_index=idx)
         dlg.setStyleSheet(self.styleSheet())
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        dlg.finished.connect(lambda: setattr(self, '_preview_dlg', None))
+        dlg.finished.connect(self._on_preview_closed)
         dlg.navigated.connect(self._navigate_to_asset_in_browser)
         self._preview_dlg = dlg
         dlg.show()
         self._theme_dialog_titlebar(dlg)
+
+    def _on_preview_closed(self):
+        self._preview_dlg = None
 
     def _navigate_to_asset_in_browser(self, asset_id: str):
         """Select an asset in the browser while preview dialog is open."""
