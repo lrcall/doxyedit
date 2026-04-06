@@ -60,6 +60,10 @@ Drag a tag from one section to another (e.g., move a custom tag into a different
 
 The Work Tray currently holds one flat list. Named trays (tabs or labeled slots) would allow multiple staging areas — e.g., one tray per platform or per campaign stage.
 
+### Quick-Launch Program List
+
+A configurable list of frequently-used apps (Photoshop, SAI, Clip Studio, etc.) accessible from the Tools menu or a toolbar button. Click an entry to open selected assets in that program. Config stored in QSettings — extension → exe path, same table as "Configure Editors". Could also populate a right-click **Send To ▸** submenu if desired (implementation is trivial via `ShellExecuteEx` on the system Send To folder at `%APPDATA%\Microsoft\Windows\SendTo`).
+
 ### Nuitka Build Optimization
 
 The `build.bat` Nuitka build works but has room for size and speed optimization. The output `.exe` could likely be smaller with better include/exclude tuning.
