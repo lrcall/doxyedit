@@ -40,7 +40,7 @@ Not a competition comparison — a borrow list. What Eagle does well that DoxyEd
 | Trash / soft delete | ✓ | ✓ (ignore tag) | — |
 | Format filter (show only PSD etc.) | ✓ | ✗ | **Borrow** |
 | Sort by color | ✓ | ✗ | Maybe later |
-| Multiple libraries open at once | ✓ tabs | ✗ one project | Skip for now |
+| Multiple libraries open at once | ✓ tabs | ✓ multi-project tabs | — |
 | Cloud sync | ✓ Pro | ✗ intentionally local | Skip |
 | Board / mood board view | ✓ | Canvas tab (different) | — |
 | PSD/SAI native thumbnails | ✗ plugin | ✓ native | DoxyEdit better |
@@ -83,7 +83,7 @@ Already partially computed via autotag (warm/cool etc.). Extract 5 dominant colo
 
 **Search by color** — niche for art workflow, complex to do well. Skip.
 
-**Multiple libraries open simultaneously** — adds significant complexity, not needed for single-artist use.
+**Multiple libraries open simultaneously** — already implemented as multi-project tabs.
 
 **Cloud sync** — intentionally out of scope. Local-first is a feature.
 

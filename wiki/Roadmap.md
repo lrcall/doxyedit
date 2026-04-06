@@ -13,6 +13,41 @@ Features still pending from TODO.md, organized by estimated effort. Items marked
 
 These are well-scoped features that are close to the existing codebase.
 
+### Zoom Slider
+
+Visible drag slider in the toolbar for thumbnail size (80–320px). Supplements existing Ctrl+scroll. One `QSlider` wired to the existing `_thumb_size` logic. Show current px value as a label next to it.
+
+### Full Screen Button in Preview
+
+A fullscreen toggle button in the `ImagePreviewDialog` toolbar. `showFullScreen()` / `showNormal()` toggle, or wire to the existing `_toggle_fullscreen()` method which already exists but may not have a visible button.
+
+### Open in Native Editor
+
+Right-click → **Open in Native Editor** on any asset. Per-file-type editor associations stored in QSettings:
+
+```
+native_editor/.psd = C:/Program Files/Adobe/Photoshop/Photoshop.exe
+native_editor/.sai = C:/Program Files/SAI/SAI.exe
+native_editor/* = (system default)
+```
+
+**Tools > Configure Editors…** dialog: table of extension → exe path, with Browse button per row. Falls back to `os.startfile()` (system default) when no custom path is set. Also available as **F3** or **Ctrl+Enter** keyboard shortcut on selected asset.
+
+### Drag from Thumbnail Grid to External Apps
+
+Drag one or more selected thumbnails out of the main grid directly to Photoshop, Explorer, etc. Uses `QDrag` with `QMimeData` file URLs — same pattern already implemented for the Work Tray. Wire `mouseMoveEvent` on `QListView` to initiate drag when threshold distance is exceeded.
+
+> [!note]
+> Work Tray drag-out already works. This extends the same behavior to the main grid.
+
+### Hover-Only Filenames
+
+View menu toggle: **Show Filenames** (always / hover only / never). When set to hover-only, the delegate suppresses the text draw unless the item is hovered. Cleaner grid at small zoom levels. Store in QSettings.
+
+### Format Filter
+
+Filter the grid by file extension. A dropdown or button group: All / PSD / PNG / JPG / SAI / Other. Filters `_filtered_assets` by `Path(source_path).suffix.lower()`. Useful in mixed-format folders.
+
 ### Drag-Select Over Tag Rows
 
 Rubber-band / drag selection across tag rows in the Tag Panel. Currently you click individual tags or Ctrl+click for multi-select. A drag gesture would let you select a range of tags in one motion.
@@ -34,6 +69,15 @@ The `build.bat` Nuitka build works but has room for size and speed optimization.
 ## Medium-Term (Substantial Features)
 
 These require design decisions and moderate implementation work.
+
+### Docked Preview Panel
+
+An optional inline preview panel docked inside the main window (right side or bottom), so you can see the full-resolution image without a floating window. Toggle between docked and floating modes. The existing `ImagePreviewDialog` content (viewer, notes, nav buttons) moves into a `QSplitter` pane.
+
+- Docked mode: preview fills right pane, thumbnail grid shrinks left
+- Floating mode: current behavior (separate window)
+- Remembered per session in QSettings
+- Docked panel has the same navigation (Space/arrow keys) as the floating preview
 
 ### Platform Status Dashboard Tab
 
