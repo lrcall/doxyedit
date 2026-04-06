@@ -363,6 +363,15 @@ class ImagePreviewDialog(QDialog):
         all_lines = existing_lines + note_lines
         self._asset.notes = "\n".join(all_lines)
 
+    def jump_to(self, asset, assets: list, index: int):
+        """Switch to a different asset (called externally when reusing the dialog)."""
+        self._assets = assets
+        self._nav_index = index
+        self._load_asset(asset)
+        self.navigated.emit(asset.id)
+        self.raise_()
+        self.activateWindow()
+
     def _navigate(self, direction: int):
         """Move to the next (+1) or previous (-1) asset."""
         if not self._assets:

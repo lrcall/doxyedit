@@ -1737,14 +1737,21 @@ class MainWindow(QMainWindow):
             idx = next(i for i, a in enumerate(filtered) if a.id == asset_id)
         except StopIteration:
             idx = 0
+        # Reuse existing dialog if still open
+        dlg = getattr(self, '_preview_dlg', None)
+        if dlg is not None and dlg.isVisible():
+            dlg.jump_to(asset, filtered, idx)
+            return
         dlg = ImagePreviewDialog(
             asset.source_path, asset=asset, parent=self,
             assets=filtered, current_index=idx)
         dlg.setStyleSheet(self.styleSheet())
-        dlg.show()  # must be visible before DWM call
+        dlg.show()
         self._theme_dialog_titlebar(dlg)
         dlg.navigated.connect(self._navigate_to_asset_in_browser)
+        self._preview_dlg = dlg
         dlg.exec()
+        self._preview_dlg = None
 
     def _navigate_to_asset_in_browser(self, asset_id: str):
         """Select an asset in the browser while preview dialog is open."""
