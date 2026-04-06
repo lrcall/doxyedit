@@ -24,6 +24,8 @@ PAGES = [
     "CLI Reference",
     "Changelog",
     "Roadmap",
+    "Eagle Integration",
+    "UI Direction — Eagle Layout",
 ]
 
 # Vinik24 faithful palette
