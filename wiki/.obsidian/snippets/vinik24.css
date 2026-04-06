@@ -1,258 +1,249 @@
-/* Vinik24 — DoxyEdit Obsidian Theme */
-/* Palette */
+/* Vinik24 — DoxyEdit Obsidian Theme (black bg edition) */
+
 :root {
-  --deep-bg:       #332c50;
-  --bg-raised:     #46394a;
-  --bg-card:       #614e6e;
-  --accent:        #8d5f8d;
-  --accent-bright: #c97db8;
-  --text-primary:  #e8c0e0;
-  --text-secondary:#b899b8;
-  --text-muted:    #8677a0;
-  --green:         #3d6b5a;
-  --olive:         #93a167;
-  --gold:          #d4a96a;
-  --orange:        #e87b55;
-  --red:           #c85a5a;
-  --blue:          #5a8ec8;
-  --cyan:          #6db5c8;
-  --border:        #614e6e;
+  /* Backgrounds — true black base, subtle purple tints for elevation */
+  --v-bg:          #0d0d0d;
+  --v-bg-sidebar:  #111114;
+  --v-bg-surface:  #161618;
+  --v-bg-raised:   #1e1c24;
+  --v-bg-card:     #26222f;
+  --v-border:      #2e2a38;
+
+  /* Vinik24 accent palette */
+  --v-accent:        #8d5f8d;
+  --v-accent-bright: #c97db8;
+  --v-accent-dim:    #5c3e5c;
+
+  /* Text */
+  --v-text:        #dcc8d8;
+  --v-text-sub:    #a88caa;
+  --v-text-muted:  #6b5a6e;
+
+  /* Semantic colours */
+  --v-green:  #4d8a6a;
+  --v-olive:  #93a167;
+  --v-gold:   #d4a96a;
+  --v-orange: #e87b55;
+  --v-red:    #c85a5a;
+  --v-blue:   #5a8ec8;
+  --v-cyan:   #6db5c8;
+
+  /* Wire Obsidian's own vars so built-in components inherit */
+  --background-primary:          var(--v-bg);
+  --background-primary-alt:      var(--v-bg-surface);
+  --background-secondary:        var(--v-bg-sidebar);
+  --background-secondary-alt:    var(--v-bg-raised);
+  --background-modifier-border:  var(--v-border);
+  --background-modifier-hover:   var(--v-bg-card);
+  --background-modifier-active-hover: var(--v-accent-dim);
+  --text-normal:                 var(--v-text);
+  --text-muted:                  var(--v-text-muted);
+  --text-faint:                  var(--v-text-muted);
+  --text-accent:                 var(--v-accent-bright);
+  --text-accent-hover:           var(--v-cyan);
+  --interactive-accent:          var(--v-accent);
+  --interactive-accent-hover:    var(--v-accent-bright);
+  --scrollbar-bg:                var(--v-bg);
+  --scrollbar-thumb-bg:          var(--v-accent-dim);
 }
 
-/* ── Body / App background ── */
-body {
-  background-color: var(--deep-bg) !important;
-  color: var(--text-primary) !important;
-}
-
-.app-container,
-.workspace,
-.workspace-leaf,
-.workspace-leaf-content,
-.view-content {
-  background-color: var(--deep-bg) !important;
-}
-
-/* ── Sidebar / Explorer ── */
-.nav-folder-title,
-.nav-file-title,
-.nav-header,
-.workspace-ribbon,
-.side-dock-ribbon,
-.workspace-sidebar,
-.workspace-split.mod-left-split,
-.workspace-split.mod-right-split {
-  background-color: var(--bg-raised) !important;
-  color: var(--text-secondary) !important;
-}
-
-.nav-file-title:hover,
-.nav-folder-title:hover {
-  background-color: var(--bg-card) !important;
-  color: var(--text-primary) !important;
-}
-
-.nav-file-title.is-active {
-  background-color: var(--accent) !important;
-  color: var(--text-primary) !important;
-}
+/* ── Scrollbars ── */
+::-webkit-scrollbar            { width: 7px; height: 7px; }
+::-webkit-scrollbar-track      { background: var(--v-bg); }
+::-webkit-scrollbar-thumb      { background: var(--v-accent-dim); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover{ background: var(--v-accent); }
 
 /* ── Note content area ── */
 .markdown-source-view,
 .markdown-preview-view,
 .cm-editor,
 .cm-scroller {
-  background-color: #3a3057 !important;
-  color: var(--text-primary) !important;
+  background-color: var(--v-bg) !important;
+}
+
+/* Reading view padding */
+.markdown-preview-view .markdown-preview-section {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 24px 32px;
 }
 
 /* ── Headings ── */
-.markdown-preview-view h1,
-.cm-header-1 { color: var(--accent-bright) !important; font-weight: 700; }
+.markdown-preview-view h1, .HyperMD-header-1 .cm-header {
+  color: var(--v-accent-bright);
+  font-size: 2em;
+  font-weight: 700;
+  border-bottom: 1px solid var(--v-border);
+  padding-bottom: 6px;
+  margin-bottom: 16px;
+}
+.markdown-preview-view h2, .HyperMD-header-2 .cm-header {
+  color: var(--v-accent);
+  font-size: 1.45em;
+  font-weight: 600;
+  margin-top: 28px;
+}
+.markdown-preview-view h3, .HyperMD-header-3 .cm-header {
+  color: var(--v-text-sub);
+  font-size: 1.15em;
+  font-weight: 600;
+}
+.markdown-preview-view h4, .HyperMD-header-4 .cm-header {
+  color: var(--v-text-muted);
+  font-size: 1em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
 
-.markdown-preview-view h2,
-.cm-header-2 { color: var(--accent) !important; font-weight: 600; }
-
-.markdown-preview-view h3,
-.cm-header-3 { color: var(--text-secondary) !important; font-weight: 600; }
-
-.markdown-preview-view h4,
-.cm-header-4 { color: var(--text-muted) !important; }
+/* ── Body text ── */
+.markdown-preview-view p,
+.markdown-preview-view li {
+  color: var(--v-text);
+  line-height: 1.75;
+}
 
 /* ── Links ── */
 .markdown-preview-view a,
 .cm-hmd-internal-link,
-.cm-link {
-  color: var(--cyan) !important;
-  text-decoration: none;
-}
+.cm-link { color: var(--v-cyan); text-decoration: none; }
+.markdown-preview-view a:hover { color: var(--v-accent-bright); text-decoration: underline; }
 
-.markdown-preview-view a:hover {
-  color: var(--accent-bright) !important;
-  text-decoration: underline;
-}
+/* ── Bold / Italic ── */
+.markdown-preview-view strong, .cm-strong { color: var(--v-gold); font-weight: 700; }
+.markdown-preview-view em,     .cm-em     { color: var(--v-text-sub); font-style: italic; }
 
 /* ── Inline code ── */
 .markdown-preview-view code,
 .cm-inline-code {
-  background-color: var(--bg-card) !important;
-  color: var(--text-primary) !important;
-  border-radius: 3px;
-  padding: 1px 5px;
-  font-size: 0.9em;
+  background: var(--v-bg-card);
+  color: var(--v-accent-bright);
+  border: 1px solid var(--v-border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.875em;
 }
 
 /* ── Code blocks ── */
-.markdown-preview-view pre,
-.markdown-preview-view pre > code,
-.HyperMD-codeblock {
-  background-color: var(--bg-raised) !important;
-  color: var(--text-primary) !important;
-  border-left: 3px solid var(--accent) !important;
-  border-radius: 4px;
+.markdown-preview-view pre {
+  background: var(--v-bg-raised) !important;
+  border: 1px solid var(--v-border);
+  border-left: 3px solid var(--v-accent);
+  border-radius: 6px;
+  padding: 14px 18px;
 }
-
-/* ── Bold ── */
-.markdown-preview-view strong,
-.cm-strong {
-  color: var(--gold) !important;
-  font-weight: 700;
-}
-
-/* ── Italic ── */
-.markdown-preview-view em,
-.cm-em {
-  color: var(--text-secondary) !important;
-}
-
-/* ── Tags ── */
-.tag,
-.cm-hashtag {
-  background-color: var(--accent) !important;
-  color: var(--text-primary) !important;
-  border-radius: 10px;
-  padding: 1px 7px;
-  font-size: 0.85em;
-}
-
-/* ── Checkboxes (done) ── */
-.markdown-preview-view input[type="checkbox"]:checked,
-.task-list-item-checkbox:checked {
-  accent-color: var(--green) !important;
-}
-
-.markdown-preview-view .task-list-item.is-checked {
-  color: var(--text-muted) !important;
-  text-decoration: line-through;
+.markdown-preview-view pre code {
+  background: transparent !important;
+  border: none !important;
+  color: var(--v-text) !important;
+  padding: 0;
 }
 
 /* ── Blockquotes ── */
 .markdown-preview-view blockquote {
-  border-left: 4px solid var(--accent) !important;
-  background-color: var(--bg-raised) !important;
-  color: var(--text-secondary) !important;
-  padding: 8px 16px;
-  margin: 12px 0;
-  border-radius: 0 4px 4px 0;
+  border-left: 4px solid var(--v-accent-dim);
+  background: var(--v-bg-raised);
+  color: var(--v-text-sub);
+  padding: 10px 18px;
+  margin: 14px 0;
+  border-radius: 0 6px 6px 0;
 }
 
-/* ── Callout blocks ── */
+/* ── Callouts ── */
 .callout {
-  background-color: var(--bg-raised) !important;
-  border-left: 4px solid var(--accent) !important;
-  border-radius: 4px;
+  background: var(--v-bg-raised) !important;
+  border-left: 4px solid var(--v-accent) !important;
+  border-radius: 6px;
+  padding: 10px 16px;
 }
+.callout-title { color: var(--v-accent-bright); font-weight: 600; }
+.callout-content { color: var(--v-text-sub); }
 
-.callout-title {
-  color: var(--accent-bright) !important;
-  font-weight: 600;
-}
-
-.callout[data-callout="note"] { border-color: var(--cyan) !important; }
-.callout[data-callout="note"] .callout-title { color: var(--cyan) !important; }
-
-.callout[data-callout="tip"] { border-color: var(--green) !important; }
-.callout[data-callout="tip"] .callout-title { color: var(--olive) !important; }
-
-.callout[data-callout="warning"] { border-color: var(--orange) !important; }
-.callout[data-callout="warning"] .callout-title { color: var(--orange) !important; }
-
-.callout[data-callout="danger"] { border-color: var(--red) !important; }
-.callout[data-callout="danger"] .callout-title { color: var(--red) !important; }
-
-.callout[data-callout="info"] { border-color: var(--blue) !important; }
-.callout[data-callout="info"] .callout-title { color: var(--blue) !important; }
+.callout[data-callout="note"]    { border-color: var(--v-cyan)   !important; }
+.callout[data-callout="note"]    .callout-title { color: var(--v-cyan); }
+.callout[data-callout="tip"]     { border-color: var(--v-green)  !important; }
+.callout[data-callout="tip"]     .callout-title { color: var(--v-olive); }
+.callout[data-callout="warning"] { border-color: var(--v-orange) !important; }
+.callout[data-callout="warning"] .callout-title { color: var(--v-orange); }
+.callout[data-callout="danger"]  { border-color: var(--v-red)    !important; }
+.callout[data-callout="danger"]  .callout-title { color: var(--v-red); }
+.callout[data-callout="info"]    { border-color: var(--v-blue)   !important; }
+.callout[data-callout="info"]    .callout-title { color: var(--v-blue); }
 
 /* ── Tables ── */
-.markdown-preview-view table {
-  border-collapse: collapse;
-  width: 100%;
-}
-
+.markdown-preview-view table { border-collapse: collapse; width: 100%; }
 .markdown-preview-view th {
-  background-color: var(--accent) !important;
-  color: var(--accent-bright) !important;
+  background: var(--v-bg-card);
+  color: var(--v-accent-bright);
   font-weight: 700;
-  padding: 6px 12px;
-  border: 1px solid var(--border);
+  padding: 8px 14px;
+  border: 1px solid var(--v-border);
 }
-
 .markdown-preview-view td {
-  background-color: var(--bg-card) !important;
-  color: var(--text-primary) !important;
-  padding: 5px 12px;
-  border: 1px solid var(--border);
+  color: var(--v-text);
+  padding: 6px 14px;
+  border: 1px solid var(--v-border);
+  background: var(--v-bg-surface);
+}
+.markdown-preview-view tr:nth-child(even) td { background: var(--v-bg-raised); }
+.markdown-preview-view tr:hover td           { background: var(--v-bg-card); }
+
+/* ── Tags ── */
+.tag, .cm-hashtag {
+  background: var(--v-accent-dim);
+  color: var(--v-accent-bright);
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 0.82em;
 }
 
-.markdown-preview-view tr:nth-child(even) td {
-  background-color: var(--bg-raised) !important;
-}
+/* ── Task lists ── */
+.task-list-item-checkbox { accent-color: var(--v-green); }
+.task-list-item.is-checked { color: var(--v-text-muted); text-decoration: line-through; }
+
+/* ── HR ── */
+.markdown-preview-view hr { border-color: var(--v-border); margin: 24px 0; }
 
 /* ── Search highlight ── */
 .search-result-file-matched-text,
 .cm-searching {
-  background-color: var(--gold) !important;
-  color: var(--deep-bg) !important;
+  background: rgba(212,169,106,0.35);
+  color: var(--v-gold);
   border-radius: 2px;
 }
 
-/* ── Scrollbars ── */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: var(--deep-bg); }
-::-webkit-scrollbar-thumb {
-  background: var(--accent);
+/* ── Sidebar / File explorer ── */
+.nav-folder-title,
+.nav-file-title    { color: var(--v-text-sub); padding: 2px 8px; }
+.nav-file-title:hover,
+.nav-folder-title:hover  { background: var(--v-bg-card);    color: var(--v-text); }
+.nav-file-title.is-active { background: var(--v-accent-dim); color: var(--v-accent-bright); border-radius: 4px; }
+.nav-folder-title-content { color: var(--v-text-muted); font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* ── Tabs ── */
+.workspace-tab-header        { color: var(--v-text-muted); }
+.workspace-tab-header.is-active {
+  background: var(--v-bg-raised);
+  color: var(--v-text);
+  border-bottom: 2px solid var(--v-accent-bright);
+}
+
+/* ── Modal / Prompt ── */
+.modal, .prompt {
+  background: var(--v-bg-raised);
+  border: 1px solid var(--v-border);
+  color: var(--v-text);
+  border-radius: 8px;
+}
+.modal-title, .prompt-title { color: var(--v-accent-bright); font-weight: 700; }
+
+/* ── Prompt input ── */
+.prompt-input {
+  background: var(--v-bg-card);
+  color: var(--v-text);
+  border: 1px solid var(--v-border);
   border-radius: 4px;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--accent-bright); }
 
-/* ── Title bar / Header ── */
-.titlebar,
-.mod-top-left-ribbon,
-.workspace-tabs.mod-top {
-  background-color: var(--bg-raised) !important;
-}
-
-.workspace-tab-header.is-active {
-  background-color: var(--accent) !important;
-  color: var(--text-primary) !important;
-}
-
-.workspace-tab-header {
-  color: var(--text-muted) !important;
-}
-
-/* ── Horizontal rule ── */
-.markdown-preview-view hr {
-  border-color: var(--border) !important;
-}
-
-/* ── Modal / Prompt dialogs ── */
-.modal, .prompt {
-  background-color: var(--bg-raised) !important;
-  border: 1px solid var(--border);
-  color: var(--text-primary) !important;
-}
-
-.modal-title {
-  color: var(--accent-bright) !important;
-}
+/* ── Status bar ── */
+.status-bar { background: var(--v-bg-sidebar); color: var(--v-text-muted); font-size: 0.8em; }
