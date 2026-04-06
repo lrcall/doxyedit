@@ -283,6 +283,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self.thumb_size = thumb_size
         self.font_size = 10  # updated by update_font_size
         self.show_dims = True
+        self.show_filenames = "always"  # "always" | "hover" | "never"
         self._folder_starts: dict[int, str] = {}  # row_index → folder path
         self._scaled_cache: dict[tuple, QPixmap] = {}
 
@@ -394,15 +395,20 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.drawText(dim_rect, Qt.AlignmentFlag.AlignHCenter, dim_text)
 
         # Filename
-        name = index.data(Qt.ItemDataRole.DisplayRole) or ""
-        name_font = QFont("Segoe UI", max(7, fs - 2))
-        name_rect = QRect(rect.x() + self.PADDING, rect.y() + ts + 38,
-                          rect.width() - 30, 18)
-        painter.setPen(option.palette.text().color())
-        painter.setFont(name_font)
-        fm = QFontMetrics(name_font)
-        elided = fm.elidedText(name, Qt.TextElideMode.ElideRight, name_rect.width())
-        painter.drawText(name_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided)
+        _show_name = (self.show_filenames == "always" or
+                      (self.show_filenames == "hover" and
+                       option.state & QStyle.StateFlag.State_MouseOver) or
+                      option.state & QStyle.StateFlag.State_Selected)
+        if _show_name:
+            name = index.data(Qt.ItemDataRole.DisplayRole) or ""
+            name_font = QFont("Segoe UI", max(7, fs - 2))
+            name_rect = QRect(rect.x() + self.PADDING, rect.y() + ts + 38,
+                              rect.width() - 30, 18)
+            painter.setPen(option.palette.text().color())
+            painter.setFont(name_font)
+            fm = QFontMetrics(name_font)
+            elided = fm.elidedText(name, Qt.TextElideMode.ElideRight, name_rect.width())
+            painter.drawText(name_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided)
 
         # Star
         star_val = index.data(ThumbnailModel.StarRole) or 0
@@ -748,6 +754,13 @@ class AssetBrowser(QWidget):
         self.filter_has_notes.toggled.connect(self._on_filter_changed)
         row2.addWidget(self.filter_has_notes)
 
+        self._format_filter = ""
+        self._format_combo = QComboBox()
+        self._format_combo.addItems(["All", "PSD", "PNG", "JPG", "SAI", "WEBP", "CLIP", "Other"])
+        self._format_combo.setToolTip("Filter by file format")
+        self._format_combo.currentTextChanged.connect(self._on_format_filter_changed)
+        row2.addWidget(self._format_combo)
+
         row2.addWidget(QLabel("Sort:"))
         self.sort_combo = QComboBox()
         self.sort_combo.addItems(["Name A-Z", "Name Z-A", "Newest", "Oldest", "Largest", "Smallest", "Starred First", "Most Tagged", "By Folder"])
@@ -1068,6 +1081,10 @@ class AssetBrowser(QWidget):
         worker.done.connect(lambda _: worker.deleteLater())
         worker.start()
 
+    def _on_format_filter_changed(self, text: str):
+        self._format_filter = "" if text == "All" else text.lower()
+        self._refresh_grid()
+
     def _on_filter_changed(self, *_):
         self._refresh_grid()
 
@@ -1268,6 +1285,18 @@ class AssetBrowser(QWidget):
             assets = [a for a in assets
                       if any(pa.platform in censor_platforms for pa in a.assignments)
                       and not a.censors]
+
+        # Format filter
+        if self._format_filter:
+            _known = {".psd", ".png", ".jpg", ".jpeg", ".sai", ".sai2", ".webp", ".clip", ".csp"}
+            if self._format_filter == "other":
+                assets = [a for a in assets if Path(a.source_path).suffix.lower() not in _known]
+            elif self._format_filter == "jpg":
+                assets = [a for a in assets if Path(a.source_path).suffix.lower() in (".jpg", ".jpeg")]
+            elif self._format_filter == "sai":
+                assets = [a for a in assets if Path(a.source_path).suffix.lower() in (".sai", ".sai2")]
+            else:
+                assets = [a for a in assets if Path(a.source_path).suffix.lower() == "." + self._format_filter]
 
         # Tag bar filter — show only assets with at least one active filter tag (OR logic)
         if self._bar_tag_filters:

@@ -211,11 +211,20 @@ class ImagePreviewDialog(QDialog):
         self._pin_btn.toggled.connect(self._toggle_always_on_top)
         info_bar.addWidget(self._pin_btn)
 
-        nav_hint = " |  ← → Space to navigate" if self._assets else ""
-        hint = QLabel(f"Scroll to zoom  |  Drag to pan  |  N = note  |  V = toggle  |  F11 = fullscreen  |  Esc = close{nav_hint}")
-        hint.setFont(QFont("Segoe UI", 9))
-        hint.setStyleSheet("color: rgba(128,128,128,0.5);")
-        info_bar.addWidget(hint)
+        self._fs_btn = QPushButton("⛶")
+        self._fs_btn.setFixedWidth(28)
+        self._fs_btn.setToolTip("Toggle fullscreen (F11)")
+        self._fs_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._fs_btn.clicked.connect(self._toggle_fullscreen)
+        info_bar.addWidget(self._fs_btn)
+
+        nav_hint = " |  ← → Space" if self._assets else ""
+        hint_text = f"Scroll=zoom  Drag=pan  N=note  V=toggle  F11=full  Esc=close{nav_hint}"
+        self._hint_lbl = QLabel(hint_text)
+        self._hint_lbl.setFont(QFont("Segoe UI", 9))
+        self._hint_lbl.setStyleSheet("color: rgba(128,128,128,0.5);")
+        self._hint_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        info_bar.addWidget(self._hint_lbl)
 
         # Info bar widget — double-click toggles fullscreen
         info_bar_widget = QWidget()
@@ -444,6 +453,11 @@ class ImagePreviewDialog(QDialog):
             flags &= ~Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
         self.show()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, '_hint_lbl'):
+            self._hint_lbl.setVisible(self.width() >= 820)
 
     def _toggle_fullscreen(self):
         if self._is_fullscreen:

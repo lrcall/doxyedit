@@ -13,6 +13,10 @@ Features still pending from TODO.md, organized by estimated effort. Items marked
 
 These are well-scoped features that are close to the existing codebase.
 
+### Zoom Slider (remaining near-term)
+
+Visible drag slider in the toolbar for thumbnail size (80–320px). Supplements Ctrl+scroll.
+
 ### Rename Detection for Missing Files
 
 When the Health scan finds a missing file, check if it was renamed rather than deleted. Strategy:
@@ -198,7 +202,26 @@ A deeper folder view implementation using stacked `QListView` instances per fold
 
 ---
 
-## Completed Recently (v1.9 / v1.5)
+## Completed Recently (v2.0)
+
+- Rename detection in Health panel (auto-suggest + Locate… button)
+- Right-click to dismiss from Recent Projects / Recent Folders
+- Windows 11 title bar tinted to project accent color (DwmSetWindowAttribute)
+- Taskbar flash on Cache All complete (FlashWindowEx, only when unfocused)
+- Full screen button in preview toolbar
+- Preview hint bar folds gracefully when window is narrow
+- Hover-only filenames (View > Filenames — Always / Hover Only / Never)
+- Format filter dropdown in browser toolbar (All / PSD / PNG / JPG / SAI / WEBP / CLIP / Other)
+- Ctrl+C copies selected assets as file objects (Explorer-compatible)
+- Global Ctrl+Shift+Alt+Insert drop hotkey (WM_DROPFILES to window under cursor)
+- Local mode (repo-relative paths for multi-PC git projects)
+- Remove Folder from Project (right-click folder header)
+- Fix Escape deselect; fix cross-folder sticky selection
+- On Top / Pin buttons in preview window fixed
+
+---
+
+## Completed (v1.9 / v1.5)
 
 For reference, these were formerly on this list and are now done:
 

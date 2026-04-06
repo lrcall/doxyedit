@@ -36,6 +36,22 @@ from doxyedit.health import HealthPanel
 AUTOSAVE_INTERVAL_MS = 30_000
 
 
+class _RemovableMenu(QMenu):
+    """QMenu where right-clicking an item (with .data() set) removes it from the list."""
+    def __init__(self, remove_cb, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._remove_cb = remove_cb
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.RightButton:
+            action = self.actionAt(event.pos())
+            if action and action.data():
+                self._remove_cb(action.data())
+                self.close()
+                return
+        super().mousePressEvent(event)
+
+
 class MainWindow(QMainWindow):
     _open_windows: list["MainWindow"] = []  # keep extra windows alive (prevent GC)
 
@@ -588,6 +604,42 @@ class MainWindow(QMainWindow):
         self._theme = replace(base, **overrides)
         self.setStyleSheet(generate_stylesheet(self._theme))
         self._settings.setValue("theme", theme_id)
+        self._tint_titlebar(proj_accent)
+
+    def _tint_titlebar(self, hex_color: str = ""):
+        """Apply accent color to Windows 11 title bar via DwmSetWindowAttribute."""
+        try:
+            import ctypes
+            DWMWA_CAPTION_COLOR = 35
+            DWMWA_COLOR_DEFAULT = 0xFFFFFFFF
+            hwnd = int(self.winId())
+            if hex_color:
+                c = QColor(hex_color)
+                colorref = (c.blue() << 16) | (c.green() << 8) | c.red()
+            else:
+                colorref = DWMWA_COLOR_DEFAULT
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, DWMWA_CAPTION_COLOR,
+                ctypes.byref(ctypes.c_int(colorref)), 4)
+        except Exception:
+            pass
+
+    def _flash_taskbar(self):
+        """Flash the taskbar button when a long operation completes (Windows only)."""
+        try:
+            import ctypes, ctypes.wintypes
+            class _FLASHWINFO(ctypes.Structure):
+                _fields_ = [("cbSize", ctypes.c_uint), ("hwnd", ctypes.wintypes.HWND),
+                             ("dwFlags", ctypes.c_uint), ("uCount", ctypes.c_uint),
+                             ("dwTimeout", ctypes.c_uint)]
+            fi = _FLASHWINFO()
+            fi.cbSize  = ctypes.sizeof(_FLASHWINFO)
+            fi.hwnd    = int(self.winId())
+            fi.dwFlags = 0x0C | 0x02  # FLASHW_TIMERNOFG | FLASHW_TRAY
+            fi.uCount  = 3
+            ctypes.windll.user32.FlashWindowEx(ctypes.byref(fi))
+        except Exception:
+            pass
         # Re-render HTML panels with new theme colors
         if hasattr(self, '_project_notes_preview'):
             self._render_notes_preview(self.project.notes)
@@ -784,9 +836,11 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction("New Folder &Tab", self._add_folder_preset_dialog, QKeySequence("Ctrl+T"))
 
-        # Recent projects submenu
-        self._recent_projects_menu = file_menu.addMenu("Recent Projects")
-        self._recent_folders_menu = file_menu.addMenu("Recent Folders")
+        # Recent projects submenu (right-click an entry to remove it)
+        self._recent_projects_menu = _RemovableMenu(self._remove_recent_project, "Recent Projects", self)
+        file_menu.addMenu(self._recent_projects_menu)
+        self._recent_folders_menu = _RemovableMenu(self._remove_recent_folder, "Recent Folders", self)
+        file_menu.addMenu(self._recent_folders_menu)
         self._rebuild_recent_menus()
         file_menu.addSeparator()
 
@@ -915,6 +969,13 @@ class MainWindow(QMainWindow):
         for ms in [200, 300, 400, 600, 800, 1200]:
             delay_menu.addAction(f"{ms}ms", lambda d=ms: self._set_hover_delay(d))
         view_menu.addSeparator()
+        filenames_menu = view_menu.addMenu("Filenames")
+        for label, val in [("Always", "always"), ("Hover Only", "hover"), ("Never", "never")]:
+            act = filenames_menu.addAction(label, lambda v=val: self._set_filename_display(v))
+            act.setCheckable(True)
+            act.setChecked(val == "always")
+        self._filenames_actions = {a.text(): a for a in filenames_menu.actions()}
+
         self._show_dims_action = view_menu.addAction("Show Resolution")
         self._show_dims_action.setCheckable(True)
         self._show_dims_action.setChecked(True)
@@ -1100,6 +1161,7 @@ class MainWindow(QMainWindow):
         self._progress_bar.setVisible(False)
         self.status.setStyleSheet("")  # reset to theme default
         self.status.showMessage(message, 3000)
+        self._flash_taskbar()
 
     # --- Tag panel toggle ---
 
@@ -1194,18 +1256,36 @@ class MainWindow(QMainWindow):
         self._recent_projects_menu.clear()
         for p in self._get_recent("recent_projects"):
             if Path(p).exists():
-                self._recent_projects_menu.addAction(
+                act = self._recent_projects_menu.addAction(
                     Path(p).name, lambda path=p: self._load_project_from(path))
+                act.setData(p)
+                act.setToolTip("Right-click to remove from list")
         if self._recent_projects_menu.isEmpty():
             self._recent_projects_menu.addAction("(none)").setEnabled(False)
 
         self._recent_folders_menu.clear()
         for f in self._get_recent("recent_folders"):
             if Path(f).exists():
-                self._recent_folders_menu.addAction(
+                act = self._recent_folders_menu.addAction(
                     Path(f).name, lambda folder=f: self._open_recent_folder(folder))
+                act.setData(f)
+                act.setToolTip("Right-click to remove from list")
         if self._recent_folders_menu.isEmpty():
             self._recent_folders_menu.addAction("(none)").setEnabled(False)
+
+    def _remove_recent_project(self, path: str):
+        recents = self._get_recent("recent_projects")
+        if path in recents:
+            recents.remove(path)
+            self._settings.setValue("recent_projects", recents)
+            self._rebuild_recent_menus()
+
+    def _remove_recent_folder(self, folder: str):
+        recents = self._get_recent("recent_folders")
+        if folder in recents:
+            recents.remove(folder)
+            self._settings.setValue("recent_folders", recents)
+            self._rebuild_recent_menus()
 
     # ── Bookmarks ──────────────────────────────────────────────────────────
 
@@ -2097,6 +2177,17 @@ class MainWindow(QMainWindow):
                 sel.select(idx, sel.SelectionFlag.Select)
                 count += 1
         self.status.showMessage(f"Selected {count} asset(s) with tag '{tag_id}'")
+
+    def _set_filename_display(self, mode: str):
+        self.browser._delegate.show_filenames = mode
+        for label, act in getattr(self, '_filenames_actions', {}).items():
+            act.setChecked(act.text().lower().replace(" ", "_") == mode or
+                           (mode == "always" and act.text() == "Always") or
+                           (mode == "hover" and act.text() == "Hover Only") or
+                           (mode == "never" and act.text() == "Never"))
+        self.browser.active_view.viewport().update()
+        for section in self.browser._folder_sections:
+            section.view.viewport().update()
 
     def _toggle_dims(self, on: bool):
         self.browser._delegate.show_dims = on
