@@ -58,7 +58,25 @@ Generate UI elements (platform slots, tag presets, campaign stages) from `.md` c
 
 ### Actual File Browser
 
-A built-in filesystem browser panel where you can navigate folders, preview files before importing them, and drag files directly into the project. Currently all import goes through dialogs or drag-from-Explorer.
+A built-in filesystem tree panel for navigating the local filesystem, previewing files before importing, and dragging files directly into the project. Currently all import goes through dialogs or drag-from-Explorer.
+
+**Reference design:** Eagle-style collapsible folder tree (see screenshot reference). Key features:
+- Root folder pinning — pin one or more top-level directories as roots
+- Collapsible tree with `▶ / ▼` toggles per folder
+- Asset count badge right-aligned on each row (only shown if > 0 DoxyEdit assets in that folder)
+- Clicking a folder filters the main grid to that folder's assets
+- Right-click → Import This Folder, Open in Explorer, Pin as Root
+- Drag a folder from the panel into the grid = import
+- Indent lines (connecting guide lines) showing hierarchy depth
+- Folders with no imported assets shown dimmed; folders with assets shown at full opacity
+
+**Implementation notes:**
+- Use `QTreeView` + `QFileSystemModel` for the filesystem tree (Qt provides this natively)
+- Override the model to inject asset counts per folder from `project.assets`
+- Asset counts are derived from `asset.source_folder` — group by folder path on project load
+- Panel lives in the left sidebar, below or replacing the current Tag Panel toggle
+- Width matches the existing tag panel (~220px default)
+- Pairs naturally with the Eagle-style Gallery tab (see [[UI Direction — Eagle Layout]])
 
 ### Drag-Drop Tags Between Groups
 
