@@ -808,6 +808,13 @@ class MainWindow(QMainWindow):
         file_menu.addAction("Set Project Accent Color...", self._set_project_color)
         file_menu.addAction("Clear Project Accent Color", self._clear_project_color)
         file_menu.addSeparator()
+        self._local_mode_action = file_menu.addAction("Local Mode (Repo-Relative Paths)")
+        self._local_mode_action.setCheckable(True)
+        self._local_mode_action.setToolTip(
+            "Store asset paths relative to the project file.\n"
+            "Use for projects in a git repo shared across multiple PCs.")
+        self._local_mode_action.toggled.connect(self._on_local_mode_toggled)
+        file_menu.addSeparator()
         file_menu.addAction("E&xit", self.close, QKeySequence("Alt+F4"))
 
         # Bookmarks menu
@@ -2246,6 +2253,13 @@ class MainWindow(QMainWindow):
         else:
             self.status.showMessage("Save the project first", 2000)
 
+    def _on_local_mode_toggled(self, on: bool):
+        self.project.local_mode = on
+        self._dirty = True
+        self.status.showMessage(
+            "Local mode ON — paths saved relative to project file (repo-safe)" if on
+            else "Local mode OFF — paths saved as absolute", 4000)
+
     def _on_shared_cache_toggled(self, shared: bool):
         self._settings.setValue("shared_cache", "true" if shared else "false")
         # Re-apply immediately
@@ -2636,6 +2650,12 @@ Ctrl+Click tag — Search by tag
         for key in list(TAG_SHORTCUTS.keys()):
             if key not in TAG_SHORTCUTS_DEFAULT:
                 del TAG_SHORTCUTS[key]
+
+        # Sync local mode toggle to the loaded project's setting
+        if hasattr(self, '_local_mode_action'):
+            self._local_mode_action.blockSignals(True)
+            self._local_mode_action.setChecked(self.project.local_mode)
+            self._local_mode_action.blockSignals(False)
 
         # Re-apply theme so project accent color takes effect
         self._apply_theme(getattr(self, '_current_theme_id', DEFAULT_THEME))

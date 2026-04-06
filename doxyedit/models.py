@@ -346,6 +346,7 @@ class Project:
     excluded_paths: set[str] = field(default_factory=set)  # paths permanently excluded (moved/deleted)
     import_sources: list[dict] = field(default_factory=list)  # [{type, path, recursive, added_at}]
     folder_presets: list[dict] = field(default_factory=list)  # [{id, name, folders: [str]}]
+    local_mode: bool = False  # store paths relative to project file (for repo/multi-PC use)
 
     def get_tags(self) -> dict[str, TagPreset]:
         """Get merged tag presets — defaults + tag_definitions + legacy custom_tags."""
@@ -366,7 +367,24 @@ class Project:
                 continue
         return tags
 
+    @staticmethod
+    def _to_rel(abs_path: str, base: Path) -> str:
+        """Convert absolute path to POSIX-relative. Falls back to absolute on different drive."""
+        try:
+            return Path(abs_path).relative_to(base).as_posix()
+        except ValueError:
+            return abs_path
+
+    @staticmethod
+    def _to_abs(stored: str, base: Path) -> str:
+        """Resolve a stored path against base. If already absolute, return as-is."""
+        p = Path(stored)
+        if p.is_absolute():
+            return stored
+        return str((base / p).resolve())
+
     def save(self, path: str):
+        base = Path(path).parent
         # Migrate any legacy custom_tags into tag_definitions before saving
         for ct in self.custom_tags:
             if isinstance(ct, dict) and ct.get("id") and ct["id"] not in self.tag_definitions:
@@ -377,10 +395,19 @@ class Project:
                 if ct.get("width"): self.tag_definitions[ct["id"]]["width"] = ct["width"]
                 if ct.get("height"): self.tag_definitions[ct["id"]]["height"] = ct["height"]
                 if ct.get("ratio"): self.tag_definitions[ct["id"]]["ratio"] = ct["ratio"]
+
+        def _asset_dict(a):
+            d = asdict(a)
+            if self.local_mode:
+                d["source_path"]   = self._to_rel(a.source_path, base)
+                d["source_folder"] = self._to_rel(a.source_folder, base) if a.source_folder else ""
+            return d
+
         data = {
             "_comment": "DoxyEdit project — edit with Claude CLI or by hand",
             "name": self.name,
             "notes": self.notes,
+            "local_mode": self.local_mode,
             "platforms": self.platforms,
             "tag_definitions": self.tag_definitions,
             "tag_aliases": self.tag_aliases,
@@ -392,19 +419,26 @@ class Project:
             "tray_items": self.tray_items,
             "accent_color": self.accent_color,
             "checklist": self.checklist,
-            "excluded_paths": sorted(self.excluded_paths),
-            "import_sources": self.import_sources,
+            "excluded_paths": sorted(
+                self._to_rel(p, base) if self.local_mode else p
+                for p in self.excluded_paths),
+            "import_sources": [
+                {**src, "path": self._to_rel(src["path"], base) if self.local_mode else src["path"]}
+                for src in self.import_sources],
             "folder_presets": self.folder_presets,
-            "assets": [asdict(a) for a in self.assets],
+            "assets": [_asset_dict(a) for a in self.assets],
         }
         Path(path).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
 
     @classmethod
     def load(cls, path: str) -> "Project":
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        base = Path(path).parent
+        local = bool(raw.get("local_mode", False))
         proj = cls(
             name=raw.get("name", "Untitled"),
             notes=raw.get("notes", ""),
+            local_mode=local,
             platforms=raw.get("platforms", list(PLATFORMS.keys())),
             custom_tags=raw.get("custom_tags", []),
             tag_definitions=raw.get("tag_definitions", {}),
@@ -416,8 +450,12 @@ class Project:
             tray_items=raw.get("tray_items", []),
             accent_color=raw.get("accent_color", ""),
             checklist=raw.get("checklist", []),
-            excluded_paths=set(raw.get("excluded_paths", [])),
-            import_sources=raw.get("import_sources", []),
+            excluded_paths={
+                cls._to_abs(p, base) if local else p
+                for p in raw.get("excluded_paths", [])},
+            import_sources=[
+                {**src, "path": cls._to_abs(src["path"], base) if local else src["path"]}
+                for src in raw.get("import_sources", [])],
             folder_presets=raw.get("folder_presets", []),
         )
         aliases = proj.tag_aliases
@@ -439,10 +477,12 @@ class Project:
             if raw_notes and not raw_specs and re.match(r'^\d+x\d+', raw_notes.strip()):
                 raw_specs["cli_info"] = raw_notes.strip()
                 raw_notes = ""
+            raw_sp = a.get("source_path", "")
+            raw_sf = a.get("source_folder", "")
             asset = Asset(
                 id=a.get("id", ""),
-                source_path=a.get("source_path", ""),
-                source_folder=a.get("source_folder", ""),
+                source_path=cls._to_abs(raw_sp, base) if local and raw_sp else raw_sp,
+                source_folder=cls._to_abs(raw_sf, base) if local and raw_sf else raw_sf,
                 starred=int(a.get("starred", 0)) if not isinstance(a.get("starred"), bool) else (1 if a.get("starred") else 0),
                 tags=raw_tags,
                 notes=raw_notes,

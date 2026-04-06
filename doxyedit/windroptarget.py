@@ -24,7 +24,7 @@ GMEM_ZEROINIT   = 0x0040
 MOD_ALT         = 0x0001
 MOD_CONTROL     = 0x0002
 MOD_SHIFT       = 0x0004
-VK_V            = 0x56
+VK_INSERT       = 0x2D
 
 HOTKEY_ID = 0xD0E1  # arbitrary app-specific ID
 
@@ -40,7 +40,7 @@ def register_hotkey(hwnd: int) -> bool:
         hwnd,
         HOTKEY_ID,
         MOD_CONTROL | MOD_ALT | MOD_SHIFT,
-        VK_V,
+        VK_INSERT,
     ))
 
 
