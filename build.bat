@@ -26,6 +26,10 @@ if exist "run.dist" rmdir /s /q "run.dist"
 if exist "run.onefile-build" rmdir /s /q "run.onefile-build"
 
 echo.
+echo Building help file...
+%PYTHON% build_help.py
+
+echo.
 echo Building...
 %PYTHON% -m nuitka ^
     --standalone ^

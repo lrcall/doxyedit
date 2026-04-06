@@ -1,1 +1,7 @@
-{"theme": "obsidian", "enabledCssSnippets": ["vinik24"], "baseFontSize": 15}
+{
+  "theme": "obsidian",
+  "enabledCssSnippets": [
+    "vinik24"
+  ],
+  "baseFontSize": 15
+}
