@@ -24,6 +24,7 @@ PAGES = [
     "CLI Reference",
     "Changelog",
     "Roadmap",
+    "Eagle Contrast",
     "Eagle Integration",
     "UI Direction — Eagle Layout",
 ]
