@@ -1,6 +1,6 @@
 """Global hotkey + WM_DROPFILES simulation for Windows.
 
-Ctrl+Alt+Shift+V reads file/folder paths from the clipboard and simulates
+Ctrl+Shift+Alt+Insert reads file/folder paths from the clipboard and simulates
 dropping them onto whatever window is currently under the mouse cursor.
 
 Supports:
@@ -9,7 +9,14 @@ Supports:
 - Paths with or without quotes
 
 Works with any app that accepts WM_DROPFILES (Explorer, Photoshop, SAI,
-Clip Studio, most Win32 creative apps). Does not work with UWP/sandboxed apps.
+Clip Studio, most Win32 creative apps). Does not work with UWP/sandboxed apps
+or apps that use OLE IDropTarget instead of raw WM_DROPFILES.
+
+Notes:
+- WM_HOTKEY arrives as "windows_dispatcher_MSG" in Qt's native event filter,
+  not "windows_generic_MSG". Must check eventType in nativeEventFilter.
+- UIPI (Windows 7+) silently blocks WM_DROPFILES across privilege levels.
+  We call ChangeWindowMessageFilterEx on the target to allow it.
 """
 import ctypes
 import ctypes.wintypes as wintypes
@@ -25,15 +32,19 @@ MOD_ALT         = 0x0001
 MOD_CONTROL     = 0x0002
 MOD_SHIFT       = 0x0004
 VK_INSERT       = 0x2D
+MSGFLT_ALLOW    = 1
 
 HOTKEY_ID = 0xD0E1  # arbitrary app-specific ID
 
 _user32   = ctypes.windll.user32
 _kernel32 = ctypes.windll.kernel32
 
+# WM_HOTKEY is delivered as this event type in Qt's native event filter
+DISPATCHER_MSG_TYPE = b"windows_dispatcher_MSG"
+
 
 def register_hotkey(hwnd: int) -> bool:
-    """Register Ctrl+Alt+Shift+V as a global hotkey on the given HWND.
+    """Register Ctrl+Shift+Alt+Insert as a global hotkey on the given HWND.
     Returns True on success. Call once after the window is shown.
     """
     return bool(_user32.RegisterHotKey(
@@ -49,22 +60,27 @@ def unregister_hotkey(hwnd: int):
     _user32.UnregisterHotKey(hwnd, HOTKEY_ID)
 
 
-def is_hotkey_message(msg_ptr) -> bool:
-    """Return True if a native Windows message is our WM_HOTKEY."""
-    msg = wintypes.MSG.from_address(int(msg_ptr))
+def is_hotkey_message(event_type: bytes, msg_ptr: int) -> bool:
+    """Return True if a native Windows dispatcher message is our WM_HOTKEY."""
+    if event_type != DISPATCHER_MSG_TYPE:
+        return False
+    msg = wintypes.MSG.from_address(msg_ptr)
     return msg.message == WM_HOTKEY and msg.wParam == HOTKEY_ID
+
+
+def _allow_drop_message(hwnd: int):
+    """Call ChangeWindowMessageFilterEx to allow WM_DROPFILES through UIPI."""
+    try:
+        _user32.ChangeWindowMessageFilterEx(hwnd, WM_DROPFILES, MSGFLT_ALLOW, None)
+        _user32.ChangeWindowMessageFilterEx(hwnd, 0x0049, MSGFLT_ALLOW, None)  # undocumented helper
+    except Exception:
+        pass
 
 
 def cursor_pos() -> tuple[int, int]:
     pt = wintypes.POINT()
     _user32.GetCursorPos(ctypes.byref(pt))
     return pt.x, pt.y
-
-
-def hwnd_at_cursor() -> int:
-    pt = wintypes.POINT()
-    _user32.GetCursorPos(ctypes.byref(pt))
-    return _user32.WindowFromPoint(pt)
 
 
 def parse_paths(text: str) -> list[str]:
@@ -92,6 +108,9 @@ def drop_files_on_hwnd(hwnd: int, paths: list[str], x: int, y: int) -> bool:
     """
     if not paths or not hwnd:
         return False
+
+    # Allow WM_DROPFILES through UIPI on the target window
+    _allow_drop_message(hwnd)
 
     # Build the null-separated, double-null-terminated UTF-16LE filename list
     filelist = '\0'.join(paths) + '\0\0'

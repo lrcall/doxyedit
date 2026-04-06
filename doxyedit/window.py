@@ -2956,7 +2956,7 @@ Ctrl+Click tag — Search by tag
                         super().__init__()
                         self_._cb = callback
                     def nativeEventFilter(self_, event_type, message):
-                        if windroptarget.is_hotkey_message(int(message)):
+                        if windroptarget.is_hotkey_message(bytes(event_type), int(message)):
                             self_._cb()
                             return True, 0
                         return False, 0
