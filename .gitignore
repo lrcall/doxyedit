@@ -11,6 +11,10 @@ __pycache__/
 run.build/
 run.dist/
 run.onefile-build/
+launcher.build/
+launcher.dist/
+launcher.onefile-build/
+*.lnk
 .doxyedit_cache/
 *.doxyproj.json
 !doxyedit/
