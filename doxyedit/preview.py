@@ -233,8 +233,10 @@ class ImagePreviewDialog(QDialog):
             saved_zoom = settings.value("preview_zoom", 0.0, type=float)
             if saved_zoom > 0:
                 self.view.setTransform(QTransform.fromScale(saved_zoom, saved_zoom))
+                self.view.centerOn(item)
             else:
                 self.view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
+                self.view.centerOn(item)
 
         # Override mouse events for annotation
         self.view.mousePressEvent = self._view_mouse_press
@@ -389,6 +391,7 @@ class ImagePreviewDialog(QDialog):
             self.scene.addItem(item)
             self._expand_scene_rect(pm.width(), pm.height())
             self.view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
+            self.view.centerOn(item)
         self._load_saved_notes()
 
     def _toggle_fullscreen(self):

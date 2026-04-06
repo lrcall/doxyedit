@@ -1580,13 +1580,29 @@ class AssetBrowser(QWidget):
 
     def scroll_to_asset(self, asset_id: str):
         """Scroll the grid to show the given asset and select it."""
-        for i, a in enumerate(self._filtered_assets):
-            if a.id == asset_id:
-                idx = self._model.index(i)
-                self._list_view.scrollTo(idx, self._list_view.ScrollHint.PositionAtCenter)
-                self._list_view.setCurrentIndex(idx)
-                self._selected_ids = {asset_id}
-                break
+        self._selected_ids = {asset_id}
+        if self._view_stack.currentIndex() == 0:
+            # Flat view
+            for i, a in enumerate(self._filtered_assets):
+                if a.id == asset_id:
+                    idx = self._model.index(i)
+                    self._list_view.scrollTo(idx, self._list_view.ScrollHint.PositionAtCenter)
+                    self._list_view.setCurrentIndex(idx)
+                    break
+        else:
+            # Folder view — find the section and row
+            for section in self._folder_sections:
+                for i in range(section.folder_model.rowCount()):
+                    a = section.folder_model.get_asset(section.folder_model.index(i))
+                    if a and a.id == asset_id:
+                        idx = section.folder_model.index(i)
+                        section.view.scrollTo(idx, section.view.ScrollHint.PositionAtCenter)
+                        section.view.setCurrentIndex(idx)
+                        # Scroll the outer scroll area to the section
+                        section_y = section.mapTo(self._folder_container, QPoint(0, 0)).y()
+                        self._folder_scroll.verticalScrollBar().setValue(section_y)
+                        break
+        self.selection_changed.emit([asset_id])
 
     def shutdown(self):
         self._thumb_cache.shutdown()
