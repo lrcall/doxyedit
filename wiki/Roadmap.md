@@ -13,6 +13,16 @@ Features still pending from TODO.md, organized by estimated effort. Items marked
 
 These are well-scoped features that are close to the existing codebase.
 
+### Rename Detection for Missing Files
+
+When the Health scan finds a missing file, check if it was renamed rather than deleted. Strategy:
+1. Look in `asset.source_folder` for files with the same extension that aren't already in the project
+2. If exactly one candidate exists, auto-suggest "Renamed to X?" with an **Update Path** button
+3. If multiple candidates, show a picker
+4. Could also match by file size as a secondary signal for confidence
+
+Implementation: add a `_find_rename_candidates(asset)` helper in `health.py`. In `_build_asset_row` for missing assets, show a "Find Rename" button that calls it. On confirm, update `asset.source_path` and `asset.source_folder` and re-scan.
+
 ### Right-Click to Dismiss from Recent Lists
 
 Right-click any entry in File > Recent Projects or File > Recent Folders to get a "Remove from list" option. Recent lists are stored in QSettings — just filter out the chosen path and rebuild the menu. Wire to the existing `_rebuild_recent_menus()` call in `window.py`.
