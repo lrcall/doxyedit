@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QGraphicsPixmapItem, QGraphicsRectItem,
     QApplication, QPushButton, QInputDialog, QWidget,
 )
-from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF, Signal, QEvent
+from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF, Signal, QEvent, QTimer
 from PySide6.QtGui import (
     QPixmap, QPainter, QFont, QColor, QKeySequence, QShortcut,
     QTransform, QPen, QBrush,
@@ -275,9 +275,10 @@ class ImagePreviewDialog(QDialog):
 
     def eventFilter(self, obj, event):
         # Parent window activated — raise preview above it (On Top mode)
+        # Deferred so it fires after Qt finishes processing the activation
         if obj is self.parent() and event.type() == QEvent.Type.WindowActivate:
             if self.isVisible():
-                self.raise_()
+                QTimer.singleShot(0, self.raise_)
             return False  # don't consume
 
         # Navigation keys — intercept before any child widget
@@ -427,7 +428,6 @@ class ImagePreviewDialog(QDialog):
     def _toggle_on_top(self, on: bool):
         """Stay above the DoxyEdit parent window but not other apps."""
         if on:
-            # Install event filter on parent to raise preview when parent activates
             if self.parent():
                 self.parent().installEventFilter(self)
             self.raise_()
@@ -436,20 +436,14 @@ class ImagePreviewDialog(QDialog):
                 self.parent().removeEventFilter(self)
 
     def _toggle_always_on_top(self, on: bool):
-        try:
-            import ctypes
-            HWND_TOPMOST    = -1
-            HWND_NOTOPMOST  = -2
-            SWP_NOMOVE      = 0x0002
-            SWP_NOSIZE      = 0x0001
-            SWP_NOACTIVATE  = 0x0010
-            hwnd = int(self.winId())
-            insert_after = HWND_TOPMOST if on else HWND_NOTOPMOST
-            ctypes.windll.user32.SetWindowPos(
-                hwnd, insert_after, 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
-        except Exception:
-            pass
+        """System-wide always-on-top via Qt window flag."""
+        flags = self.windowFlags()
+        if on:
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+        else:
+            flags &= ~Qt.WindowType.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
+        self.show()
 
     def _toggle_fullscreen(self):
         if self._is_fullscreen:

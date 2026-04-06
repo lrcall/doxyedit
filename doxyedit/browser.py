@@ -93,7 +93,8 @@ class FolderScanWorker(QThread):
                 if (f.is_file()
                         and f.suffix.lower() in self._exts
                         and str(f) not in self._existing
-                        and str(f) not in self._excluded):
+                        and str(f) not in self._excluded
+                        and str(f.parent) not in self._excluded):
                     batch.append(str(f))
                     total += 1
                     if len(batch) >= self.BATCH_SIZE:
@@ -467,7 +468,8 @@ class FolderListView(QListView):
 class FolderSection(QWidget):
     """One collapsible folder group: header label + FolderListView."""
 
-    collapsed_changed = Signal(str, bool)  # (folder_path, is_collapsed)
+    collapsed_changed = Signal(str, bool)   # (folder_path, is_collapsed)
+    remove_requested  = Signal(str)         # (folder_path)
 
     def __init__(self, folder: str, assets: list, delegate, thumb_size: int,
                  collapsed: bool = False, depth: int = 0, parent=None):
@@ -490,6 +492,8 @@ class FolderSection(QWidget):
         self._header.setObjectName("folder_section_header")
         self._header.setCursor(Qt.CursorShape.PointingHandCursor)
         self._header.clicked.connect(self._toggle_collapse)
+        self._header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._header.customContextMenuRequested.connect(self._on_header_context)
         layout.addWidget(self._header)
 
         # QListView
@@ -544,6 +548,12 @@ class FolderSection(QWidget):
         new_state = not self.is_collapsed
         self._set_collapsed(new_state)
         self.collapsed_changed.emit(self._folder, new_state)
+
+    def _on_header_context(self, pos):
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(self)
+        menu.addAction(f"Remove Folder from Project…", lambda: self.remove_requested.emit(self._folder))
+        menu.exec(self._header.mapToGlobal(pos))
 
     def update_grid_size(self, thumb_size: int):
         self._thumb_size = thumb_size
@@ -1020,7 +1030,9 @@ class AssetBrowser(QWidget):
                 try:
                     for f in it:
                         if (f.is_file() and f.suffix.lower() in IMAGE_EXTS
-                                and str(f) not in existing and str(f) not in excluded):
+                                and str(f) not in existing
+                                and str(f) not in excluded
+                                and str(f.parent) not in excluded):
                             all_new.append(str(f))
                 except Exception:
                     pass
@@ -1427,6 +1439,7 @@ class AssetBrowser(QWidget):
                 parent=self._folder_container,
             )
             section.collapsed_changed.connect(self._on_folder_collapsed)
+            section.remove_requested.connect(self._on_folder_remove_requested)
             section.view.customContextMenuRequested.connect(
                 lambda pos, s=section: self._on_folder_context_menu_pos(pos, s))
             section.view.doubleClicked.connect(self._on_folder_double_click)
@@ -1466,6 +1479,22 @@ class AssetBrowser(QWidget):
             self._collapsed_folders.add(folder)
         else:
             self._collapsed_folders.discard(folder)
+
+    def _on_folder_remove_requested(self, folder: str):
+        from PySide6.QtWidgets import QMessageBox
+        n = sum(1 for a in self.project.assets if a.source_folder == folder)
+        reply = QMessageBox.question(
+            self, "Remove Folder",
+            f"Permanently remove {n} asset record{'s' if n != 1 else ''} from:\n{folder}\n\n"
+            "The folder will never be re-scanned. Source files are not affected.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self.project.assets = [a for a in self.project.assets if a.source_folder != folder]
+        self.project.excluded_paths.add(folder)
+        self.project.invalidate_index()
+        self._refresh_grid()
 
     def _on_folder_selection_changed(self, active_section=None):
         # Clear other sections so cross-folder sticky selection doesn't accumulate
@@ -1670,7 +1699,10 @@ class AssetBrowser(QWidget):
         count = 0
         it = folder_path.rglob("*") if recursive else folder_path.iterdir()
         for f in it:
-            if f.is_file() and f.suffix.lower() in IMAGE_EXTS and str(f) not in existing and str(f) not in excluded:
+            if (f.is_file() and f.suffix.lower() in IMAGE_EXTS
+                    and str(f) not in existing
+                    and str(f) not in excluded
+                    and str(f.parent) not in excluded):
                 self.project.assets.append(Asset(
                     id=f.stem + "_" + str(len(self.project.assets)),
                     source_path=str(f), source_folder=str(f.parent),
