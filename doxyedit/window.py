@@ -1737,6 +1737,7 @@ class MainWindow(QMainWindow):
         dlg = ImagePreviewDialog(
             asset.source_path, asset=asset, parent=self,
             assets=filtered, current_index=idx)
+        dlg.setStyleSheet(self.styleSheet())
         dlg.navigated.connect(self._navigate_to_asset_in_browser)
         dlg.exec()
 

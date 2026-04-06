@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QGraphicsPixmapItem, QGraphicsRectItem,
     QApplication, QPushButton, QInputDialog, QWidget,
 )
-from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF, Signal
+from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF, Signal, QEvent
 from PySide6.QtGui import (
     QPixmap, QPainter, QFont, QColor, QKeySequence, QShortcut,
     QTransform, QPen, QBrush,
@@ -156,7 +156,10 @@ class ImagePreviewDialog(QDialog):
         py = settings.value("preview_y", -1, type=int)
         if px >= 0 and py >= 0:
             self.move(px, py)
-        self.setStyleSheet("QDialog { background: rgba(20,20,20,0.95); }")
+        # Stylesheet applied externally by caller (so theme is inherited)
+        # Fall back to a dark background if none is provided
+        if not self.styleSheet():
+            self.setStyleSheet("QDialog { background: #141414; }")
 
         self._annotating = False
         self._draw_start = None
@@ -246,14 +249,24 @@ class ImagePreviewDialog(QDialog):
         QShortcut(QKeySequence("V"), self, lambda: self._view_notes_btn.toggle())
         QShortcut(QKeySequence("Delete"), self, self._delete_selected_note)
         QShortcut(QKeySequence("F11"), self, self._toggle_fullscreen)
-        if self._assets:
-            QShortcut(QKeySequence("Space"), self, lambda: self._navigate(1))
-            QShortcut(QKeySequence("Backspace"), self, lambda: self._navigate(-1))
-            QShortcut(QKeySequence("Right"), self, lambda: self._navigate(1))
-            QShortcut(QKeySequence("Left"), self, lambda: self._navigate(-1))
+        # Space/Backspace/arrows are intercepted via event filter on the view
+        # viewport because QGraphicsView (ScrollHandDrag) consumes them first.
+        self.view.viewport().installEventFilter(self)
+        self.view.installEventFilter(self)
 
         # Load existing annotations from asset notes
         self._load_saved_notes()
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.KeyPress and self._assets:
+            key = event.key()
+            if key in (Qt.Key.Key_Space, Qt.Key.Key_Right):
+                self._navigate(1)
+                return True
+            if key in (Qt.Key.Key_Backspace, Qt.Key.Key_Left):
+                self._navigate(-1)
+                return True
+        return super().eventFilter(obj, event)
 
     def _load_saved_notes(self):
         """Parse annotation notes from asset.notes and display them."""
