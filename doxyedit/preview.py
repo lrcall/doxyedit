@@ -451,11 +451,6 @@ class ImagePreviewDialog(QDialog):
         except Exception:
             pass
 
-    def closeEvent(self, event):
-        if self.parent():
-            self.parent().removeEventFilter(self)
-        super().closeEvent(event)
-
     def _toggle_fullscreen(self):
         if self._is_fullscreen:
             self.showNormal()
@@ -474,6 +469,8 @@ class ImagePreviewDialog(QDialog):
         self.view.scale(factor, factor)
 
     def closeEvent(self, event):
+        if self.parent():
+            self.parent().removeEventFilter(self)
         settings = QSettings("DoxyEdit", "DoxyEdit")
         settings.setValue("preview_width", self.width())
         settings.setValue("preview_height", self.height())
@@ -481,4 +478,4 @@ class ImagePreviewDialog(QDialog):
         settings.setValue("preview_y", self.y())
         zoom = self.view.transform().m11()
         settings.setValue("preview_zoom", zoom)
-        event.accept()
+        super().closeEvent(event)
