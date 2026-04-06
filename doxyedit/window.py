@@ -595,11 +595,14 @@ class MainWindow(QMainWindow):
         self._update_title_bar_color()
 
     def _update_title_bar_color(self):
+        self._theme_dialog_titlebar(self)
+
+    def _theme_dialog_titlebar(self, widget):
         try:
             import ctypes
             bg = self._theme.bg_raised
             r, g, b = int(bg[1:3], 16), int(bg[3:5], 16), int(bg[5:7], 16)
-            hwnd = int(self.winId())
+            hwnd = int(widget.winId())
             color = r | (g << 8) | (b << 16)
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 hwnd, 35, ctypes.byref(ctypes.c_int(color)), ctypes.sizeof(ctypes.c_int)
@@ -1738,6 +1741,8 @@ class MainWindow(QMainWindow):
             asset.source_path, asset=asset, parent=self,
             assets=filtered, current_index=idx)
         dlg.setStyleSheet(self.styleSheet())
+        dlg.show()  # must be visible before DWM call
+        self._theme_dialog_titlebar(dlg)
         dlg.navigated.connect(self._navigate_to_asset_in_browser)
         dlg.exec()
 

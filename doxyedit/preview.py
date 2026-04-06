@@ -186,18 +186,12 @@ class ImagePreviewDialog(QDialog):
         # Note button
         self._note_btn = QPushButton("Add Note")
         self._note_btn.setCheckable(True)
-        self._note_btn.setStyleSheet(
-            "QPushButton { padding: 4px 12px; }"
-            "QPushButton:checked { background: rgba(190,149,92,0.5); }")
         self._note_btn.toggled.connect(self._toggle_note_mode)
         info_bar.addWidget(self._note_btn)
 
         self._view_notes_btn = QPushButton("View Notes")
         self._view_notes_btn.setCheckable(True)
-        self._view_notes_btn.setChecked(True)
-        self._view_notes_btn.setStyleSheet(
-            "QPushButton { padding: 4px 12px; }"
-            "QPushButton:checked { background: rgba(190,149,92,0.3); }")
+        self._view_notes_btn.setChecked(False)
         self._view_notes_btn.toggled.connect(self._toggle_view_notes)
         info_bar.addWidget(self._view_notes_btn)
 
@@ -223,13 +217,16 @@ class ImagePreviewDialog(QDialog):
         self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self.view.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.view.setStyleSheet("border: none;")
+        # Allow panning beyond the image edges
+        self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         layout.addWidget(self.view)
 
         if not pm.isNull():
             item = QGraphicsPixmapItem(pm)
             item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
             self.scene.addItem(item)
-            self.scene.setSceneRect(QRectF(pm.rect()))
+            self._expand_scene_rect(pm.width(), pm.height())
 
             saved_zoom = settings.value("preview_zoom", 0.0, type=float)
             if saved_zoom > 0:
@@ -370,6 +367,11 @@ class ImagePreviewDialog(QDialog):
         self._load_asset(asset)
         self.navigated.emit(asset.id)
 
+    def _expand_scene_rect(self, img_w: int, img_h: int):
+        """Set scene rect to image + large overpan margin so panning isn't clamped."""
+        margin = max(img_w, img_h, 4000)
+        self.scene.setSceneRect(QRectF(-margin, -margin, img_w + margin * 2, img_h + margin * 2))
+
     def _load_asset(self, asset):
         """Swap the displayed image for a new asset without recreating the dialog."""
         self._save_notes_to_asset()
@@ -382,7 +384,7 @@ class ImagePreviewDialog(QDialog):
             item = QGraphicsPixmapItem(pm)
             item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
             self.scene.addItem(item)
-            self.scene.setSceneRect(QRectF(pm.rect()))
+            self._expand_scene_rect(pm.width(), pm.height())
             self.view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
         self._load_saved_notes()
 
@@ -395,7 +397,9 @@ class ImagePreviewDialog(QDialog):
             self._is_fullscreen = True
 
     def _fit_to_view(self):
-        self.view.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        items = self.scene.items()
+        if items:
+            self.view.fitInView(items[-1], Qt.AspectRatioMode.KeepAspectRatio)
 
     def _wheel_zoom(self, event):
         factor = 1.2 if event.angleDelta().y() > 0 else 1 / 1.2
