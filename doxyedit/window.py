@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QGraphicsTextItem, QGraphicsRectItem, QGraphicsLineItem,
     QGraphicsPixmapItem, QColorDialog, QMessageBox, QSplitter,
     QWidget, QVBoxLayout, QHBoxLayout, QApplication, QLabel, QProgressBar, QPushButton,
-    QSizePolicy,
+    QSizePolicy, QMenu,
 )
 from PySide6.QtCore import Qt, QTimer, QSettings, QSize, QUrl, QMimeData, QAbstractNativeEventFilter
 from PySide6.QtGui import (
@@ -26,7 +26,8 @@ from doxyedit.censor import CensorEditor
 from doxyedit.platforms import PlatformPanel
 from doxyedit.tagpanel import TagPanel
 from doxyedit.exporter import export_project
-from doxyedit.preview import ImagePreviewDialog
+from doxyedit.preview import ImagePreviewDialog, PreviewPane
+from doxyedit.filebrowser import FileBrowserPanel
 from doxyedit.tray import WorkTray
 from doxyedit.project import save_project, load_project
 from doxyedit.stats import StatsPanel
@@ -99,8 +100,15 @@ class MainWindow(QMainWindow):
 
         # + button to open a new folder tab
         self._new_tab_btn = QPushButton("+")
-        self._new_tab_btn.setFixedSize(24, 24)
-        self._new_tab_btn.setToolTip("Add folder preset tab")
+        self._new_tab_btn.setFixedSize(22, 22)
+        self._new_tab_btn.setToolTip("New tab — open project, folder, or new project (Ctrl+T)")
+        self._new_tab_btn.setStyleSheet(
+            "QPushButton { font-size: 16px; font-weight: bold; border-radius: 4px;"
+            " background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);"
+            " color: rgba(200,200,200,0.8); padding: 0; }"
+            " QPushButton:hover { background: rgba(255,255,255,0.18);"
+            " color: white; border-color: rgba(255,255,255,0.3); }"
+            " QPushButton:pressed { background: rgba(255,255,255,0.25); }")
         self._new_tab_btn.clicked.connect(self._add_folder_preset_dialog)
 
         _proj_bar_widget = QWidget()
@@ -147,6 +155,7 @@ class MainWindow(QMainWindow):
         self.tag_panel.select_all_with_tag.connect(self._select_all_with_tag)
         self.tag_panel.tag_color_changed.connect(self._on_tag_color_changed)
         self.tag_panel.tag_reordered.connect(self._on_tag_reordered)
+        self.tag_panel.tag_section_changed.connect(self._on_tag_section_changed)
         self.tag_panel.batch_apply_tags.connect(self._on_batch_apply_tags)
         self.browser.tag_bar_toggled.connect(self._on_browser_tag_bar_toggled)
 
@@ -156,16 +165,37 @@ class MainWindow(QMainWindow):
         self.work_tray.tags_modified.connect(self._on_tags_modified)
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
+        # File browser (left, hidden by default)
+        self._file_browser = FileBrowserPanel()
+        self._file_browser.folder_selected.connect(self._on_file_browser_folder)
+        self._file_browser.import_requested.connect(
+            lambda f: self.browser.import_folder(f))
+        self._file_browser.filter_cleared.connect(self._clear_file_browser_filter)
+        self._file_browser.hide()
+        self._browse_split.addWidget(self._file_browser)
         self._browse_split.addWidget(self.tag_panel)
         self._browse_split.addWidget(self.browser)
+        # Docked preview pane (right side, initially hidden)
+        self._preview_pane = PreviewPane()
+        self._preview_pane.navigated.connect(self._navigate_to_asset_in_browser)
+        self._preview_pane.hide()
+        self._browse_split.addWidget(self._preview_pane)
         self._browse_split.setStretchFactor(0, 0)
-        self._browse_split.setStretchFactor(1, 1)
+        self._browse_split.setStretchFactor(1, 0)
+        self._browse_split.setStretchFactor(2, 1)
+        self._browse_split.setStretchFactor(3, 0)
         saved_split = self._settings_early.value("splitter_sizes", None)
         if saved_split:
             sizes = [int(s) for s in saved_split]
-            self._browse_split.setSizes(sizes[:2] if len(sizes) >= 2 else [260, 1000])
+            # Require exactly 4 sizes (file browser, tags, browser, preview);
+            # old settings with 2-3 values from previous versions get replaced.
+            self._browse_split.setSizes(sizes if len(sizes) == 4 else [0, 260, 1000, 400])
         else:
-            self._browse_split.setSizes([260, 1000])
+            self._browse_split.setSizes([0, 260, 1000, 400])
+        if self._settings_early.value("preview_docked", False, type=bool):
+            self._preview_pane.show()
+        if self._settings_early.value("file_browser_visible", False, type=bool):
+            self._file_browser.show()
         # Restore tag-notes splitter
         saved_notes_split = self._settings_early.value("tag_notes_splitter", None)
         if saved_notes_split:
@@ -196,6 +226,7 @@ class MainWindow(QMainWindow):
 
         # Tab 4: Platforms (left) + Checklist (right)
         self.platform_panel = PlatformPanel(self.project)
+        self.platform_panel.set_thumb_cache(self.browser._thumb_cache)
         self.checklist_panel = ChecklistPanel(self.project)
         _plat_check_split = QSplitter(Qt.Orientation.Horizontal)
         _plat_check_split.addWidget(self.platform_panel)
@@ -319,10 +350,10 @@ class MainWindow(QMainWindow):
             lambda: (self.browser.search_box.setFocus(), self.browser.search_box.selectAll()))
         # Alt+H temporary hide/unhide
         QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._temp_hide_toggle)
-        # Tab — compact mode: toggle tag panel + tray + tag bar all at once
+        # ` (backtick) — compact mode: toggle tag panel + tray + tag bar all at once
         self._compact_mode = False
         self._pre_compact: dict = {}
-        QShortcut(QKeySequence("Tab"), self).activated.connect(self._toggle_compact_mode)
+        QShortcut(QKeySequence("`"), self).activated.connect(self._toggle_compact_mode)
         # Ctrl+C copy as files (Explorer-style), Ctrl+Shift+C copy full path text
         QShortcut(QKeySequence("Ctrl+C"), self).activated.connect(self._copy_as_files)
         QShortcut(QKeySequence("Ctrl+Shift+C"), self).activated.connect(self._copy_full_path)
@@ -473,6 +504,7 @@ class MainWindow(QMainWindow):
             slot = self._project_slots[self._current_slot]
             slot["project"] = self.project
             if self._dirty and slot["path"]:
+                self._own_save_pending = getattr(self, '_own_save_pending', 0) + 1
                 self.project.save(slot["path"])
                 self._dirty = False
 
@@ -506,6 +538,7 @@ class MainWindow(QMainWindow):
             if reply == QMessageBox.StandardButton.Cancel:
                 return
             if reply == QMessageBox.StandardButton.Save:
+                self._own_save_pending = getattr(self, '_own_save_pending', 0) + 1
                 self.project.save(slot["path"])
         self._project_slots.pop(idx)
         self._proj_tab_bar.blockSignals(True)
@@ -649,7 +682,11 @@ class MainWindow(QMainWindow):
         self._update_title_bar_color()
 
     def _update_title_bar_color(self):
-        self._theme_dialog_titlebar(self)
+        proj_accent = getattr(getattr(self, 'project', None), 'accent_color', '')
+        if proj_accent:
+            self._tint_titlebar(proj_accent)
+        else:
+            self._theme_dialog_titlebar(self)
 
     def _theme_dialog_titlebar(self, widget):
         try:
@@ -685,6 +722,9 @@ class MainWindow(QMainWindow):
         self.project.accent_color = color.name()
         self._apply_theme(self._current_theme_id)
         self._dirty = True
+        if self._project_path:
+            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
+            self._dirty = False
         self.status.showMessage(f"Project accent: {color.name()}", 2000)
 
     def _toggle_project_notes(self, visible: bool):
@@ -751,6 +791,9 @@ class MainWindow(QMainWindow):
         self.project.accent_color = ""
         self._apply_theme(self._current_theme_id)
         self._dirty = True
+        if self._project_path:
+            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
+            self._dirty = False
         self.status.showMessage("Project accent cleared", 2000)
 
     def _set_hover_size(self, pct: int):
@@ -924,7 +967,7 @@ class MainWindow(QMainWindow):
         tools_menu.addAction("Open Cache Folder", self._open_cache_folder)
         self._shared_cache_action = tools_menu.addAction("Shared Cache (all projects)")
         self._shared_cache_action.setCheckable(True)
-        shared = self._settings.value("shared_cache", "false") == "true"
+        shared = self._settings.value("shared_cache", "true") == "true"
         self._shared_cache_action.setChecked(shared)
         self._shared_cache_action.toggled.connect(self._on_shared_cache_toggled)
         self._fast_cache_action = tools_menu.addAction("Fast Cache Mode (BMP, larger files)")
@@ -938,6 +981,10 @@ class MainWindow(QMainWindow):
         tools_menu.addAction("Tag Usage Stats...", self._show_tag_stats)
         tools_menu.addAction("Posting Checklist...", self._show_checklist)
         tools_menu.addSeparator()
+        tools_menu.addAction("Configure Editors...", self._configure_editors)
+        self._launch_menu = tools_menu.addMenu("Launch In")
+        self._rebuild_launch_menu()
+        tools_menu.addSeparator()
         tools_menu.addAction("Mass Tag Editor (AI Training)...", self._mass_tag_editor)
 
         # View menu
@@ -946,6 +993,14 @@ class MainWindow(QMainWindow):
             "Hide Tag Panel", self._toggle_tag_panel, QKeySequence("Ctrl+L"))
         self._toggle_tray_action = view_menu.addAction(
             "Show Work Tray", self._toggle_work_tray, QKeySequence("Ctrl+Shift+W"))
+        self._toggle_dock_preview_action = view_menu.addAction(
+            "Docked Preview", self._toggle_dock_preview, QKeySequence("Ctrl+D"))
+        self._toggle_dock_preview_action.setCheckable(True)
+        self._toggle_dock_preview_action.setChecked(self._preview_pane.isVisible())
+        self._toggle_file_browser_action = view_menu.addAction(
+            "File Browser", self._toggle_file_browser, QKeySequence("Ctrl+B"))
+        self._toggle_file_browser_action.setCheckable(True)
+        self._toggle_file_browser_action.setChecked(self._file_browser.isVisible())
         view_menu.addSeparator()
         view_menu.addAction("Increase Font Size", self._font_increase, QKeySequence("Ctrl+="))
         view_menu.addAction("Decrease Font Size", self._font_decrease, QKeySequence("Ctrl+-"))
@@ -1184,9 +1239,11 @@ class MainWindow(QMainWindow):
                 self._toggle_work_tray()
             self.browser._tag_bar_frame.setVisible(False)
             if hasattr(self.browser, '_tag_bar_toggle_btn'):
-                self.browser._tag_bar_toggle_btn.blockSignals(True)
-                self.browser._tag_bar_toggle_btn.setChecked(False)
-                self.browser._tag_bar_toggle_btn.blockSignals(False)
+                btn = self.browser._tag_bar_toggle_btn
+                btn.blockSignals(True)
+                btn.setChecked(False)
+                btn.setText("▶ Filters")
+                btn.blockSignals(False)
         else:
             pre = getattr(self, '_pre_compact', {})
             if pre.get("tag_panel", True):
@@ -1200,9 +1257,11 @@ class MainWindow(QMainWindow):
             if pre.get("tag_bar", True):
                 self.browser._tag_bar_frame.setVisible(True)
                 if hasattr(self.browser, '_tag_bar_toggle_btn'):
-                    self.browser._tag_bar_toggle_btn.blockSignals(True)
-                    self.browser._tag_bar_toggle_btn.setChecked(True)
-                    self.browser._tag_bar_toggle_btn.blockSignals(False)
+                    btn = self.browser._tag_bar_toggle_btn
+                    btn.blockSignals(True)
+                    btn.setChecked(True)
+                    btn.setText("▼ Filters")
+                    btn.blockSignals(False)
 
     def _toggle_tag_panel(self):
         if self.tag_panel.isVisible():
@@ -1442,7 +1501,7 @@ class MainWindow(QMainWindow):
                 cfg.save()
             self._dirty = True
             if self._project_path:
-                self.project.save(self._project_path)
+                self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
             self.status.showMessage(f"Shortcut cleared for {tag_id}", 2000)
             return
         if key in TAG_SHORTCUTS:
@@ -1456,7 +1515,7 @@ class MainWindow(QMainWindow):
             cfg.save()
         self._dirty = True
         if self._project_path:
-            self.project.save(self._project_path)
+            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
         shortcut = QShortcut(QKeySequence(key), self)
         shortcut.activated.connect(lambda tid=tag_id: self._toggle_tag_shortcut(tid))
         self.status.showMessage(f"Shortcut '{key}' → {tag_id}", 2000)
@@ -1519,6 +1578,29 @@ class MainWindow(QMainWindow):
             if hasattr(self, '_menubar_tray_btn'):
                 self._menubar_tray_btn.setChecked(True)
 
+    def _toggle_dock_preview(self):
+        vis = not self._preview_pane.isVisible()
+        self._preview_pane.setVisible(vis)
+        self._settings.setValue("preview_docked", vis)
+        self._toggle_dock_preview_action.setChecked(vis)
+
+    def _toggle_file_browser(self):
+        vis = not self._file_browser.isVisible()
+        self._file_browser.setVisible(vis)
+        self._settings.setValue("file_browser_visible", vis)
+        self._toggle_file_browser_action.setChecked(vis)
+        if vis and self._file_browser._project is None and self.project:
+            self._file_browser.set_project(self.project)
+
+    def _on_file_browser_folder(self, folder: str):
+        """Filter main grid to show only assets from this folder."""
+        self.browser.set_folder_filter([folder])
+
+    def _clear_file_browser_filter(self):
+        """Clear any folder filter on the main grid."""
+        self.browser.set_folder_filter(None)
+        self._file_browser.clear_active()
+
     def _send_to_tray(self):
         """Send selected assets to work tray."""
         assets = self.browser.get_selected_assets()
@@ -1568,6 +1650,13 @@ class MainWindow(QMainWindow):
         if tag_id not in self.project.tag_definitions:
             self.project.tag_definitions[tag_id] = {"label": tag_id}
         self.project.tag_definitions[tag_id]["order"] = new_order
+        self._dirty = True
+
+    def _on_tag_section_changed(self, tag_id: str, new_section: str):
+        """Persist section assignment when a tag is dragged between groups."""
+        if tag_id not in self.project.tag_definitions:
+            self.project.tag_definitions[tag_id] = {"label": tag_id}
+        self.project.tag_definitions[tag_id]["section"] = new_section
         self._dirty = True
 
     def _on_batch_apply_tags(self, tag_ids: list):
@@ -1661,6 +1750,14 @@ class MainWindow(QMainWindow):
         if asset:
             self.censor_editor.load_asset(asset)
             self.tag_panel.set_assets([asset])
+            # Update docked preview if visible
+            if self._preview_pane.isVisible():
+                filtered = self.browser._filtered_assets
+                try:
+                    idx = next(i for i, a in enumerate(filtered) if a.id == asset_id)
+                except StopIteration:
+                    idx = 0
+                self._preview_pane.show_asset(asset, filtered, idx)
             name = Path(asset.source_path).name
             n_tags = len(asset.tags)
             tag_hint = f" | {n_tags} tags" if n_tags else " | press 1-9 to tag, or use panel ->"
@@ -1741,9 +1838,59 @@ class MainWindow(QMainWindow):
                 solo_files.append(a)
 
         if folder_assets:
+            # Build import-source roots for hierarchy
+            import_roots = [src["path"] for src in p.import_sources
+                            if src.get("type") == "folder"]
+
+            def find_root(folder):
+                best, best_len = None, 0
+                for root in import_roots:
+                    try:
+                        Path(folder).relative_to(root)
+                        if len(Path(root).parts) > best_len:
+                            best, best_len = root, len(Path(root).parts)
+                    except ValueError:
+                        pass
+                return best
+
+            # Group folders under their import root
+            root_children: dict[str, list] = defaultdict(list)
+            orphans = []
+            for folder in sorted(folder_assets):
+                root = find_root(folder)
+                if root:
+                    root_children[root].append(folder)
+                else:
+                    orphans.append(folder)
+
             body.append(section("Source Folders", len(folder_assets)))
             body.append("<table style='border-spacing:0 1px; width:100%'>")
-            for folder in sorted(folder_assets):
+
+            # Roots with children
+            for root in import_roots:
+                children = root_children.get(root, [])
+                if not children:
+                    continue
+                root_total = sum(len(folder_assets[f]) for f in children)
+                root_name = esc(Path(root).name)
+                body.append(
+                    f"<tr><td colspan='2' style='padding:6px 0 2px; font-weight:bold;"
+                    f" color:{accent}'>{root_name}"
+                    f" <span style='color:{muted}; font-weight:normal'>"
+                    f"· {root_total} assets</span></td></tr>")
+                for folder in children:
+                    count = len(folder_assets[folder])
+                    try:
+                        rel = str(Path(folder).relative_to(root))
+                    except ValueError:
+                        rel = Path(folder).name
+                    body.append(
+                        f"<tr><td style='padding:1px 10px 1px 16px; color:{fg2}'>"
+                        f"{code(rel)}</td>"
+                        f"<td style='color:{muted}; white-space:nowrap'>{count} file(s)</td></tr>")
+
+            # Orphan folders (no matching import root)
+            for folder in orphans:
                 count = len(folder_assets[folder])
                 body.append(
                     f"<tr><td style='padding:1px 10px 1px 0'>{code(folder)}</td>"
@@ -1824,9 +1971,15 @@ class MainWindow(QMainWindow):
             idx = 0
         # Reuse existing dialog if still open
         dlg = getattr(self, '_preview_dlg', None)
-        if dlg is not None and dlg.isVisible():
-            dlg.jump_to(asset, filtered, idx)
-            return
+        if dlg is not None:
+            try:
+                if dlg.isVisible():
+                    dlg.jump_to(asset, filtered, idx)
+                    return
+            except RuntimeError:
+                # C++ object was deleted without firing finished signal
+                self._preview_dlg = None
+                dlg = None
         dlg = ImagePreviewDialog(
             asset.source_path, asset=asset, parent=self,
             assets=filtered, current_index=idx)
@@ -1866,7 +2019,7 @@ class MainWindow(QMainWindow):
             self.status.showMessage(f"Sent to censor: {Path(asset.source_path).name}")
 
     def _on_selection_changed(self, asset_ids: list):
-        assets = [a for a in self.project.assets if a.id in asset_ids]
+        assets = [a for aid in asset_ids if (a := self.project.get_asset(aid))]
         self.tag_panel.set_assets(assets)
         n = len(assets)
         if n == 0:
@@ -2373,13 +2526,15 @@ class MainWindow(QMainWindow):
         subprocess.Popen(f'explorer "{cache_dir}"')
 
     def _find_duplicates(self):
-        """Hash all project assets and show a dialog of duplicate groups."""
+        """Hash all project assets and show a dialog of duplicate groups with action options."""
         import hashlib
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox, QInputDialog
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel
+
         self.status.showMessage("Scanning for duplicates...", 0)
         QApplication.processEvents()
 
-        hashes: dict[str, list[str]] = {}
+        # Build hash → [asset] map
+        hashes: dict[str, list] = {}
         for asset in self.project.assets:
             p = Path(asset.source_path)
             if not p.exists():
@@ -2388,33 +2543,93 @@ class MainWindow(QMainWindow):
                 h = hashlib.md5(p.read_bytes()).hexdigest()
             except OSError:
                 continue
-            hashes.setdefault(h, []).append(asset.source_path)
+            hashes.setdefault(h, []).append(asset)
 
-        dupes = {h: paths for h, paths in hashes.items() if len(paths) > 1}
+        dupe_groups = [assets for assets in hashes.values() if len(assets) > 1]
+        total_dupes = sum(len(g) - 1 for g in dupe_groups)  # extras beyond the first in each group
         self.status.showMessage(
-            f"Found {len(dupes)} duplicate group(s)" if dupes else "No duplicates found", 3000)
+            f"Found {len(dupe_groups)} duplicate group(s) ({total_dupes} extras)"
+            if dupe_groups else "No duplicates found", 3000)
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Duplicate Files")
-        dlg.resize(600, 400)
+        dlg.resize(640, 460)
         layout = QVBoxLayout(dlg)
+
+        summary = QLabel(
+            f"{len(dupe_groups)} duplicate group(s) — {total_dupes} extra copies"
+            if dupe_groups else "No duplicate files found.")
+        summary.setProperty("role", "muted")
+        layout.addWidget(summary)
 
         text = QTextEdit()
         text.setReadOnly(True)
-        if dupes:
+        if dupe_groups:
             lines = []
-            for i, (h, paths) in enumerate(dupes.items(), 1):
-                lines.append(f"Group {i} ({h[:8]}):")
-                for p in paths:
-                    lines.append(f"  {p}")
+            for i, group in enumerate(dupe_groups, 1):
+                lines.append(f"Group {i}  (keep: {Path(group[0].source_path).name})")
+                for j, asset in enumerate(group):
+                    marker = "  ✓ keep" if j == 0 else "  ✗ dupe"
+                    lines.append(f"    {marker}  {asset.source_path}")
             text.setPlainText("\n".join(lines))
         else:
             text.setPlainText("No duplicate files found.")
-        layout.addWidget(text)
+        layout.addWidget(text, 1)
 
-        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        btns.rejected.connect(dlg.reject)
-        layout.addWidget(btns)
+        if dupe_groups:
+            note = QLabel("Actions apply to all extras (all but the first in each group).")
+            note.setProperty("role", "muted")
+            layout.addWidget(note)
+
+        btn_row = QHBoxLayout()
+
+        if dupe_groups:
+            tag_btn = QPushButton("Tag as 'duplicate'")
+            tag_btn.setToolTip("Add a 'duplicate' tag to every extra copy")
+            def _tag_dupes():
+                # Ensure the tag exists
+                if "duplicate" not in self.project.tag_definitions:
+                    self.project.tag_definitions["duplicate"] = {"label": "Duplicate", "color": "#e06c6c"}
+                n = 0
+                for group in dupe_groups:
+                    for asset in group[1:]:
+                        if "duplicate" not in asset.tags:
+                            asset.tags.append("duplicate")
+                            n += 1
+                self.project.invalidate_index()
+                self.browser._refresh_grid()
+                self._dirty = True
+                self.status.showMessage(f"Tagged {n} assets as 'duplicate'", 3000)
+                dlg.accept()
+            tag_btn.clicked.connect(_tag_dupes)
+            btn_row.addWidget(tag_btn)
+
+            remove_btn = QPushButton("Remove Extras from Project")
+            remove_btn.setToolTip("Remove all but the first copy of each duplicate from the project (files stay on disk)")
+            def _remove_dupes():
+                extra_ids = {asset.id for group in dupe_groups for asset in group[1:]}
+                reply = QMessageBox.question(
+                    dlg, "Remove Duplicates",
+                    f"Remove {len(extra_ids)} extra asset record(s) from the project?\n\n"
+                    "The files themselves will NOT be deleted from disk.",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
+                self.project.assets = [a for a in self.project.assets if a.id not in extra_ids]
+                self.project.invalidate_index()
+                self.browser._refresh_grid()
+                self._dirty = True
+                self.status.showMessage(f"Removed {len(extra_ids)} duplicate asset records", 3000)
+                dlg.accept()
+            remove_btn.clicked.connect(_remove_dupes)
+            btn_row.addWidget(remove_btn)
+
+        btn_row.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dlg.reject)
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
+
         dlg.exec()
 
     def _mass_tag_editor(self):
@@ -2685,6 +2900,10 @@ Ctrl+Click tag — Search by tag
         """Actually reload the project after debounce."""
         if not self._project_path:
             return
+        # Skip if we triggered this change ourselves (our own save)
+        if getattr(self, '_own_save_pending', 0) > 0:
+            self._own_save_pending -= 1
+            return
         if self._dirty:
             self.status.showMessage("External change detected — save first or reopen", 3000)
             return
@@ -2706,7 +2925,7 @@ Ctrl+Click tag — Search by tag
 
     def _autosave(self):
         if self._dirty and self._project_path:
-            self.project.save(self._project_path)
+            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
             self._dirty = False
             self.status.showMessage("Auto-saved", 3000)
             self._autosave_collection()
@@ -2748,9 +2967,13 @@ Ctrl+Click tag — Search by tag
             self._local_mode_action.setChecked(self.project.local_mode)
             self._local_mode_action.blockSignals(False)
 
+        # Keep the slot in sync with the current project object
+        if 0 <= getattr(self, '_current_slot', -1) < len(getattr(self, '_project_slots', [])):
+            self._project_slots[self._current_slot]["project"] = self.project
+
         # Re-apply theme so project accent color takes effect
         self._apply_theme(getattr(self, '_current_theme_id', DEFAULT_THEME))
-        shared = self._settings.value("shared_cache", "false") == "true"
+        shared = self._settings.value("shared_cache", "true") == "true"
         cache_name = "shared" if shared else self.project.name
         self.browser._thumb_cache.set_project(cache_name)
         self.browser.project = self.project
@@ -2765,6 +2988,7 @@ Ctrl+Click tag — Search by tag
         self.checklist_panel.refresh()
         self.health_panel.project = self.project
         self.health_panel.refresh()
+        self._file_browser.set_project(self.project)
         self.tag_panel.set_assets([])
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self.tag_panel.update_tag_counts(self.project.assets)
@@ -2782,11 +3006,14 @@ Ctrl+Click tag — Search by tag
         if self.project.tray_items:
             self.work_tray.load_state(self.project.tray_items, self.project)
             # Feed any already-cached pixmaps to the tray
-            for aid in self.project.tray_items:
+            tray_data = self.project.tray_items
+            all_aids = tray_data if isinstance(tray_data, list) else [
+                aid for ids in tray_data.values() for aid in ids]
+            for aid in all_aids:
                 pm = self.browser._thumb_cache.get(aid)
                 if pm:
                     self.work_tray.update_pixmap(aid, pm)
-            if self.project.tray_items:
+            if all_aids:
                 self.work_tray.show()
                 self._toggle_tray_action.setText("Hide Work Tray")
 
@@ -2838,7 +3065,7 @@ Ctrl+Click tag — Search by tag
             self.project.eye_hidden_tags = list(self.browser._eye_hidden_tags)
             self.project.hidden_tags = list(self.tag_panel._hidden_tags)
             self.project.tray_items = self.work_tray.save_state()
-            self.project.save(self._project_path)
+            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
             self._dirty = False
             self._settings.setValue("last_project", self._project_path)
             self._add_recent_project(self._project_path)
@@ -2861,6 +3088,7 @@ Ctrl+Click tag — Search by tag
         )
         if path:
             self._remember_dir(path)
+            self._own_save_pending = getattr(self, '_own_save_pending', 0) + 1
             self.project.save(path)
             self._project_path = path
             self._watch_project()
@@ -3038,6 +3266,9 @@ Ctrl+Click tag — Search by tag
 
     def showEvent(self, event):
         super().showEvent(event)
+        # After window is fully shown, request thumbs — folder sections now have real heights
+        QTimer.singleShot(100, self.browser._request_visible_thumbs)
+        QTimer.singleShot(400, self.browser._request_visible_thumbs)
         if not getattr(self, '_hotkey_registered', False):
             if windroptarget.register_hotkey(int(self.winId())):
                 self._hotkey_registered = True
@@ -3062,13 +3293,144 @@ Ctrl+Click tag — Search by tag
         ok, msg = windroptarget.simulate_drop_from_clipboard(text)
         self.status.showMessage(msg, 3000)
 
+    # --- Configure Editors / Quick-Launch ---
+
+    def _configure_editors(self):
+        """Tools > Configure Editors — map file extensions to custom executables."""
+        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTableWidget,
+            QTableWidgetItem, QDialogButtonBox, QLabel, QPushButton, QHeaderView)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Configure Editors")
+        dlg.resize(620, 400)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel(
+            "Map file extensions to custom executables. Leave path blank to use the system default.\n"
+            "These editors are also available in the 'Launch In' menu."))
+
+        table = QTableWidget(0, 2)
+        table.setHorizontalHeaderLabels(["Extension", "Executable Path"])
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+
+        # Load existing entries
+        self._settings.beginGroup("native_editor")
+        for ext in self._settings.childKeys():
+            row = table.rowCount()
+            table.insertRow(row)
+            table.setItem(row, 0, QTableWidgetItem(ext))
+            table.setItem(row, 1, QTableWidgetItem(self._settings.value(ext, "")))
+        self._settings.endGroup()
+
+        layout.addWidget(table, 1)
+
+        add_row_layout = QHBoxLayout()
+        add_btn = QPushButton("+ Add Row")
+        def _add_row():
+            row = table.rowCount()
+            table.insertRow(row)
+            table.setItem(row, 0, QTableWidgetItem(".ext"))
+            table.setItem(row, 1, QTableWidgetItem(""))
+            table.editItem(table.item(row, 0))
+        add_btn.clicked.connect(_add_row)
+        add_row_layout.addWidget(add_btn)
+
+        browse_btn = QPushButton("Browse…")
+        def _browse():
+            row = table.currentRow()
+            if row < 0:
+                return
+            path, _ = QFileDialog.getOpenFileName(dlg, "Select Executable", "",
+                                                   "Executables (*.exe);;All Files (*)")
+            if path:
+                table.setItem(row, 1, QTableWidgetItem(path))
+        browse_btn.clicked.connect(_browse)
+        add_row_layout.addWidget(browse_btn)
+
+        remove_btn = QPushButton("Remove Row")
+        def _remove_row():
+            rows = sorted({idx.row() for idx in table.selectedIndexes()}, reverse=True)
+            for r in rows:
+                table.removeRow(r)
+        remove_btn.clicked.connect(_remove_row)
+        add_row_layout.addWidget(remove_btn)
+        add_row_layout.addStretch()
+        layout.addLayout(add_row_layout)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Save |
+                                QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        layout.addWidget(btns)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        # Save back — clear group then re-write
+        self._settings.beginGroup("native_editor")
+        for key in self._settings.childKeys():
+            self._settings.remove(key)
+        self._settings.endGroup()
+        for row in range(table.rowCount()):
+            ext_item = table.item(row, 0)
+            path_item = table.item(row, 1)
+            if ext_item and ext_item.text().strip():
+                ext = ext_item.text().strip().lower()
+                if not ext.startswith("."):
+                    ext = "." + ext
+                self._settings.setValue(f"native_editor/{ext}",
+                                        path_item.text().strip() if path_item else "")
+        self._rebuild_launch_menu()
+        self.status.showMessage("Editor configuration saved", 2000)
+
+    def _rebuild_launch_menu(self):
+        """Rebuild Tools > Launch In submenu from configured editors."""
+        self._launch_menu.clear()
+        self._settings.beginGroup("native_editor")
+        keys = self._settings.childKeys()
+        self._settings.endGroup()
+        for ext in sorted(keys):
+            exe = self._settings.value(f"native_editor/{ext}", "")
+            label = Path(exe).stem if exe else f"{ext} (system default)"
+            action = self._launch_menu.addAction(label)
+            action.setToolTip(exe or f"Open {ext} files with system default")
+            action.triggered.connect(lambda _=False, e=ext, x=exe: self._launch_in(e, x))
+        if not keys:
+            placeholder = self._launch_menu.addAction("(no editors configured)")
+            placeholder.setEnabled(False)
+        self._launch_menu.addSeparator()
+        self._launch_menu.addAction("Configure Editors...", self._configure_editors)
+
+    def _launch_in(self, ext: str, exe: str):
+        """Open selected assets matching ext in the specified exe (or system default)."""
+        import subprocess, os
+        assets = self.browser.get_selected_assets()
+        if not assets:
+            self.status.showMessage("No assets selected", 2000)
+            return
+        targets = [a for a in assets
+                   if Path(a.source_path).suffix.lower() == ext.lower()]
+        if not targets:
+            self.status.showMessage(f"No selected assets match {ext}", 2000)
+            return
+        for asset in targets:
+            if exe and os.path.exists(exe):
+                subprocess.Popen([exe, asset.source_path])
+            else:
+                try:
+                    os.startfile(asset.source_path)
+                except Exception:
+                    pass
+        self.status.showMessage(f"Opened {len(targets)} file(s)", 2000)
+
     def closeEvent(self, event):
         if getattr(self, '_hotkey_registered', False):
             windroptarget.unregister_hotkey(int(self.winId()))
             if hasattr(self, '_hotkey_filter'):
                 QApplication.instance().removeNativeEventFilter(self._hotkey_filter)
         if self._dirty and self._project_path:
-            self.project.save(self._project_path)
+            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
         # Save splitter and window position/size
         self._settings.setValue("splitter_sizes", self._browse_split.sizes())
         self._settings.setValue("tag_notes_splitter", self.tag_panel._tag_notes_split.sizes())

@@ -19,12 +19,29 @@ class FolderDelegate(QStyledItemDelegate):
         self._panel = panel
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
-        # Draw the default folder name + icon
-        super().paint(painter, option, index)
-
         model = index.model()
         path = model.filePath(index).replace("\\", "/")
         count = self._panel.get_folder_count(path)
+        is_active = (path == self._panel._active_folder)
+
+        # Active folder background highlight
+        if is_active:
+            painter.save()
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(255, 255, 255, 20))
+            painter.drawRect(option.rect)
+            painter.restore()
+
+        # Dim folders with no assets
+        if count == 0:
+            painter.save()
+            painter.setOpacity(0.4)
+            super().paint(painter, option, index)
+            painter.restore()
+        else:
+            super().paint(painter, option, index)
+
+        # Badge
         if count <= 0:
             return
 
@@ -37,19 +54,17 @@ class FolderDelegate(QStyledItemDelegate):
         tw = fm.horizontalAdvance(text) + 10
         th = fm.height() + 2
 
-        # Badge rect — right-aligned, vertically centered
         badge_rect = QRect(
             option.rect.right() - tw - 6,
             option.rect.top() + (option.rect.height() - th) // 2,
             tw, th)
 
-        # Draw pill background
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(255, 255, 255, 30))
+        badge_bg = QColor(255, 255, 255, 40) if is_active else QColor(255, 255, 255, 25)
+        painter.setBrush(badge_bg)
         painter.drawRoundedRect(badge_rect, th // 2, th // 2)
 
-        # Draw count text
         painter.setPen(QColor(200, 200, 200))
         painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, text)
         painter.restore()
@@ -74,6 +89,7 @@ class FileBrowserPanel(QWidget):
         self._pinned: list[str] = []
         self._settings = QSettings("DoxyEdit", "DoxyEdit")
         self._load_pinned()
+        self._active_folder: str | None = None  # currently filtering on this folder
         self._build()
 
     def _load_pinned(self):
@@ -172,7 +188,14 @@ class FileBrowserPanel(QWidget):
     def _on_folder_clicked(self, index: QModelIndex):
         path = self._model.filePath(index)
         if path:
+            self._active_folder = path.replace("\\", "/")
             self.folder_selected.emit(path)
+            self._tree.viewport().update()  # repaint badges
+
+    def clear_active(self):
+        """Clear the active folder highlight (called when filter is cleared)."""
+        self._active_folder = None
+        self._tree.viewport().update()
 
     def _tree_context_menu(self, pos):
         index = self._tree.indexAt(pos)
