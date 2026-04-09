@@ -201,6 +201,7 @@ class ThumbWorker(QThread):
     thumb_ready = Signal(str, QImage, int, int, int)  # QImage is thread-safe; GUI converts to QPixmap
     visual_tags_ready = Signal(str, list)
     palette_ready = Signal(str, list)  # asset_id, list of hex color strings
+    phash_ready = Signal(str, int)  # asset_id, 64-bit hash value
 
     def __init__(self, disk_cache: DiskCache, parent=None):
         super().__init__(parent)
@@ -407,6 +408,15 @@ class ThumbWorker(QThread):
         except Exception:
             pass
 
+        # Compute perceptual hash for similarity detection
+        try:
+            from doxyedit.autotag import compute_phash
+            ph = compute_phash(img)
+            if ph is not None:
+                self.phash_ready.emit(asset_id, ph)
+        except Exception:
+            pass
+
         qimg = pil_to_qimage(img)
         self.thumb_ready.emit(asset_id, qimg, orig_w, orig_h, target_size)
 
@@ -566,6 +576,10 @@ class ThumbCache:
     def connect_palette(self, callback):
         """Connect to palette_ready signal."""
         self._worker.palette_ready.connect(callback)
+
+    def connect_phash(self, callback):
+        """Connect to phash_ready signal."""
+        self._worker.phash_ready.connect(callback)
 
     def shutdown(self):
         self._worker.stop()

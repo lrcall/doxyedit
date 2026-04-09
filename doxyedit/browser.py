@@ -697,6 +697,7 @@ class AssetBrowser(QWidget):
         self._thumb_cache.connect_ready(self._on_thumb_ready)
         self._thumb_cache.connect_visual_tags(self._on_visual_tags)
         self._thumb_cache.connect_palette(self._on_palette_ready)
+        self._thumb_cache.connect_phash(self._on_phash_ready)
         self._filtered_assets: list[Asset] = []
         settings = QSettings("DoxyEdit", "DoxyEdit")
         self._thumb_size = max(80, min(320, int(settings.value("thumb_size", THUMB_SIZE))))
@@ -1911,6 +1912,14 @@ class AssetBrowser(QWidget):
         asset = self.project.get_asset(asset_id)
         if asset:
             asset.specs["palette"] = colors
+
+    def _on_phash_ready(self, asset_id: str, phash_val: int):
+        """Store computed perceptual hash in asset specs."""
+        if not self.project:
+            return
+        asset = self.project.get_asset(asset_id)
+        if asset:
+            asset.specs["phash"] = phash_val
 
     # --- Selection ---
 
