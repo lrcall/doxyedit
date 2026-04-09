@@ -240,17 +240,28 @@ class MainWindow(QMainWindow):
         self.censor_editor = CensorEditor()
         self.tabs.addTab(self.censor_editor, "Censor")
 
-        # Tab 4: Platforms (left) + Checklist (right)
+        # Tab 4: Platforms — top: [PlatformPanel | KanbanPanel], bottom: ChecklistPanel
         self.platform_panel = PlatformPanel(self.project)
         self.platform_panel.set_thumb_cache(self.browser._thumb_cache)
+        self._kanban_panel = KanbanPanel()
+        self._kanban_panel.status_changed.connect(self._on_data_changed)
+        self._kanban_panel.status_changed.connect(lambda: self.platform_panel.refresh())
         self.checklist_panel = ChecklistPanel(self.project)
-        _plat_check_split = QSplitter(Qt.Orientation.Horizontal)
-        _plat_check_split.addWidget(self.platform_panel)
-        _plat_check_split.addWidget(self.checklist_panel)
-        _plat_check_split.setSizes([700, 300])
-        _plat_check_split.setStretchFactor(0, 3)
-        _plat_check_split.setStretchFactor(1, 1)
-        self.tabs.addTab(_plat_check_split, "Platforms")
+        # Top row: platforms + kanban side by side
+        _plat_kanban_split = QSplitter(Qt.Orientation.Horizontal)
+        _plat_kanban_split.addWidget(self.platform_panel)
+        _plat_kanban_split.addWidget(self._kanban_panel)
+        _plat_kanban_split.setSizes([600, 400])
+        _plat_kanban_split.setStretchFactor(0, 3)
+        _plat_kanban_split.setStretchFactor(1, 2)
+        # Vertical: top row + checklist at bottom
+        _plat_main_split = QSplitter(Qt.Orientation.Vertical)
+        _plat_main_split.addWidget(_plat_kanban_split)
+        _plat_main_split.addWidget(self.checklist_panel)
+        _plat_main_split.setSizes([600, 150])
+        _plat_main_split.setStretchFactor(0, 4)
+        _plat_main_split.setStretchFactor(1, 1)
+        self.tabs.addTab(_plat_main_split, "Platforms")
 
         # Tab 5: Project Notes — preview (left) + markdown source (right)
         from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser
@@ -292,11 +303,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self._overview_split, "Overview")
         self.tabs.addTab(_notes_splitter, "Notes")
 
-        # Tab 7: Posting Schedule (Kanban)
-        self._kanban_panel = KanbanPanel()
-        self._kanban_panel.status_changed.connect(self._on_data_changed)
-        self._kanban_panel.status_changed.connect(lambda: self.platform_panel.refresh())
-        self.tabs.addTab(self._kanban_panel, "Schedule")
+        # (Kanban panel moved into Platforms tab above)
 
         # Refresh stats when Overview tab is activated
         self.tabs.currentChanged.connect(self._on_inner_tab_changed)
@@ -325,7 +332,7 @@ class MainWindow(QMainWindow):
         self.tabs.tabBar().setVisible(False)
 
         # Tab toolbar — styled identical to the menu bar so both rows look like one bar
-        _TAB_NAMES = ["Assets", "Canvas", "Censor", "Platforms", "Overview", "Notes", "Schedule"]
+        _TAB_NAMES = ["Assets", "Canvas", "Censor", "Platforms", "Overview", "Notes"]
         self._tab_toolbar = QToolBar("Tabs")
         self._tab_toolbar.setObjectName("tab_toolbar")
         self._tab_toolbar.setMovable(False)
