@@ -2466,16 +2466,28 @@ class AssetBrowser(QWidget):
                             model.dataChanged.emit(index, index)
                         return True
 
-            # Left press — record drag start point only if clicking an already-selected item
+            # Left press — record drag start point for any valid item click.
+            # We don't require the item to already be selected: for a fresh
+            # click+drag the item won't be in _selected_ids yet (Qt processes
+            # the press *after* our event filter returns), so we'd never set
+            # _drag_start_pos and the drag would silently fail in the flat view.
+            # Instead, always arm on a valid item click and let _drag_snapshot_ids
+            # fall back to get_selected_assets() at drag-fire time (by which point
+            # Qt has already updated the selection model).
             if (event.type() == event.Type.MouseButtonPress
                     and event.button() == Qt.MouseButton.LeftButton):
                 pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
                 index = view.indexAt(pos)
                 asset = model.get_asset(index) if index.isValid() else None
-                if asset and asset.id in self._selected_ids:
+                if asset:
                     self._drag_start_pos = view.mapToGlobal(pos)
-                    # Snapshot the full selection now — Qt may shrink it before drag fires
-                    self._drag_snapshot_ids = set(self._selected_ids)
+                    # Snapshot the full selection now if clicking an already-selected
+                    # item (preserves multi-select); otherwise leave empty so drag
+                    # falls back to get_selected_assets() after Qt updates selection.
+                    if asset.id in self._selected_ids:
+                        self._drag_snapshot_ids = set(self._selected_ids)
+                    else:
+                        self._drag_snapshot_ids = set()
                 else:
                     self._drag_start_pos = None
                     self._drag_snapshot_ids = set()
