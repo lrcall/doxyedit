@@ -28,7 +28,12 @@ class FolderDelegate(QStyledItemDelegate):
         if is_active:
             painter.save()
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(255, 255, 255, 20))
+            if self._panel._theme:
+                bg = QColor(self._panel._theme.selection_bg)
+                bg.setAlpha(40)
+            else:
+                bg = QColor(255, 255, 255, 20)
+            painter.setBrush(bg)
             painter.drawRect(option.rect)
             painter.restore()
 
@@ -193,9 +198,10 @@ class FileBrowserPanel(QWidget):
         for folder in self._pinned:
             btn = QPushButton(f"📌 {Path(folder).name}")
             btn.setToolTip(folder)
+            hover_bg = self._theme.bg_hover if self._theme else "rgba(255,255,255,0.08)"
             btn.setStyleSheet(
-                "QPushButton { text-align: left; padding: 2px 6px; border: none; }"
-                "QPushButton:hover { background: rgba(255,255,255,0.08); }")
+                f"QPushButton {{ text-align: left; padding: 2px 6px; border: none; }}"
+                f"QPushButton:hover {{ background: {hover_bg}; }}")
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, f=folder: self._navigate_to(f))
             self._pin_bar.addWidget(btn)

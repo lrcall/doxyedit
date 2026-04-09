@@ -912,6 +912,10 @@ class PreviewPane(QWidget):
             self._view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
             self._view.centerOn(item)
 
+    def apply_theme(self, theme):
+        self._info_label.setStyleSheet(f"color: {theme.text_secondary};")
+        self._scene.setBackgroundBrush(QColor(theme.bg_deep))
+
     def _fit_to_view(self):
         items = self._scene.items()
         if items:
