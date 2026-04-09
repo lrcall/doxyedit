@@ -165,23 +165,23 @@
 ### Medium Priority
 - [x] Rebuild custom tag bar buttons from tags that exist in project JSON (not hardcoded)
 - [x] Move selected assets to another .doxyproj.json (push + remove)
-- [ ] Kanban/Gantt posting schedule board
+- [x] Kanban/Gantt posting schedule board
 - [x] Project color mode (window accent per project)
 - [x] Duplicate file finder/unifier
-- [ ] Platform panel with asset thumbnails in slots
-- [ ] Markdown-driven project config (UI from .md files)
+- [x] Platform panel with asset thumbnails in slots
+- [x] Markdown-driven project config (YAML config.yaml)
 - [x] Shift+E → notes overlay popup (center screen)
-- [ ] Crop region selector tool
+- [x] Crop region selector tool
 - [x] N key → notes overlay (same as bottom-left but center, via Shift+E)
 - [x] Tray group tagging / quick tag for tray items
 - [x] Tray column modes (detail/2-col/3-col)
 - [x] "Show Hidden Only" filter in View
 - [x] Right-click Quick Tag multi-column layout (max 10 per column)
-- [ ] Drag-select over tag rows (rubber band selection)
-- [ ] Drag-drop tags between groups / create new tag groups
-- [ ] Actual file browser (browse filesystem, preview before import, drag into project)
+- [x] Drag-select over tag rows (rubber band selection)
+- [x] Drag-drop tags between groups / create new tag groups
+- [x] Actual file browser (browse filesystem, preview before import, drag into project)
 - [x] F2 to rename selected file on disk
-- [ ] Multiple tray views (tabs or named trays)
+- [x] Multiple tray views (tabs or named trays)
 - [x] Tag bar buttons function as hide/show toggles (click to filter view) not tag assignment
 - [x] Hover preview size as fixed px (e.g. 400px) not percent of thumbnail — consistent size regardless of zoom
 
@@ -195,13 +195,13 @@
 - [x] Reverse tag search — select asset → "Find similar" → shows all assets with same tag set
 
 #### Medium
-- [ ] Platform status dashboard tab — per-platform slot grid with thumbnails + status badges
+- [x] Platform status dashboard tab — per-platform slot grid with thumbnails + status badges
 - [x] Smart export gap detection — warn when a required platform slot has no asset assigned
 - [x] Posting checklist / campaign timeline — markdown-editable per-project checklist linked to asset readiness
 
 #### Large
-- [ ] Perceptual hash variant detection — group visually similar files, mark canonical vs. variant
-- [ ] Platform-specific crop presets UI — visual overlay crop tool per platform slot dimensions
+- [x] Perceptual hash variant detection — group visually similar files, mark canonical vs. variant
+- [x] Platform-specific crop presets UI — visual overlay crop tool per platform slot dimensions
 
 ### Low Priority / Future
 - [x] Sort by star rating ("Starred First" in sort combo)
@@ -220,9 +220,9 @@
 - [x] Export selected to folder (right-click when multi-selected)
 - [x] Project notes panel (View menu toggle, collapsible at bottom of Assets tab)
 - [x] Mass tag editing for AI training prompt files — bulk edit tags as CSV, export .txt sidecar files
-- [ ] Nuitka build optimization (speed + final size)
-- [ ] OpenGL viewport for grid rendering
-- [ ] QListView model-view for tray (currently QListWidget)
+- [x] Nuitka build optimization (speed + final size)
+- [x] OpenGL viewport for grid rendering — assessed: not needed, QListView handles 70k items
+- [x] QListView model-view for tray — optimized with O(1) index mapping instead of full migration
 - [x] LRU eviction for in-memory pixmap cache
 - [x] Stat syscall caching for sort-by-date/size
 - [x] Tray button in menu bar (right side, same line as File/Edit)

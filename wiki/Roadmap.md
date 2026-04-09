@@ -13,9 +13,9 @@ Features still pending from TODO.md, organized by estimated effort. Items marked
 
 These are well-scoped features that are close to the existing codebase.
 
-### Zoom Slider (remaining near-term)
+### ~~Zoom Slider~~ ✓
 
-Visible drag slider in the toolbar for thumbnail size (80–320px). Supplements Ctrl+scroll.
+Visible drag slider in the toolbar for thumbnail size (80–320px). Supplements Ctrl+scroll. Done.
 
 ### Rename Detection for Missing Files
 
@@ -47,9 +47,11 @@ Visible drag slider in the toolbar for thumbnail size (80–320px). Supplements 
 
 A fullscreen toggle button in the `ImagePreviewDialog` toolbar. `showFullScreen()` / `showNormal()` toggle, or wire to the existing `_toggle_fullscreen()` method which already exists but may not have a visible button.
 
-### Open in Native Editor
+### ~~Open in Native Editor~~ ✓
 
-Right-click → **Open in Native Editor** on any asset. Per-file-type editor associations stored in QSettings:
+Right-click → **Open in Native Editor** + **F3** shortcut. `os.startfile()` fallback. **Tools > Configure Editors…** dialog with extension→exe table + Browse button.
+
+Per-file-type editor associations stored in QSettings:
 
 ```
 native_editor/.psd = C:/Program Files/Adobe/Photoshop/Photoshop.exe
@@ -59,9 +61,9 @@ native_editor/* = (system default)
 
 **Tools > Configure Editors…** dialog: table of extension → exe path, with Browse button per row. Falls back to `os.startfile()` (system default) when no custom path is set. Also available as **F3** or **Ctrl+Enter** keyboard shortcut on selected asset.
 
-### Drag from Thumbnail Grid to External Apps
+### ~~Drag from Thumbnail Grid to External Apps~~ ✓
 
-Drag one or more selected thumbnails out of the main grid directly to Photoshop, Explorer, etc. Uses `QDrag` with `QMimeData` file URLs — same pattern already implemented for the Work Tray. Wire `mouseMoveEvent` on `QListView` to initiate drag when threshold distance is exceeded.
+Drag one or more selected thumbnails out of the main grid directly to Photoshop, Explorer, etc. Done — `QDrag` + `QMimeData` with file URLs, initiated when mouse moves past `startDragDistance` threshold.
 
 > [!note]
 > Work Tray drag-out already works. This extends the same behavior to the main grid.
@@ -86,7 +88,11 @@ Drag a tag from one section to another (e.g., move a custom tag into a different
 
 The Work Tray currently holds one flat list. Named trays (tabs or labeled slots) would allow multiple staging areas — e.g., one tray per platform or per campaign stage.
 
-### Quick-Launch Program List
+### ~~Quick-Launch Program List~~ ✓
+
+**Tools > Launch In** submenu — lists all configured editors. Click an entry to open selected assets matching that extension. Shares the same `native_editor/<ext>` QSettings table as Configure Editors.
+
+### Quick-Launch Program List (was)
 
 A configurable list of frequently-used apps (Photoshop, SAI, Clip Studio, etc.) accessible from the Tools menu or a toolbar button. Click an entry to open selected assets in that program. Config stored in QSettings — extension → exe path, same table as "Configure Editors". Could also populate a right-click **Send To ▸** submenu if desired (implementation is trivial via `ShellExecuteEx` on the system Send To folder at `%APPDATA%\Microsoft\Windows\SendTo`).
 
@@ -100,39 +106,25 @@ The `build.bat` Nuitka build works but has room for size and speed optimization.
 
 These require design decisions and moderate implementation work.
 
-### Docked Preview Panel
+### ~~Docked Preview Panel~~ ✓
 
-An optional inline preview panel docked inside the main window (right side or bottom), so you can see the full-resolution image without a floating window. Toggle between docked and floating modes. The existing `ImagePreviewDialog` content (viewer, notes, nav buttons) moves into a `QSplitter` pane.
+Done (v2.2). Docked `PreviewPane` in right splitter with Ctrl+D toggle. Pop-out button to float into `ImagePreviewDialog`. Navigation keys work in both modes. Position persisted in QSettings.
 
-- Docked mode: preview fills right pane, thumbnail grid shrinks left
-- Floating mode: current behavior (separate window)
-- Remembered per session in QSettings
-- Docked panel has the same navigation (Space/arrow keys) as the floating preview
+### ~~Platform Status Dashboard Tab~~ ✓
 
-### Platform Status Dashboard Tab
+Done (pre-v2.2). Dual-view `PlatformPanel` with cards + dashboard toggle, per-platform progress bars, slot grid with thumbnails + status badges, image hive.
 
-A dedicated tab (or panel within Platforms) showing the full per-platform slot grid with:
-- Thumbnail previews in each slot
-- Status badges (pending / ready / posted / skip)
-- Quick status-change buttons
-- Export readiness summary
+### ~~Crop Region Selector Tool~~ ✓
 
-This is distinct from the current Platforms tab which shows slot metadata but not the full dashboard view.
+Done (v2.2). C key toggle in preview, platform aspect ratio dropdown (grouped by platform with separators), dark mask overlay. `ResizableCropItem` with 8 drag handles for post-drawing editing. Crops persist in `asset.crops`.
 
-> [!note]
-> Currently tracked as "Platform panel with asset thumbnails in slots" in TODO.md (medium priority).
+### ~~Markdown-Driven Project Config~~ ✓
 
-### Crop Region Selector Tool
+Done (v2.2) as YAML config. `config.yaml` in project directory defines custom platforms with slots. Loaded via `load_config()` + `merge_platforms()` in models.py. Tools > Edit Project Config opens the file.
 
-A visual overlay crop tool that shows the target platform dimensions overlaid on the image and lets you drag-set the crop region. Per platform slot dimensions. Would replace the current manual crop entry.
+### ~~Actual File Browser~~ ✓
 
-### Markdown-Driven Project Config
-
-Generate UI elements (platform slots, tag presets, campaign stages) from `.md` configuration files rather than hardcoded Python. Would make adding new platforms or tag sets a data-edit rather than a code change.
-
-### Actual File Browser
-
-A built-in filesystem tree panel for navigating the local filesystem, previewing files before importing, and dragging files directly into the project. Currently all import goes through dialogs or drag-from-Explorer.
+Done (v2.2). `FileBrowserPanel` with QTreeView + QFileSystemModel, asset count badges, dim empty folders, active highlight, auto-expand to project folders, grid-to-tree sync, subfolder filtering, drag-to-import, inline search, pinned folders. Toggle: Ctrl+B.
 
 **Reference design:** Eagle-style collapsible folder tree (see screenshot reference). Key features:
 - Root folder pinning — pin one or more top-level directories as roots
@@ -152,16 +144,13 @@ A built-in filesystem tree panel for navigating the local filesystem, previewing
 - Width matches the existing tag panel (~220px default)
 - Pairs naturally with the Eagle-style Gallery tab (see [[UI Direction — Eagle Layout]])
 
-### Drag-Drop Tags Between Groups
+### ~~Drag-Drop Tags Between Groups~~ ✓
 
-Full tag group drag-drop with group creation. See near-term section — listed here also because the full version (new group creation) is medium effort.
+Done (pre-v2.2). `_TagContainer._finish_reorder()` supports cross-section moves with `tag_section_changed` signal. Rubber-band drag-select also implemented.
 
-### Kanban / Gantt Posting Schedule Board
+### ~~Kanban / Gantt Posting Schedule Board~~ ✓
 
-A campaign scheduling view — cards for each platform slot arranged on a timeline or Kanban board. Shows posting dates, readiness status, and links to assigned assets.
-
-> [!note]
-> This is one of the original "future vision" features. It would integrate with the posting checklist already present in the project notes panel.
+Done (v2.2). `KanbanPanel` with 4 status columns (Pending/Ready/Posted/Skip). Draggable `KanbanCard` widgets. Drop changes `PlatformAssignment.status`. Accessible via Schedule tab.
 
 ---
 
@@ -169,36 +158,59 @@ A campaign scheduling view — cards for each platform slot arranged on a timeli
 
 These are large or exploratory features that may require significant architecture work or external dependencies.
 
-### Perceptual Hash Variant Detection
+### ~~Perceptual Hash Variant Detection~~ ✓
 
-Group visually similar files using perceptual hashing (e.g., pHash or dHash). Mark one file as canonical and others as variants (different resolutions, crops, watermarked versions). Useful for deduplication and managing version sets.
+Done (v2.2). `compute_phash()` in autotag.py (average hash, 8x8 grayscale). Computed during thumbnail `_process_upgrade()`, stored in `asset.specs["phash"]`. Tools > Find Similar Images groups by hamming distance ≤ 8. Tag as "variant" or remove extras.
 
-> [!note]
-> Partially related to the "Duplicate file finder/unifier" that was completed, but the perceptual (visual similarity) version is a distinct feature.
+### ~~Platform-Specific Crop Presets UI~~ ✓
 
-### Platform-Specific Crop Presets UI
+Done (v2.2). Crop preset dropdown grouped by platform with separators + disabled headers. `ResizableCropItem` with 8 resize handles for post-drawing editing. Crops saved per-asset with platform labels.
 
-Full visual overlay crop tool with platform presets — shows the crop region for each platform slot as a draggable overlay on the source image. Integrated with the Platforms tab and exportable directly.
+### ~~OpenGL Viewport for Grid Rendering~~ — Not Needed
 
-### OpenGL Viewport for Grid Rendering
+Assessed (v2.2): QListView already handles 70k items with virtual scrolling + lazy loading. Bottleneck is thumbnail generation, not rendering. No action needed.
 
-Replace the QListView + delegate painting with an OpenGL viewport for the thumbnail grid. Would allow much larger grids (10,000+ images) without scroll lag. Currently the QListView with virtual scrolling handles ~1000–2000 images well.
+### ~~QListView Model-View for Tray~~ ✓
 
-### QListView Model-View for Tray
-
-The Work Tray is currently implemented as `QListWidget` (item-based). Migrating to `QListView` + `QAbstractListModel` would match the main browser and allow larger tray lists with the same virtual scrolling benefits.
+Optimized (v2.2) with O(1) `_id_to_row` index mapping instead of full migration. Eliminates 5 O(n) linear scans in remove/move/update operations.
 
 ---
 
-## Known Deferred Issues
+## ~~Known Deferred Issues~~ — Resolved
 
-### Folder View Overlap / Click Issues
+### ~~Folder View Overlap / Click Issues~~ ✓
 
-The "By Folder" sort mode has some overlap and click accuracy issues with folder header rows in certain configurations. This has been noted and deferred — it requires reworking folder header rendering in the delegate.
+Fixed (v2.2). Added `hasHeightForWidth()` + `heightForWidth()` to `FolderSection`, conservative fallback in `_compute_height()` (300 instead of 1000), scroll viewport resize handler. Eliminates overlap on first layout pass.
 
-### Folder Fold Plan (Stacked QListViews)
+### ~~Folder Fold Plan (Stacked QListViews)~~ ✓
 
-A deeper folder view implementation using stacked `QListView` instances per folder (collapsible). Currently folder view uses in-line headers. The stacked approach would allow true per-folder expand/collapse with independent scroll. Implementation plan exists but not yet started.
+Already implemented. `FolderSection` + `FolderListView` is exactly the stacked QListViews architecture. Each folder has its own collapsible `QListView` with independent model. heightForWidth fix completed the implementation.
+
+---
+
+## Completed Recently (v2.2) — 33 commits, 2026-04-09
+
+- File Browser sidebar (Ctrl+B): QTreeView + QFileSystemModel, asset count badges, dim empty folders, theme-aware, auto-expand, grid-to-tree sync, subfolder filtering, drag-to-import, inline search, pinned folders
+- Smart Folders: save/load filter presets via View > Smart Folders menu
+- Info Panel (Ctrl+I): asset metadata display with inline tag editing (pill widgets + autocomplete), inline notes editing, color palette swatches
+- Kanban schedule board: 4-column drag-drop status board (Pending/Ready/Posted/Skip) as Schedule tab
+- YAML config: custom platform definitions via config.yaml (Tools > Edit Project Config)
+- Perceptual hash: compute_phash in thumbnail pipeline, Tools > Find Similar Images dialog
+- Preview pop-out button + resizable crop handles (8 drag handles, persistent overlays)
+- Toolbar declutter: 4 checkboxes moved to View/Tools menus
+- Folder view overlap fix: heightForWidth on FolderSection
+- Nuitka build: 11 new exclusions for smaller output
+- Tray performance: O(1) id-to-row index mapping
+- Bug fixes: collections warn+reload, preview multi-monitor position, tray drag-drop
+- Theme color audit: all new panels use theme tokens
+
+---
+
+## Completed Recently (v2.1)
+
+- Zoom slider in toolbar row2 (80–320px, synced with Ctrl+scroll)
+- Drag from thumbnail grid to external apps (QDrag + file URLs)
+- Open in Native Editor: F3 shortcut + right-click menu, `os.startfile()` + custom exe per extension via QSettings
 
 ---
 
