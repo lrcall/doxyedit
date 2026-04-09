@@ -358,14 +358,14 @@ def generate_stylesheet(theme: Theme) -> str:
 
         QScrollArea {{ border: none; background: {theme.bg_deep}; }}
         QScrollBar:vertical {{
-            background: {theme.bg_main}; width: 10px; border: none;
+            background: {theme.bg_main}; width: 25px; border: none;
         }}
         QScrollBar::handle:vertical {{
             background: {theme.text_secondary}; border-radius: 4px; min-height: 30px;
         }}
         QScrollBar::handle:vertical:hover {{ background: {theme.text_primary}; }}
         QScrollBar:horizontal {{
-            background: {theme.bg_main}; height: 10px; border: none;
+            background: {theme.bg_main}; height: 25px; border: none;
         }}
         QScrollBar::handle:horizontal {{
             background: {theme.text_secondary}; border-radius: 4px; min-width: 30px;
@@ -374,16 +374,24 @@ def generate_stylesheet(theme: Theme) -> str:
         QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
 
         QListView#doxyedit_grid QScrollBar:vertical {{
-            width: 15px;
+            background: transparent; width: 16px; border: none;
         }}
         QListView#doxyedit_grid QScrollBar::handle:vertical {{
-            border-radius: 5px; min-height: 40px;
+            background: rgba(128,128,128,0.35); border-radius: 10px;
+            min-height: 40px; margin: 2px -2px;
+        }}
+        QListView#doxyedit_grid QScrollBar::handle:vertical:hover {{
+            background: rgba(180,180,180,0.6);
         }}
         QListView#doxyedit_grid QScrollBar:horizontal {{
-            height: 15px;
+            background: transparent; height: 16px; border: none;
         }}
         QListView#doxyedit_grid QScrollBar::handle:horizontal {{
-            border-radius: 5px; min-width: 40px;
+            background: rgba(128,128,128,0.35); border-radius: 10px;
+            min-width: 40px; margin: -2px 2px;
+        }}
+        QListView#doxyedit_grid QScrollBar::handle:horizontal:hover {{
+            background: rgba(180,180,180,0.6);
         }}
 
         QLineEdit {{
@@ -466,7 +474,6 @@ def generate_stylesheet(theme: Theme) -> str:
         QTextBrowser#project_info_panel {{
             background: {theme.bg_deep};
             border: none;
-            padding: 8px;
         }}
         QTextBrowser#project_notes_preview {{
             background: {theme.bg_deep};
@@ -513,6 +520,20 @@ def generate_stylesheet(theme: Theme) -> str:
         QScrollArea#folder_scroll, QScrollArea#folder_scroll > QWidget,
         QScrollArea#folder_scroll QWidget {{
             background: {theme.bg_deep};
+        }}
+        QPushButton#root_folder_header {{
+            background: {theme.bg_main};
+            color: {theme.accent_bright};
+            text-align: left;
+            padding: 5px 8px;
+            font-size: {f}px;
+            font-weight: bold;
+            border: none;
+            border-bottom: 1px solid {theme.border};
+        }}
+        QPushButton#root_folder_header:hover {{
+            background: {theme.accent_dim};
+            color: {theme.text_primary};
         }}
         QPushButton#folder_section_header {{
             background: {theme.bg_raised};
@@ -599,5 +620,112 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.bg_input}; color: {theme.text_primary};
             border: 1px solid {theme.border}; border-radius: 4px;
             padding: 5px 10px;
+        }}
+
+        /* ── New panels (v2.2) ─────────────────────────────────────────── */
+        QWidget#kanban_panel {{
+            background: {theme.bg_deep};
+        }}
+        QWidget#kanban_panel QLabel {{
+            color: {theme.text_primary};
+            font-size: {f}px;
+        }}
+        QFrame[objectName="kanban_card"] {{
+            background: {theme.bg_raised};
+            border: 1px solid {theme.border};
+            border-radius: 4px;
+        }}
+        QFrame[objectName="kanban_card"]:hover {{
+            background: {theme.bg_hover};
+        }}
+        QWidget[objectName="kanban_column"] {{
+            background: {theme.bg_deep};
+            border-radius: 6px;
+        }}
+        QWidget[objectName="kanban_column"] QScrollArea {{
+            background: transparent;
+            border: none;
+        }}
+
+        QWidget#info_panel {{
+            background: {theme.bg_main};
+        }}
+        QWidget#info_panel QLabel {{
+            color: {theme.text_primary};
+        }}
+        QWidget#info_panel QPushButton {{
+            background: {theme.bg_input};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: 3px;
+            padding: 1px 6px;
+            font-size: {fs}px;
+        }}
+        QWidget#info_panel QPushButton:hover {{
+            background: {theme.bg_hover};
+        }}
+        QWidget#info_panel QTextEdit {{
+            background: {theme.bg_input};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: 3px;
+            padding: 4px;
+            font-size: {f}px;
+        }}
+        QWidget#info_panel QLineEdit {{
+            background: {theme.bg_input};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: 3px;
+            padding: 1px 4px;
+            font-size: {fs}px;
+        }}
+        QWidget#info_panel QScrollArea {{
+            background: {theme.bg_main};
+            border: none;
+        }}
+        QWidget#info_panel QFrame {{
+            color: {theme.border_light};
+        }}
+
+        QWidget#file_browser_panel {{
+            background: {theme.bg_main};
+            font-size: {f}px;
+        }}
+        QWidget#file_browser_panel QTreeView {{
+            background: {theme.bg_deep};
+            color: {theme.text_primary};
+            border: none;
+            font-size: {f}px;
+        }}
+        QWidget#file_browser_panel QTreeView::item {{
+            padding: 2px 0;
+        }}
+        QWidget#file_browser_panel QTreeView::item:selected {{
+            background: {theme.selection_bg};
+        }}
+        QWidget#file_browser_panel QTreeView::item:hover {{
+            background: {theme.bg_hover};
+        }}
+        QWidget#file_browser_panel QPushButton {{
+            background: {theme.bg_raised};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            padding: 2px 8px;
+            font-size: {fs}px;
+        }}
+        QWidget#file_browser_panel QPushButton:hover {{
+            background: {theme.bg_hover};
+        }}
+
+        QWidget#preview_pane {{
+            background: {theme.bg_deep};
+        }}
+        QWidget#preview_pane QLabel {{
+            color: {theme.text_secondary};
+        }}
+        QWidget#preview_pane QGraphicsView {{
+            background: {theme.bg_deep};
+            border: none;
         }}
     """
