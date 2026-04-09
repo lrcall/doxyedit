@@ -1760,6 +1760,9 @@ class MainWindow(QMainWindow):
                 except StopIteration:
                     idx = 0
                 self._preview_pane.show_asset(asset, filtered, idx)
+            if self._file_browser.isVisible():
+                folder = asset.source_folder or str(Path(asset.source_path).parent)
+                self._file_browser.highlight_folder(folder)
             name = Path(asset.source_path).name
             n_tags = len(asset.tags)
             tag_hint = f" | {n_tags} tags" if n_tags else " | press 1-9 to tag, or use panel ->"

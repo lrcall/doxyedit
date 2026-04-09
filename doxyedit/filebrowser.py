@@ -350,3 +350,17 @@ class FileBrowserPanel(QWidget):
             }}
         """)
         self._tree.viewport().update()
+
+    def highlight_folder(self, folder_path: str):
+        """Highlight a folder in the tree without triggering a filter.
+        Used for grid-to-tree sync — shows where the selected asset lives."""
+        if not folder_path:
+            return
+        folder_path = folder_path.replace("\\", "/")
+        idx = self._model.index(folder_path)
+        if idx.isValid():
+            # Block signals so we don't fire folder_selected (which would filter)
+            self._tree.blockSignals(True)
+            self._tree.setCurrentIndex(idx)
+            self._tree.scrollTo(idx)
+            self._tree.blockSignals(False)
