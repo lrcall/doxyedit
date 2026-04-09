@@ -7,15 +7,15 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListView, QStyledItemDelegate,
     QLabel, QPushButton, QFileDialog, QFrame, QLineEdit, QComboBox,
     QMenu, QApplication, QSizePolicy, QStyle, QCheckBox,
-    QStackedWidget, QScrollArea,
+    QStackedWidget, QScrollArea, QSlider,
 )
 from PySide6.QtCore import (
     Qt, Signal, QThread, QTimer, QSettings, QSize, QRect, QPoint,
-    QAbstractListModel, QModelIndex, QItemSelectionModel,
+    QAbstractListModel, QModelIndex, QItemSelectionModel, QMimeData, QUrl,
 )
 from PySide6.QtGui import (
     QPixmap, QFont, QColor, QCursor, QPainter, QPen, QFontMetrics, QPainterPath,
-    QKeySequence, QShortcut,
+    QKeySequence, QShortcut, QDrag,
 )
 
 from doxyedit.models import (
@@ -286,6 +286,19 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self.show_filenames = "always"  # "always" | "hover" | "never"
         self._folder_starts: dict[int, str] = {}  # row_index → folder path
         self._scaled_cache: dict[tuple, QPixmap] = {}
+        self._fonts: dict[int, QFont] = {}       # size → QFont (cached to avoid per-paint allocs)
+        self._fms: dict[int, QFontMetrics] = {}  # size → QFontMetrics
+
+    def _font(self, size: int) -> QFont:
+        if size not in self._fonts:
+            self._fonts[size] = QFont("Segoe UI", size)
+            self._fms[size] = QFontMetrics(self._fonts[size])
+        return self._fonts[size]
+
+    def _fm(self, size: int) -> QFontMetrics:
+        if size not in self._fms:
+            self._font(size)
+        return self._fms[size]
 
     def sizeHint(self, option, index):
         return QSize(self.thumb_size + 2 * self.PADDING,
@@ -304,9 +317,9 @@ class ThumbnailDelegate(QStyledItemDelegate):
             parts = Path(folder).parts
             short = str(Path(*parts[-2:])) if len(parts) >= 2 else folder
             painter.save()
-            painter.setFont(QFont("Segoe UI", max(6, self.font_size - 3)))
-            fm = QFontMetrics(QFont("Segoe UI", max(6, self.font_size - 3)))
-            text_w = fm.horizontalAdvance(short) + 10
+            _fld_sz = max(6, self.font_size - 3)
+            painter.setFont(self._font(_fld_sz))
+            text_w = self._fm(_fld_sz).horizontalAdvance(short) + 10
             tag_rect = QRect(rect.x(), rect.y(), min(text_w, rect.width()), 16)
             painter.fillRect(tag_rect, QColor(128, 128, 128, 60))
             painter.setPen(QColor(200, 200, 200, 200))
@@ -381,7 +394,11 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(bx, by, 16, 16, 4, 4)
             painter.setPen(QColor(255, 255, 255, 230))
-            painter.setFont(QFont("Segoe UI", max(6, self.font_size - 4), QFont.Weight.Bold))
+            _bdg_sz = max(6, self.font_size - 4)
+            if _bdg_sz not in self._fonts or self._fonts[_bdg_sz].weight() != QFont.Weight.Bold:
+                _bf = QFont("Segoe UI", _bdg_sz, QFont.Weight.Bold)
+                self._fonts[(_bdg_sz, "bold")] = _bf
+            painter.setFont(self._fonts.get((_bdg_sz, "bold"), self._font(_bdg_sz)))
             painter.drawText(QRect(bx, by, 16, 16), Qt.AlignmentFlag.AlignCenter, badge_char)
 
         # Dimensions text
@@ -391,7 +408,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
             dim_text = f"{dims[0]}x{dims[1]}" if dims else ""
             dim_rect = QRect(rect.x(), rect.y() + ts + 22, rect.width(), 16)
             painter.setPen(QColor(128, 128, 128, 150))
-            painter.setFont(QFont("Segoe UI", max(6, fs - 3)))
+            painter.setFont(self._font(max(6, fs - 3)))
             painter.drawText(dim_rect, Qt.AlignmentFlag.AlignHCenter, dim_text)
 
         # Filename
@@ -401,13 +418,12 @@ class ThumbnailDelegate(QStyledItemDelegate):
                       option.state & QStyle.StateFlag.State_Selected)
         if _show_name:
             name = index.data(Qt.ItemDataRole.DisplayRole) or ""
-            name_font = QFont("Segoe UI", max(7, fs - 2))
+            _nm_sz = max(7, fs - 2)
             name_rect = QRect(rect.x() + self.PADDING, rect.y() + ts + 38,
                               rect.width() - 30, 18)
             painter.setPen(option.palette.text().color())
-            painter.setFont(name_font)
-            fm = QFontMetrics(name_font)
-            elided = fm.elidedText(name, Qt.TextElideMode.ElideRight, name_rect.width())
+            painter.setFont(self._font(_nm_sz))
+            elided = self._fm(_nm_sz).elidedText(name, Qt.TextElideMode.ElideRight, name_rect.width())
             painter.drawText(name_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided)
 
         # Star
@@ -417,7 +433,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.setPen(QColor(STAR_COLORS[star_val]))
         else:
             painter.setPen(QColor(150, 150, 150, 100))
-        painter.setFont(QFont("Segoe UI", fs + 4))
+        painter.setFont(self._font(fs + 4))
         star_rect = QRect(rect.right() - 24, rect.y() + ts + 34, 22, 22)
         painter.drawText(star_rect, Qt.AlignmentFlag.AlignCenter, star_char)
 
@@ -425,6 +441,8 @@ class ThumbnailDelegate(QStyledItemDelegate):
 
     def invalidate_cache(self):
         self._scaled_cache.clear()
+        self._fonts.clear()
+        self._fms.clear()
 
     def _ensure_cache_limit(self):
         """Evict old entries if cache grows too large."""
@@ -465,6 +483,63 @@ class FolderListView(QListView):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.updateGeometry()
+
+
+# ---------------------------------------------------------------------------
+# RootFolderHeader — collapsible parent header for an import-source root
+# ---------------------------------------------------------------------------
+
+class RootFolderHeader(QWidget):
+    """Non-grid header that groups recursive sub-folder sections under an import root."""
+
+    def __init__(self, root_path: str, total_assets: int, parent=None, on_expand=None):
+        super().__init__(parent)
+        self._root = root_path
+        self._children: list[QWidget] = []
+        self._collapsed = False
+        self._on_expand = on_expand
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 4, 0, 0)
+        layout.setSpacing(0)
+
+        parts = Path(root_path).parts
+        label = parts[-1] if parts else root_path
+        self._btn = QPushButton()
+        self._btn.setFlat(True)
+        self._btn.setObjectName("root_folder_header")
+        self._btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn.clicked.connect(self._toggle)
+        self._update_text(label, total_assets)
+        layout.addWidget(self._btn)
+
+        # Thin separator line
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setObjectName("card_divider")
+        layout.addWidget(line)
+
+    def _update_text(self, label: str, total: int):
+        arrow = "▶" if self._collapsed else "▼"
+        self._btn.setText(f"{arrow}  {label}  ·  {total} assets")
+
+    def set_children(self, sections: list):
+        self._children = sections
+        parts = Path(self._root).parts
+        label = parts[-1] if parts else self._root
+        total = sum(s.folder_model.rowCount() for s in sections if hasattr(s, 'folder_model'))
+        self._update_text(label, total)
+
+    def _toggle(self):
+        self._collapsed = not self._collapsed
+        parts = Path(self._root).parts
+        label = parts[-1] if parts else self._root
+        total = sum(s.folder_model.rowCount() for s in self._children if hasattr(s, 'folder_model'))
+        self._update_text(label, total)
+        for child in self._children:
+            child.setVisible(not self._collapsed)
+        if self._on_expand and not self._collapsed:
+            self._on_expand()
 
 
 # ---------------------------------------------------------------------------
@@ -556,9 +631,13 @@ class FolderSection(QWidget):
         self.collapsed_changed.emit(self._folder, new_state)
 
     def _on_header_context(self, pos):
+        import subprocess
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
-        menu.addAction(f"Remove Folder from Project…", lambda: self.remove_requested.emit(self._folder))
+        menu.addAction("Open in Explorer", lambda: subprocess.Popen(
+            ["explorer", self._folder.replace("/", "\\")]))
+        menu.addSeparator()
+        menu.addAction("Remove Folder from Project…", lambda: self.remove_requested.emit(self._folder))
         menu.exec(self._header.mapToGlobal(pos))
 
     def update_grid_size(self, thumb_size: int):
@@ -617,6 +696,16 @@ class AssetBrowser(QWidget):
         self._cache_all_remaining: list[tuple[str, str]] = []
         self._active_import_worker = None  # prevents GC during async import
         self._scan_running = False          # guard against concurrent folder scans
+        self._idle_timer = QTimer(self)
+        self._idle_timer.setSingleShot(True)
+        self._idle_timer.setInterval(400)
+        self._idle_timer.timeout.connect(self._on_scroll_idle)
+        # Debounce selection_changed so rubber-band multi-select doesn't hammer downstream handlers
+        self._selection_emit_timer = QTimer(self)
+        self._selection_emit_timer.setSingleShot(True)
+        self._selection_emit_timer.setInterval(40)
+        self._selection_emit_timer.timeout.connect(
+            lambda: self.selection_changed.emit(list(self._selected_ids)))
         self.setAcceptDrops(True)
         self._build()
 
@@ -718,6 +807,7 @@ class AssetBrowser(QWidget):
         self.search_box.setPlaceholderText("Search...")
         self.search_box.setClearButtonEnabled(True)
         self.search_box.textChanged.connect(self._on_filter_changed)
+        self.search_box.installEventFilter(self)
         row2.addWidget(self.search_box, 1)
 
         self._tag_bar_toggle_btn = QPushButton("▼ Filters")
@@ -763,7 +853,13 @@ class AssetBrowser(QWidget):
 
         row2.addWidget(QLabel("Sort:"))
         self.sort_combo = QComboBox()
-        self.sort_combo.addItems(["Name A-Z", "Name Z-A", "Newest", "Oldest", "Largest", "Smallest", "Starred First", "Most Tagged", "By Folder"])
+        self.sort_combo.addItems(["By Folder", "Name A-Z", "Name Z-A", "Newest", "Oldest", "Largest", "Smallest", "Starred First", "Most Tagged"])
+        _saved_sort = QSettings("DoxyEdit", "DoxyEdit").value("sort_mode", "By Folder")
+        _sort_idx = self.sort_combo.findText(_saved_sort)
+        if _sort_idx >= 0:
+            self.sort_combo.blockSignals(True)
+            self.sort_combo.setCurrentIndex(_sort_idx)
+            self.sort_combo.blockSignals(False)
         self.sort_combo.currentIndexChanged.connect(self._on_filter_changed)
         self.sort_combo.currentTextChanged.connect(self._on_sort_mode_changed)
         row2.addWidget(self.sort_combo)
@@ -812,7 +908,7 @@ class AssetBrowser(QWidget):
         self._list_view.setHorizontalScrollMode(QListView.ScrollMode.ScrollPerPixel)
         self._list_view.verticalScrollBar().setSingleStep(20)
         self._list_view.verticalScrollBar().valueChanged.connect(
-            lambda _: self._request_visible_thumbs())
+            lambda _: (self._request_visible_thumbs(), self._idle_timer.start()))
         self._list_view.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
         self._list_view.setMouseTracking(True)
         self._list_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -841,19 +937,31 @@ class AssetBrowser(QWidget):
         self._folder_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._folder_scroll.verticalScrollBar().setSingleStep(20)
         self._folder_scroll.verticalScrollBar().valueChanged.connect(
-            lambda _: self._request_visible_thumbs())
+            lambda _: (self._request_visible_thumbs(), self._idle_timer.start()))
 
         self._view_stack = QStackedWidget()
         self._view_stack.addWidget(self._list_view)    # page 0: normal view
         self._view_stack.addWidget(self._folder_scroll) # page 1: folder groups
         root.addWidget(self._view_stack)
 
-        # Status line
+        # Status line — zoom slider on left, page label on right
         status = QHBoxLayout()
+        status.setContentsMargins(0, 2, 0, 0)
+        self._zoom_slider = QSlider(Qt.Orientation.Horizontal)
+        self._zoom_slider.setRange(80, 320)
+        self._zoom_slider.setValue(self._thumb_size)
+        self._zoom_slider.setFixedWidth(110)
+        self._zoom_slider.setToolTip("Thumbnail size (80–320px)  ·  Ctrl+Scroll")
+        self._zoom_slider.valueChanged.connect(self._on_zoom_slider)
+        self._zoom_label = QLabel(f"{self._thumb_size}px")
+        self._zoom_label.setFixedWidth(34)
+        self._zoom_label.setProperty("role", "muted")
+        status.addWidget(self._zoom_slider)
+        status.addWidget(self._zoom_label)
         status.addStretch()
         self.page_label = QLabel("")
+        self.page_label.setProperty("role", "muted")
         status.addWidget(self.page_label)
-        status.addStretch()
         root.addLayout(status)
 
     @property
@@ -986,9 +1094,31 @@ class AssetBrowser(QWidget):
         for btn in self._toolbar_plain_btns:
             btn.setStyleSheet(style)
 
+    def _set_thumb_size(self, sz: int):
+        sz = max(80, min(320, sz))
+        self._thumb_size = sz
+        self._delegate.thumb_size = sz
+        self._delegate.invalidate_cache()
+        self._list_view.setGridSize(QSize(sz + 16, sz + 70))
+        for section in self._folder_sections:
+            section.update_grid_size(sz)
+        s = QSettings("DoxyEdit", "DoxyEdit")
+        s.setValue("thumb_size", sz)
+        s.setValue("thumb_size_user_set", True)
+        self._zoom_label.setText(f"{sz}px")
+        self._zoom_slider.blockSignals(True)
+        self._zoom_slider.setValue(sz)
+        self._zoom_slider.blockSignals(False)
+
+    def _on_zoom_slider(self, value: int):
+        self._set_thumb_size(value)
+
     # --- Filtering / sorting ---
 
     def _on_sort_mode_changed(self, text):
+        if not hasattr(self, '_view_stack'):
+            return  # called during combo init before view stack exists
+        QSettings("DoxyEdit", "DoxyEdit").setValue("sort_mode", text)
         is_folder = text == "By Folder"
         if not is_folder:
             self._prev_sort_mode = text
@@ -1100,12 +1230,15 @@ class AssetBrowser(QWidget):
     def toggle_tag_bar(self):
         self._tag_bar_toggle_btn.setChecked(not self._tag_bar_toggle_btn.isChecked())
 
+    def _on_scroll_idle(self):
+        """400ms after scrolling stops — promote visible items to front of queue."""
+        self._thumb_cache.reprioritize(self._visible_asset_ids())
+
     def _request_visible_thumbs(self):
-        """Request thumbnails for visible items + buffer; re-prioritize cache-all queue."""
+        """Request thumbnails for visible items + buffer; always re-prioritize to current view."""
         BUFFER = 40  # rows above/below viewport to pre-fetch
-        # If Cache All is active, move newly visible items to front of the worker queue
-        if self._cache_all_total > 0:
-            self._thumb_cache.reprioritize(self._visible_asset_ids())
+        # Always move currently visible items to the front of the worker queue
+        self._thumb_cache.reprioritize(self._visible_asset_ids())
 
         if self._view_stack.currentIndex() == 0:
             # Flat list view
@@ -1145,6 +1278,18 @@ class AssetBrowser(QWidget):
                     a = section.folder_model.get_asset(section.folder_model.index(i))
                     if a:
                         batch.append((a.id, a.source_path))
+            # Fallback: layout not settled yet (all sections report height=0) —
+            # request first BUFFER items from first few sections so something loads
+            if not batch and self._folder_sections:
+                count = 0
+                for section in self._folder_sections:
+                    for i in range(section.folder_model.rowCount()):
+                        a = section.folder_model.get_asset(section.folder_model.index(i))
+                        if a:
+                            batch.append((a.id, a.source_path))
+                            count += 1
+                    if count >= BUFFER * 2:
+                        break
             if batch:
                 self._thumb_cache.request_batch(batch, size=THUMB_GEN_SIZE)
 
@@ -1252,64 +1397,125 @@ class AssetBrowser(QWidget):
         self._folder_filter = set(folders) if folders else None
         self._refresh_grid()
 
+    def get_filter_state(self) -> dict:
+        """Capture the current filter state as a serializable dict."""
+        return {
+            "search_text": self.search_box.text(),
+            "search_tags": self.search_tags_check.isChecked(),
+            "starred": self.filter_starred.isChecked(),
+            "untagged": self.filter_untagged.isChecked(),
+            "tagged": self.filter_tagged.isChecked(),
+            "assigned": self.filter_assigned.isChecked(),
+            "posted": self.filter_posted.isChecked(),
+            "needs_censor": self.filter_needs_censor.isChecked(),
+            "show_ignored": self.filter_show_ignored.isChecked(),
+            "has_notes": self.filter_has_notes.isChecked(),
+            "format": self._format_filter,
+            "tag_filters": sorted(self._bar_tag_filters),
+            "folders": sorted(self._folder_filter) if self._folder_filter else None,
+        }
+
+    def set_filter_state(self, state: dict):
+        """Restore a previously captured filter state."""
+        self.search_box.setText(state.get("search_text", ""))
+        self.search_tags_check.setChecked(state.get("search_tags", False))
+        self.filter_starred.setChecked(state.get("starred", False))
+        self.filter_untagged.setChecked(state.get("untagged", False))
+        self.filter_tagged.setChecked(state.get("tagged", False))
+        self.filter_assigned.setChecked(state.get("assigned", False))
+        self.filter_posted.setChecked(state.get("posted", False))
+        self.filter_needs_censor.setChecked(state.get("needs_censor", False))
+        self.filter_show_ignored.setChecked(state.get("show_ignored", False))
+        self.filter_has_notes.setChecked(state.get("has_notes", False))
+        # Format filter
+        fmt = state.get("format", "")
+        self._format_filter = fmt
+        if hasattr(self, '_format_combo'):
+            idx = self._format_combo.findText(fmt.upper() if fmt else "All",
+                                               Qt.MatchFlag.MatchFixedString)
+            if idx >= 0:
+                self._format_combo.setCurrentIndex(idx)
+            else:
+                self._format_combo.setCurrentIndex(0)
+        # Tag bar filters
+        self._bar_tag_filters = set(state.get("tag_filters", []))
+        self._rebuild_tag_buttons()
+        # Folder filter
+        folders = state.get("folders")
+        self._folder_filter = set(folders) if folders else None
+        # Refresh
+        self._refresh_grid()
+
     def _compute_filtered(self) -> list[Asset]:
-        assets = list(self.project.assets)
+        # Build predicates, then do ONE pass over all assets (avoids 11+ list copies).
+        preds = []
+
         if self._folder_filter:
-            assets = [a for a in assets
-                      if (a.source_folder or str(Path(a.source_path).parent)) in self._folder_filter]
+            _ff = self._folder_filter
+            preds.append(lambda a, ff=_ff:
+                         (a.source_folder or str(Path(a.source_path).parent)) in ff)
+
         query = self.search_box.text().strip().lower()
         if query:
             if self.search_tags_check.isChecked():
-                assets = [a for a in assets if any(query in t.lower() for t in a.tags)]
+                preds.append(lambda a, q=query: any(q in t.lower() for t in a.tags))
             elif "*" in query or "?" in query:
-                assets = [a for a in assets if fnmatch.fnmatch(Path(a.source_path).name.lower(), query)]
+                preds.append(lambda a, q=query:
+                             fnmatch.fnmatch(Path(a.source_path).name.lower(), q))
             else:
-                assets = [a for a in assets if query in Path(a.source_path).name.lower()]
+                preds.append(lambda a, q=query: q in Path(a.source_path).name.lower())
+
         if self.filter_starred.isChecked():
-            assets = [a for a in assets if a.starred > 0]
+            preds.append(lambda a: a.starred > 0)
         if self.filter_untagged.isChecked():
-            assets = [a for a in assets if not a.tags]
+            preds.append(lambda a: not a.tags)
         if self.filter_tagged.isChecked():
-            assets = [a for a in assets if a.tags]
+            preds.append(lambda a: bool(a.tags))
         if not self.filter_show_ignored.isChecked():
-            assets = [a for a in assets if "ignore" not in a.tags]
+            preds.append(lambda a: "ignore" not in a.tags)
         if self.filter_has_notes.isChecked():
-            assets = [a for a in assets if a.notes and a.notes.strip()]
+            preds.append(lambda a: bool(a.notes and a.notes.strip()))
         if self.filter_assigned.isChecked():
-            assets = [a for a in assets if a.assignments]
+            preds.append(lambda a: bool(a.assignments))
         if self.filter_posted.isChecked():
-            assets = [a for a in assets if any(pa.status == "posted" for pa in a.assignments)]
+            preds.append(lambda a: any(pa.status == "posted" for pa in a.assignments))
         if self.filter_needs_censor.isChecked():
             from doxyedit.models import PLATFORMS as _PLATS
-            censor_platforms = {pid for pid, p in _PLATS.items() if p.needs_censor}
-            assets = [a for a in assets
-                      if any(pa.platform in censor_platforms for pa in a.assignments)
-                      and not a.censors]
+            _cp = {pid for pid, p in _PLATS.items() if p.needs_censor}
+            preds.append(lambda a, cp=_cp:
+                         any(pa.platform in cp for pa in a.assignments) and not a.censors)
 
-        # Format filter
         if self._format_filter:
             _known = {".psd", ".png", ".jpg", ".jpeg", ".sai", ".sai2", ".webp", ".clip", ".csp"}
-            if self._format_filter == "other":
-                assets = [a for a in assets if Path(a.source_path).suffix.lower() not in _known]
-            elif self._format_filter == "jpg":
-                assets = [a for a in assets if Path(a.source_path).suffix.lower() in (".jpg", ".jpeg")]
-            elif self._format_filter == "sai":
-                assets = [a for a in assets if Path(a.source_path).suffix.lower() in (".sai", ".sai2")]
+            _ff = self._format_filter
+            if _ff == "other":
+                preds.append(lambda a: Path(a.source_path).suffix.lower() not in _known)
+            elif _ff == "jpg":
+                preds.append(lambda a: Path(a.source_path).suffix.lower() in (".jpg", ".jpeg"))
+            elif _ff == "sai":
+                preds.append(lambda a: Path(a.source_path).suffix.lower() in (".sai", ".sai2"))
             else:
-                assets = [a for a in assets if Path(a.source_path).suffix.lower() == "." + self._format_filter]
+                preds.append(lambda a, ext="." + _ff: Path(a.source_path).suffix.lower() == ext)
 
-        # Tag bar filter — show only assets with at least one active filter tag (OR logic)
         if self._bar_tag_filters:
-            assets = [a for a in assets if self._bar_tag_filters & set(a.tags)]
+            _btf = self._bar_tag_filters
+            preds.append(lambda a, btf=_btf: btf.intersection(a.tags))
 
-        # Eye filter — hide images with any eye-hidden tags
         if self.show_hidden_only and self._eye_hidden_tags:
-            assets = [a for a in assets if set(a.tags) & self._eye_hidden_tags]
+            _eht = self._eye_hidden_tags
+            preds.append(lambda a, eht=_eht: eht.intersection(a.tags))
         elif self._eye_hidden_tags:
-            assets = [a for a in assets if not (set(a.tags) & self._eye_hidden_tags)]
-        # Temp hide (Alt+H) — not persisted
+            _eht = self._eye_hidden_tags
+            preds.append(lambda a, eht=_eht: not eht.intersection(a.tags))
+
         if self._temp_hidden_ids:
-            assets = [a for a in assets if a.id not in self._temp_hidden_ids]
+            _thi = self._temp_hidden_ids
+            preds.append(lambda a, thi=_thi: a.id not in thi)
+
+        if preds:
+            assets = [a for a in self.project.assets if all(p(a) for p in preds)]
+        else:
+            assets = list(self.project.assets)
 
         sort_mode = self.sort_combo.currentText()
         if sort_mode == "By Folder":
@@ -1404,7 +1610,12 @@ class AssetBrowser(QWidget):
         self.project.invalidate_index()
         self._filtered_assets = self._compute_filtered()
 
-        if self.sort_combo.currentText() == "By Folder":
+        is_folder_sort = self.sort_combo.currentText() == "By Folder"
+        self._view_stack.setCurrentIndex(1 if is_folder_sort else 0)
+        self._fold_all_btn.setVisible(is_folder_sort)
+        self._unfold_all_btn.setVisible(is_folder_sort)
+
+        if is_folder_sort:
             self._rebuild_folder_sections(saved_ids)
         else:
             self._model.set_assets(self._filtered_assets)
@@ -1438,7 +1649,7 @@ class AssetBrowser(QWidget):
         self.page_label.setText(f"{shown} images")
 
     def _rebuild_folder_sections(self, saved_ids=None):
-        """Rebuild per-folder QListView sections from current filtered assets."""
+        """Rebuild per-folder QListView sections, grouped under import-source roots."""
         from collections import defaultdict
 
         # Group assets by folder (order preserved from sorted filtered list)
@@ -1447,31 +1658,64 @@ class AssetBrowser(QWidget):
             folder = a.source_folder or Path(a.source_path).parent.as_posix()
             groups[folder].append(a)
 
-        # Remove old sections (keep layout's trailing stretch)
+        # Remove old sections and root headers
         for section in self._folder_sections:
             self._folder_container_layout.removeWidget(section)
             section.deleteLater()
         self._folder_sections.clear()
+        for hdr in getattr(self, '_root_headers', []):
+            self._folder_container_layout.removeWidget(hdr)
+            hdr.deleteLater()
+        self._root_headers = []
 
-        # Build new sections
-        min_depth = min((len(Path(f).parts) for f in groups), default=0)
+        # Build import-source → child-folders map
+        import_roots: list[str] = [
+            src["path"] for src in self.project.import_sources
+            if src.get("type") == "folder"
+        ]
+
+        def find_root(folder: str) -> str | None:
+            """Return the deepest import_root that is an ancestor of folder."""
+            fp = Path(folder)
+            best = None
+            best_len = 0
+            for root in import_roots:
+                rp = Path(root)
+                try:
+                    fp.relative_to(rp)
+                    if len(rp.parts) > best_len:
+                        best = root
+                        best_len = len(rp.parts)
+                except ValueError:
+                    pass
+            return best
+
+        # Build ordered groups: root → [(folder, assets, depth)]
+        root_groups: dict[str | None, list] = defaultdict(list)
+        root_order: list[str | None] = []
+        seen_roots: set = set()
         for folder, assets in groups.items():
+            root = find_root(folder)
+            if root not in seen_roots:
+                root_order.append(root)
+                seen_roots.add(root)
+            rel_depth = (len(Path(folder).parts) - len(Path(root).parts)
+                         if root else 0)
+            root_groups[root].append((folder, assets, rel_depth))
+
+        def _make_section(folder, assets, depth):
             collapsed = folder in self._collapsed_folders
-            depth = len(Path(folder).parts) - min_depth
             section = FolderSection(
-                folder=folder,
-                assets=assets,
-                delegate=self._delegate,
-                thumb_size=self._thumb_size,
-                collapsed=collapsed,
-                depth=depth,
-                parent=self._folder_container,
+                folder=folder, assets=assets, delegate=self._delegate,
+                thumb_size=self._thumb_size, collapsed=collapsed,
+                depth=depth, parent=self._folder_container,
             )
             section.collapsed_changed.connect(self._on_folder_collapsed)
             section.remove_requested.connect(self._on_folder_remove_requested)
             section.view.customContextMenuRequested.connect(
                 lambda pos, s=section: self._on_folder_context_menu_pos(pos, s))
-            section.view.doubleClicked.connect(self._on_folder_double_click)
+            section.view.doubleClicked.connect(
+                lambda idx, s=section: self._on_folder_double_click(idx, s))
             section.view.selectionModel().selectionChanged.connect(
                 lambda _sel, _des, s=section: self._on_folder_selection_changed(s))
             section.view.selectionModel().currentChanged.connect(
@@ -1479,11 +1723,45 @@ class AssetBrowser(QWidget):
                 if cur.isValid() else None)
             section.view.installEventFilter(self)
             section.view.viewport().installEventFilter(self)
+            return section
 
-            # Insert before trailing stretch
-            idx = max(0, self._folder_container_layout.count() - 1)
-            self._folder_container_layout.insertWidget(idx, section)
-            self._folder_sections.append(section)
+        insert_before_stretch = lambda w: self._folder_container_layout.insertWidget(
+            max(0, self._folder_container_layout.count() - 1), w)
+
+        for root in root_order:
+            entries = root_groups[root]
+            has_multiple = len(entries) > 1
+
+            if root and has_multiple:
+                # Root header + indented child sections
+                total = sum(len(a) for _, a, _ in entries)
+                hdr = RootFolderHeader(root, total, parent=self._folder_container,
+                                      on_expand=self._request_visible_thumbs)
+                insert_before_stretch(hdr)
+                self._root_headers.append(hdr)
+
+                child_sections = []
+                for folder, assets, depth in entries:
+                    section = _make_section(folder, assets, depth + 1)
+                    insert_before_stretch(section)
+                    self._folder_sections.append(section)
+                    child_sections.append(section)
+                hdr.set_children(child_sections)
+            else:
+                # Single folder or no matching root — show flat at depth 0
+                for folder, assets, depth in entries:
+                    section = _make_section(folder, assets, 0)
+                    insert_before_stretch(section)
+                    self._folder_sections.append(section)
+
+        # Backfill cached pixmaps into new model instances so thumbs don't vanish on rebuild
+        cached = self._thumb_cache._pixmaps
+        for section in self._folder_sections:
+            m = section.folder_model
+            for i in range(m.rowCount()):
+                a = m.get_asset(m.index(i))
+                if a and a.id in cached:
+                    m._pixmaps[a.id] = cached[a.id]
 
         # Restore selection
         if saved_ids:
@@ -1497,17 +1775,18 @@ class AssetBrowser(QWidget):
                         sel.select(idx, sel.SelectionFlag.Select)
                 sel.blockSignals(False)
 
-        # Request thumbnails for visible area only (scroll handler covers the rest)
-        QTimer.singleShot(50, self._request_visible_thumbs)
-
-        # Trigger layout recalc once views have been sized
+        # Trigger layout recalc once views have been sized, then request thumbs
         QTimer.singleShot(0, self._folder_container.adjustSize)
+        QTimer.singleShot(50, self._request_visible_thumbs)
+        # Second pass after layout is fully settled (sections have real heights)
+        QTimer.singleShot(300, self._request_visible_thumbs)
 
     def _on_folder_collapsed(self, folder: str, is_collapsed: bool):
         if is_collapsed:
             self._collapsed_folders.add(folder)
         else:
             self._collapsed_folders.discard(folder)
+            self._request_visible_thumbs()
 
     def _on_folder_remove_requested(self, folder: str):
         from PySide6.QtWidgets import QMessageBox
@@ -1544,15 +1823,10 @@ class AssetBrowser(QWidget):
         if len(id_list) == 1:
             self.asset_selected.emit(id_list[0])
 
-    def _on_folder_double_click(self, index: QModelIndex):
-        # Identify which section emitted this
-        sender_view = self.sender()
-        for section in self._folder_sections:
-            if section.view is sender_view:
-                asset = section.folder_model.get_asset(index)
-                if asset:
-                    self.asset_preview.emit(asset.id)
-                return
+    def _on_folder_double_click(self, index: QModelIndex, section: "FolderSection"):
+        asset = section.folder_model.get_asset(index)
+        if asset:
+            self.asset_preview.emit(asset.id)
 
     def _on_folder_context_menu_pos(self, pos, section: "FolderSection"):
         index = section.view.indexAt(pos)
@@ -1562,8 +1836,12 @@ class AssetBrowser(QWidget):
 
     # --- Thumb cache callbacks ---
 
-    def _on_thumb_ready(self, asset_id: str, pixmap: QPixmap, w: int, h: int, gen_size: int):
-        self._thumb_cache.on_ready(asset_id, pixmap, w, h, gen_size)
+    def _on_thumb_ready(self, asset_id: str, img, w: int, h: int, gen_size: int):
+        if not self._thumb_cache.on_ready(asset_id, img, w, h, gen_size):
+            return  # lower-res than what we already have — skip update
+        pixmap = self._thumb_cache.get(asset_id)
+        if pixmap is None:
+            return
         self._model.update_pixmap(asset_id, pixmap)
         for section in self._folder_sections:
             section.folder_model.update_pixmap(asset_id, pixmap)
@@ -1596,12 +1874,15 @@ class AssetBrowser(QWidget):
 
     def _on_selection_changed_internal(self, selected, deselected):
         indexes = self._list_view.selectionModel().selectedIndexes()
-        self._selected_ids = {self._model.get_asset(idx).id
-                              for idx in indexes if self._model.get_asset(idx)}
-        id_list = list(self._selected_ids)
-        self.selection_changed.emit(id_list)
-        if len(id_list) == 1:
-            self.asset_selected.emit(id_list[0])
+        self._selected_ids = {a.id for idx in indexes
+                              if (a := self._model.get_asset(idx)) is not None}
+        # Emit single-select immediately; debounce multi-select for rubber-band drag performance
+        if len(self._selected_ids) == 1:
+            self._selection_emit_timer.stop()
+            self.selection_changed.emit(list(self._selected_ids))
+            self.asset_selected.emit(next(iter(self._selected_ids)))
+        else:
+            self._selection_emit_timer.start()
 
     def _on_double_click(self, index: QModelIndex):
         asset = self._model.get_asset(index)
@@ -1822,14 +2103,17 @@ class AssetBrowser(QWidget):
     # --- Drag and drop ---
 
     def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
+        if event.mimeData().hasUrls() and event.source() is None:
             event.acceptProposedAction()
 
     def dragMoveEvent(self, event):
-        if event.mimeData().hasUrls():
+        if event.mimeData().hasUrls() and event.source() is None:
             event.acceptProposedAction()
 
     def dropEvent(self, event):
+        if event.source() is not None:
+            event.ignore()
+            return
         files, folders = [], []
         for url in event.mimeData().urls():
             path = url.toLocalFile()
@@ -1867,6 +2151,7 @@ class AssetBrowser(QWidget):
         menu.addAction("Send to Censor", lambda: self.asset_to_censor.emit(asset_id))
         menu.addSeparator()
         menu.addAction("Open in Explorer", lambda: _open_explorer(asset))
+        menu.addAction("Open in Native Editor\tF3", lambda: self._open_in_native_editor())
         menu.addAction("Copy Path", lambda: QApplication.clipboard().setText(asset.source_path))
         menu.addAction("Copy Filename", lambda: QApplication.clipboard().setText(Path(asset.source_path).name))
         menu.addAction("Copy Name (no ext)", lambda: QApplication.clipboard().setText(Path(asset.source_path).stem))
@@ -1904,26 +2189,40 @@ class AssetBrowser(QWidget):
             menu.addAction(f"Star All ({n})", self._star_all_selected)
             menu.addAction(f"Unstar All ({n})", self._unstar_all_selected)
             menu.addSeparator()
-        # Quick Tag submenu — all available tags in columns
-        all_tags = list(self.project.get_tags().values())
-        if all_tags:
+        # Quick Tag submenu — project custom tags first, then system presets in columns
+        all_tags_map = self.project.get_tags()
+        custom_tag_ids = set(self.project.tag_definitions.keys())
+        custom_tags = [t for t in all_tags_map.values() if t.id in custom_tag_ids]
+        preset_tags  = [t for t in all_tags_map.values() if t.id not in custom_tag_ids]
+        if all_tags_map:
             qt_menu = menu.addMenu("Quick Tag")
             MAX_PER_COL = 10
-            if len(all_tags) <= MAX_PER_COL:
-                for tag in all_tags:
-                    checked = tag.id in asset.tags
-                    a = qt_menu.addAction(f"{'✓ ' if checked else '   '}{tag.label}")
-                    a.triggered.connect(lambda _, tid=tag.id: self._toggle_tag_multi(asset, tid))
-            else:
-                # Split into column submenus
-                for col_start in range(0, len(all_tags), MAX_PER_COL):
-                    chunk = all_tags[col_start:col_start + MAX_PER_COL]
-                    first, last = chunk[0].label, chunk[-1].label
-                    col_menu = qt_menu.addMenu(f"{first} – {last}")
-                    for tag in chunk:
-                        checked = tag.id in asset.tags
-                        a = col_menu.addAction(f"{'✓ ' if checked else '   '}{tag.label}")
-                        a.triggered.connect(lambda _, tid=tag.id: self._toggle_tag_multi(asset, tid))
+
+            def _add_tag_action(parent_menu, tag):
+                checked = tag.id in asset.tags
+                a = parent_menu.addAction(f"{'✓ ' if checked else '   '}{tag.label}")
+                a.triggered.connect(lambda _, tid=tag.id: self._toggle_tag_multi(asset, tid))
+
+            # Project custom tags — always flat, always first
+            if custom_tags:
+                for tag in custom_tags:
+                    _add_tag_action(qt_menu, tag)
+                if preset_tags:
+                    qt_menu.addSeparator()
+
+            # System preset tags — flat if few, column submenus if many
+            if preset_tags:
+                if len(preset_tags) <= MAX_PER_COL:
+                    for tag in preset_tags:
+                        _add_tag_action(qt_menu, tag)
+                else:
+                    presets_menu = qt_menu.addMenu("More Tags")
+                    for col_start in range(0, len(preset_tags), MAX_PER_COL):
+                        chunk = preset_tags[col_start:col_start + MAX_PER_COL]
+                        first, last = chunk[0].label, chunk[-1].label
+                        col_menu = presets_menu.addMenu(f"{first} – {last}")
+                        for tag in chunk:
+                            _add_tag_action(col_menu, tag)
 
         menu.addAction("Add Tag...", lambda: self._add_tag_dialog(asset))
         if asset.tags:
@@ -2083,6 +2382,8 @@ class AssetBrowser(QWidget):
 
     def _view_for_obj(self, obj):
         """Return (view, model) if obj is a managed view or its viewport, else (None, None)."""
+        if not hasattr(self, '_list_view'):
+            return None, None
         if obj is self._list_view or obj is self._list_view.viewport():
             return self._list_view, self._model
         for section in self._folder_sections:
@@ -2109,18 +2410,7 @@ class AssetBrowser(QWidget):
                         anchor = view.currentIndex()
 
                     delta = event.angleDelta().y()
-                    if delta > 0:
-                        self._thumb_size = min(320, self._thumb_size + 20)
-                    else:
-                        self._thumb_size = max(80, self._thumb_size - 20)
-                    s = QSettings("DoxyEdit", "DoxyEdit")
-                    s.setValue("thumb_size", self._thumb_size)
-                    s.setValue("thumb_size_user_set", True)
-                    self._delegate.thumb_size = self._thumb_size
-                    self._delegate.invalidate_cache()
-                    self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
-                    for section in self._folder_sections:
-                        section.update_grid_size(self._thumb_size)
+                    self._set_thumb_size(self._thumb_size + (20 if delta > 0 else -20))
                     if anchor.isValid():
                         if view is self._list_view:
                             QTimer.singleShot(0, lambda v=view, c=anchor: v.scrollTo(c, QListView.ScrollHint.PositionAtCenter))
@@ -2175,6 +2465,52 @@ class AssetBrowser(QWidget):
                             asset.cycle_star()
                             model.dataChanged.emit(index, index)
                         return True
+
+            # Left press — record drag start point only if clicking an already-selected item
+            if (event.type() == event.Type.MouseButtonPress
+                    and event.button() == Qt.MouseButton.LeftButton):
+                pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
+                index = view.indexAt(pos)
+                asset = model.get_asset(index) if index.isValid() else None
+                if asset and asset.id in self._selected_ids:
+                    self._drag_start_pos = view.mapToGlobal(pos)
+                    # Snapshot the full selection now — Qt may shrink it before drag fires
+                    self._drag_snapshot_ids = set(self._selected_ids)
+                else:
+                    self._drag_start_pos = None
+                    self._drag_snapshot_ids = set()
+
+            # Left move — initiate drag-out after threshold
+            if (event.type() == event.Type.MouseMove
+                    and event.buttons() & Qt.MouseButton.LeftButton
+                    and getattr(self, '_drag_start_pos', None) is not None
+                    and not getattr(self, '_middle_held', False)):
+                cur_global = view.mapToGlobal(
+                    event.position().toPoint() if hasattr(event, 'position') else event.pos())
+                if (cur_global - self._drag_start_pos).manhattanLength() >= QApplication.startDragDistance():
+                    self._drag_start_pos = None
+                    snap_ids = getattr(self, '_drag_snapshot_ids', set())
+                    assets = [a for a in self.project.assets if a.id in snap_ids] if snap_ids else self.get_selected_assets()
+                    urls = [QUrl.fromLocalFile(a.source_path) for a in assets
+                            if Path(a.source_path).exists()]
+                    if urls:
+                        mime = QMimeData()
+                        mime.setUrls(urls)
+                        drag = QDrag(view)
+                        drag.setMimeData(mime)
+                        # Pixmap from first asset's cached thumbnail
+                        icon_px = self._model._pixmaps.get(assets[0].id) if assets else None
+                        if isinstance(icon_px, QPixmap) and not icon_px.isNull():
+                            drag.setPixmap(icon_px.scaled(64, 64,
+                                Qt.AspectRatioMode.KeepAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation))
+                        drag.exec(Qt.DropAction.CopyAction)
+                        return True
+
+            if (event.type() == event.Type.MouseButtonRelease
+                    and event.button() == Qt.MouseButton.LeftButton):
+                self._drag_start_pos = None
+                self._drag_snapshot_ids = set()
 
             # Middle-click — instant preview regardless of hover setting
             if event.type() == event.Type.MouseButtonPress:
@@ -2243,6 +2579,9 @@ class AssetBrowser(QWidget):
                         aid = next(iter(self._selected_ids))
                         self.asset_preview.emit(aid)
                     return True
+                if event.key() == Qt.Key.Key_F3:
+                    self._open_in_native_editor()
+                    return True
                 if event.key() == Qt.Key.Key_Escape:
                     if self._bar_tag_filters:
                         self.clear_bar_filters()
@@ -2258,6 +2597,19 @@ class AssetBrowser(QWidget):
                     self._selected_ids.clear()
                     self.selection_changed.emit([])
                     return True
+
+        # Esc from search box — deselect without clearing search text
+        if obj is self.search_box and event.type() == event.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Escape:
+                self._list_view.clearSelection()
+                for section in self._folder_sections:
+                    section.view.selectionModel().blockSignals(True)
+                    section.view.clearSelection()
+                    section.view.selectionModel().blockSignals(False)
+                self._selected_ids.clear()
+                self.selection_changed.emit([])
+                self._list_view.setFocus()
+                return True
 
         return super().eventFilter(obj, event)
 
@@ -2287,6 +2639,23 @@ class AssetBrowser(QWidget):
             self.selection_changed.emit([])
             return
         super().keyPressEvent(event)
+
+    def _open_in_native_editor(self):
+        """Open selected assets in their native editor (os.startfile = system default)."""
+        assets = self.get_selected_assets()
+        if not assets:
+            return
+        s = QSettings("DoxyEdit", "DoxyEdit")
+        for asset in assets:
+            ext = Path(asset.source_path).suffix.lower()
+            custom = s.value(f"native_editor/{ext}", "")
+            if custom and os.path.exists(custom):
+                subprocess.Popen([custom, asset.source_path])
+            else:
+                try:
+                    os.startfile(asset.source_path)
+                except Exception:
+                    pass
 
 
 # --- Helpers ---
