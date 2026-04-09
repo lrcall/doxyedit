@@ -655,6 +655,7 @@ class PreviewPane(QWidget):
     """Inline docked preview panel — embeddable in main window splitter."""
 
     navigated = Signal(str)  # asset_id when user navigates via arrow keys
+    popout_requested = Signal()  # request to pop out to floating window
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -681,6 +682,12 @@ class PreviewPane(QWidget):
         self._fit_btn.setToolTip("Fit image to view (Ctrl+0)")
         self._fit_btn.clicked.connect(self._fit_to_view)
         info_layout.addWidget(self._fit_btn)
+        self._popout_btn = QPushButton("⬔")
+        self._popout_btn.setFixedWidth(36)
+        self._popout_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._popout_btn.setToolTip("Pop out to floating window")
+        self._popout_btn.clicked.connect(lambda: self.popout_requested.emit() if self._asset else None)
+        info_layout.addWidget(self._popout_btn)
         layout.addWidget(self._info_bar)
 
         # Graphics view

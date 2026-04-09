@@ -179,6 +179,7 @@ class MainWindow(QMainWindow):
         # Docked preview pane (right side, initially hidden)
         self._preview_pane = PreviewPane()
         self._preview_pane.navigated.connect(self._navigate_to_asset_in_browser)
+        self._preview_pane.popout_requested.connect(self._popout_preview)
         self._preview_pane.hide()
         self._browse_split.addWidget(self._preview_pane)
         # Info panel (right side, after preview, initially hidden)
@@ -1663,6 +1664,18 @@ class MainWindow(QMainWindow):
         self._preview_pane.setVisible(vis)
         self._settings.setValue("preview_docked", vis)
         self._toggle_dock_preview_action.setChecked(vis)
+
+    def _popout_preview(self):
+        """Pop out the docked preview to a floating window."""
+        asset = self._preview_pane._asset
+        if not asset:
+            return
+        # Hide docked pane
+        self._preview_pane.hide()
+        self._settings.setValue("preview_docked", False)
+        self._toggle_dock_preview_action.setChecked(False)
+        # Open floating preview with same asset
+        self._on_asset_preview(asset.id)
 
     def _toggle_info_panel(self):
         vis = not self._info_panel.isVisible()
