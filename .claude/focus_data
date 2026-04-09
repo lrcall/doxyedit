@@ -1,5 +1,4 @@
-DoxyEdit — Active Bug Fixes
-  a. Tags/Tray buttons have NO signal handlers (root cause found)
-  b. Folder view: setFixedSize(0,h) locks width to 0 on early call
-  c. Toolbar vertical offset — height not enforced after button add
-  d. Hardcoded colors/fonts throughout delegate + window
+DoxyEdit v2.2 — 71 commits
+  ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+  Test app end-to-end
+  Push when ready
