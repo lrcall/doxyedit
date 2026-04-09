@@ -593,7 +593,7 @@ class FolderSection(QWidget):
         self._view.setUniformItemSizes(False)
         self._view.setGridSize(QSize(thumb_size + 16, thumb_size + 70))
         self._view.setSpacing(4)
-        self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._view.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
         self._view.setMouseTracking(True)
@@ -653,7 +653,12 @@ class FolderSection(QWidget):
             view_h = 0
         lay = self.layout()
         cm = lay.contentsMargins()
-        return header_h + view_h + cm.top() + cm.bottom() + lay.spacing()
+        natural = header_h + view_h + cm.top() + cm.bottom() + lay.spacing()
+        # Cap: if content overflows viewport, section = viewport height (scroll internally)
+        max_h = getattr(self, '_max_section_height', 0)
+        if max_h > 0 and natural > max_h:
+            return max_h
+        return natural
 
     def sizeHint(self):
         w = self.width() if self.width() > 0 else 400
@@ -1813,6 +1818,11 @@ class AssetBrowser(QWidget):
 
     def _finalize_folder_layout(self):
         """One-shot layout finalization after folder sections are created."""
+        # Tell sections the max height = scroll viewport (enables internal scrolling for big folders)
+        vp_h = self._folder_scroll.viewport().height()
+        if vp_h > 100:
+            for section in self._folder_sections:
+                section._max_section_height = vp_h
         self._folder_container.adjustSize()
         self._request_visible_thumbs()
 
@@ -2446,7 +2456,9 @@ class AssetBrowser(QWidget):
     def eventFilter(self, obj, event):
         # Folder scroll viewport resize → recalculate section heights
         if hasattr(self, '_folder_scroll') and obj is self._folder_scroll.viewport() and event.type() == event.Type.Resize:
+            vp_h = self._folder_scroll.viewport().height()
             for section in self._folder_sections:
+                section._max_section_height = vp_h if vp_h > 100 else 0
                 section.updateGeometry()
             self._folder_container.adjustSize()
             return False
