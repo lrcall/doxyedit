@@ -1595,8 +1595,17 @@ class MainWindow(QMainWindow):
             self._file_browser.set_project(self.project)
 
     def _on_file_browser_folder(self, folder: str):
-        """Filter main grid to show only assets from this folder."""
-        self.browser.set_folder_filter([folder])
+        """Filter main grid to show assets from this folder and all subfolders."""
+        folder = folder.replace("\\", "/").rstrip("/")
+        prefix = folder + "/"
+        # Collect this folder + any subfolders that have assets
+        matching = [folder]
+        if self.project:
+            for asset in self.project.assets:
+                af = (asset.source_folder or str(Path(asset.source_path).parent)).replace("\\", "/")
+                if af.startswith(prefix) and af not in matching:
+                    matching.append(af)
+        self.browser.set_folder_filter(matching)
 
     def _clear_file_browser_filter(self):
         """Clear any folder filter on the main grid."""
