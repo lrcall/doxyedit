@@ -1142,6 +1142,7 @@ class MainWindow(QMainWindow):
         # Help menu
         help_menu = menu.addMenu("&Help")
         help_menu.addAction("Keyboard Shortcuts", self._show_shortcuts)
+        help_menu.addAction("What's New (v2.2)", self._show_whats_new)
         help_menu.addAction("About DoxyEdit", self._show_about)
 
     def _setup_tag_shortcuts(self):
@@ -3114,6 +3115,51 @@ Ctrl+Click tag — Search by tag
         for key, tid in self.project.custom_shortcuts.items():
             shortcuts += f"{key} — {tid}\n"
         QMessageBox.information(self, "Keyboard Shortcuts", shortcuts.strip())
+
+    def _show_whats_new(self):
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
+        dlg = QDialog(self)
+        dlg.setWindowTitle("What's New in v2.2")
+        dlg.resize(520, 480)
+        layout = QVBoxLayout(dlg)
+        text = QTextEdit()
+        text.setReadOnly(True)
+        text.setMarkdown(
+            "# What's New in v2.2\n\n"
+            "## New Panels & Views\n"
+            "- **File Browser** (Ctrl+B) — folder tree with asset counts, search, pinned folders, drag-to-import\n"
+            "- **Info Panel** (Ctrl+I) — asset metadata with inline tag editing (pill widgets + autocomplete) and notes\n"
+            "- **Schedule tab** — Kanban board with drag-drop status columns (Pending/Ready/Posted/Skip)\n"
+            "- **Smart Folders** (View menu) — save and load filter presets\n\n"
+            "## Preview Enhancements\n"
+            "- **Pop-out button** — float docked preview into a full dialog\n"
+            "- **Resizable crop handles** — 8 drag handles on crop regions for post-drawing editing\n"
+            "- **Grouped crop presets** — dropdown organized by platform with section headers\n"
+            "- **Multi-monitor fix** — preview remembers position correctly across monitors\n\n"
+            "## Tools\n"
+            "- **Find Similar Images** (Tools menu) — perceptual hash grouping for variant detection\n"
+            "- **Edit Project Config** (Tools menu) — YAML config for custom platform definitions\n"
+            "- **Reload Collection** (File menu) — reload last saved collection with missing-file warnings\n\n"
+            "## Visual & Performance\n"
+            "- **Color palette swatches** — dominant colors extracted during thumbnail generation, shown in Info Panel\n"
+            "- **Toolbar declutter** — Recursive, Hover Preview, Cache All, Folder Scan moved to View/Tools menus\n"
+            "- **Folder view fix** — no more overlapping folder sections in By Folder sort\n"
+            "- **Tray performance** — O(1) asset lookup replaces linear scans\n"
+            "- **Nuitka build** — 11 new exclusions for smaller executable\n"
+            "- **Theme audit** — all new panels respect theme colors\n\n"
+            "## Keyboard Shortcuts\n"
+            "| Shortcut | Action |\n"
+            "|----------|--------|\n"
+            "| Ctrl+B | File Browser |\n"
+            "| Ctrl+I | Info Panel |\n"
+            "| Ctrl+D | Docked Preview |\n"
+            "| C | Crop tool (in preview) |\n"
+        )
+        layout.addWidget(text)
+        close = QPushButton("Close")
+        close.clicked.connect(dlg.accept)
+        layout.addWidget(close)
+        dlg.exec()
 
     def _show_about(self):
         from PySide6.QtWidgets import QMessageBox
