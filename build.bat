@@ -55,6 +55,17 @@ echo Building...
     --nofollow-import-to=setuptools ^
     --nofollow-import-to=pip ^
     --nofollow-import-to=distutils ^
+    --nofollow-import-to=pkg_resources ^
+    --nofollow-import-to=docutils ^
+    --nofollow-import-to=jinja2 ^
+    --nofollow-import-to=pygments ^
+    --nofollow-import-to=xmlrpc ^
+    --nofollow-import-to=pydoc ^
+    --nofollow-import-to=lib2to3 ^
+    --nofollow-import-to=ensurepip ^
+    --nofollow-import-to=venv ^
+    --nofollow-import-to=idlelib ^
+    --nofollow-import-to=turtledemo ^
     run.py
 
 if errorlevel 1 (
