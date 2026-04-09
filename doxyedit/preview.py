@@ -1,17 +1,18 @@
-"""Image preview — hover tooltip, full preview with annotation notes."""
+"""Image preview — hover tooltip, full preview with annotation notes, crop tool."""
 from pathlib import Path
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsScene, QGraphicsView,
-    QGraphicsPixmapItem, QGraphicsRectItem,
-    QApplication, QPushButton, QInputDialog, QWidget,
+    QGraphicsPixmapItem, QGraphicsRectItem, QGraphicsPathItem,
+    QApplication, QPushButton, QInputDialog, QWidget, QSizePolicy, QComboBox,
 )
 from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF, Signal, QEvent, QTimer
 from PySide6.QtGui import (
     QPixmap, QPainter, QFont, QColor, QKeySequence, QShortcut,
-    QTransform, QPen, QBrush,
+    QTransform, QPen, QBrush, QPainterPath,
 )
 
 from doxyedit.imaging import load_pixmap
+from doxyedit.models import CropRegion, PLATFORMS
 
 
 class HoverPreview(QWidget):
@@ -155,7 +156,24 @@ class ImagePreviewDialog(QDialog):
         px = settings.value("preview_x", -1, type=int)
         py = settings.value("preview_y", -1, type=int)
         if px >= 0 and py >= 0:
-            self.move(px, py)
+            # Validate position is on a connected screen
+            from PySide6.QtCore import QPoint
+            target = QPoint(px + self.width() // 2, py + 30)
+            screen = QApplication.screenAt(target)
+            if screen:
+                # Clamp to screen bounds
+                geom = screen.availableGeometry()
+                px = max(geom.left(), min(px, geom.right() - self.width()))
+                py = max(geom.top(), min(py, geom.bottom() - self.height()))
+                self.move(px, py)
+            else:
+                # Saved position is off-screen — center on primary screen
+                primary = QApplication.primaryScreen()
+                if primary:
+                    geom = primary.availableGeometry()
+                    self.move(
+                        geom.left() + (geom.width() - self.width()) // 2,
+                        geom.top() + (geom.height() - self.height()) // 2)
         # Stylesheet applied externally by caller (so theme is inherited)
         # Fall back to a dark background if none is provided
         if not self.styleSheet():
@@ -196,6 +214,32 @@ class ImagePreviewDialog(QDialog):
         self._view_notes_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._view_notes_btn.toggled.connect(self._toggle_view_notes)
         info_bar.addWidget(self._view_notes_btn)
+
+        # Crop tool
+        self._crop_btn = QPushButton("Crop")
+        self._crop_btn.setCheckable(True)
+        self._crop_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._crop_btn.setToolTip("Draw a crop region (C key)")
+        self._crop_btn.toggled.connect(self._toggle_crop_mode)
+        info_bar.addWidget(self._crop_btn)
+
+        self._crop_combo = QComboBox()
+        self._crop_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._crop_combo.setFixedWidth(160)
+        self._crop_combo.addItem("Free crop", None)
+        for pid, platform in PLATFORMS.items():
+            for slot in platform.slots:
+                ratio = f"{slot.width}x{slot.height}"
+                self._crop_combo.addItem(
+                    f"{platform.name} — {slot.label} ({ratio})",
+                    (slot.width, slot.height))
+        self._crop_combo.setVisible(False)
+        info_bar.addWidget(self._crop_combo)
+
+        self._cropping = False
+        self._crop_start: QPointF | None = None
+        self._crop_rect_item: QGraphicsRectItem | None = None
+        self._crop_mask_item: QGraphicsPathItem | None = None
 
         self._on_top_btn = QPushButton("On Top")
         self._on_top_btn.setCheckable(True)
@@ -247,19 +291,20 @@ class ImagePreviewDialog(QDialog):
         self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         layout.addWidget(self.view)
 
+        self._pixmap_item = None
         if not pm.isNull():
-            item = QGraphicsPixmapItem(pm)
-            item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
-            self.scene.addItem(item)
+            self._pixmap_item = QGraphicsPixmapItem(pm)
+            self._pixmap_item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+            self.scene.addItem(self._pixmap_item)
             self._expand_scene_rect(pm.width(), pm.height())
 
             saved_zoom = settings.value("preview_zoom", 0.0, type=float)
             if saved_zoom > 0:
                 self.view.setTransform(QTransform.fromScale(saved_zoom, saved_zoom))
-                self.view.centerOn(item)
+                self.view.centerOn(self._pixmap_item)
             else:
-                self.view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
-                self.view.centerOn(item)
+                self.view.fitInView(self._pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
+                self.view.centerOn(self._pixmap_item)
 
         # Override mouse events for annotation
         self.view.mousePressEvent = self._view_mouse_press
@@ -270,6 +315,7 @@ class ImagePreviewDialog(QDialog):
         QShortcut(QKeySequence("Escape"), self, self.close)
         QShortcut(QKeySequence("Ctrl+0"), self, self._fit_to_view)
         QShortcut(QKeySequence("N"), self, lambda: self._note_btn.toggle())
+        QShortcut(QKeySequence("C"), self, lambda: self._crop_btn.toggle())
         QShortcut(QKeySequence("V"), self, lambda: self._view_notes_btn.toggle())
         QShortcut(QKeySequence("Delete"), self, self._delete_selected_note)
         QShortcut(QKeySequence("F11"), self, self._toggle_fullscreen)
@@ -325,13 +371,108 @@ class ImagePreviewDialog(QDialog):
     def _toggle_note_mode(self, checked):
         self._annotating = checked
         if checked:
+            self._crop_btn.setChecked(False)  # turn off crop if note on
+            self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
+            self.view.setCursor(Qt.CursorShape.CrossCursor)
+        else:
+            if not self._cropping:
+                self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+                self.view.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def _toggle_crop_mode(self, checked):
+        self._cropping = checked
+        self._crop_combo.setVisible(checked)
+        if checked:
+            self._note_btn.setChecked(False)  # turn off notes if crop on
             self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
             self.view.setCursor(Qt.CursorShape.CrossCursor)
         else:
             self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
             self.view.setCursor(Qt.CursorShape.ArrowCursor)
+            self._clear_crop_visuals()
+
+    def _clear_crop_visuals(self):
+        if self._crop_rect_item:
+            self.scene.removeItem(self._crop_rect_item)
+            self._crop_rect_item = None
+        if self._crop_mask_item:
+            self.scene.removeItem(self._crop_mask_item)
+            self._crop_mask_item = None
+
+    def _get_crop_aspect(self) -> float | None:
+        """Return target W/H aspect ratio from combo, or None for free crop."""
+        data = self._crop_combo.currentData()
+        if data is None:
+            return None
+        w, h = data
+        return w / h if h else None
+
+    def _constrain_rect(self, start: QPointF, end: QPointF, aspect: float | None) -> QRectF:
+        """Build a QRectF from two points, optionally constrained to aspect ratio."""
+        r = QRectF(start, end).normalized()
+        if aspect is None or r.width() < 2 or r.height() < 2:
+            return r
+        # Constrain to aspect ratio — expand to fill the drag extent
+        cur_aspect = r.width() / r.height()
+        if cur_aspect > aspect:
+            # Too wide — shrink width
+            new_w = r.height() * aspect
+            r.setWidth(new_w)
+        else:
+            # Too tall — shrink height
+            new_h = r.width() / aspect
+            r.setHeight(new_h)
+        return r
+
+    def _update_crop_mask(self, crop_rect: QRectF):
+        """Draw dark overlay outside the crop region."""
+        if self._crop_mask_item:
+            self.scene.removeItem(self._crop_mask_item)
+        # Get image bounds from cached reference
+        img_item = getattr(self, '_pixmap_item', None)
+        if not img_item:
+            # Fallback: scan scene
+            items = [i for i in self.scene.items() if isinstance(i, QGraphicsPixmapItem)]
+            if not items:
+                return
+            img_item = items[-1]
+        img_rect = img_item.boundingRect()
+        # Build mask path: full image minus crop hole
+        path = QPainterPath()
+        path.addRect(img_rect)
+        hole = QPainterPath()
+        hole.addRect(crop_rect)
+        path = path.subtracted(hole)
+        self._crop_mask_item = QGraphicsPathItem(path)
+        self._crop_mask_item.setPen(QPen(Qt.PenStyle.NoPen))
+        self._crop_mask_item.setBrush(QBrush(QColor(0, 0, 0, 140)))
+        self._crop_mask_item.setZValue(100)
+        self.scene.addItem(self._crop_mask_item)
+
+    def _save_crop_to_asset(self, rect: QRectF):
+        """Store the crop region on the current asset."""
+        if not self._asset:
+            return
+        data = self._crop_combo.currentData()
+        label = self._crop_combo.currentText() if data else "free"
+        crop = CropRegion(
+            x=int(rect.x()), y=int(rect.y()),
+            w=int(rect.width()), h=int(rect.height()),
+            label=label)
+        # Replace existing crop with same label, or append
+        self._asset.crops = [c for c in self._asset.crops if c.label != label]
+        self._asset.crops.append(crop)
 
     def _view_mouse_press(self, event):
+        if self._cropping and event.button() == Qt.MouseButton.LeftButton:
+            self._crop_start = self.view.mapToScene(event.position().toPoint())
+            self._clear_crop_visuals()
+            self._crop_rect_item = QGraphicsRectItem()
+            self._crop_rect_item.setPen(QPen(QColor(255, 200, 80, 220), 2))
+            self._crop_rect_item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+            self._crop_rect_item.setZValue(101)
+            self.scene.addItem(self._crop_rect_item)
+            return
         if self._annotating and event.button() == Qt.MouseButton.LeftButton:
             self._draw_start = self.view.mapToScene(event.position().toPoint())
             self._temp_rect = NoteRectItem(QRectF(self._draw_start, self._draw_start), "")
@@ -340,6 +481,13 @@ class ImagePreviewDialog(QDialog):
         QGraphicsView.mousePressEvent(self.view, event)
 
     def _view_mouse_move(self, event):
+        if self._cropping and self._crop_start and self._crop_rect_item:
+            pos = self.view.mapToScene(event.position().toPoint())
+            aspect = self._get_crop_aspect()
+            r = self._constrain_rect(self._crop_start, pos, aspect)
+            self._crop_rect_item.setRect(r)
+            self._update_crop_mask(r)
+            return
         if self._annotating and self._draw_start and self._temp_rect:
             pos = self.view.mapToScene(event.position().toPoint())
             r = QRectF(self._draw_start, pos).normalized()
@@ -348,6 +496,16 @@ class ImagePreviewDialog(QDialog):
         QGraphicsView.mouseMoveEvent(self.view, event)
 
     def _view_mouse_release(self, event):
+        if self._cropping and self._crop_rect_item and self._crop_start:
+            r = self._crop_rect_item.rect()
+            if r.width() > 10 and r.height() > 10:
+                self._save_crop_to_asset(r)
+                # Keep the crop visual visible as confirmation
+            else:
+                self._clear_crop_visuals()
+            self._crop_start = None
+            self._crop_btn.setChecked(False)
+            return
         if self._annotating and self._temp_rect:
             r = self._temp_rect.rect()
             if r.width() > 10 and r.height() > 10:
@@ -421,17 +579,21 @@ class ImagePreviewDialog(QDialog):
         """Swap the displayed image for a new asset without recreating the dialog."""
         self._save_notes_to_asset()
         self._asset = asset
+        self._crop_rect_item = None
+        self._crop_mask_item = None
+        self._crop_start = None
         pm, w, h = load_pixmap(asset.source_path)
         self.setWindowTitle(f"Preview — {Path(asset.source_path).name}")
         self.scene.clear()
         self._notes = []
+        self._pixmap_item = None
         if not pm.isNull():
-            item = QGraphicsPixmapItem(pm)
-            item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
-            self.scene.addItem(item)
+            self._pixmap_item = QGraphicsPixmapItem(pm)
+            self._pixmap_item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+            self.scene.addItem(self._pixmap_item)
             self._expand_scene_rect(pm.width(), pm.height())
-            self.view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
-            self.view.centerOn(item)
+            self.view.fitInView(self._pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
+            self.view.centerOn(self._pixmap_item)
         self._load_saved_notes()
 
     def _toggle_on_top(self, on: bool):
@@ -487,3 +649,111 @@ class ImagePreviewDialog(QDialog):
         zoom = self.view.transform().m11()
         settings.setValue("preview_zoom", zoom)
         super().closeEvent(event)
+
+
+class PreviewPane(QWidget):
+    """Inline docked preview panel — embeddable in main window splitter."""
+
+    navigated = Signal(str)  # asset_id when user navigates via arrow keys
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._asset = None
+        self._assets: list = []
+        self._nav_index: int = 0
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Compact info bar
+        self._info_bar = QWidget()
+        info_layout = QHBoxLayout(self._info_bar)
+        info_layout.setContentsMargins(8, 4, 8, 4)
+        self._info_label = QLabel()
+        self._info_label.setFont(QFont("Segoe UI", 10))
+        self._info_label.setStyleSheet("color: rgba(200,200,200,0.8);")
+        info_layout.addWidget(self._info_label)
+        info_layout.addStretch()
+        self._fit_btn = QPushButton("Fit")
+        self._fit_btn.setFixedWidth(36)
+        self._fit_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._fit_btn.setToolTip("Fit image to view (Ctrl+0)")
+        self._fit_btn.clicked.connect(self._fit_to_view)
+        info_layout.addWidget(self._fit_btn)
+        layout.addWidget(self._info_bar)
+
+        # Graphics view
+        self._scene = QGraphicsScene()
+        self._scene.setBackgroundBrush(QColor("#111"))
+        self._view = QGraphicsView(self._scene)
+        self._view.setRenderHints(
+            QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform
+        )
+        self._view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        self._view.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self._view.setStyleSheet("border: none;")
+        self._view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._view.wheelEvent = self._wheel_zoom
+        layout.addWidget(self._view)
+
+        self.setMinimumWidth(200)
+
+    def show_asset(self, asset, assets: list = None, index: int = 0):
+        """Display an asset in the docked pane."""
+        if assets is not None:
+            self._assets = assets
+            self._nav_index = index
+        elif self._assets:
+            # Update index if same list
+            try:
+                self._nav_index = next(
+                    i for i, a in enumerate(self._assets) if a.id == asset.id)
+            except StopIteration:
+                self._nav_index = 0
+        self._load_asset(asset)
+
+    def _load_asset(self, asset):
+        self._asset = asset
+        pm, w, h = load_pixmap(asset.source_path)
+        name = Path(asset.source_path).name
+        self._info_label.setText(f"{name}  |  {w} x {h}")
+        self._scene.clear()
+        if not pm.isNull():
+            item = QGraphicsPixmapItem(pm)
+            item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+            self._scene.addItem(item)
+            margin = max(w, h, 4000)
+            self._scene.setSceneRect(
+                QRectF(-margin, -margin, w + margin * 2, h + margin * 2))
+            self._view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
+            self._view.centerOn(item)
+
+    def _fit_to_view(self):
+        items = self._scene.items()
+        if items:
+            self._view.fitInView(items[-1], Qt.AspectRatioMode.KeepAspectRatio)
+
+    def _wheel_zoom(self, event):
+        factor = 1.2 if event.angleDelta().y() > 0 else 1 / 1.2
+        self._view.scale(factor, factor)
+
+    def keyPressEvent(self, event):
+        key = event.key()
+        if self._assets:
+            if key in (Qt.Key.Key_Right, Qt.Key.Key_Down, Qt.Key.Key_Space):
+                self._navigate(1)
+                return
+            if key in (Qt.Key.Key_Left, Qt.Key.Key_Up, Qt.Key.Key_Backspace):
+                self._navigate(-1)
+                return
+        super().keyPressEvent(event)
+
+    def _navigate(self, direction: int):
+        if not self._assets:
+            return
+        self._nav_index = (self._nav_index + direction) % len(self._assets)
+        asset = self._assets[self._nav_index]
+        self._load_asset(asset)
+        self.navigated.emit(asset.id)
