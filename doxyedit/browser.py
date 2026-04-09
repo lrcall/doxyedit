@@ -599,6 +599,8 @@ class FolderSection(QWidget):
         self._view.setMouseTracking(True)
         self._view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._view.setStyleSheet("QListView { border: none; }")
+        from PySide6.QtWidgets import QSizePolicy
+        self._view.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         layout.addWidget(self._view)
 
         self._set_collapsed(collapsed, animate=False)
@@ -655,7 +657,7 @@ class FolderSection(QWidget):
         max_h = getattr(self, '_max_section_height', 0)
         if max_h > 0 and view_h > max_h:
             view_h = max_h
-        self._view.setFixedHeight(view_h)
+        self._view.setFixedSize(available_width, view_h)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -1802,6 +1804,7 @@ class AssetBrowser(QWidget):
         # Trigger layout recalc once views have been sized, then request thumbs
         QTimer.singleShot(0, self._finalize_folder_layout)
         QTimer.singleShot(200, self._finalize_folder_layout)  # second pass after layout settles
+        QTimer.singleShot(500, self._finalize_folder_layout)
 
         if not self._folder_scroll_vp_installed:
             self._folder_scroll.viewport().installEventFilter(self)
