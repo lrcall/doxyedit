@@ -1022,6 +1022,7 @@ class MainWindow(QMainWindow):
         self._fast_cache_action.toggled.connect(self._on_fast_cache_toggled)
         tools_menu.addSeparator()
         tools_menu.addAction("Find Duplicate Files...", self._find_duplicates)
+        tools_menu.addAction("Find Similar Images (Perceptual)...", self._find_similar)
         tools_menu.addAction("Tag Usage Stats...", self._show_tag_stats)
         tools_menu.addAction("Posting Checklist...", self._show_checklist)
         tools_menu.addSeparator()
@@ -2738,6 +2739,139 @@ class MainWindow(QMainWindow):
         btn_row.addWidget(close_btn)
         layout.addLayout(btn_row)
 
+        dlg.exec()
+
+    def _find_similar(self):
+        """Find visually similar images using perceptual hash comparison."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel, QMessageBox
+
+        # Collect phash values
+        hashmap = []  # (asset, phash_int)
+        missing = 0
+        for asset in self.project.assets:
+            ph = asset.specs.get("phash")
+            if ph is not None:
+                hashmap.append((asset, ph))
+            else:
+                missing += 1
+
+        if not hashmap:
+            QMessageBox.information(self, "Find Similar",
+                "No perceptual hashes computed yet.\nBrowse through your thumbnails first — hashes are computed during thumbnail generation.")
+            return
+
+        # Hamming distance
+        def hamming(a, b):
+            return bin(a ^ b).count('1')
+
+        # Union-find grouping with threshold of 8 bits
+        threshold = 8
+        n = len(hashmap)
+        parent = list(range(n))
+
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        def union(a, b):
+            a, b = find(a), find(b)
+            if a != b:
+                parent[a] = b
+
+        for i in range(n):
+            for j in range(i + 1, n):
+                if hamming(hashmap[i][1], hashmap[j][1]) <= threshold:
+                    union(i, j)
+
+        # Collect groups
+        groups_dict = {}
+        for i in range(n):
+            root = find(i)
+            groups_dict.setdefault(root, []).append(hashmap[i][0])
+
+        similar_groups = [g for g in groups_dict.values() if len(g) > 1]
+        total_variants = sum(len(g) - 1 for g in similar_groups)
+
+        if not similar_groups:
+            msg = f"No similar images found among {len(hashmap)} assets (threshold: {threshold} bits)."
+            if missing:
+                msg += f"\n{missing} assets have no hash yet — browse thumbnails to compute them."
+            QMessageBox.information(self, "Find Similar", msg)
+            return
+
+        # Build results text
+        lines = [f"Found {len(similar_groups)} group(s) with {total_variants} variant(s)\n"]
+        if missing:
+            lines.append(f"({missing} assets not yet hashed — browse thumbnails to include them)\n")
+        variant_ids = set()
+        for gi, group in enumerate(similar_groups, 1):
+            # Sort by file size descending — largest is likely canonical
+            group.sort(key=lambda a: -os.path.getsize(a.source_path) if os.path.exists(a.source_path) else 0)
+            lines.append(f"--- Group {gi} ({len(group)} files) ---")
+            for ai, asset in enumerate(group):
+                marker = "✓ keep" if ai == 0 else "✗ variant"
+                lines.append(f"  [{marker}] {Path(asset.source_path).name}")
+                if ai > 0:
+                    variant_ids.add(asset.id)
+            lines.append("")
+
+        # Dialog
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Similar Images — {len(similar_groups)} group(s)")
+        dlg.resize(600, 450)
+        layout = QVBoxLayout(dlg)
+
+        summary = QLabel(f"{len(similar_groups)} group(s) · {total_variants} variant(s) · {len(hashmap)} hashed")
+        summary.setStyleSheet("font-weight: bold; padding: 4px;")
+        layout.addWidget(summary)
+
+        text = QTextEdit()
+        text.setReadOnly(True)
+        text.setPlainText("\n".join(lines))
+        text.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
+        layout.addWidget(text)
+
+        btn_row = QHBoxLayout()
+
+        tag_btn = QPushButton(f"Tag {total_variants} as 'variant'")
+        def do_tag():
+            # Create tag if needed
+            if "variant" not in self.project.tag_definitions:
+                self.project.tag_definitions["variant"] = {"label": "Variant", "color": "#c49b5c"}
+                self.project.custom_tags.append({"id": "variant", "label": "Variant", "color": "#c49b5c"})
+            for asset in self.project.assets:
+                if asset.id in variant_ids and "variant" not in asset.tags:
+                    asset.tags.append("variant")
+            self._dirty = True
+            self._refresh_all_tags()
+            self.browser.refresh()
+            self.status.showMessage(f"Tagged {len(variant_ids)} assets as 'variant'", 3000)
+            dlg.accept()
+        tag_btn.clicked.connect(do_tag)
+        btn_row.addWidget(tag_btn)
+
+        remove_btn = QPushButton(f"Remove {total_variants} variants from project")
+        def do_remove():
+            if QMessageBox.question(self, "Remove Variants",
+                f"Remove {len(variant_ids)} variant assets from project?\n(Files remain on disk)") != QMessageBox.StandardButton.Yes:
+                return
+            self.project.assets = [a for a in self.project.assets if a.id not in variant_ids]
+            self.project.invalidate_index()
+            self._dirty = True
+            self._refresh_all_tags()
+            self.browser.refresh()
+            self.status.showMessage(f"Removed {len(variant_ids)} variants", 3000)
+            dlg.accept()
+        remove_btn.clicked.connect(do_remove)
+        btn_row.addWidget(remove_btn)
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dlg.reject)
+        btn_row.addWidget(close_btn)
+
+        layout.addLayout(btn_row)
         dlg.exec()
 
     def _mass_tag_editor(self):
