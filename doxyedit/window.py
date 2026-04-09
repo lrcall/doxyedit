@@ -184,35 +184,32 @@ class MainWindow(QMainWindow):
         self._preview_pane.popout_requested.connect(self._popout_preview)
         self._preview_pane.hide()
         self._browse_split.addWidget(self._preview_pane)
-        # Info panel (right side, after preview, initially hidden)
+        # Info panel — inside tag panel's vertical splitter (below tags)
         self._info_panel = InfoPanel()
-        self._info_panel.hide()
         self._info_panel.tags_modified.connect(self._on_tags_modified)
-        self._browse_split.addWidget(self._info_panel)
+        self.tag_panel._tag_notes_split.addWidget(self._info_panel)
+        self.tag_panel._tag_notes_split.setSizes([300, 60, 150])
         self._browse_split.setStretchFactor(0, 0)  # file browser
         self._browse_split.setStretchFactor(1, 0)  # tag panel
         self._browse_split.setStretchFactor(2, 1)  # browser (stretches)
         self._browse_split.setStretchFactor(3, 0)  # preview pane
-        self._browse_split.setStretchFactor(4, 0)  # info panel
         saved_split = self._settings_early.value("splitter_sizes", None)
         if saved_split:
             sizes = [int(s) for s in saved_split]
+            # Strip 5th element from old layout (info_panel moved to sidebar)
             if len(sizes) == 5:
+                sizes = sizes[:4]
+            if len(sizes) == 4:
                 self._browse_split.setSizes(sizes)
-            elif len(sizes) == 4:
-                self._browse_split.setSizes(sizes + [0])
             else:
-                self._browse_split.setSizes([0, 260, 1000, 400, 0])
+                self._browse_split.setSizes([0, 260, 1000, 400])
         else:
-            self._browse_split.setSizes([0, 260, 1000, 400, 0])
+            self._browse_split.setSizes([0, 260, 1000, 400])
         if self._settings_early.value("preview_docked", False, type=bool):
             self._preview_pane.show()
         if self._settings_early.value("file_browser_visible", False, type=bool):
             self._file_browser.show()
-        if self._settings_early.value("info_panel_visible", False, type=bool):
-            self._info_panel.show()
-            if hasattr(self, '_toggle_info_panel_action'):
-                self._toggle_info_panel_action.setChecked(True)
+        # info_panel is now always visible inside the tag panel splitter
         # Restore tag-notes splitter
         saved_notes_split = self._settings_early.value("tag_notes_splitter", None)
         if saved_notes_split:
@@ -1088,10 +1085,7 @@ class MainWindow(QMainWindow):
             "Docked Preview", self._toggle_dock_preview, QKeySequence("Ctrl+D"))
         self._toggle_dock_preview_action.setCheckable(True)
         self._toggle_dock_preview_action.setChecked(self._preview_pane.isVisible())
-        self._toggle_info_panel_action = view_menu.addAction(
-            "Info Panel", self._toggle_info_panel, QKeySequence("Ctrl+I"))
-        self._toggle_info_panel_action.setCheckable(True)
-        self._toggle_info_panel_action.setChecked(False)
+        # Info panel is always visible in sidebar (no toggle needed)
         self._toggle_file_browser_action = view_menu.addAction(
             "File Browser", self._toggle_file_browser, QKeySequence("Ctrl+B"))
         self._toggle_file_browser_action.setCheckable(True)
@@ -1724,11 +1718,7 @@ class MainWindow(QMainWindow):
         # Open floating preview with same asset
         self._on_asset_preview(asset.id)
 
-    def _toggle_info_panel(self):
-        vis = not self._info_panel.isVisible()
-        self._info_panel.setVisible(vis)
-        self._settings.setValue("info_panel_visible", vis)
-        self._toggle_info_panel_action.setChecked(vis)
+    # _toggle_info_panel removed — panel is always visible in sidebar
 
     def _toggle_file_browser(self):
         vis = not self._file_browser.isVisible()
@@ -1924,8 +1914,7 @@ class MainWindow(QMainWindow):
             if self._file_browser.isVisible():
                 folder = asset.source_folder or str(Path(asset.source_path).parent)
                 self._file_browser.highlight_folder(folder)
-            if self._info_panel.isVisible():
-                self._info_panel.set_assets([asset])
+            self._info_panel.set_assets([asset])
             name = Path(asset.source_path).name
             n_tags = len(asset.tags)
             tag_hint = f" | {n_tags} tags" if n_tags else " | press 1-9 to tag, or use panel ->"
@@ -2189,8 +2178,7 @@ class MainWindow(QMainWindow):
     def _on_selection_changed(self, asset_ids: list):
         assets = [a for aid in asset_ids if (a := self.project.get_asset(aid))]
         self.tag_panel.set_assets(assets)
-        if self._info_panel.isVisible():
-            self._info_panel.set_assets(assets)
+        self._info_panel.set_assets(assets)
         n = len(assets)
         if n == 0:
             self.status.showMessage("No selection")
@@ -3163,7 +3151,7 @@ Ctrl+Click tag — Search by tag
             "# What's New in v2.2\n\n"
             "## New Panels & Views\n"
             "- **File Browser** (Ctrl+B) — folder tree with asset counts, search, pinned folders, drag-to-import\n"
-            "- **Info Panel** (Ctrl+I) — asset metadata with inline tag editing (pill widgets + autocomplete) and notes\n"
+            "- **Info Panel** (sidebar) — asset metadata with inline tag editing (pill widgets + autocomplete) and notes\n"
             "- **Schedule tab** — Kanban board with drag-drop status columns (Pending/Ready/Posted/Skip)\n"
             "- **Smart Folders** (View menu) — save and load filter presets\n\n"
             "## Preview Enhancements\n"
@@ -3186,7 +3174,7 @@ Ctrl+Click tag — Search by tag
             "| Shortcut | Action |\n"
             "|----------|--------|\n"
             "| Ctrl+B | File Browser |\n"
-            "| Ctrl+I | Info Panel |\n"
+            "| | (Info Panel now in sidebar) |\n"
             "| Ctrl+D | Docked Preview |\n"
             "| C | Crop tool (in preview) |\n"
         )

@@ -148,8 +148,7 @@ class InfoPanel(QWidget):
         scroll.setWidget(content)
         outer.addWidget(scroll, 1)
 
-        self.setMinimumWidth(200)
-        self.setMaximumWidth(350)
+        self.setMinimumWidth(100)
 
     def _render_palette(self, colors: list):
         """Render color swatches from hex color list."""

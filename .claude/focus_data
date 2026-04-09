@@ -1,4 +1,5 @@
-DoxyEdit — Final Audit
-  Review EVERY doc for remaining todos/tasks/wishlists
-  KanbanCard hardcoded QFont (minor)
-  Test new features end-to-end
+DoxyEdit — UX Polish Pass
+  Bugs: folder view height, Ctrl+D, tray thumbs, menu hover font, tag mismatch
+  Layout: InfoPanel→left sidebar, health→project details col, menu bar stretch
+  Theme: full tokenization audit, notes markdown styling, splitter handles
+  UX: toolbar buttons for panels, tray width, menu reorganization

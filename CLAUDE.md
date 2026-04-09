@@ -120,6 +120,18 @@ An asset at `Furry\Marty\file.psd` receives tags: `["furry", "marty"]`
 - Full spec: `docs/ressources/uidocs/DOXYEDIT_UI_SPEC.md`
 - Reference design philosophy: `docs/ressources/uidocs/SHADER_LAB_UI_GUIDE.md`
 
+## Claudelog Rules
+When writing to claudelog via `/focus claudenote` or `/focus update claudelog`:
+- Every entry needs timestamp + duration: `14:57  ⏱ Feature X — 23m`
+- Flag rework: `17:23  ⏱ REWORK: theme migration — 1h19m wasted. Reason: didn't read uidocs/`
+- Include root cause on bugs: `14:55  Bug: tray drag. Root cause: eventFilter timing.`
+- Mark false completions: `16:14  First "done" — WRONG. Missed uidocs/.`
+- Milestones include commit count: `14:51  25 commits in 26m`
+- Do NOT append analysis sections — those go in memory files
+- Do NOT nuke the timeline to reorganize — improve lines in place
+- Do NOT log 0m start/stop pairs — merge into one line
+- Each session: one `## YYYY-MM-DD` header with commit count + total duration
+
 ## Rules
 - The project file is binary-safe JSON — always use `ensure_ascii=False` when writing
 - Never sort or reorder assets — order is meaningful (affects display)
