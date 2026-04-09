@@ -123,13 +123,12 @@ class FileBrowserPanel(QWidget):
         header = QHBoxLayout()
         header.setContentsMargins(8, 6, 8, 2)
         title = QLabel("Files")
-        title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        title.setFont(QFont("", -1, QFont.Weight.Bold))
         header.addWidget(title)
         header.addStretch()
 
         clear_btn = QPushButton("Clear Filter")
         clear_btn.setFixedHeight(20)
-        clear_btn.setStyleSheet("QPushButton { padding: 1px 6px; font-size: 10px; }")
         clear_btn.setToolTip("Clear folder filter on main grid")
         clear_btn.clicked.connect(lambda: self.filter_cleared.emit())
         header.addWidget(clear_btn)
@@ -313,25 +312,28 @@ class FileBrowserPanel(QWidget):
                     parent = parent.parent()
 
     def _update_folder_counts(self):
-        """Recompute folder → asset count mapping from project data."""
+        """Recompute folder → asset count mapping + pre-computed recursive totals."""
         self._folder_counts.clear()
+        self._recursive_counts: dict[str, int] = {}
         if not self._project:
             return
         for asset in self._project.assets:
             folder = asset.source_folder or str(Path(asset.source_path).parent)
             folder = folder.replace("\\", "/")
             self._folder_counts[folder] = self._folder_counts.get(folder, 0) + 1
+        # Pre-compute recursive counts (O(n²) once, not per-paint)
+        for folder in self._folder_counts:
+            total = self._folder_counts[folder]
+            prefix = folder + "/"
+            for path, c in self._folder_counts.items():
+                if path.startswith(prefix):
+                    total += c
+            self._recursive_counts[folder] = total
 
     def get_folder_count(self, folder_path: str) -> int:
-        """Return asset count for a folder (recursive — includes subfolders)."""
+        """Return pre-computed recursive asset count. O(1) lookup."""
         folder_path = folder_path.replace("\\", "/").rstrip("/")
-        count = self._folder_counts.get(folder_path, 0)
-        # Add counts from subfolders
-        prefix = folder_path + "/"
-        for path, c in self._folder_counts.items():
-            if path.startswith(prefix):
-                count += c
-        return count
+        return self._recursive_counts.get(folder_path, 0)
 
 
     def _start_drag(self, supported_actions):

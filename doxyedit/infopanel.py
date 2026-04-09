@@ -46,7 +46,7 @@ class InfoPanel(QWidget):
 
         # Header
         self._header = QLabel("No selection")
-        self._header.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        self._header.setFont(QFont("", -1, QFont.Weight.Bold))
         self._header.setWordWrap(True)
         outer.addWidget(self._header)
 
@@ -80,7 +80,7 @@ class InfoPanel(QWidget):
 
         # Palette section
         self._palette_header = QLabel("Palette")
-        self._palette_header.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        self._palette_header.setFont(QFont("", -1, QFont.Weight.Bold))
         self._layout.addWidget(self._palette_header)
         self._palette_row = QHBoxLayout()
         self._palette_row.setSpacing(4)
@@ -94,7 +94,7 @@ class InfoPanel(QWidget):
 
         # Tags section (editable)
         self._tags_header = QLabel("Tags")
-        self._tags_header.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        self._tags_header.setFont(QFont("", -1, QFont.Weight.Bold))
         self._layout.addWidget(self._tags_header)
         self._tag_flow_widget = QWidget()
         self._tag_flow = FlowLayout(self._tag_flow_widget, spacing=4)
@@ -123,7 +123,7 @@ class InfoPanel(QWidget):
 
         # Assignments section
         self._assign_header = QLabel("Platforms")
-        self._assign_header.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        self._assign_header.setFont(QFont("", -1, QFont.Weight.Bold))
         self._layout.addWidget(self._assign_header)
         self._assign_label = QLabel()
         self._assign_label.setWordWrap(True)
@@ -134,7 +134,7 @@ class InfoPanel(QWidget):
 
         # Notes section (editable)
         self._notes_header = QLabel("Notes")
-        self._notes_header.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        self._notes_header.setFont(QFont("", -1, QFont.Weight.Bold))
         self._layout.addWidget(self._notes_header)
         self._notes_edit = QTextEdit()
         self._notes_edit.setMinimumHeight(40)

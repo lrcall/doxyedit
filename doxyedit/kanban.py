@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QFrame, QPushButton, QApplication, QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal, QMimeData, QByteArray
-from PySide6.QtGui import QFont, QColor, QDrag, QPixmap, QPainter, QPalette
+from PySide6.QtGui import QColor, QDrag, QPixmap, QPainter, QPalette
 
 
 STATUS_COLS = [
