@@ -28,6 +28,7 @@ from doxyedit.tagpanel import TagPanel
 from doxyedit.exporter import export_project
 from doxyedit.preview import ImagePreviewDialog, PreviewPane
 from doxyedit.filebrowser import FileBrowserPanel
+from doxyedit.infopanel import InfoPanel
 from doxyedit.tray import WorkTray
 from doxyedit.project import save_project, load_project
 from doxyedit.stats import StatsPanel
@@ -180,22 +181,34 @@ class MainWindow(QMainWindow):
         self._preview_pane.navigated.connect(self._navigate_to_asset_in_browser)
         self._preview_pane.hide()
         self._browse_split.addWidget(self._preview_pane)
-        self._browse_split.setStretchFactor(0, 0)
-        self._browse_split.setStretchFactor(1, 0)
-        self._browse_split.setStretchFactor(2, 1)
-        self._browse_split.setStretchFactor(3, 0)
+        # Info panel (right side, after preview, initially hidden)
+        self._info_panel = InfoPanel()
+        self._info_panel.hide()
+        self._browse_split.addWidget(self._info_panel)
+        self._browse_split.setStretchFactor(0, 0)  # file browser
+        self._browse_split.setStretchFactor(1, 0)  # tag panel
+        self._browse_split.setStretchFactor(2, 1)  # browser (stretches)
+        self._browse_split.setStretchFactor(3, 0)  # preview pane
+        self._browse_split.setStretchFactor(4, 0)  # info panel
         saved_split = self._settings_early.value("splitter_sizes", None)
         if saved_split:
             sizes = [int(s) for s in saved_split]
-            # Require exactly 4 sizes (file browser, tags, browser, preview);
-            # old settings with 2-3 values from previous versions get replaced.
-            self._browse_split.setSizes(sizes if len(sizes) == 4 else [0, 260, 1000, 400])
+            if len(sizes) == 5:
+                self._browse_split.setSizes(sizes)
+            elif len(sizes) == 4:
+                self._browse_split.setSizes(sizes + [0])
+            else:
+                self._browse_split.setSizes([0, 260, 1000, 400, 0])
         else:
-            self._browse_split.setSizes([0, 260, 1000, 400])
+            self._browse_split.setSizes([0, 260, 1000, 400, 0])
         if self._settings_early.value("preview_docked", False, type=bool):
             self._preview_pane.show()
         if self._settings_early.value("file_browser_visible", False, type=bool):
             self._file_browser.show()
+        if self._settings_early.value("info_panel_visible", False, type=bool):
+            self._info_panel.show()
+            if hasattr(self, '_toggle_info_panel_action'):
+                self._toggle_info_panel_action.setChecked(True)
         # Restore tag-notes splitter
         saved_notes_split = self._settings_early.value("tag_notes_splitter", None)
         if saved_notes_split:
@@ -641,6 +654,8 @@ class MainWindow(QMainWindow):
         self._tint_titlebar(proj_accent)
         if hasattr(self, '_file_browser'):
             self._file_browser.apply_theme(self._theme)
+        if hasattr(self, '_info_panel'):
+            self._info_panel.apply_theme(self._theme)
 
     def _tint_titlebar(self, hex_color: str = ""):
         """Apply accent color to Windows 11 title bar via DwmSetWindowAttribute."""
@@ -1002,6 +1017,10 @@ class MainWindow(QMainWindow):
             "Docked Preview", self._toggle_dock_preview, QKeySequence("Ctrl+D"))
         self._toggle_dock_preview_action.setCheckable(True)
         self._toggle_dock_preview_action.setChecked(self._preview_pane.isVisible())
+        self._toggle_info_panel_action = view_menu.addAction(
+            "Info Panel", self._toggle_info_panel, QKeySequence("Ctrl+I"))
+        self._toggle_info_panel_action.setCheckable(True)
+        self._toggle_info_panel_action.setChecked(False)
         self._toggle_file_browser_action = view_menu.addAction(
             "File Browser", self._toggle_file_browser, QKeySequence("Ctrl+B"))
         self._toggle_file_browser_action.setCheckable(True)
@@ -1593,6 +1612,12 @@ class MainWindow(QMainWindow):
         self._settings.setValue("preview_docked", vis)
         self._toggle_dock_preview_action.setChecked(vis)
 
+    def _toggle_info_panel(self):
+        vis = not self._info_panel.isVisible()
+        self._info_panel.setVisible(vis)
+        self._settings.setValue("info_panel_visible", vis)
+        self._toggle_info_panel_action.setChecked(vis)
+
     def _toggle_file_browser(self):
         vis = not self._file_browser.isVisible()
         self._file_browser.setVisible(vis)
@@ -1785,6 +1810,8 @@ class MainWindow(QMainWindow):
             if self._file_browser.isVisible():
                 folder = asset.source_folder or str(Path(asset.source_path).parent)
                 self._file_browser.highlight_folder(folder)
+            if self._info_panel.isVisible():
+                self._info_panel.set_assets([asset])
             name = Path(asset.source_path).name
             n_tags = len(asset.tags)
             tag_hint = f" | {n_tags} tags" if n_tags else " | press 1-9 to tag, or use panel ->"
@@ -2048,6 +2075,8 @@ class MainWindow(QMainWindow):
     def _on_selection_changed(self, asset_ids: list):
         assets = [a for aid in asset_ids if (a := self.project.get_asset(aid))]
         self.tag_panel.set_assets(assets)
+        if self._info_panel.isVisible():
+            self._info_panel.set_assets(assets)
         n = len(assets)
         if n == 0:
             self.status.showMessage("No selection")
