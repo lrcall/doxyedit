@@ -85,3 +85,14 @@ def compute_dominant_colors(img: PILImage.Image, n: int = 3) -> list[str]:
     for count, (r, g, b) in colors[:n]:
         result.append(f"#{r:02x}{g:02x}{b:02x}")
     return result
+
+
+def compute_phash(img: PILImage.Image, size: int = 8) -> int | None:
+    """Compute average perceptual hash. Returns a 64-bit integer or None on error."""
+    try:
+        gray = img.copy().convert("L").resize((size, size), PILImage.LANCZOS)
+        pixels = list(gray.getdata())
+        avg = sum(pixels) / len(pixels)
+        return sum(1 << i for i, p in enumerate(pixels) if p > avg)
+    except Exception:
+        return None
