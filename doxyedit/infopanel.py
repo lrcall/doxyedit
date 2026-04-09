@@ -61,6 +61,20 @@ class InfoPanel(QWidget):
         # Separator
         self._layout.addWidget(self._separator())
 
+        # Palette section
+        self._palette_header = QLabel("Palette")
+        self._palette_header.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        self._layout.addWidget(self._palette_header)
+        self._palette_row = QHBoxLayout()
+        self._palette_row.setSpacing(4)
+        self._palette_row.setContentsMargins(0, 0, 0, 0)
+        self._palette_container = QWidget()
+        self._palette_container.setLayout(self._palette_row)
+        self._layout.addWidget(self._palette_container)
+
+        # Separator after palette
+        self._layout.addWidget(self._separator())
+
         # Tags section
         self._tags_header = QLabel("Tags")
         self._tags_header.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
@@ -101,6 +115,30 @@ class InfoPanel(QWidget):
         self.setMinimumWidth(200)
         self.setMaximumWidth(350)
 
+    def _render_palette(self, colors: list):
+        """Render color swatches from hex color list."""
+        # Clear existing swatches
+        while self._palette_row.count():
+            item = self._palette_row.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not colors:
+            self._palette_header.hide()
+            self._palette_container.hide()
+            return
+
+        self._palette_header.show()
+        self._palette_container.show()
+        for hex_color in colors[:5]:
+            swatch = QLabel()
+            swatch.setFixedSize(20, 20)
+            swatch.setStyleSheet(
+                f"background: {hex_color}; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15);")
+            swatch.setToolTip(hex_color)
+            self._palette_row.addWidget(swatch)
+        self._palette_row.addStretch()
+
     def _separator(self) -> QFrame:
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
@@ -119,6 +157,7 @@ class InfoPanel(QWidget):
             self._tags_label.setText("")
             self._assign_label.setText("")
             self._notes_label.setText("")
+            self._render_palette([])
             return
 
         if len(assets) == 1:
@@ -178,6 +217,9 @@ class InfoPanel(QWidget):
         else:
             self._assign_label.setText("<i>Not assigned</i>")
 
+        # Palette
+        self._render_palette(asset.specs.get("palette", []))
+
         # Notes
         if asset.notes:
             self._notes_label.setText(asset.notes)
@@ -217,6 +259,7 @@ class InfoPanel(QWidget):
             f"{sum(1 for a in assets if a.assignments)} assigned")
         self._notes_label.setText(
             f"{sum(1 for a in assets if a.notes)} with notes")
+        self._render_palette([])
 
     def apply_theme(self, theme):
         """Apply theme colors to the info panel."""
