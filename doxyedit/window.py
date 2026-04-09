@@ -829,25 +829,31 @@ class MainWindow(QMainWindow):
         fg = self._theme.text_primary
         fg2 = self._theme.text_secondary
         accent = self._theme.accent
+        border = self._theme.border_light
+        bg_raised = self._theme.bg_raised
         html = f"""<html><head><style>
             body {{ background:{bg}; color:{fg}; font-family:'Segoe UI',sans-serif;
-                   padding:32px 48px; max-width:820px; margin:0 auto; }}
-            h1,h2,h3 {{ color:{accent}; border-bottom:1px solid rgba(255,255,255,0.1);
+                   padding:32px 48px; max-width:820px; margin:0 auto;
+                   line-height:1.6; }}
+            h1,h2,h3 {{ color:{accent}; border-bottom:1px solid {border};
                         padding-bottom:4px; }}
             h4,h5,h6 {{ color:{accent}; }}
             a {{ color:{accent}; }}
-            code {{ background:rgba(255,255,255,0.08); padding:1px 5px;
+            p {{ margin:8px 0; }}
+            ul, ol {{ padding-left:24px; }}
+            li {{ margin-bottom:4px; }}
+            img {{ max-width:100%; border-radius:4px; }}
+            code {{ background:{bg_raised}; padding:1px 5px;
                     border-radius:3px; font-family:Consolas,monospace; }}
-            pre {{ background:rgba(255,255,255,0.05); padding:12px 16px;
+            pre {{ background:{bg_raised}; padding:12px 16px;
                    border-radius:5px; overflow-x:auto; }}
             pre code {{ background:transparent; padding:0; }}
             blockquote {{ border-left:3px solid {accent}; margin:0; padding:4px 16px;
                           color:{fg2}; }}
             table {{ border-collapse:collapse; width:100%; }}
-            th,td {{ border:1px solid rgba(255,255,255,0.1); padding:6px 10px; text-align:left; }}
-            th {{ background:rgba(255,255,255,0.06); }}
-            hr {{ border:none; border-top:1px solid rgba(255,255,255,0.1); }}
-            li {{ margin:2px 0; }}
+            th,td {{ border:1px solid {border}; padding:6px 10px; text-align:left; }}
+            th {{ background:{bg_raised}; }}
+            hr {{ border:none; border-top:1px solid {border}; }}
         </style></head><body>{html_body}</body></html>"""
         self._project_notes_preview.setHtml(html)
 
