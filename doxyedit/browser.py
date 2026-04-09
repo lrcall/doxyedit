@@ -288,10 +288,14 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self._scaled_cache: dict[tuple, QPixmap] = {}
         self._fonts: dict[int, QFont] = {}       # size → QFont (cached to avoid per-paint allocs)
         self._fms: dict[int, QFontMetrics] = {}  # size → QFontMetrics
+        self._theme = None
+
+    def set_theme(self, theme):
+        self._theme = theme
 
     def _font(self, size: int) -> QFont:
         if size not in self._fonts:
-            self._fonts[size] = QFont("Segoe UI", size)
+            self._fonts[size] = QFont(self._theme.font_family if self._theme else "Segoe UI", size)
             self._fms[size] = QFontMetrics(self._fonts[size])
         return self._fonts[size]
 
@@ -321,8 +325,10 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.setFont(self._font(_fld_sz))
             text_w = self._fm(_fld_sz).horizontalAdvance(short) + 10
             tag_rect = QRect(rect.x(), rect.y(), min(text_w, rect.width()), 16)
-            painter.fillRect(tag_rect, QColor(128, 128, 128, 60))
-            painter.setPen(QColor(200, 200, 200, 200))
+            _bg = QColor(self._theme.bg_hover) if self._theme else QColor(128, 128, 128, 60)
+            _bg.setAlpha(60)
+            painter.fillRect(tag_rect, _bg)
+            painter.setPen(QColor(self._theme.text_primary) if self._theme else QColor(200, 200, 200, 200))
             painter.drawText(tag_rect.adjusted(4, 0, -4, 0),
                              Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                              short)
@@ -332,8 +338,12 @@ class ThumbnailDelegate(QStyledItemDelegate):
 
         # Selection / hover background
         if option.state & QStyle.StateFlag.State_Selected:
-            painter.fillRect(rect, QColor(100, 150, 200, 80))
-            painter.setPen(QPen(QColor(100, 150, 200, 180), 2))
+            _sel_fill = QColor(self._theme.selection_bg) if self._theme else QColor(100, 150, 200, 80)
+            _sel_fill.setAlpha(80)
+            painter.fillRect(rect, _sel_fill)
+            _sel_border = QColor(self._theme.selection_border) if self._theme else QColor(100, 150, 200, 180)
+            _sel_border.setAlpha(180)
+            painter.setPen(QPen(_sel_border, 2))
             painter.drawRect(rect.adjusted(1, 1, -1, -1))
         elif option.state & QStyle.StateFlag.State_MouseOver:
             painter.fillRect(rect, QColor(128, 128, 128, 30))
@@ -396,7 +406,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.setPen(QColor(255, 255, 255, 230))
             _bdg_sz = max(6, self.font_size - 4)
             if _bdg_sz not in self._fonts or self._fonts[_bdg_sz].weight() != QFont.Weight.Bold:
-                _bf = QFont("Segoe UI", _bdg_sz, QFont.Weight.Bold)
+                _bf = QFont(self._theme.font_family if self._theme else "Segoe UI", _bdg_sz, QFont.Weight.Bold)
                 self._fonts[(_bdg_sz, "bold")] = _bf
             painter.setFont(self._fonts.get((_bdg_sz, "bold"), self._font(_bdg_sz)))
             painter.drawText(QRect(bx, by, 16, 16), Qt.AlignmentFlag.AlignCenter, badge_char)
@@ -407,7 +417,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
             dims = index.data(ThumbnailModel.DimsRole)
             dim_text = f"{dims[0]}x{dims[1]}" if dims else ""
             dim_rect = QRect(rect.x(), rect.y() + ts + 22, rect.width(), 16)
-            painter.setPen(QColor(128, 128, 128, 150))
+            painter.setPen(QColor(self._theme.text_muted) if self._theme else QColor(128, 128, 128, 150))
             painter.setFont(self._font(max(6, fs - 3)))
             painter.drawText(dim_rect, Qt.AlignmentFlag.AlignHCenter, dim_text)
 
