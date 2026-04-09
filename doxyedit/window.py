@@ -1042,6 +1042,8 @@ class MainWindow(QMainWindow):
         tools_menu.addSeparator()
         tools_menu.addAction("Mass Tag Editor (AI Training)...", self._mass_tag_editor)
         tools_menu.addSeparator()
+        tools_menu.addAction("Edit Project Config (YAML)...", self._edit_project_config)
+        tools_menu.addSeparator()
         self._folder_scan_action = tools_menu.addAction("Folder Scan")
         self._folder_scan_action.setCheckable(True)
         self._folder_scan_action.setChecked(self.browser.folder_scan_check.isChecked())
@@ -2619,6 +2621,19 @@ class MainWindow(QMainWindow):
             subprocess.Popen(f'notepad "{self._project_path}"')
         else:
             self.status.showMessage("Save the project first", 2000)
+
+    def _edit_project_config(self):
+        """Open or create config.yaml for the current project."""
+        if not self._project_path:
+            self.status.showMessage("Save the project first", 3000)
+            return
+        from doxyedit.models import CONFIG_TEMPLATE
+        config_path = Path(self._project_path).parent / "config.yaml"
+        if not config_path.exists():
+            config_path.write_text(CONFIG_TEMPLATE, encoding="utf-8")
+            self.status.showMessage(f"Created {config_path.name} — edit and reload project", 3000)
+        import os
+        os.startfile(str(config_path))
 
     def _open_project_location(self):
         if self._project_path:

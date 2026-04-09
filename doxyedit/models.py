@@ -324,6 +324,80 @@ PLATFORMS: dict[str, Platform] = {
 }
 
 
+def load_config(project_dir: str) -> dict:
+    """Load config.yaml from project directory if present. Returns merged platform dict."""
+    config_path = Path(project_dir) / "config.yaml"
+    if not config_path.exists():
+        return {}
+    try:
+        import yaml
+    except ImportError:
+        return {}
+    try:
+        data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {}
+        return data
+    except Exception:
+        return {}
+
+
+def merge_platforms(config: dict) -> dict[str, 'Platform']:
+    """Merge custom platform definitions from config into built-in PLATFORMS."""
+    merged = dict(PLATFORMS)
+    custom_platforms = config.get("platforms", {})
+    if not isinstance(custom_platforms, dict):
+        return merged
+    for pid, pdata in custom_platforms.items():
+        if not isinstance(pdata, dict):
+            continue
+        slots = []
+        for sdata in pdata.get("slots", []):
+            if not isinstance(sdata, dict):
+                continue
+            slots.append(PlatformSlot(
+                name=sdata.get("name", "slot"),
+                label=sdata.get("label", sdata.get("name", "Slot")),
+                width=int(sdata.get("width", 1080)),
+                height=int(sdata.get("height", 1080)),
+                required=bool(sdata.get("required", False)),
+                description=sdata.get("description", ""),
+            ))
+        merged[pid] = Platform(
+            id=pid,
+            name=pdata.get("name", pid),
+            export_prefix=pdata.get("export_prefix", pid),
+            needs_censor=bool(pdata.get("needs_censor", False)),
+            slots=slots,
+        )
+    return merged
+
+
+CONFIG_TEMPLATE = """# DoxyEdit Project Config
+# Add custom platforms here. They will appear alongside built-in platforms.
+# Restart the app or reload the project after editing.
+
+platforms:
+  # Example custom platform:
+  # my_platform:
+  #   name: "My Platform"
+  #   export_prefix: "myp"
+  #   needs_censor: false
+  #   slots:
+  #     - name: "header"
+  #       label: "Header Image"
+  #       width: 1200
+  #       height: 630
+  #       required: true
+  #       description: "Main header banner"
+  #     - name: "avatar"
+  #       label: "Profile Avatar"
+  #       width: 400
+  #       height: 400
+  #       required: false
+"""
+
+
 # ---- Project file I/O ----
 
 @dataclass
@@ -461,6 +535,13 @@ class Project:
             folder_presets=raw.get("folder_presets", []),
             filter_presets=raw.get("filter_presets", []),
         )
+        # Load config.yaml and merge custom platforms
+        config = load_config(str(base))
+        if config:
+            proj._custom_platforms = merge_platforms(config)
+        else:
+            proj._custom_platforms = {}
+
         aliases = proj.tag_aliases
         for a in raw.get("assets", []):
             # Resolve tag aliases
@@ -507,6 +588,12 @@ class Project:
                 asset.assignments.append(pa)
             proj.assets.append(asset)
         return proj
+
+    def get_platforms(self) -> dict:
+        """Get merged platforms (built-in + config.yaml custom)."""
+        if hasattr(self, '_custom_platforms') and self._custom_platforms:
+            return self._custom_platforms
+        return dict(PLATFORMS)
 
     def invalidate_index(self):
         """Call after adding/removing assets."""
