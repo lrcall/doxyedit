@@ -1,6 +1,6 @@
 # DoxyEdit Documentation
 
-**Version 1.9** — Art Asset Manager
+**Version 2.2** — Art Asset Manager
 
 DoxyEdit is a desktop tool for artists and creators to browse, tag, organize, and export art assets across multiple platforms (Kickstarter, Steam, Patreon, social media).
 
@@ -29,7 +29,7 @@ Produces `dist/DoxyEdit.exe` (requires Nuitka).
 
 ## Interface Overview
 
-DoxyEdit has 4 tabs: **Assets**, **Canvas**, **Censor**, **Platforms**.
+DoxyEdit has 6 tabs: **Assets**, **Canvas**, **Censor**, **Platforms**, **Overview**, **Notes**.
 
 ### Assets Tab (Main View)
 
@@ -41,6 +41,12 @@ The primary workspace. Left sidebar has the tag panel, main area shows the thumb
 - **Ctrl+V** to paste — accepts images, file paths, folder paths, or URLs
 - **File > Paste Folder** — imports a folder path currently on the clipboard
 - Supports: PNG, JPG, BMP, GIF, WebP, TIFF, TGA, SVG, PSD, PSB, SAI, SAI2, CLIP, KRA, XCF
+
+**File Browser Panel (Ctrl+B):**
+- Opens a docked folder-tree panel on the left for navigating the filesystem
+- Click any folder to browse its images directly without importing
+- Integrates with the asset grid — selected folder filters the displayed images
+- Keyboard shortcut: **Ctrl+B** toggles the panel open/closed
 
 **Browsing:**
 - **Smooth virtual scrolling** — no paging, all images accessible by scrolling
@@ -86,6 +92,14 @@ Shows content/workflow tags and discovered tags (not platform/size tags).
 | 8 | Work in Progress |
 | 0 | Ignore / Skip |
 
+### Global Keyboard Shortcuts
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+B | Toggle File Browser panel |
+| Ctrl+I | Toggle Info Panel |
+| Ctrl+D | Toggle Docked Preview |
+| C | Crop (in preview — enters crop handle mode) |
+
 ### Tag Panel (left sidebar)
 Shows all tags with checkboxes. Click to apply/remove on selected image(s).
 
@@ -121,6 +135,21 @@ can be toggled independently.
 - **Mark Ignore** — tags selected as ignore
 - **Clear All** — removes all tags from selected
 - **Show All** — reveals hidden tags
+
+### Info Panel (Ctrl+I)
+
+A docked side panel showing metadata for the selected asset:
+- **Editable tags** — add or remove tags directly in the panel
+- **Editable notes** — freeform notes field, saved with the asset
+- **Color palette swatches** — dominant colors extracted from the image, shown as clickable swatches
+- Toggle with **Ctrl+I** or via View menu
+
+### Smart Folders
+
+**View > Smart Folders** opens a saved-search panel:
+- Create named virtual folders based on tag combinations or filename filters
+- Click a smart folder to apply its filter to the asset grid
+- Smart folders are saved with the project
 
 ### Auto Tags
 On import, images are automatically tagged based on:
@@ -193,8 +222,13 @@ Navigation also syncs the thumbnail selection in the main browser grid.
 
 **Window controls:**
 - Minimize, maximize, and restore buttons in the preview title bar
+- **Pop-out button** — detaches the preview into a floating window
+- **Ctrl+D** — toggles the preview into a docked panel alongside the asset grid
 - Title bar and buttons are fully themed (accent color via DWM)
 - Scrollbar handles use the accent color and brighten on hover
+
+**Crop mode (C key):**
+Press **C** while the preview is open to enter crop handle mode. Drag the corner/edge handles to define a crop region. The crop is saved per-asset and used for platform exports.
 
 ### Preview Annotations
 
@@ -235,6 +269,12 @@ Shows target platforms with their required image slots and sizes.
 
 Each slot shows: name, target size, assigned asset, and status (pending/ready/posted/skip).
 
+**Kanban Board:**
+The Platforms tab includes a kanban-style board view for tracking publish status across platforms. Each platform column shows cards for its image slots, which can be dragged between status columns (Backlog, Ready, Posted, Skip). The board and the slot list stay in sync — updating one updates the other.
+
+**Checklist:**
+Each platform slot has an optional checklist for tracking sub-tasks (e.g., "resize", "watermark", "upload"). Checklists are stored with the project.
+
 ---
 
 ## File Operations
@@ -248,6 +288,9 @@ Each slot shows: name, target size, assigned asset, and status (pending/ready/po
 | Ctrl+E | Export all platforms |
 | Ctrl+V | Paste image/path/folder |
 | Ctrl+T | Toggle tag panel |
+| Ctrl+B | Toggle File Browser panel |
+| Ctrl+I | Toggle Info Panel |
+| Ctrl+D | Toggle Docked Preview |
 | Ctrl+= | Increase font size |
 | Ctrl+- | Decrease font size |
 | Ctrl+0 | Reset font size |
@@ -255,6 +298,17 @@ Each slot shows: name, target size, assigned asset, and status (pending/ready/po
 | Enter | Open preview for selected thumbnail |
 | Space / Tab / Down | Next image (inside preview) |
 | Backspace / Up / Left | Previous image (inside preview) |
+| C | Crop mode (inside preview) |
+
+### Collections
+
+A **Collection** is a saved subset of assets — a named list of asset IDs — stored as a lightweight file alongside the project.
+
+| Menu | Action |
+|------|--------|
+| File > Save Collection | Save current filtered/selected set as a named collection |
+| File > Open Collection | Load a collection, filtering the grid to its assets |
+| File > Reload Collection | Refresh an open collection (re-applies filter) |
 
 ### Project File (.doxyproj.json)
 Human-readable JSON. Can be edited by Claude CLI or by hand.
@@ -327,13 +381,7 @@ Thumbnails are cached to `~/.doxyedit/thumbcache/` as PNGs and reused across ses
 
 **Fast Cache Mode** (Tools menu): stores thumbnails as uncompressed BMP files instead of PNG for faster reads, at the cost of more disk space. Useful for very large projects on slow drives.
 
-| Cache setting | Location |
-|---------------|----------|
-| Tools > Cache All | Pre-generate all thumbnails for the current project |
-| Tools > Fast Cache Mode | Toggle BMP vs PNG storage |
-| Tools > Clear Cache | Delete all cached thumbnails for the current project |
-| Tools > Set Cache Location | Move cache to a custom directory |
-| Tools > Open Cache | Open cache folder in Explorer |
+See [Tools Menu](#tools-menu) for all cache-related commands.
 
 ---
 
@@ -342,6 +390,21 @@ Thumbnails are cached to `~/.doxyedit/thumbcache/` as PNGs and reused across ses
 Accessible via **Tools > Remove Missing Files** or the Remove Missing button in the Health panel.
 
 - **Remove Missing**: scans all assets and removes any whose source file no longer exists on disk. Shows a confirmation dialog listing how many will be removed before proceeding.
+
+---
+
+## Tools Menu
+
+| Item | Description |
+|------|-------------|
+| Cache All | Pre-generate all thumbnails for the current project |
+| Fast Cache Mode | Toggle BMP vs PNG thumbnail storage |
+| Clear Cache | Delete all cached thumbnails for the current project |
+| Set Cache Location | Move cache to a custom directory |
+| Open Cache | Open cache folder in Explorer |
+| Remove Missing Files | Scan and remove assets whose files no longer exist |
+| Find Similar Images | Perceptual hash scan — finds visually duplicate or near-duplicate images in the project. Results show thumbnail pairs with a similarity score. |
+| Edit Project Config | Opens the project's YAML config file in a built-in editor. Allows tweaking platform definitions, tag rules, and other project-level settings without hand-editing JSON. |
 
 ---
 
