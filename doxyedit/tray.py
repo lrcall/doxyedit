@@ -77,7 +77,6 @@ class WorkTray(QWidget):
         super().__init__(parent)
         self.setObjectName("doxyedit_tray")
         self.setMinimumWidth(150)
-        self.setMaximumWidth(400)
         self._asset_ids: list[str] = []
         self._id_to_row: dict[str, int] = {}  # asset_id → list row index for O(1) lookup
         self._pixmaps: dict[str, QPixmap] = {}
