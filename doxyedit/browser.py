@@ -642,34 +642,24 @@ class FolderSection(QWidget):
         menu.addAction("Remove Folder from Project…", lambda: self.remove_requested.emit(self._folder))
         menu.exec(self._header.mapToGlobal(pos))
 
-    def hasHeightForWidth(self):
-        return True
-
-    def heightForWidth(self, width):
-        header_h = self._header.sizeHint().height()
-        if self._view.isVisible():
-            view_h = self._view._compute_height(width)
-        else:
-            view_h = 0
-        lay = self.layout()
-        cm = lay.contentsMargins()
-        natural = header_h + view_h + cm.top() + cm.bottom() + lay.spacing()
-        # Cap: if content overflows viewport, section = viewport height (scroll internally)
+    def update_view_height(self, available_width: int = 0):
+        """Set the view's fixed height based on actual available width.
+        Call this after layout settles or when container resizes."""
+        if not self._view.isVisible():
+            return
+        if available_width <= 0:
+            available_width = self.width()
+        if available_width <= 0:
+            return
+        view_h = self._view._compute_height(available_width)
         max_h = getattr(self, '_max_section_height', 0)
-        if max_h > 0 and natural > max_h:
-            return max_h
-        return natural
-
-    def sizeHint(self):
-        w = self.width() if self.width() > 0 else 400
-        return QSize(w, self.heightForWidth(w))
-
-    def minimumSizeHint(self):
-        return self.sizeHint()
+        if max_h > 0 and view_h > max_h:
+            view_h = max_h
+        self._view.setFixedHeight(view_h)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.updateGeometry()
+        self.update_view_height(event.size().width())
 
     def update_grid_size(self, thumb_size: int):
         self._thumb_size = thumb_size
@@ -1811,6 +1801,7 @@ class AssetBrowser(QWidget):
 
         # Trigger layout recalc once views have been sized, then request thumbs
         QTimer.singleShot(0, self._finalize_folder_layout)
+        QTimer.singleShot(200, self._finalize_folder_layout)  # second pass after layout settles
 
         if not self._folder_scroll_vp_installed:
             self._folder_scroll.viewport().installEventFilter(self)
@@ -1818,11 +1809,12 @@ class AssetBrowser(QWidget):
 
     def _finalize_folder_layout(self):
         """One-shot layout finalization after folder sections are created."""
-        # Tell sections the max height = scroll viewport (enables internal scrolling for big folders)
+        vp_w = self._folder_scroll.viewport().width()
         vp_h = self._folder_scroll.viewport().height()
-        if vp_h > 100:
-            for section in self._folder_sections:
+        for section in self._folder_sections:
+            if vp_h > 100:
                 section._max_section_height = vp_h
+            section.update_view_height(vp_w)
         self._folder_container.adjustSize()
         self._request_visible_thumbs()
 
@@ -2456,10 +2448,11 @@ class AssetBrowser(QWidget):
     def eventFilter(self, obj, event):
         # Folder scroll viewport resize → recalculate section heights
         if hasattr(self, '_folder_scroll') and obj is self._folder_scroll.viewport() and event.type() == event.Type.Resize:
+            vp_w = self._folder_scroll.viewport().width()
             vp_h = self._folder_scroll.viewport().height()
             for section in self._folder_sections:
                 section._max_section_height = vp_h if vp_h > 100 else 0
-                section.updateGeometry()
+                section.update_view_height(vp_w)
             self._folder_container.adjustSize()
             return False
 
