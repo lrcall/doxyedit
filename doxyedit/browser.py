@@ -459,17 +459,18 @@ class ThumbnailDelegate(QStyledItemDelegate):
 class FolderListView(QListView):
     """QListView that reports a sizeHint tall enough to show all items unwrapped."""
 
-    def _compute_height(self) -> int:
+    def _compute_height(self, available_width: int = 0) -> int:
         m = self.model()
         if not m or m.rowCount() == 0:
             return 0
         grid = self.gridSize()
         if not grid.isValid():
             return 0
-        vp_w = self.viewport().width()
-        w = vp_w if vp_w > 0 else (self.width() if self.width() > 0 else 1000)
+        if available_width <= 0:
+            vp_w = self.viewport().width()
+            available_width = vp_w if vp_w > 0 else (self.width() if self.width() > 0 else 300)
         col_w = max(1, grid.width() + self.spacing() * 2)
-        cols = max(1, w // col_w)
+        cols = max(1, available_width // col_w)
         rows = (m.rowCount() + cols - 1) // cols
         return rows * grid.height() + 8
 
@@ -624,6 +625,7 @@ class FolderSection(QWidget):
         arrow = "▶" if collapsed else "▼"
         indent = "   " * self._depth
         self._header.setText(f"{indent}{arrow}  {self._short}  ({n})")
+        self.updateGeometry()
 
     def _toggle_collapse(self):
         new_state = not self.is_collapsed
@@ -639,6 +641,30 @@ class FolderSection(QWidget):
         menu.addSeparator()
         menu.addAction("Remove Folder from Project…", lambda: self.remove_requested.emit(self._folder))
         menu.exec(self._header.mapToGlobal(pos))
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        header_h = self._header.sizeHint().height()
+        if self._view.isVisible():
+            view_h = self._view._compute_height(width)
+        else:
+            view_h = 0
+        lay = self.layout()
+        cm = lay.contentsMargins()
+        return header_h + view_h + cm.top() + cm.bottom() + lay.spacing()
+
+    def sizeHint(self):
+        w = self.width() if self.width() > 0 else 400
+        return QSize(w, self.heightForWidth(w))
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.updateGeometry()
 
     def update_grid_size(self, thumb_size: int):
         self._thumb_size = thumb_size
@@ -939,6 +965,7 @@ class AssetBrowser(QWidget):
         self._folder_scroll.verticalScrollBar().setSingleStep(20)
         self._folder_scroll.verticalScrollBar().valueChanged.connect(
             lambda _: (self._request_visible_thumbs(), self._idle_timer.start()))
+        self._folder_scroll_vp_installed = False
 
         self._view_stack = QStackedWidget()
         self._view_stack.addWidget(self._list_view)    # page 0: normal view
@@ -1777,10 +1804,16 @@ class AssetBrowser(QWidget):
                 sel.blockSignals(False)
 
         # Trigger layout recalc once views have been sized, then request thumbs
-        QTimer.singleShot(0, self._folder_container.adjustSize)
-        QTimer.singleShot(50, self._request_visible_thumbs)
-        # Second pass after layout is fully settled (sections have real heights)
-        QTimer.singleShot(300, self._request_visible_thumbs)
+        QTimer.singleShot(0, self._finalize_folder_layout)
+
+        if not self._folder_scroll_vp_installed:
+            self._folder_scroll.viewport().installEventFilter(self)
+            self._folder_scroll_vp_installed = True
+
+    def _finalize_folder_layout(self):
+        """One-shot layout finalization after folder sections are created."""
+        self._folder_container.adjustSize()
+        self._request_visible_thumbs()
 
     def _on_folder_collapsed(self, folder: str, is_collapsed: bool):
         if is_collapsed:
@@ -2402,6 +2435,13 @@ class AssetBrowser(QWidget):
         return None, None
 
     def eventFilter(self, obj, event):
+        # Folder scroll viewport resize → recalculate section heights
+        if hasattr(self, '_folder_scroll') and obj is self._folder_scroll.viewport() and event.type() == event.Type.Resize:
+            for section in self._folder_sections:
+                section.updateGeometry()
+            self._folder_container.adjustSize()
+            return False
+
         view, model = self._view_for_obj(obj)
         vp = view.viewport() if view is not None else None
         if view is not None:
