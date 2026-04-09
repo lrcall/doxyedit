@@ -216,8 +216,11 @@ class KanbanPanel(QWidget):
         # Summary
         if total == 0:
             self._summary.setText(
-                "No platform assignments yet.\n"
-                "Assign assets to platforms in the Platforms tab, then drag cards here to track status.")
+                "No platform assignments yet.\n\n"
+                "How to use:\n"
+                "1. Go to the Assets tab, right-click an image → Assign to Platform\n"
+                "2. Assigned images appear here as cards in the Pending column\n"
+                "3. Drag cards between columns to track status: Pending → Ready → Posted")
         else:
             counts = {s: int(self._columns[s]._count.text()) for s in self._columns}
             self._summary.setText(
