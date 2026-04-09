@@ -2,7 +2,7 @@
 from pathlib import Path
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsScene, QGraphicsView,
-    QGraphicsPixmapItem, QGraphicsRectItem, QGraphicsPathItem,
+    QGraphicsPixmapItem, QGraphicsRectItem, QGraphicsPathItem, QGraphicsItem,
     QApplication, QPushButton, QInputDialog, QWidget, QSizePolicy, QComboBox,
 )
 from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF, Signal, QEvent, QTimer
@@ -130,6 +130,121 @@ class NoteRectItem(QGraphicsRectItem):
         painter.restore()
 
 
+class ResizableCropItem(QGraphicsRectItem):
+    """Crop rectangle with 8 resize handles and drag-to-move."""
+
+    HANDLE_SIZE = 6
+
+    def __init__(self, rect: QRectF, label: str = "", aspect: float | None = None, parent=None):
+        super().__init__(rect, parent)
+        self.label = label
+        self._aspect = aspect
+        self._handle_dragging = -1  # which handle is being dragged (-1 = none)
+        self._drag_start_rect = QRectF()
+        self.setFlags(
+            QGraphicsItem.GraphicsItemFlag.ItemIsMovable
+            | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
+            | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
+        self.setPen(QPen(QColor(255, 200, 80, 220), 2))
+        self.setBrush(Qt.BrushStyle.NoBrush)
+        self.setZValue(101)
+        self.setCursor(Qt.CursorShape.SizeAllCursor)
+        self.on_changed = None  # callback when rect changes
+
+    def paint(self, painter, option, widget=None):
+        # Draw main rect
+        painter.setPen(self.pen())
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(self.rect())
+        # Draw label
+        if self.label:
+            painter.setPen(QColor(255, 200, 80, 180))
+            font = painter.font()
+            font.setPointSize(8)
+            painter.setFont(font)
+            painter.drawText(self.rect().adjusted(4, 2, 0, 0), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, self.label)
+        # Draw handles if selected
+        if self.isSelected():
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(255, 200, 80, 255))
+            for hr in self._handle_rects():
+                painter.drawRect(hr)
+
+    def _handle_rects(self) -> list[QRectF]:
+        """Return 8 handle rects: TL, TC, TR, ML, MR, BL, BC, BR."""
+        r = self.rect()
+        s = self.HANDLE_SIZE
+        hs = s / 2
+        cx, cy = r.center().x(), r.center().y()
+        return [
+            QRectF(r.left() - hs, r.top() - hs, s, s),          # 0: TL
+            QRectF(cx - hs, r.top() - hs, s, s),                 # 1: TC
+            QRectF(r.right() - hs, r.top() - hs, s, s),          # 2: TR
+            QRectF(r.left() - hs, cy - hs, s, s),                # 3: ML
+            QRectF(r.right() - hs, cy - hs, s, s),               # 4: MR
+            QRectF(r.left() - hs, r.bottom() - hs, s, s),        # 5: BL
+            QRectF(cx - hs, r.bottom() - hs, s, s),              # 6: BC
+            QRectF(r.right() - hs, r.bottom() - hs, s, s),       # 7: BR
+        ]
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            pos = event.pos()
+            for i, hr in enumerate(self._handle_rects()):
+                if hr.contains(pos):
+                    self._handle_dragging = i
+                    self._drag_start_rect = QRectF(self.rect())
+                    event.accept()
+                    return
+        self._handle_dragging = -1
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._handle_dragging >= 0:
+            pos = event.pos()
+            r = QRectF(self._drag_start_rect)
+            h = self._handle_dragging
+            # Resize based on which handle
+            if h in (0, 3, 5):  # left handles
+                r.setLeft(pos.x())
+            if h in (2, 4, 7):  # right handles
+                r.setRight(pos.x())
+            if h in (0, 1, 2):  # top handles
+                r.setTop(pos.y())
+            if h in (5, 6, 7):  # bottom handles
+                r.setBottom(pos.y())
+            # Normalize (swap if inverted)
+            r = r.normalized()
+            if r.width() >= 10 and r.height() >= 10:
+                self.prepareGeometryChange()
+                self.setRect(r)
+                self._drag_start_rect = QRectF(r)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._handle_dragging >= 0:
+            self._handle_dragging = -1
+            if self.on_changed:
+                self.on_changed(self)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+        if self.on_changed:
+            self.on_changed(self)
+
+    def itemChange(self, change, value):
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged and self.on_changed:
+            self.on_changed(self)
+        return super().itemChange(change, value)
+
+    def get_crop_region(self):
+        """Return current bounds as a CropRegion."""
+        r = self.rect().translated(self.pos())
+        return CropRegion(x=int(r.x()), y=int(r.y()), w=int(r.width()), h=int(r.height()), label=self.label)
+
+
 class ImagePreviewDialog(QDialog):
     """Full image preview — zoomable, with annotation notes and prev/next navigation."""
 
@@ -225,13 +340,18 @@ class ImagePreviewDialog(QDialog):
 
         self._crop_combo = QComboBox()
         self._crop_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self._crop_combo.setFixedWidth(160)
+        self._crop_combo.setFixedWidth(200)
         self._crop_combo.addItem("Free crop", None)
         for pid, platform in PLATFORMS.items():
+            self._crop_combo.insertSeparator(self._crop_combo.count())
+            # Platform header (disabled)
+            self._crop_combo.addItem(f"\u2500\u2500 {platform.name} \u2500\u2500", None)
+            idx = self._crop_combo.count() - 1
+            self._crop_combo.model().item(idx).setEnabled(False)
             for slot in platform.slots:
                 ratio = f"{slot.width}x{slot.height}"
                 self._crop_combo.addItem(
-                    f"{platform.name} — {slot.label} ({ratio})",
+                    f"  {slot.label} ({ratio})",
                     (slot.width, slot.height))
         self._crop_combo.setVisible(False)
         info_bar.addWidget(self._crop_combo)
@@ -240,6 +360,7 @@ class ImagePreviewDialog(QDialog):
         self._crop_start: QPointF | None = None
         self._crop_rect_item: QGraphicsRectItem | None = None
         self._crop_mask_item: QGraphicsPathItem | None = None
+        self._crop_items: list[ResizableCropItem] = []
 
         self._on_top_btn = QPushButton("On Top")
         self._on_top_btn.setCheckable(True)
@@ -327,6 +448,7 @@ class ImagePreviewDialog(QDialog):
 
         # Load existing annotations from asset notes
         self._load_saved_notes()
+        self._load_existing_crops()
 
     def eventFilter(self, obj, event):
         # Parent window activated — raise preview above it (On Top mode)
@@ -463,6 +585,47 @@ class ImagePreviewDialog(QDialog):
         self._asset.crops = [c for c in self._asset.crops if c.label != label]
         self._asset.crops.append(crop)
 
+    def _replace_with_editable_crop(self, rect: QRectF, label: str):
+        """Replace temp crop rect with a persistent, editable one."""
+        # Remove temp visuals
+        if self._crop_rect_item and self._crop_rect_item.scene():
+            self.scene.removeItem(self._crop_rect_item)
+        self._crop_rect_item = None
+        # Create editable crop
+        crop_item = ResizableCropItem(rect, label=label)
+        crop_item.on_changed = self._on_crop_edited
+        self.scene.addItem(crop_item)
+        self._crop_items.append(crop_item)
+        self._update_crop_mask(rect)
+
+    def _load_existing_crops(self):
+        """Show existing crop regions as editable overlays."""
+        # Clear old crop items
+        for item in self._crop_items:
+            if item.scene():
+                self.scene.removeItem(item)
+        self._crop_items.clear()
+        if not self._asset or not self._asset.crops:
+            return
+        for crop in self._asset.crops:
+            rect = QRectF(crop.x, crop.y, crop.w, crop.h)
+            item = ResizableCropItem(rect, label=crop.label)
+            item.on_changed = self._on_crop_edited
+            self.scene.addItem(item)
+            self._crop_items.append(item)
+
+    def _on_crop_edited(self, item: ResizableCropItem):
+        """Sync a moved/resized crop back to the asset."""
+        if not self._asset:
+            return
+        region = item.get_crop_region()
+        # Replace existing crop with same label
+        self._asset.crops = [c for c in self._asset.crops if c.label != region.label]
+        self._asset.crops.append(region)
+        # Update mask to match edited crop
+        r = item.rect().translated(item.pos())
+        self._update_crop_mask(r)
+
     def _view_mouse_press(self, event):
         if self._cropping and event.button() == Qt.MouseButton.LeftButton:
             self._crop_start = self.view.mapToScene(event.position().toPoint())
@@ -500,7 +663,10 @@ class ImagePreviewDialog(QDialog):
             r = self._crop_rect_item.rect()
             if r.width() > 10 and r.height() > 10:
                 self._save_crop_to_asset(r)
-                # Keep the crop visual visible as confirmation
+                # Replace temp rect with editable crop item
+                data = self._crop_combo.currentData()
+                label = self._crop_combo.currentText().strip() if data else "free"
+                self._replace_with_editable_crop(r, label)
             else:
                 self._clear_crop_visuals()
             self._crop_start = None
@@ -532,7 +698,14 @@ class ImagePreviewDialog(QDialog):
 
     def _delete_selected_note(self):
         for item in self.scene.selectedItems():
-            if isinstance(item, NoteRectItem):
+            if isinstance(item, ResizableCropItem):
+                if item.scene():
+                    self.scene.removeItem(item)
+                if item in self._crop_items:
+                    self._crop_items.remove(item)
+                if self._asset:
+                    self._asset.crops = [c for c in self._asset.crops if c.label != item.label]
+            elif isinstance(item, NoteRectItem):
                 self.scene.removeItem(item)
                 if item in self._notes:
                     self._notes.remove(item)
@@ -582,6 +755,7 @@ class ImagePreviewDialog(QDialog):
         self._crop_rect_item = None
         self._crop_mask_item = None
         self._crop_start = None
+        self._crop_items = []
         pm, w, h = load_pixmap(asset.source_path)
         self.setWindowTitle(f"Preview — {Path(asset.source_path).name}")
         self.scene.clear()
@@ -595,6 +769,7 @@ class ImagePreviewDialog(QDialog):
             self.view.fitInView(self._pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
             self.view.centerOn(self._pixmap_item)
         self._load_saved_notes()
+        self._load_existing_crops()
 
     def _toggle_on_top(self, on: bool):
         """Stay above the DoxyEdit parent window but not other apps."""
