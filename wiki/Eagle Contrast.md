@@ -14,14 +14,14 @@ Not a competition comparison — a borrow list. What Eagle does well that DoxyEd
 | Feature | Eagle | DoxyEdit | Gap |
 |---------|-------|----------|-----|
 | Thumbnail grid (virtual scroll) | ✓ | ✓ | — |
-| Folder tree sidebar | ✓ full tree | ✗ sort mode only | **Borrow** |
-| Asset count badges on folders | ✓ | ✗ | **Borrow** |
-| Right info panel (selected asset) | ✓ | ✗ (tray ≠ info) | **Borrow** |
-| Color palette swatches per asset | ✓ extracted | partial (auto-tags only) | **Borrow** |
+| Folder tree sidebar | ✓ full tree | ✓ FileBrowserPanel (Ctrl+B) | ✓ Done v2.2 |
+| Asset count badges on folders | ✓ | ✓ FolderDelegate badges | ✓ Done v2.2 |
+| Right info panel (selected asset) | ✓ | ✓ InfoPanel (Ctrl+I) | ✓ Done v2.2 |
+| Color palette swatches per asset | ✓ extracted | ✓ compute_dominant_colors + InfoPanel | ✓ Done v2.2 |
 | Search by dominant color | ✓ | ✗ | Maybe later |
-| Smart folders (saved filter presets) | ✓ | ✗ | **Borrow** |
-| Zoom slider (visible, draggable) | ✓ | Ctrl+scroll only | **Polish** |
-| Thumbnail labels (hover-only option) | ✓ | always visible | **Polish** |
+| Smart folders (saved filter presets) | ✓ | ✓ View > Smart Folders | ✓ Done v2.2 |
+| Zoom slider (visible, draggable) | ✓ | ✓ QSlider in toolbar | ✓ Done v2.1 |
+| Thumbnail labels (hover-only option) | ✓ | ✓ View > Filenames | ✓ Done v2.0 |
 | Star ratings (1–5) | ✓ | ✓ (5 colors) | — |
 | Tags with color coding | ✓ | ✓ richer | DoxyEdit better |
 | Tag keyboard shortcuts | ✗ | ✓ | DoxyEdit better |
@@ -36,9 +36,9 @@ Not a competition comparison — a borrow list. What Eagle does well that DoxyEd
 | Drag files out to other apps | ✓ | ✓ (tray drag) | — |
 | Import from URL (paste) | ✓ | ✓ | — |
 | Drag & drop import | ✓ | ✓ | — |
-| Duplicate file detection | ✓ | ✓ basic | — |
+| Duplicate file detection | ✓ | ✓ MD5 + perceptual hash | ✓ Done v2.2 |
 | Trash / soft delete | ✓ | ✓ (ignore tag) | — |
-| Format filter (show only PSD etc.) | ✓ | ✗ | **Borrow** |
+| Format filter (show only PSD etc.) | ✓ | ✓ format dropdown | ✓ Done v2.0 |
 | Sort by color | ✓ | ✗ | Maybe later |
 | Multiple libraries open at once | ✓ tabs | ✓ multi-project tabs | — |
 | Cloud sync | ✓ Pro | ✗ intentionally local | Skip |
