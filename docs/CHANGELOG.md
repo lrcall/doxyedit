@@ -1,5 +1,44 @@
 # DoxyEdit Changelog
 
+## v2.2.0 — 2026-04-09
+
+### New Panels
+- File Browser (Ctrl+B): folder tree with asset counts, search, pinned folders, drag-to-import
+- Info Panel (Ctrl+I): asset metadata with editable tag pills, inline notes, color palette swatches
+- Kanban board: 4 status columns (Pending/Ready/Posted/Skip) embedded in Platforms tab
+
+### New Features
+- Smart Folders: save/load filter presets (View > Smart Folders)
+- Find Similar Images: perceptual hash grouping (Tools menu)
+- YAML config: custom platform definitions via config.yaml (Tools > Edit Project Config)
+- Preview pop-out button: float docked preview into full dialog
+- Resizable crop handles: 8 drag handles on crop regions, persistent overlays
+- Grouped crop presets: dropdown organized by platform with section headers
+- Color palette extraction: 5 dominant colors computed during thumbnail generation
+- What's New dialog in Help menu
+- Collection reload with missing-file warnings (File > Reload Collection)
+
+### Bug Fixes
+- Preview remembers position correctly across monitors (screen validation)
+- Tray drag-drop works from normal view (was only pre-selected items)
+- Collections warn on missing projects instead of silently dropping them
+- Folder filter paths normalized for Windows backslash compatibility
+- Folder view sections capped to viewport height with internal scroll
+
+### UI & Performance
+- Toolbar declutter: Recursive, Hover Preview, Cache All, Folder Scan moved to View/Tools menus
+- Folder view overlap fix: heightForWidth on FolderSection
+- Theme migration: all new panels use centralized generate_stylesheet()
+- Nuitka build: 11 new exclusions for smaller output
+- Tray: O(1) asset lookup with id-to-row index mapping
+- Pre-computed recursive folder counts in file browser (O(1) paint)
+- Removed hardcoded QFont calls — inherits from theme stylesheet
+
+### Infrastructure
+- Focus stopwatch mode for plan tracking (count-up timer + claudelog)
+- DOXYEDIT_UI_SPEC.md design system documentation
+- UI Rules section added to CLAUDE.md
+
 ## v1.9.0 — 2026-04-06
 
 ### Preview Window (Major Overhaul)
