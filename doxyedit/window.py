@@ -638,6 +638,8 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(generate_stylesheet(self._theme))
         self._settings.setValue("theme", theme_id)
         self._tint_titlebar(proj_accent)
+        if hasattr(self, '_file_browser'):
+            self._file_browser.apply_theme(self._theme)
 
     def _tint_titlebar(self, hex_color: str = ""):
         """Apply accent color to Windows 11 title bar via DwmSetWindowAttribute."""

@@ -61,11 +61,21 @@ class FolderDelegate(QStyledItemDelegate):
 
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
-        badge_bg = QColor(255, 255, 255, 40) if is_active else QColor(255, 255, 255, 25)
+        panel = self._panel
+        if panel._theme:
+            if is_active:
+                badge_bg = QColor(panel._theme.accent)
+                badge_bg.setAlpha(80)
+            else:
+                badge_bg = QColor(255, 255, 255, 25)
+            text_color = QColor(panel._theme.text_primary)
+        else:
+            badge_bg = QColor(255, 255, 255, 40) if is_active else QColor(255, 255, 255, 25)
+            text_color = QColor(200, 200, 200)
         painter.setBrush(badge_bg)
         painter.drawRoundedRect(badge_rect, th // 2, th // 2)
 
-        painter.setPen(QColor(200, 200, 200))
+        painter.setPen(text_color)
         painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, text)
         painter.restore()
 
@@ -90,6 +100,7 @@ class FileBrowserPanel(QWidget):
         self._settings = QSettings("DoxyEdit", "DoxyEdit")
         self._load_pinned()
         self._active_folder: str | None = None  # currently filtering on this folder
+        self._theme = None
         self._build()
 
     def _load_pinned(self):
@@ -263,3 +274,45 @@ class FileBrowserPanel(QWidget):
             if path.startswith(prefix):
                 count += c
         return count
+
+    def apply_theme(self, theme):
+        """Apply theme colors to the file browser panel."""
+        self._theme = theme
+        f = theme.font_size
+        self.setStyleSheet(f"""
+            #file_browser_panel {{
+                background: {theme.bg_main};
+                color: {theme.text_primary};
+                font-family: {theme.font_family};
+                font-size: {f}px;
+            }}
+            QTreeView {{
+                background: {theme.bg_deep};
+                color: {theme.text_primary};
+                border: none;
+                font-size: {f}px;
+            }}
+            QTreeView::item {{
+                padding: 2px 0;
+            }}
+            QTreeView::item:selected {{
+                background: {theme.selection_bg};
+            }}
+            QTreeView::item:hover {{
+                background: {theme.bg_hover};
+            }}
+            QPushButton {{
+                background: {theme.bg_raised};
+                color: {theme.text_primary};
+                border: 1px solid {theme.border};
+                padding: 2px 8px;
+                font-size: {f - 1}px;
+            }}
+            QPushButton:hover {{
+                background: {theme.bg_hover};
+            }}
+            QLabel {{
+                color: {theme.text_primary};
+            }}
+        """)
+        self._tree.viewport().update()
