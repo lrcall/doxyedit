@@ -37,17 +37,12 @@ class KanbanCard(QFrame):
 
         name_lbl = QLabel(asset_name)
         name_lbl.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        name_lbl.setStyleSheet("color: rgba(220,220,220,0.9);")
         layout.addWidget(name_lbl)
 
         detail_lbl = QLabel(f"{platform} / {slot}")
-        detail_lbl.setStyleSheet("color: rgba(180,180,180,0.7); font-size: 10px;")
         layout.addWidget(detail_lbl)
 
-        self.setStyleSheet(
-            "KanbanCard { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);"
-            " border-radius: 4px; }"
-            "KanbanCard:hover { background: rgba(255,255,255,0.1); }")
+        self.setStyleSheet("")  # Themed by parent's apply_theme
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -100,10 +95,8 @@ class KanbanColumn(QWidget):
         header.addWidget(dot)
         self._title = QLabel(f"{label}")
         self._title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        self._title.setStyleSheet("color: rgba(220,220,220,0.9);")
         header.addWidget(self._title)
         self._count = QLabel("0")
-        self._count.setStyleSheet("color: rgba(180,180,180,0.5); font-size: 10px;")
         header.addWidget(self._count)
         header.addStretch()
         layout.addLayout(header)
@@ -121,8 +114,7 @@ class KanbanColumn(QWidget):
         scroll.setWidget(self._card_widget)
         layout.addWidget(scroll, 1)
 
-        self.setStyleSheet(
-            "KanbanColumn { background: rgba(255,255,255,0.03); border-radius: 6px; }")
+        self.setStyleSheet("")  # Themed by parent's apply_theme
 
     def add_card(self, card: KanbanCard):
         # Insert before the stretch
@@ -173,12 +165,10 @@ class KanbanPanel(QWidget):
         # Title
         title = QLabel("Posting Schedule")
         title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        title.setStyleSheet("color: rgba(220,220,220,0.9);")
         layout.addWidget(title)
 
         # Summary
         self._summary = QLabel()
-        self._summary.setStyleSheet("color: rgba(180,180,180,0.6); font-size: 11px;")
         layout.addWidget(self._summary)
 
         # Columns
@@ -236,10 +226,27 @@ class KanbanPanel(QWidget):
 
     def apply_theme(self, theme):
         self._theme = theme
+        f = theme.font_size
         self.setStyleSheet(f"""
-            QLabel {{ color: {theme.text_primary}; }}
-            KanbanColumn {{ background: rgba(255,255,255,0.03); border-radius: 6px; }}
-            KanbanCard {{ background: rgba(255,255,255,0.06);
-                border: 1px solid {theme.border}; border-radius: 4px; }}
-            KanbanCard:hover {{ background: rgba(255,255,255,0.1); }}
+            KanbanPanel QLabel {{
+                color: {theme.text_primary};
+                font-size: {f}px;
+            }}
+            KanbanColumn {{
+                background: {theme.bg_deep};
+                border-radius: 6px;
+            }}
+            KanbanCard {{
+                background: {theme.bg_raised};
+                border: 1px solid {theme.border};
+                border-radius: 4px;
+            }}
+            KanbanCard:hover {{
+                background: {theme.bg_hover};
+            }}
         """)
+        # Update summary with secondary color
+        self._summary.setStyleSheet(f"color: {theme.text_secondary}; font-size: {f - 1}px;")
+        # Update column count labels
+        for col in self._columns.values():
+            col._count.setStyleSheet(f"color: {theme.text_muted}; font-size: {f - 2}px;")

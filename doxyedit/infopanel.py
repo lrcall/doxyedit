@@ -25,10 +25,7 @@ class _TagPill(QPushButton):
             label += " \u00d7"
             self.clicked.connect(lambda: self.removed.emit(self.tag_id))
         self.setText(label)
-        self.setStyleSheet(
-            "QPushButton { background: rgba(255,255,255,0.1); color: rgba(200,200,200,0.9);"
-            " border: none; border-radius: 3px; padding: 1px 6px; font-size: 11px; }"
-            "QPushButton:hover { background: rgba(255,255,255,0.2); }")
+        self.setStyleSheet("")  # Themed by InfoPanel.apply_theme
 
 
 class InfoPanel(QWidget):
@@ -107,10 +104,6 @@ class InfoPanel(QWidget):
         # "+" add tag button
         self._add_tag_btn = QPushButton("+")
         self._add_tag_btn.setFixedSize(22, 22)
-        self._add_tag_btn.setStyleSheet(
-            "QPushButton { background: rgba(255,255,255,0.08); color: rgba(200,200,200,0.7);"
-            " border: 1px solid rgba(255,255,255,0.15); border-radius: 3px; font-size: 14px; }"
-            "QPushButton:hover { background: rgba(255,255,255,0.15); }")
         self._add_tag_btn.setToolTip("Add tag")
         self._add_tag_btn.clicked.connect(self._start_add_tag)
         # Tag add inline editor (hidden by default)
@@ -118,9 +111,6 @@ class InfoPanel(QWidget):
         self._tag_add_edit.setFixedHeight(22)
         self._tag_add_edit.setMaximumWidth(120)
         self._tag_add_edit.setPlaceholderText("tag name...")
-        self._tag_add_edit.setStyleSheet(
-            "QLineEdit { background: rgba(255,255,255,0.1); color: rgba(200,200,200,0.9);"
-            " border: 1px solid rgba(255,255,255,0.2); border-radius: 3px; padding: 1px 4px; font-size: 11px; }")
         self._tag_add_edit.returnPressed.connect(self._finish_add_tag)
         self._tag_add_edit.hide()
         self._available_tags: list[str] = []
@@ -152,9 +142,6 @@ class InfoPanel(QWidget):
         self._notes_edit.setMinimumHeight(40)
         self._notes_edit.setMaximumHeight(120)
         self._notes_edit.setPlaceholderText("Add notes...")
-        self._notes_edit.setStyleSheet(
-            "QTextEdit { background: rgba(255,255,255,0.05); color: rgba(200,200,200,0.9);"
-            " border: 1px solid rgba(255,255,255,0.1); border-radius: 3px; padding: 4px; font-size: 11px; }")
         self._notes_edit.textChanged.connect(self._on_notes_changed)
         self._layout.addWidget(self._notes_edit)
 
@@ -391,19 +378,44 @@ class InfoPanel(QWidget):
                 background: {theme.bg_main};
                 border: none;
             }}
-            _TagPill {{
+            QPushButton {{
+                background: {theme.bg_raised};
+                color: {theme.text_primary};
+                border: none;
+                border-radius: 3px;
+                padding: 1px 6px;
+                font-size: {f - 1}px;
+            }}
+            QPushButton:hover {{
+                background: {theme.bg_hover};
+            }}
+            QLineEdit {{
+                background: {theme.bg_input};
+                color: {theme.text_primary};
+                border: 1px solid {theme.border};
+                border-radius: 3px;
+                padding: 1px 4px;
                 font-size: {f - 1}px;
             }}
             QTextEdit {{
                 background: {theme.bg_input};
                 color: {theme.text_primary};
                 border: 1px solid {theme.border};
+                border-radius: 3px;
+                padding: 4px;
                 font-size: {f}px;
             }}
-            QLineEdit {{
+        """)
+        # Update add tag button specifically (needs border + secondary color)
+        self._add_tag_btn.setStyleSheet(f"""
+            QPushButton {{
                 background: {theme.bg_input};
-                color: {theme.text_primary};
-                border: 1px solid {theme.border};
-                font-size: {f - 1}px;
+                color: {theme.text_secondary};
+                border: 1px solid {theme.border_light};
+                border-radius: 3px;
+                font-size: 14px;
+            }}
+            QPushButton:hover {{
+                background: {theme.bg_hover};
             }}
         """)
