@@ -339,13 +339,14 @@ class Project:
     hidden_tags: list[str] = field(default_factory=list)  # tags hidden from side panel
     eye_hidden_tags: list[str] = field(default_factory=list)  # tags with eye off (filter from grid)
     sort_mode: str = "Name A-Z"
-    tray_items: list[str] = field(default_factory=list)  # asset IDs in work tray
+    tray_items: list | dict = field(default_factory=list)  # list[str] or dict[str, list[str]] for named trays
     notes: str = ""
     accent_color: str = ""  # project-level accent override (hex, e.g. "#7ca1c0")
     checklist: list[str] = field(default_factory=list)  # posting checklist items (prefix "[ ] " or "[x] ")
     excluded_paths: set[str] = field(default_factory=set)  # paths permanently excluded (moved/deleted)
     import_sources: list[dict] = field(default_factory=list)  # [{type, path, recursive, added_at}]
     folder_presets: list[dict] = field(default_factory=list)  # [{id, name, folders: [str]}]
+    filter_presets: list[dict] = field(default_factory=list)  # [{name, icon, state: {filter dict}}]
     local_mode: bool = False  # store paths relative to project file (for repo/multi-PC use)
 
     def get_tags(self) -> dict[str, TagPreset]:
@@ -426,6 +427,7 @@ class Project:
                 {**src, "path": self._to_rel(src["path"], base) if self.local_mode else src["path"]}
                 for src in self.import_sources],
             "folder_presets": self.folder_presets,
+            "filter_presets": self.filter_presets,
             "assets": [_asset_dict(a) for a in self.assets],
         }
         Path(path).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
@@ -457,6 +459,7 @@ class Project:
                 {**src, "path": cls._to_abs(src["path"], base) if local else src["path"]}
                 for src in raw.get("import_sources", [])],
             folder_presets=raw.get("folder_presets", []),
+            filter_presets=raw.get("filter_presets", []),
         )
         aliases = proj.tag_aliases
         for a in raw.get("assets", []):
