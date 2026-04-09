@@ -209,6 +209,9 @@ class KanbanPanel(QWidget):
             f"{counts.get('ready', 0)} ready, "
             f"{counts.get('posted', 0)} posted, "
             f"{counts.get('skip', 0)} skip")
+        # Re-apply theme to newly created cards
+        if self._theme:
+            self.apply_theme(self._theme)
 
     def _on_card_dropped(self, asset_id: str, platform: str, slot: str, new_status: str):
         """Update assignment status when card is dropped on a new column."""
@@ -227,26 +230,23 @@ class KanbanPanel(QWidget):
     def apply_theme(self, theme):
         self._theme = theme
         f = theme.font_size
+        # Panel-level styles
         self.setStyleSheet(f"""
-            KanbanPanel QLabel {{
-                color: {theme.text_primary};
-                font-size: {f}px;
-            }}
-            KanbanColumn {{
-                background: {theme.bg_deep};
-                border-radius: 6px;
-            }}
-            KanbanCard {{
-                background: {theme.bg_raised};
-                border: 1px solid {theme.border};
-                border-radius: 4px;
-            }}
-            KanbanCard:hover {{
-                background: {theme.bg_hover};
-            }}
+            QLabel {{ color: {theme.text_primary}; font-size: {f}px; }}
         """)
-        # Update summary with secondary color
         self._summary.setStyleSheet(f"color: {theme.text_secondary}; font-size: {f - 1}px;")
-        # Update column count labels
+        # Style each column directly
+        col_style = (f"background: {theme.bg_deep}; border-radius: 6px;")
+        card_style = (
+            f"background: {theme.bg_raised}; border: 1px solid {theme.border};"
+            f" border-radius: 4px; color: {theme.text_primary};")
         for col in self._columns.values():
-            col._count.setStyleSheet(f"color: {theme.text_muted}; font-size: {f - 2}px;")
+            col.setStyleSheet(col_style)
+            col._title.setStyleSheet(f"color: {theme.text_primary}; font-size: {f}px; background: transparent;")
+            col._count.setStyleSheet(f"color: {theme.text_muted}; font-size: {f - 2}px; background: transparent;")
+            # Style each card in this column
+            for i in range(col._card_layout.count()):
+                item = col._card_layout.itemAt(i)
+                w = item.widget() if item else None
+                if isinstance(w, KanbanCard):
+                    w.setStyleSheet(card_style)
