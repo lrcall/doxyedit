@@ -748,7 +748,14 @@ class AssetBrowser(QWidget):
         # Track all plain toolbar buttons so update_font_size can refresh them
         self._toolbar_plain_btns: list[QPushButton] = []
 
-        # Tags + Tray toggles — first items
+        # Panel toggles — Files (left panel), Tags (left panel), Tray (right panel)
+        self._files_btn = QPushButton("Files")
+        self._files_btn.setCheckable(True)
+        self._files_btn.setStyleSheet(self._btn_style())
+        self._files_btn.setToolTip("Toggle File Browser (Ctrl+B)")
+        self._files_btn.clicked.connect(lambda checked: self.files_toggled.emit(checked))
+        toolbar.addWidget(self._files_btn)
+        self._toolbar_plain_btns.append(self._files_btn)
         self._tags_btn = QPushButton("Tags")
         self._tags_btn.setCheckable(True)
         self._tags_btn.setChecked(True)
@@ -760,13 +767,6 @@ class AssetBrowser(QWidget):
         self._tray_btn.setStyleSheet(self._btn_style())
         toolbar.addWidget(self._tray_btn)
         self._toolbar_plain_btns.append(self._tray_btn)
-        self._files_btn = QPushButton("Files")
-        self._files_btn.setCheckable(True)
-        self._files_btn.setStyleSheet(self._btn_style())
-        self._files_btn.setToolTip("Toggle File Browser (Ctrl+B)")
-        self._files_btn.clicked.connect(lambda checked: self.files_toggled.emit(checked))
-        toolbar.addWidget(self._files_btn)
-        self._toolbar_plain_btns.append(self._files_btn)
 
         for label, handler in [("+ Folder", self.open_folder_dialog), ("+ Files", self.add_images_dialog)]:
             btn = QPushButton(label)
