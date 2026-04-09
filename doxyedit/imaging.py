@@ -7,19 +7,23 @@ PSD_EXTS = {".psd", ".psb"}
 SHELL_THUMB_EXTS = {".sai", ".sai2", ".clip", ".csp", ".kra", ".xcf", ".ora"}
 
 
-def pil_to_qpixmap(img: PILImage.Image) -> QPixmap:
-    """Convert a PIL Image to a QPixmap."""
+def pil_to_qimage(img: PILImage.Image) -> QImage:
+    """Convert a PIL Image to a QImage (thread-safe — no QPixmap involved)."""
     if img.mode == "RGB":
         data = img.tobytes("raw", "RGB")
-        qimg = QImage(data, img.width, img.height, img.width * 3,
+        return QImage(data, img.width, img.height, img.width * 3,
                       QImage.Format.Format_RGB888).copy()
     else:
         if img.mode != "RGBA":
             img = img.convert("RGBA")
         data = img.tobytes("raw", "RGBA")
-        qimg = QImage(data, img.width, img.height, img.width * 4,
+        return QImage(data, img.width, img.height, img.width * 4,
                       QImage.Format.Format_RGBA8888).copy()
-    return QPixmap.fromImage(qimg)
+
+
+def pil_to_qpixmap(img: PILImage.Image) -> QPixmap:
+    """Convert a PIL Image to a QPixmap. Must be called from the GUI thread."""
+    return QPixmap.fromImage(pil_to_qimage(img))
 
 
 def load_psd(path: str) -> tuple[PILImage.Image, int, int]:
@@ -50,7 +54,7 @@ def load_pixmap(path: str) -> tuple[QPixmap, int, int]:
             return QPixmap(), 0, 0
 
     if ext in SHELL_THUMB_EXTS:
-        shell_img = _get_shell_thumbnail(path, 512)
+        shell_img = get_shell_thumbnail(path, 512)
         if shell_img:
             return pil_to_qpixmap(shell_img), shell_img.width, shell_img.height
         return QPixmap(), 0, 0
@@ -59,7 +63,7 @@ def load_pixmap(path: str) -> tuple[QPixmap, int, int]:
     return pm, pm.width(), pm.height()
 
 
-def _get_shell_thumbnail(path: str, size: int = 256) -> PILImage.Image | None:
+def get_shell_thumbnail(path: str, size: int = 256) -> PILImage.Image | None:
     """Extract thumbnail via Windows Shell (works with SaiThumbs, etc.).
     Uses pure ctypes — no win32gui/win32ui required."""
     try:
@@ -163,20 +167,27 @@ def _make_placeholder(path: str) -> tuple[PILImage.Image, int, int]:
 
 
 def open_for_thumb(path: str, target_size: int = 160) -> tuple[PILImage.Image, int, int]:
-    """Open image for thumbnailing. Uses PSD embedded thumb if large enough."""
+    """Open image for thumbnailing. Prefers Windows Shell API for PSD/SAI
+    (instant) over psd_tools composite (slow)."""
     ext = Path(path).suffix.lower()
+
+    # PSD/PSB: use Shell thumbnail first (instant), fall back to embedded thumb
     if ext in PSD_EXTS:
+        shell_img = get_shell_thumbnail(path, max(target_size, 256))
+        if shell_img:
+            return shell_img, shell_img.width, shell_img.height
+        # Shell failed — try psd_tools embedded thumbnail
         try:
-            result = load_psd_thumb(path, min_size=target_size)
+            result = load_psd_thumb(path, min_size=0)
             if result:
                 return result
-            return load_psd(path)
         except Exception:
             pass
+        return _make_placeholder(path)
 
-    # For SAI, CLIP, KRA etc — try Windows shell thumbnail (SaiThumbs etc.)
+    # SAI, CLIP, KRA etc — Windows shell thumbnail
     if ext in SHELL_THUMB_EXTS:
-        shell_img = _get_shell_thumbnail(path, target_size)
+        shell_img = get_shell_thumbnail(path, target_size)
         if shell_img:
             return shell_img, shell_img.width, shell_img.height
         return _make_placeholder(path)

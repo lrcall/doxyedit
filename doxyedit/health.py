@@ -31,6 +31,48 @@ ISSUE_DEFS = [
 ]
 
 
+def _detect_path_mode_issues(project) -> str | None:
+    """Detect local_mode vs absolute path mismatches that cause mass missing files.
+    Returns a warning message or None."""
+    if not project.assets:
+        return None
+    total = len(project.assets)
+    missing = sum(1 for a in project.assets if not Path(a.source_path).exists())
+    if missing < total * 0.5:
+        return None  # less than half missing — probably individual file issues
+
+    # Check for relative paths in a non-local project
+    relative_count = sum(1 for a in project.assets if not Path(a.source_path).is_absolute())
+    if not project.local_mode and relative_count > total * 0.5:
+        return (f"⚠ {relative_count}/{total} assets have relative paths but Local Mode is OFF.\n"
+                "The project may have been saved with Local Mode on a different machine.\n"
+                "Try: File → Local Mode (toggle ON), then save and reopen.")
+
+    # Check if all absolute paths share a root that doesn't exist on this machine
+    if project.local_mode and missing > total * 0.8:
+        return (f"⚠ {missing}/{total} assets are missing with Local Mode ON.\n"
+                "The project file may have been moved since paths were saved.\n"
+                "Paths are resolved relative to the project file location.")
+
+    # General mass-missing: paths might be from a different machine
+    if missing > total * 0.8:
+        # Check if paths share a common root that doesn't exist
+        sample = [a.source_path for a in project.assets[:20]]
+        roots = set()
+        for p in sample:
+            parts = Path(p).parts
+            if len(parts) >= 2:
+                roots.add(parts[0] + parts[1] if len(parts[0]) <= 3 else parts[0])
+        existing_roots = sum(1 for r in roots if Path(r).exists())
+        if existing_roots == 0 and roots:
+            root_str = ", ".join(sorted(roots)[:3])
+            return (f"⚠ {missing}/{total} assets are missing.\n"
+                    f"Paths point to: {root_str} — which don't exist on this machine.\n"
+                    "This project may have been created on a different computer.")
+
+    return None
+
+
 class HealthPanel(QWidget):
     asset_selected = Signal(str)    # navigate browser to this asset_id
     missing_removed = Signal(int)   # emitted with count after removal
@@ -57,6 +99,13 @@ class HealthPanel(QWidget):
         self._summary_lbl.setProperty("role", "muted")
         tb_layout.addWidget(self._summary_lbl)
         tb_layout.addStretch()
+
+        self._auto_locate_btn = QPushButton("Auto-Locate All")
+        self._auto_locate_btn.setStyleSheet("QPushButton { padding: 4px 16px; }")
+        self._auto_locate_btn.setToolTip("Auto-update paths for all missing files with exactly one candidate match")
+        self._auto_locate_btn.setEnabled(False)
+        self._auto_locate_btn.clicked.connect(self._auto_locate_all)
+        tb_layout.addWidget(self._auto_locate_btn)
 
         self._remove_missing_btn = QPushButton("Remove Missing")
         self._remove_missing_btn.setStyleSheet("QPushButton { padding: 4px 16px; }")
@@ -108,7 +157,20 @@ class HealthPanel(QWidget):
                     pass
 
         self._missing_assets = buckets.get("missing", [])
-        self._remove_missing_btn.setEnabled(bool(self._missing_assets))
+        has_missing = bool(self._missing_assets)
+        self._remove_missing_btn.setEnabled(has_missing)
+        self._auto_locate_btn.setEnabled(has_missing)
+
+        # Detect local_mode / path mismatch before showing individual results
+        path_warning = _detect_path_mode_issues(self.project)
+        if path_warning:
+            warn_lbl = QLabel(path_warning)
+            warn_lbl.setWordWrap(True)
+            warn_lbl.setStyleSheet(
+                "background: rgba(255,165,0,0.15); color: #ffa500; padding: 12px;"
+                " border: 1px solid rgba(255,165,0,0.3); border-radius: 6px;")
+            warn_lbl.setFont(QFont("Segoe UI", 10))
+            self._results_layout.addWidget(warn_lbl)
 
         total_issues = sum(len(v) for v in buckets.values())
         if total_issues == 0:
@@ -220,9 +282,17 @@ class HealthPanel(QWidget):
 
         if candidates:
             best = candidates[0]
-            hint_text = f"→ {best.name}" + (" (size match)" if len(candidates) == 1 else f"  +{len(candidates)-1} more")
+            # Show relative path from common ancestor if folder moved, otherwise just name
+            try:
+                rel = best.relative_to(Path(asset.source_path).parent.parent)
+                hint_text = f"→ {rel}"
+            except ValueError:
+                hint_text = f"→ {best.name}"
+            if len(candidates) > 1:
+                hint_text += f"  (+{len(candidates)-1} more)"
             hint_lbl = QLabel(hint_text)
             hint_lbl.setStyleSheet("color: #7ca1c0; font-style: italic;")
+            hint_lbl.setToolTip(str(best))
             h.addWidget(hint_lbl)
 
             accept_btn = QPushButton("Update Path")
@@ -241,40 +311,71 @@ class HealthPanel(QWidget):
         return outer
 
     def _find_rename_candidates(self, asset) -> list[Path]:
-        """Look in source_folder for files with the same extension not already in the project.
-        Returns candidates sorted by confidence (size match first)."""
-        folder = Path(asset.source_path).parent
-        if not folder.exists():
-            return []
+        """Search for a renamed or moved file.
 
-        ext = Path(asset.source_path).suffix.lower()
+        Strategy (in order of confidence):
+        1. Exact same filename anywhere under the original folder's parent tree (folder move)
+        2. Same extension + same file size in original folder or parent folder tree (rename)
+        Returns candidates sorted: exact name match first, then size match, then alpha.
+        Limits search to 3 levels up from original folder to avoid scanning the whole drive.
+        """
+        src = Path(asset.source_path)
+        ext = src.suffix.lower()
+        stem = src.stem.lower()
         known_paths = {a.source_path for a in self.project.assets}
 
-        try:
-            old_size = Path(asset.source_path).stat().st_size if Path(asset.source_path).exists() else None
-        except Exception:
-            old_size = None
+        # Try to get original file size from disk (may exist in a different location)
+        old_size = None
 
-        candidates = []
-        try:
-            for f in folder.iterdir():
-                if f.is_file() and f.suffix.lower() == ext and str(f) not in known_paths:
-                    candidates.append(f)
-        except Exception:
+        # Walk up at most 3 levels from the missing file's folder
+        search_roots = []
+        p = src.parent
+        for _ in range(4):
+            if p.exists():
+                search_roots.append(p)
+                break
+            p = p.parent
+            if len(p.parts) <= 1:
+                break
+        if not search_roots:
+            # Even the drive root might work — try parent of parent
+            if src.parent.parent.exists():
+                search_roots.append(src.parent.parent)
+
+        candidates: dict[str, Path] = {}  # str path → Path, dedup
+
+        def _scan(root: Path, max_depth: int = 3):
+            try:
+                for f in root.iterdir():
+                    if f.is_file():
+                        if f.suffix.lower() == ext and str(f) not in known_paths:
+                            candidates[str(f)] = f
+                    elif f.is_dir() and max_depth > 0:
+                        _scan(f, max_depth - 1)
+            except PermissionError:
+                pass
+
+        for root in search_roots:
+            _scan(root)
+
+        if not candidates:
             return []
 
-        # Sort: size matches first, then alphabetical
-        if old_size is not None:
-            def _key(p):
-                try:
-                    return (0 if p.stat().st_size == old_size else 1, p.name.lower())
-                except Exception:
-                    return (1, p.name.lower())
-            candidates.sort(key=_key)
-        else:
-            candidates.sort(key=lambda p: p.name.lower())
+        found = list(candidates.values())
 
-        return candidates
+        # Score each candidate
+        def _score(p: Path):
+            name_match = p.stem.lower() == stem          # exact stem match
+            try:
+                sz = p.stat().st_size
+                size_match = (old_size is not None and sz == old_size)
+            except Exception:
+                size_match = False
+            # Lower score = better
+            return (0 if name_match else 1, 0 if size_match else 1, p.name.lower())
+
+        found.sort(key=_score)
+        return found[:10]  # cap at 10 candidates
 
     def _apply_rename(self, asset, candidates: list[Path]):
         """Apply the rename — if multiple candidates, let user pick."""
@@ -311,6 +412,34 @@ class HealthPanel(QWidget):
         self.project.invalidate_index()
         self.run_scan()
 
+    def _auto_locate_all(self):
+        """For each missing asset with exactly one candidate, update its path automatically."""
+        missing = list(self._missing_assets)
+        if not missing:
+            return
+        updated = 0
+        ambiguous = 0
+        not_found = 0
+        for asset in missing:
+            candidates = self._find_rename_candidates(asset)
+            if len(candidates) == 1:
+                asset.source_path = str(candidates[0])
+                asset.source_folder = str(candidates[0].parent)
+                updated += 1
+            elif len(candidates) > 1:
+                ambiguous += 1
+            else:
+                not_found += 1
+        if updated:
+            self.project.invalidate_index()
+        parts = [f"{updated} updated"]
+        if ambiguous:
+            parts.append(f"{ambiguous} ambiguous (use Update Path per row)")
+        if not_found:
+            parts.append(f"{not_found} not found (use Locate…)")
+        self._summary_lbl.setText("  ·  ".join(parts))
+        self.run_scan()
+
     def _confirm_remove_missing(self):
         missing = getattr(self, '_missing_assets', [])
         if not missing:
@@ -337,6 +466,7 @@ class HealthPanel(QWidget):
         """Called on project switch — clear stale results."""
         self._missing_assets = []
         self._remove_missing_btn.setEnabled(False)
+        self._auto_locate_btn.setEnabled(False)
         while self._results_layout.count():
             item = self._results_layout.takeAt(0)
             if item.widget():

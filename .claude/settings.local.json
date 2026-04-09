@@ -34,7 +34,28 @@
       "Skill(commit-commands:commit)",
       "Bash(sed -i 's/## v1\\\\.6\\\\.0/## v1.9.0/' CHANGELOG.md)",
       "Bash(sed -i 's/\\\\*\\\\*Version 1\\\\.6\\\\*\\\\*/\\\\*\\\\*Version 1.9\\\\*\\\\*/' DOCS.md)",
-      "Bash(wc -l /e/git/doxyedit/doxyedit/*.py)"
+      "Bash(wc -l /e/git/doxyedit/doxyedit/*.py)",
+      "Bash(xargs -I {} basename {})",
+      "WebFetch(domain:forum.qt.io)",
+      "WebFetch(domain:social.msdn.microsoft.com)",
+      "WebFetch(domain:doc.qt.io)",
+      "WebFetch(domain:copyprogramming.com)",
+      "WebFetch(domain:microsoft.public.platformsdk.shell.narkive.com)",
+      "Bash(kill %1)",
+      "Bash(py run.py)",
+      "Bash(py --version)",
+      "Bash(bash:*)",
+      "Bash(awk '/Left move.*initiate drag/,/event\\\\.Type\\\\.MouseButtonRelease/{print NR\": \"$0}' doxyedit/browser.py)",
+      "Bash(awk '/def eventFilter/,/^    def [a-zA-Z]/{if\\(/return True/ || /return False/\\) print NR\": \"$0}' doxyedit/browser.py)",
+      "Bash(xargs cat:*)",
+      "Bash(cd E:\\\\\\\\git\\\\\\\\doxyedit)",
+      "Bash(wc -l /E/git/doxyedit/doxyedit/*.py)",
+      "Bash(sed -i 's/QFont\\(\"Segoe UI\", 10, QFont.Weight.Bold\\)/QFont\\(\"\", -1, QFont.Weight.Bold\\)/g' doxyedit/infopanel.py)",
+      "Bash(sed -i 's/QFont\\(\"Segoe UI\", 9, QFont.Weight.Bold\\)/QFont\\(\"\", -1, QFont.Weight.Bold\\)/g' doxyedit/infopanel.py)"
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/focus_status.sh '/e/git/doxyedit'"
   }
 }

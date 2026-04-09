@@ -1,8 +1,9 @@
-"""Platform assignment panel — two-column card layout."""
+"""Platform assignment panel — two-column card layout + visual dashboard."""
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame, QSizePolicy, QSplitter,
+    QScrollArea, QFrame, QSizePolicy, QSplitter, QStackedWidget,
+    QProgressBar, QGridLayout,
 )
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QFont, QPixmap
@@ -35,23 +36,43 @@ class PlatformPanel(QWidget):
         super().__init__(parent)
         self.setObjectName("platform_panel")
         self.project = project
+        self._thumb_cache = None
         self._build()
+
+    def set_thumb_cache(self, cache):
+        """Accept ThumbCache reference for dashboard thumbnails."""
+        self._thumb_cache = cache
 
     def _build(self):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(12, 8, 12, 8)
         outer.setSpacing(6)
 
+        # Top bar: summary + view toggle
+        top_bar = QHBoxLayout()
         self.summary_label = QLabel()
         self.summary_label.setProperty("role", "muted")
         self.summary_label.setStyleSheet("padding: 2px 0;")
-        outer.addWidget(self.summary_label)
+        top_bar.addWidget(self.summary_label, 1)
+        self._view_toggle = QPushButton("Dashboard")
+        self._view_toggle.setFixedWidth(80)
+        self._view_toggle.setCheckable(True)
+        self._view_toggle.setToolTip("Toggle between card and dashboard views")
+        self._view_toggle.toggled.connect(self._on_view_toggled)
+        top_bar.addWidget(self._view_toggle)
+        outer.addLayout(top_bar)
 
-        # Vertical splitter: card columns (top) + image hive (bottom)
+        self._stack = QStackedWidget()
+        outer.addWidget(self._stack, 1)
+
+        # ── Page 0: Cards view (existing) ─────────────────────────────────
+        cards_page = QWidget()
+        cards_layout = QVBoxLayout(cards_page)
+        cards_layout.setContentsMargins(0, 0, 0, 0)
+
         self._vsplit = QSplitter(Qt.Orientation.Vertical)
-        outer.addWidget(self._vsplit, 1)
+        cards_layout.addWidget(self._vsplit)
 
-        # ── Card columns ──────────────────────────────────────────────────
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -72,7 +93,7 @@ class PlatformPanel(QWidget):
 
         self._vsplit.addWidget(scroll)
 
-        # ── Image hive ────────────────────────────────────────────────────
+        # Image hive
         hive_container = QWidget()
         hive_container.setObjectName("hive_container")
         hive_v = QVBoxLayout(hive_container)
@@ -102,7 +123,27 @@ class PlatformPanel(QWidget):
         self._vsplit.setStretchFactor(0, 1)
         self._vsplit.setStretchFactor(1, 0)
 
+        self._stack.addWidget(cards_page)
+
+        # ── Page 1: Dashboard view ──────────────────────────��─────────────
+        self._dash_scroll = QScrollArea()
+        self._dash_scroll.setWidgetResizable(True)
+        self._dash_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._dash_widget = QWidget()
+        self._dash_layout = QVBoxLayout(self._dash_widget)
+        self._dash_layout.setContentsMargins(4, 4, 4, 4)
+        self._dash_layout.setSpacing(12)
+        self._dash_layout.addStretch()
+        self._dash_scroll.setWidget(self._dash_widget)
+        self._stack.addWidget(self._dash_scroll)
+
         self.refresh()
+
+    def _on_view_toggled(self, checked: bool):
+        self._stack.setCurrentIndex(1 if checked else 0)
+        self._view_toggle.setText("Cards" if checked else "Dashboard")
+        if checked:
+            self._rebuild_dashboard()
 
     def refresh(self):
         # Clear both columns
@@ -113,10 +154,11 @@ class PlatformPanel(QWidget):
                     item.widget().deleteLater()
 
         # Build lookup: (platform_id, slot_name) → list of (asset, PlatformAssignment)
-        assign_map: dict[tuple, list] = {}
+        self._assign_map: dict[tuple, list] = {}
         for asset in self.project.assets:
             for pa in asset.assignments:
-                assign_map.setdefault((pa.platform, pa.slot), []).append((asset, pa))
+                self._assign_map.setdefault((pa.platform, pa.slot), []).append((asset, pa))
+        assign_map = self._assign_map
 
         total_slots = filled_slots = posted_slots = 0
 
@@ -184,7 +226,9 @@ class PlatformPanel(QWidget):
         thumb.setObjectName("hive_thumb")
         thumb.setFixedSize(THUMB, THUMB)
         thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pm = QPixmap(asset.source_path)
+        pm = self._thumb_cache.get(asset.id) if self._thumb_cache else None
+        if pm is None:
+            pm = QPixmap()
         if not pm.isNull():
             pm = pm.scaled(THUMB, THUMB, Qt.AspectRatioMode.KeepAspectRatio,
                            Qt.TransformationMode.SmoothTransformation)
@@ -365,20 +409,174 @@ class PlatformPanel(QWidget):
             f"QPushButton:disabled {{ color: #333; border-color: #333; }}"
         )
 
-    def _cycle_status(self, pid: str, slot_name: str, btn: QPushButton):
-        """Cycle ALL assignments in the slot to the same next status."""
+    def _advance_slot_status(self, pid: str, slot_name: str) -> str | None:
+        """Cycle all assignments in the slot to the next status. Returns new status or None."""
         pas = [pa for asset in self.project.assets for pa in asset.assignments
                if pa.platform == pid and pa.slot == slot_name]
         if not pas:
-            return
+            return None
         cur = str(pas[0].status)
         idx = STATUS_CYCLE.index(cur) if cur in STATUS_CYCLE else 0
         new_status = STATUS_CYCLE[(idx + 1) % len(STATUS_CYCLE)]
         for pa in pas:
             pa.status = new_status
+        return new_status
+
+    def _cycle_status(self, pid: str, slot_name: str, btn: QPushButton):
+        new_status = self._advance_slot_status(pid, slot_name)
+        if not new_status:
+            return
         btn.setText(STATUS_ICONS.get(new_status, "·"))
         self._style_status_btn(btn, new_status)
         btn.setToolTip(f"{new_status} — click to cycle")
+
+    def _rebuild_dashboard(self):
+        """Build visual dashboard grid: one row per platform, one cell per slot."""
+        # Clear previous dashboard contents
+        while self._dash_layout.count() > 1:
+            item = self._dash_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        assign_map = getattr(self, '_assign_map', {})
+        if not assign_map:
+            # Rebuild if not yet cached (e.g. toggle before first refresh)
+            assign_map = {}
+            for asset in self.project.assets:
+                for pa in asset.assignments:
+                    assign_map.setdefault((pa.platform, pa.slot), []).append((asset, pa))
+
+        insert_idx = 0
+        for pid in self.project.platforms:
+            platform = PLATFORMS.get(pid)
+            if not platform:
+                continue
+
+            section = QWidget()
+            section_layout = QVBoxLayout(section)
+            section_layout.setContentsMargins(0, 0, 0, 0)
+            section_layout.setSpacing(4)
+
+            # Platform header with progress bar
+            header_row = QHBoxLayout()
+            name_lbl = QLabel(platform.name)
+            name_lbl.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+            if platform.needs_censor:
+                name_lbl.setStyleSheet("color: #ff6b6b;")
+            header_row.addWidget(name_lbl)
+
+            filled = sum(1 for s in platform.slots if assign_map.get((pid, s.name)))
+            total = len(platform.slots)
+            posted = sum(1 for s in platform.slots
+                         if assign_map.get((pid, s.name)) and
+                         all(str(pa.status) == "posted" for _, pa in assign_map[(pid, s.name)]))
+
+            progress = QProgressBar()
+            progress.setRange(0, total)
+            progress.setValue(filled)
+            progress.setFormat(f"{filled}/{total} filled · {posted} posted")
+            progress.setFixedHeight(16)
+            progress.setFixedWidth(200)
+            progress.setStyleSheet(
+                "QProgressBar { background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 3px; text-align: center; color: rgba(200,200,200,0.7); font-size: 10px; }"
+                "QProgressBar::chunk { background: rgba(100,180,100,0.5); border-radius: 2px; }")
+            header_row.addWidget(progress)
+            header_row.addStretch()
+            section_layout.addLayout(header_row)
+
+            # Slot grid — flow layout of cells
+            grid_widget = QWidget()
+            grid_flow = QHBoxLayout(grid_widget)
+            grid_flow.setContentsMargins(0, 0, 0, 0)
+            grid_flow.setSpacing(6)
+
+            for slot in platform.slots:
+                key = (pid, slot.name)
+                entries = assign_map.get(key, [])
+                cell = self._dash_cell(slot, pid, entries)
+                grid_flow.addWidget(cell)
+            grid_flow.addStretch()
+
+            section_layout.addWidget(grid_widget)
+            self._dash_layout.insertWidget(insert_idx, section)
+            insert_idx += 1
+
+    def _dash_cell(self, slot, pid: str, entries: list) -> QWidget:
+        """One slot cell in the dashboard grid."""
+        THUMB = 80
+        cell = QWidget()
+        cell.setFixedWidth(THUMB + 16)
+        v = QVBoxLayout(cell)
+        v.setContentsMargins(4, 4, 4, 4)
+        v.setSpacing(2)
+
+        # Thumbnail
+        thumb_lbl = QLabel()
+        thumb_lbl.setFixedSize(THUMB, THUMB)
+        thumb_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        thumb_lbl.setStyleSheet(
+            "background: rgba(255,255,255,0.03); border: 1px solid #333; border-radius: 3px;")
+
+        if entries:
+            asset, pa = entries[0]
+            pm = self._thumb_cache.get(asset.id) if self._thumb_cache else None
+            if pm and not pm.isNull():
+                pm = pm.scaled(THUMB, THUMB, Qt.AspectRatioMode.KeepAspectRatio,
+                               Qt.TransformationMode.SmoothTransformation)
+                thumb_lbl.setPixmap(pm)
+            cell.setCursor(Qt.CursorShape.PointingHandCursor)
+            cell.mousePressEvent = lambda _, aid=asset.id: self.asset_selected.emit(aid)
+            status = str(pa.status)
+        else:
+            thumb_lbl.setText("—")
+            thumb_lbl.setStyleSheet(thumb_lbl.styleSheet() + "color: #555;")
+            status = "pending"
+
+        v.addWidget(thumb_lbl)
+
+        # Slot label
+        slot_lbl = QLabel(slot.label)
+        slot_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        slot_lbl.setWordWrap(True)
+        slot_lbl.setMaximumWidth(THUMB + 16)
+        slot_lbl.setStyleSheet("font-size: 10px; color: rgba(200,200,200,0.7);")
+        v.addWidget(slot_lbl)
+
+        # Status badge — clickable to cycle
+        color = STATUS_COLORS.get(status, "#666")
+        icon = STATUS_ICONS.get(status, "·")
+        status_btn = QPushButton(f"{icon} {status}")
+        status_btn.setFixedHeight(18)
+        status_btn.setStyleSheet(
+            f"QPushButton {{ color: {color}; background: transparent; border: 1px solid {color}; border-radius: 3px; font-size: 10px; padding: 0 4px; }}"
+            f"QPushButton:hover {{ background: rgba(255,255,255,0.08); }}")
+        if entries:
+            status_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            status_btn.clicked.connect(
+                lambda _, p=pid, s=slot.name, b=status_btn: self._cycle_dash_status(p, s, b))
+        else:
+            status_btn.setEnabled(False)
+        v.addWidget(status_btn)
+
+        # Multi-asset indicator
+        if len(entries) > 1:
+            multi = QLabel(f"+{len(entries)-1} more")
+            multi.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            multi.setStyleSheet("font-size: 9px; color: rgba(200,200,200,0.4);")
+            v.addWidget(multi)
+
+        return cell
+
+    def _cycle_dash_status(self, pid: str, slot_name: str, btn: QPushButton):
+        new_status = self._advance_slot_status(pid, slot_name)
+        if not new_status:
+            return
+        color = STATUS_COLORS.get(new_status, "#666")
+        icon = STATUS_ICONS.get(new_status, "·")
+        btn.setText(f"{icon} {new_status}")
+        btn.setStyleSheet(
+            f"QPushButton {{ color: {color}; background: transparent; border: 1px solid {color}; border-radius: 3px; font-size: 10px; padding: 0 4px; }}"
+            f"QPushButton:hover {{ background: rgba(255,255,255,0.08); }}")
 
     def assign_asset(self, asset: Asset, platform_id: str, slot_name: str):
         """Add asset to slot without clearing existing — skip if already assigned."""

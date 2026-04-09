@@ -45,6 +45,8 @@ class _TagContainer(QWidget):
             else:
                 self._drag_mode = "select"
                 self._reorder_tag_id = None
+            # Grab mouse so we get the release even if it happens outside this widget
+            self.grabMouse()
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -62,6 +64,7 @@ class _TagContainer(QWidget):
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            self.releaseMouse()
             if self._drag_mode == "reorder" and self._reorder_tag_id:
                 self._finish_reorder(event.pos())
             self._drag_start = None
@@ -113,26 +116,37 @@ class _TagContainer(QWidget):
         self._panel._selected_tag_rows = new_sel
 
     def _finish_reorder(self, pos: QPoint):
-        """Drop the dragged tag row to the position nearest the cursor."""
+        """Drop the dragged tag row to the position nearest the cursor.
+        Supports cross-section moves — dragging a tag into a different section
+        updates its section assignment."""
         tag_id = self._reorder_tag_id
         if not tag_id:
             return
-        section = self._panel._tag_sections.get(tag_id)
+        old_section = self._panel._tag_sections.get(tag_id)
         widget_to_tid = {row: tid for tid, row in self._panel._rows.items()}
-        # Single pass: collect visible section rows in layout order with layout indices
-        section_rows: list[tuple[int, str, int]] = []  # (y_mid, tag_id, layout_idx)
+
+        # Collect ALL visible tag rows across all sections
+        all_rows: list[tuple[int, str, int]] = []  # (y_mid, tag_id, layout_idx)
+        # Track section separator positions to determine target section
+        sep_positions: list[tuple[int, str]] = []  # (y_mid, section_id)
         for i in range(self._panel._tag_layout.count()):
             item = self._panel._tag_layout.itemAt(i)
             if not item:
                 continue
             w = item.widget()
+            if not w or not w.isVisible():
+                continue
             tid = widget_to_tid.get(w)
-            if tid and w.isVisible() and self._panel._tag_sections.get(tid) == section:
-                section_rows.append((w.geometry().center().y(), tid, i))
+            if tid:
+                all_rows.append((w.geometry().center().y(), tid, i))
+            # Check if this is a section separator
+            for sid, (sep_label, _) in self._panel._section_btns.items():
+                if w is sep_label:
+                    sep_positions.append((w.geometry().center().y(), sid))
 
-        if not section_rows:
+        if not all_rows:
             return
-        ids_in_order = [tid for _, tid, _ in section_rows]
+        ids_in_order = [tid for _, tid, _ in all_rows]
         if tag_id not in ids_in_order:
             return
         cur_idx = ids_in_order.index(tag_id)
@@ -140,24 +154,43 @@ class _TagContainer(QWidget):
         # Find target index based on drop position
         drop_y = pos.y()
         new_idx = len(ids_in_order) - 1
-        for i, (mid_y, tid, _) in enumerate(section_rows):
+        for i, (mid_y, tid, _) in enumerate(all_rows):
             if drop_y < mid_y:
                 new_idx = i if i <= cur_idx else i - 1
                 break
         if new_idx == cur_idx:
             return
 
+        # Determine which section the drop lands in
+        target_tid = ids_in_order[new_idx]
+        new_section = self._panel._tag_sections.get(target_tid, old_section)
+
         # Direct layout swap: take the dragged widget and re-insert at target
-        src_li = section_rows[cur_idx][2]
-        dst_li = section_rows[new_idx][2]
+        src_li = all_rows[cur_idx][2]
+        dst_li = all_rows[new_idx][2]
         dragged_w = self._panel._tag_layout.takeAt(src_li).widget()
-        # dst_li shifts by -1 if src was before dst
         insert_at = dst_li if src_li > dst_li else dst_li - 1
         self._panel._tag_layout.insertWidget(insert_at, dragged_w)
 
-        new_section_ids = list(ids_in_order)
-        new_section_ids.insert(new_idx, new_section_ids.pop(cur_idx))
-        for order_i, tid in enumerate(new_section_ids):
+        # Update section if it changed
+        if new_section != old_section:
+            self._panel._tag_sections[tag_id] = new_section
+            self._panel.tag_section_changed.emit(tag_id, new_section)
+
+        # Emit reorder for all tags in the target section
+        section_ids = [tid for tid in ids_in_order if
+                       self._panel._tag_sections.get(tid) == new_section]
+        # Re-insert tag_id at its new position within the section
+        if tag_id in section_ids:
+            section_ids.remove(tag_id)
+        # Find where it should be relative to other section tags
+        target_section_idx = 0
+        for i, (_, tid, _) in enumerate(all_rows):
+            if self._panel._tag_sections.get(tid) == new_section and tid != tag_id:
+                if i <= new_idx:
+                    target_section_idx = section_ids.index(tid) + 1
+        section_ids.insert(min(target_section_idx, len(section_ids)), tag_id)
+        for order_i, tid in enumerate(section_ids):
             self._panel.tag_reordered.emit(tid, order_i)
 
 
@@ -339,6 +372,7 @@ class TagPanel(QWidget):
     select_all_with_tag = Signal(str)  # select all assets with this tag
     tag_color_changed = Signal(str, str)  # tag_id, new_hex_color
     tag_reordered = Signal(str, int)  # tag_id, new_order_index
+    tag_section_changed = Signal(str, str)  # tag_id, new_section_id
     batch_apply_tags = Signal(list)  # list of tag_ids to apply to selected assets
 
     def __init__(self, parent=None):
@@ -567,7 +601,9 @@ class TagPanel(QWidget):
                 order = tag_defs.get(tid, {}).get("order", 9999)
                 return (order, preset.label.lower())
             for tid, preset in sorted(custom_tags.items(), key=_custom_sort_key):
-                self._add_tag_row(tid, preset, section="custom", insert_after=last_custom)
+                # Respect persisted section override from cross-section drag
+                saved_section = tag_defs.get(tid, {}).get("section", "custom")
+                self._add_tag_row(tid, preset, section=saved_section, insert_after=last_custom)
                 last_custom = self._rows[tid]
                 existing_ids.add(tid)
 
@@ -576,8 +612,10 @@ class TagPanel(QWidget):
             self._sep3.setVisible(True)
             self._sep3_label.setVisible(True)
             last_visual = self._sep3_label
+            tag_defs_v = project.tag_definitions if project else {}
             for tid, preset in sorted(visual_tags.items(), key=lambda x: x[1].label.lower()):
-                self._add_tag_row(tid, preset, section="visual", insert_after=last_visual)
+                saved_section = tag_defs_v.get(tid, {}).get("section", "visual")
+                self._add_tag_row(tid, preset, section=saved_section, insert_after=last_visual)
                 last_visual = self._rows[tid]
                 existing_ids.add(tid)
 
