@@ -467,7 +467,9 @@ class MainWindow(QMainWindow):
             data = json.loads(Path(coll_path).read_text(encoding="utf-8"))
         except Exception:
             return False
-        paths = [p for p in data.get("projects", []) if Path(p).exists()]
+        all_paths = data.get("projects", [])
+        paths = [p for p in all_paths if Path(p).exists()]
+        missing = [p for p in all_paths if not Path(p).exists()]
         if not paths:
             return False
         # Load first project into the initial slot
@@ -478,17 +480,37 @@ class MainWindow(QMainWindow):
         self._rebind_project()
         self.setWindowTitle(f"DoxyEdit — {Path(first).name}")
         # Load remaining projects as additional tabs
+        failed = []
         for path in paths[1:]:
             try:
                 project = Project.load(path)
                 self._add_project_tab(project, path, Path(path).stem)
             except Exception:
-                pass
+                failed.append(path)
         # Switch back to first tab
         self._proj_tab_bar.setCurrentIndex(0)
         self._switch_to_slot(0)
-        self.status.showMessage(
-            f"Restored collection: {len(paths)} project(s)")
+        # Report results
+        loaded = len(paths) - len(failed)
+        msg = f"Restored collection: {loaded} project(s)"
+        if missing:
+            msg += f" | {len(missing)} missing"
+        if failed:
+            msg += f" | {len(failed)} failed to load"
+        self.status.showMessage(msg, 5000)
+        # Show warning dialog if anything was lost
+        if missing or failed:
+            from PySide6.QtWidgets import QMessageBox
+            details = []
+            if missing:
+                details.append("Missing files (not found on disk):")
+                details.extend(f"  • {p}" for p in missing)
+            if failed:
+                details.append("Failed to load:")
+                details.extend(f"  • {p}" for p in failed)
+            QMessageBox.warning(self, "Collection",
+                                f"Some projects could not be loaded:\n\n" + "\n".join(details))
+        return True
 
     # ── Project tab management ──────────────────────────────────────────────
 
@@ -907,6 +929,7 @@ class MainWindow(QMainWindow):
 
         # Collection (workspace) — save/load all open windows as a group
         file_menu.addAction("Save Collection...", self._save_collection)
+        file_menu.addAction("Reload Collection", self._reload_collection)
         file_menu.addAction("Open Collection...", self._open_collection)
         file_menu.addAction("Locate Last Collection", self._locate_last_collection)
         file_menu.addSeparator()
@@ -3252,6 +3275,19 @@ Ctrl+Click tag — Search by tag
         QMessageBox.information(self, "Collection Saved",
             f"Saved {len(projects)} project(s) to:\n{path}\n\n{names}")
         self.status.showMessage(f"Collection saved → {path}")
+
+    def _reload_collection(self):
+        """Reload the last saved collection file."""
+        coll_path = self._settings.value("last_collection", "")
+        if not coll_path or not Path(coll_path).exists():
+            self.status.showMessage("No collection to reload", 3000)
+            return
+        # Close all tabs except the first
+        while self._proj_tab_bar.count() > 1:
+            self._close_proj_tab(self._proj_tab_bar.count() - 1)
+        # Restore from file
+        if not self._restore_collection(coll_path):
+            self.status.showMessage("Collection reload failed", 3000)
 
     def _open_collection(self):
         """Open a saved collection — each project opens in its own window."""
