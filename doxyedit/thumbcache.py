@@ -8,7 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import QThread, Signal, QMutex, QMutexLocker
 from PySide6.QtGui import QPixmap, QImage
 
-from doxyedit.imaging import open_for_thumb, pil_to_qpixmap
+from doxyedit.imaging import open_for_thumb, pil_to_qimage, get_shell_thumbnail, PSD_EXTS, SHELL_THUMB_EXTS
 
 THUMB_SIZE = 160
 CACHE_DIR_NAME = ".doxyedit_cache"
@@ -48,29 +48,38 @@ class GlobalCacheIndex:
 
     def __init__(self, base_dir: Path):
         db_path = base_dir / "content_index.db"
-        self._con = sqlite3.connect(str(db_path), check_same_thread=False)
+        self._con = sqlite3.connect(str(db_path), check_same_thread=False, timeout=5)
         self._con.execute(
             "CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, path TEXT) WITHOUT ROWID")
         self._con.execute("PRAGMA journal_mode=WAL")
         self._con.execute("PRAGMA synchronous=NORMAL")
+        self._con.execute("PRAGMA busy_timeout=3000")
         self._con.commit()
 
     def lookup(self, key: str) -> Path | None:
         """Return path to cached PNG if another project has it, else None."""
-        row = self._con.execute("SELECT path FROM cache WHERE key=?", (key,)).fetchone()
+        try:
+            row = self._con.execute("SELECT path FROM cache WHERE key=?", (key,)).fetchone()
+        except sqlite3.OperationalError:
+            return None
         if row:
             p = Path(row[0])
             if p.exists():
                 return p
-            # Stale — remove it
-            self._con.execute("DELETE FROM cache WHERE key=?", (key,))
-            self._con.commit()
+            try:
+                self._con.execute("DELETE FROM cache WHERE key=?", (key,))
+                self._con.commit()
+            except sqlite3.OperationalError:
+                pass
         return None
 
     def register(self, key: str, png_path: Path):
         """Record that this key was cached at png_path."""
-        self._con.execute(
-            "INSERT OR REPLACE INTO cache (key, path) VALUES (?,?)", (key, str(png_path)))
+        try:
+            self._con.execute(
+                "INSERT OR REPLACE INTO cache (key, path) VALUES (?,?)", (key, str(png_path)))
+        except sqlite3.OperationalError:
+            pass
 
     def save(self):
         try:
@@ -97,12 +106,14 @@ class DiskCache:
             self._dir = Path.home() / ".doxyedit" / "thumbcache"
         self._dir.mkdir(parents=True, exist_ok=True)
         self._fmt, self._ext = _cache_fmt()  # read once in main thread; update via set_fast_cache()
-        self._con = sqlite3.connect(str(self._dir / "cache.db"), check_same_thread=False)
+        self._con = sqlite3.connect(str(self._dir / "cache.db"), check_same_thread=False,
+                                     timeout=5)
         self._con.execute(
             "CREATE TABLE IF NOT EXISTS dims (key TEXT PRIMARY KEY, w INTEGER, h INTEGER)"
             " WITHOUT ROWID")
         self._con.execute("PRAGMA journal_mode=WAL")
         self._con.execute("PRAGMA synchronous=NORMAL")
+        self._con.execute("PRAGMA busy_timeout=3000")
         self._con.commit()
         self._migrate_json_index()
 
@@ -122,42 +133,56 @@ class DiskCache:
             pass
 
     def _get_dims(self, key: str) -> tuple[int, int]:
-        row = self._con.execute("SELECT w, h FROM dims WHERE key=?", (key,)).fetchone()
-        return (row[0], row[1]) if row else (0, 0)
+        try:
+            row = self._con.execute("SELECT w, h FROM dims WHERE key=?", (key,)).fetchone()
+            return (row[0], row[1]) if row else (0, 0)
+        except sqlite3.OperationalError:
+            return (0, 0)
 
-    def get(self, path: str, size: int) -> tuple[QPixmap, int, int] | None:
-        """Try to load a cached thumbnail. Returns (pixmap, orig_w, orig_h) or None."""
+    def get(self, path: str, size: int) -> tuple[QImage, int, int] | None:
+        """Try to load a cached thumbnail. Returns (qimage, orig_w, orig_h) or None.
+        Uses QImage (thread-safe) — caller converts to QPixmap in the GUI thread."""
         key = _cache_key(path, size)
         # Try both extensions so switching modes doesn't break existing caches
         for ext in (_FAST_EXT, _STD_EXT):
             cached_file = self._dir / f"{key}{ext}"
             if cached_file.exists():
-                pm = QPixmap(str(cached_file))
-                if not pm.isNull():
+                qimg = QImage(str(cached_file))
+                if not qimg.isNull():
                     w, h = self._get_dims(key)
-                    return pm, w, h
+                    return qimg, w, h
         # Check cross-project global index
         if _global_index:
             other = _global_index.lookup(key)
             if other:
-                pm = QPixmap(str(other))
-                if not pm.isNull():
+                qimg = QImage(str(other))
+                if not qimg.isNull():
                     w, h = self._get_dims(key)
-                    return pm, w, h
+                    return qimg, w, h
         return None
 
     def set_fast_cache(self, on: bool):
         """Call from main thread when fast cache setting changes."""
         self._fmt, self._ext = (_FAST_FMT, _FAST_EXT) if on else (_STD_FMT, _STD_EXT)
 
-    def put(self, path: str, size: int, pixmap: QPixmap, orig_w: int, orig_h: int):
-        """Save a thumbnail to disk cache."""
+    def put(self, path: str, size: int, pil_img, orig_w: int, orig_h: int):
+        """Save a thumbnail to disk cache using PIL (thread-safe; QPixmap.save is not)."""
         fmt, ext = self._fmt, self._ext
         key = _cache_key(path, size)
         cached_file = self._dir / f"{key}{ext}"
-        pixmap.save(str(cached_file), fmt)
-        self._con.execute(
-            "INSERT OR REPLACE INTO dims (key, w, h) VALUES (?,?,?)", (key, orig_w, orig_h))
+        try:
+            save_img = pil_img
+            if ext == _FAST_EXT and pil_img.mode == "RGBA":
+                save_img = pil_img.convert("RGB")
+            save_kwargs = {"compress_level": 1} if fmt == _STD_FMT else {}
+            save_img.save(str(cached_file), fmt, **save_kwargs)
+        except Exception:
+            return
+        try:
+            self._con.execute(
+                "INSERT OR REPLACE INTO dims (key, w, h) VALUES (?,?,?)", (key, orig_w, orig_h))
+        except sqlite3.OperationalError:
+            pass
         if _global_index:
             _global_index.register(key, cached_file)
 
@@ -173,8 +198,9 @@ class DiskCache:
 
 class ThumbWorker(QThread):
     """Generates thumbnails in a background thread."""
-    thumb_ready = Signal(str, QPixmap, int, int, int)
+    thumb_ready = Signal(str, QImage, int, int, int)  # QImage is thread-safe; GUI converts to QPixmap
     visual_tags_ready = Signal(str, list)
+    palette_ready = Signal(str, list)  # asset_id, list of hex color strings
 
     def __init__(self, disk_cache: DiskCache, parent=None):
         super().__init__(parent)
@@ -184,6 +210,9 @@ class ThumbWorker(QThread):
         self._stop = False
         self._save_counter = 0
         self._force_regen: set[str] = set()  # asset IDs that must bypass disk cache
+        self._autotag = False  # set True to compute visual tags during generation
+        self._upgrade_queue: deque = deque()  # (asset_id, path, size, pil_img, w, h)
+        self._slow_queue: deque = deque()     # (asset_id, path, size) — PSD/SAI deferred hi-res
 
     def enqueue(self, asset_id: str, path: str, size: int = THUMB_SIZE):
         with QMutexLocker(self._mutex):
@@ -211,66 +240,183 @@ class ThumbWorker(QThread):
     def clear_queue(self):
         with QMutexLocker(self._mutex):
             self._queue.clear()
+            for item in self._upgrade_queue:
+                try:
+                    item[3].close()
+                except Exception:
+                    pass
+            self._upgrade_queue.clear()
+            self._slow_queue.clear()
 
     def stop(self):
         self._stop = True
 
     def run(self):
         while not self._stop:
+            # Priority 1: fast previews from main queue
             item = None
             with QMutexLocker(self._mutex):
                 if self._queue:
                     item = self._queue.popleft()
 
-            if item is None:
-                self.msleep(50)
-                continue
-
-            asset_id, path, target_size = item
-
-            # Try disk cache (skip if force-regen requested for this asset)
-            force = asset_id in self._force_regen
-            if force:
-                self._force_regen.discard(asset_id)
-            cached = None if force else self._disk_cache.get(path, target_size)
-            if cached:
-                pm, w, h = cached
-                self.thumb_ready.emit(asset_id, pm, w, h, target_size)
-                continue
-
-            # Generate from source
-            try:
-                from PIL import Image as PILImage
-                img, orig_w, orig_h = open_for_thumb(path, target_size)
-
-                # Compute visual tags before thumbnailing
+            if item is not None:
                 try:
-                    from doxyedit.autotag import compute_visual_tags
-                    vtags = compute_visual_tags(img)
-                    if vtags:
-                        self.visual_tags_ready.emit(asset_id, vtags)
+                    self._process_item(item)
+                except Exception:
+                    try:
+                        self.thumb_ready.emit(item[0], QImage(), 0, 0, item[2])
+                    except Exception:
+                        pass
+                continue
+
+            # Priority 2: quality upgrades (only when no fast work pending)
+            upgrade = None
+            with QMutexLocker(self._mutex):
+                if self._upgrade_queue:
+                    upgrade = self._upgrade_queue.popleft()
+
+            if upgrade is not None:
+                try:
+                    self._process_upgrade(*upgrade)
+                except Exception:
+                    try:
+                        upgrade[3].close()
+                    except Exception:
+                        pass
+                continue
+
+            # Priority 3: slow formats (PSD/SAI2 via psd_tools) — only when idle
+            slow = None
+            with QMutexLocker(self._mutex):
+                if self._slow_queue:
+                    slow = self._slow_queue.popleft()
+
+            if slow is not None:
+                try:
+                    self._process_slow(*slow)
                 except Exception:
                     pass
+                continue
 
-                img.thumbnail((target_size, target_size), PILImage.LANCZOS)
-                pm = pil_to_qpixmap(img)
-                img.close()
-
-                # Save to disk cache
-                if not pm.isNull():
-                    self._disk_cache.put(path, target_size, pm, orig_w, orig_h)
-                    self._save_counter += 1
-                    if self._save_counter % 20 == 0:
-                        self._disk_cache.save_index()
-                        if _global_index:
-                            _global_index.save()
-
-                self.thumb_ready.emit(asset_id, pm, orig_w, orig_h, target_size)
-            except Exception:
-                self.thumb_ready.emit(asset_id, QPixmap(), 0, 0, target_size)
+            self.msleep(50)
 
         # Save index on shutdown
         self._disk_cache.save_index()
+
+    def _process_item(self, item: tuple[str, str, int]):
+        asset_id, path, target_size = item
+
+        # Try disk cache (skip if force-regen requested for this asset)
+        force = asset_id in self._force_regen
+        if force:
+            self._force_regen.discard(asset_id)
+        cached = None if force else self._disk_cache.get(path, target_size)
+        if cached:
+            qimg, w, h = cached
+            self.thumb_ready.emit(asset_id, qimg, w, h, target_size)
+            return
+
+        ext = Path(path).suffix.lower()
+        is_slow_format = ext in PSD_EXTS or ext in SHELL_THUMB_EXTS
+
+        # For PSD/SAI2: emit shell thumb now, defer psd_tools to after everything else
+        if is_slow_format:
+            shell_img = get_shell_thumbnail(path, max(target_size, 256))
+            if shell_img:
+                from PIL import Image as PILImage
+                orig_w, orig_h = shell_img.width, shell_img.height
+                shell_img.thumbnail((target_size, target_size), PILImage.LANCZOS)
+                qimg = pil_to_qimage(shell_img)
+                self.thumb_ready.emit(asset_id, qimg, orig_w, orig_h, target_size)
+                self._disk_cache.put(path, target_size, shell_img, orig_w, orig_h)
+                shell_img.close()
+                return
+            # Shell failed — emit placeholder now, queue psd_tools for later
+            from doxyedit.imaging import _make_placeholder
+            ph_img, _, _ = _make_placeholder(path)
+            qimg_ph = pil_to_qimage(ph_img)
+            ph_img.close()
+            self.thumb_ready.emit(asset_id, qimg_ph, 0, 0, 32)
+            with QMutexLocker(self._mutex):
+                self._slow_queue.append((asset_id, path, target_size))
+            return
+
+        from PIL import Image as PILImage
+
+        img, orig_w, orig_h = open_for_thumb(path, target_size)
+
+        # Fast pass: emit a quick preview at 1/4 target size using NEAREST
+        fast_size = max(64, min(160, target_size // 4))
+        if target_size > fast_size:
+            fast = img.copy()
+            fast.thumbnail((fast_size, fast_size), PILImage.NEAREST)
+            qimg_fast = pil_to_qimage(fast)
+            fast.close()
+            self.thumb_ready.emit(asset_id, qimg_fast, orig_w, orig_h, fast_size)
+
+        # Queue quality upgrade — deferred so other fast previews get processed first
+        with QMutexLocker(self._mutex):
+            self._upgrade_queue.append((asset_id, path, target_size, img, orig_w, orig_h))
+
+    def _process_slow(self, asset_id: str, path: str, target_size: int):
+        """Third pass: PSD/SAI2 via psd_tools — only runs when everything else is done."""
+        from doxyedit.imaging import load_psd_thumb, PSD_EXTS
+        from PIL import Image as PILImage
+
+        ext = Path(path).suffix.lower()
+        img, orig_w, orig_h = None, 0, 0
+
+        if ext in PSD_EXTS:
+            try:
+                result = load_psd_thumb(path, min_size=0)
+                if result:
+                    img, orig_w, orig_h = result
+            except Exception:
+                pass
+
+        if img is None:
+            return  # nothing we can do — shell already failed, psd_tools failed too
+
+        img.thumbnail((target_size, target_size), PILImage.LANCZOS)
+        qimg = pil_to_qimage(img)
+        self.thumb_ready.emit(asset_id, qimg, orig_w, orig_h, target_size)
+        self._disk_cache.put(path, target_size, img, orig_w, orig_h)
+        img.close()
+
+    def _process_upgrade(self, asset_id, path, target_size, img, orig_w, orig_h):
+        """Second pass: high-quality resize + disk save."""
+        from PIL import Image as PILImage
+
+        img.thumbnail((target_size, target_size), PILImage.LANCZOS)
+
+        if self._autotag:
+            try:
+                from doxyedit.autotag import compute_visual_tags
+                vtags = compute_visual_tags(img)
+                if vtags:
+                    self.visual_tags_ready.emit(asset_id, vtags)
+            except Exception:
+                pass
+
+        # Extract dominant colors for palette display
+        try:
+            from doxyedit.autotag import compute_dominant_colors
+            palette = compute_dominant_colors(img, n=5)
+            if palette:
+                self.palette_ready.emit(asset_id, palette)
+        except Exception:
+            pass
+
+        qimg = pil_to_qimage(img)
+        self.thumb_ready.emit(asset_id, qimg, orig_w, orig_h, target_size)
+
+        self._disk_cache.put(path, target_size, img, orig_w, orig_h)
+        img.close()
+        self._save_counter += 1
+        if self._save_counter % 20 == 0:
+            self._disk_cache.save_index()
+            if _global_index:
+                _global_index.save()
 
 
 _LRU_MAX = 600  # max pixmaps kept in memory (~30 MB at 160px thumbs)
@@ -367,8 +513,20 @@ class ThumbCache:
                 upgrades = [(a, p, s) for a, p, s in needed if a in self._gen_sizes]
                 self._worker.enqueue_batch(fresh + upgrades)
 
-    def on_ready(self, asset_id: str, pixmap: QPixmap, w: int, h: int, gen_size: int):
-        # Move to end (most-recently-used)
+    def on_ready(self, asset_id: str, img_or_pm, w: int, h: int, gen_size: int) -> bool:
+        """Store pixmap. Returns True if this was an upgrade (caller should repaint).
+        Accepts QImage (from worker thread) or QPixmap; converts QImage here in the GUI thread."""
+        current = self._gen_sizes.get(asset_id, 0)
+        if gen_size < current:
+            return False  # don't overwrite a higher-res image with a placeholder
+        if isinstance(img_or_pm, QImage):
+            if img_or_pm.isNull():
+                return False  # failed generation — don't mark as done, allow retry
+            pixmap = QPixmap.fromImage(img_or_pm)
+        else:
+            pixmap = img_or_pm
+            if pixmap.isNull():
+                return False
         self._pixmaps[asset_id] = pixmap
         self._pixmaps.move_to_end(asset_id)
         self._gen_sizes[asset_id] = gen_size
@@ -380,6 +538,7 @@ class ThumbCache:
             del self._pixmaps[evicted]
             self._gen_sizes.pop(evicted, None)
             self._dims.pop(evicted, None)
+        return True
 
     def clear_queue(self):
         """Stop all pending thumbnail generation without clearing the memory cache."""
@@ -395,11 +554,18 @@ class ThumbCache:
         self._gen_sizes.clear()
         self._dims.clear()
 
+    def set_autotag(self, on: bool):
+        self._worker._autotag = on
+
     def connect_ready(self, callback):
         self._worker.thumb_ready.connect(callback)
 
     def connect_visual_tags(self, callback):
         self._worker.visual_tags_ready.connect(callback)
+
+    def connect_palette(self, callback):
+        """Connect to palette_ready signal."""
+        self._worker.palette_ready.connect(callback)
 
     def shutdown(self):
         self._worker.stop()
