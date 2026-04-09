@@ -911,7 +911,7 @@ class AssetBrowser(QWidget):
         self._add_tag_btn.setToolTip("Add a custom tag")
         self._add_tag_btn.clicked.connect(self._add_custom_tag)
         self._clear_filter_btn = QPushButton("✕ Clear Filters")
-        self._clear_filter_btn.setToolTip("Clear all active tag bar filters (Escape)")
+        self._clear_filter_btn.setToolTip("Clear all tag filters")
         self._clear_filter_btn.setStyleSheet(self._btn_style())
         self._clear_filter_btn.clicked.connect(self.clear_bar_filters)
         self._clear_filter_btn.setVisible(False)
@@ -1056,7 +1056,7 @@ class AssetBrowser(QWidget):
             btn.setCheckable(True)
             btn.setChecked(tag_id in self._bar_tag_filters)
             btn.setProperty("tag_id", tag_id)
-            btn.setToolTip(f"{preset.label} — click to filter view")
+            btn.setToolTip(f"Click to filter grid by '{tag_id}'")
             btn.clicked.connect(lambda checked, tid=tag_id: self._toggle_bar_filter(tid))
             self._tag_buttons.append((btn, preset.color))
             self._tag_button_map[tag_id] = btn

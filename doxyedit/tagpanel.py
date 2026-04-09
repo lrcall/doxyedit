@@ -249,6 +249,7 @@ class TagRow(QFrame):
         self.checkbox.setStyleSheet(
             f"QCheckBox#tag_checkbox {{ color: {tag.color}; }}"
             f"QCheckBox#tag_checkbox::indicator {{ width: 13px; height: 13px; }}")
+        self.checkbox.setToolTip("Check to apply this tag to selected assets")
         self.checkbox.toggled.connect(lambda checked: self.toggled.emit(tag.id, checked))
         layout.addWidget(self.checkbox, 1)
 
