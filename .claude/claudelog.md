@@ -43,3 +43,23 @@
 22:09  ⏱ Plan complete — 50m total — DoxyEdit — UX Polish Pass
 22:10  ⏱ Plan started — DoxyEdit — UX Polish Pass
        Active:   Bugs: folder view height, Ctrl+D, tray thumbs, menu hover font, tag mismatch
+22:19  ⏱ Plan complete — 8m total — DoxyEdit — UX Polish Pass
+
+## 2026-04-10
+07:53  ⏱ Plan started — DoxyEdit — UX Polish Pass
+       Active:   Bugs: folder view height, Ctrl+D, tray thumbs, menu hover font, tag mismatch
+07:58  00:15  BUG: toolbar buttons have vertical offset (pushed to top), some unclickable. Files button exists but placed after Tray — should be before Tags (left side panel). Toolbar alignment needs fixing.
+08:00  ⏱ Plan complete — 6m total — DoxyEdit — UX Polish Pass
+08:01  ⏱ Plan started — DoxyEdit — UX Polish Pass
+       Active:   Bugs: folder view height, Ctrl+D, tray thumbs, menu hover font, tag mismatch
+08:01  00:20  BUG: Tags/Tray/Files toolbar buttons no longer toggle sidebars. Likely broken during the toolbar button reorder or signal reconnection.
+08:02  ⏱ Plan complete — 1m total — DoxyEdit — UX Polish Pass
+08:03  00:25  Pausing — user wants to plan remaining issues before more implementation. Open bugs: (a) toolbar buttons unclickable/vertical offset (b) Tags/Tray toggle broken (c) Files button missing from left of Tags (d) folder view still narrow. Need investigation before fixes.
+08:04  ⏱ Plan started — DoxyEdit — UX Polish Pass
+       Active:   Bugs: folder view height, Ctrl+D, tray thumbs, menu hover font, tag mismatch
+08:07  ⏱ Plan complete — 3m total — DoxyEdit — Active Bug Fixes
+08:08  ⏱ Plan started — DoxyEdit — Active Bug Fixes
+       Active:   a. Tags/Tray buttons have NO signal handlers (root cause found)
+08:10  ⏱ Plan complete — 2m total — DoxyEdit — Active Bug Fixes
+08:13  ⏱ Plan started — DoxyEdit — Active Bug Fixes
+       Active:   a. Tags/Tray buttons have NO signal handlers (root cause found)

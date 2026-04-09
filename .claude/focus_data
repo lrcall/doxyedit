@@ -1,5 +1,5 @@
-DoxyEdit — UX Polish Pass
-  Bugs: folder view height, Ctrl+D, tray thumbs, menu hover font, tag mismatch
-  Layout: InfoPanel→left sidebar, health→project details col, menu bar stretch
-  Theme: full tokenization audit, notes markdown styling, splitter handles
-  UX: toolbar buttons for panels, tray width, menu reorganization
+DoxyEdit — Active Bug Fixes
+  a. Tags/Tray buttons have NO signal handlers (root cause found)
+  b. Folder view: setFixedSize(0,h) locks width to 0 on early call
+  c. Toolbar vertical offset — height not enforced after button add
+  d. Hardcoded colors/fonts throughout delegate + window
