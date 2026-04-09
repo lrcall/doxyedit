@@ -254,13 +254,13 @@ class MainWindow(QMainWindow):
         _plat_kanban_split.setSizes([600, 400])
         _plat_kanban_split.setStretchFactor(0, 3)
         _plat_kanban_split.setStretchFactor(1, 2)
-        # Vertical: top row + checklist at bottom
+        # Vertical: checklist on top (compact), platforms+kanban below (main)
         _plat_main_split = QSplitter(Qt.Orientation.Vertical)
-        _plat_main_split.addWidget(_plat_kanban_split)
         _plat_main_split.addWidget(self.checklist_panel)
-        _plat_main_split.setSizes([600, 150])
-        _plat_main_split.setStretchFactor(0, 4)
-        _plat_main_split.setStretchFactor(1, 1)
+        _plat_main_split.addWidget(_plat_kanban_split)
+        _plat_main_split.setSizes([120, 600])
+        _plat_main_split.setStretchFactor(0, 0)
+        _plat_main_split.setStretchFactor(1, 4)
         self.tabs.addTab(_plat_main_split, "Platforms")
 
         # Tab 5: Project Notes — preview (left) + markdown source (right)
