@@ -34,6 +34,7 @@ from doxyedit.project import save_project, load_project
 from doxyedit.stats import StatsPanel
 from doxyedit.checklist import ChecklistPanel
 from doxyedit.health import HealthPanel
+from doxyedit.kanban import KanbanPanel
 
 AUTOSAVE_INTERVAL_MS = 30_000
 
@@ -291,6 +292,12 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self._overview_split, "Overview")
         self.tabs.addTab(_notes_splitter, "Notes")
 
+        # Tab 7: Posting Schedule (Kanban)
+        self._kanban_panel = KanbanPanel()
+        self._kanban_panel.status_changed.connect(self._on_data_changed)
+        self._kanban_panel.status_changed.connect(lambda: self.platform_panel.refresh())
+        self.tabs.addTab(self._kanban_panel, "Schedule")
+
         # Refresh stats when Overview tab is activated
         self.tabs.currentChanged.connect(self._on_inner_tab_changed)
 
@@ -318,7 +325,7 @@ class MainWindow(QMainWindow):
         self.tabs.tabBar().setVisible(False)
 
         # Tab toolbar — styled identical to the menu bar so both rows look like one bar
-        _TAB_NAMES = ["Assets", "Canvas", "Censor", "Platforms", "Overview", "Notes"]
+        _TAB_NAMES = ["Assets", "Canvas", "Censor", "Platforms", "Overview", "Notes", "Schedule"]
         self._tab_toolbar = QToolBar("Tabs")
         self._tab_toolbar.setObjectName("tab_toolbar")
         self._tab_toolbar.setMovable(False)
@@ -678,6 +685,8 @@ class MainWindow(QMainWindow):
         self._tint_titlebar(proj_accent)
         if hasattr(self, '_file_browser'):
             self._file_browser.apply_theme(self._theme)
+        if hasattr(self, '_kanban_panel'):
+            self._kanban_panel.apply_theme(self._theme)
         if hasattr(self, '_info_panel'):
             self._info_panel.apply_theme(self._theme)
 
@@ -3244,6 +3253,8 @@ Ctrl+Click tag — Search by tag
         self.health_panel.project = self.project
         self.health_panel.refresh()
         self._file_browser.set_project(self.project)
+        if hasattr(self, '_kanban_panel'):
+            self._kanban_panel.set_project(self.project)
         if hasattr(self, '_smart_folder_menu'):
             self._rebuild_smart_folder_menu()
         if hasattr(self, '_info_panel'):
