@@ -1480,9 +1480,9 @@ class AssetBrowser(QWidget):
         preds = []
 
         if self._folder_filter:
-            _ff = self._folder_filter
+            _ff = {p.replace("\\", "/") for p in self._folder_filter}
             preds.append(lambda a, ff=_ff:
-                         (a.source_folder or str(Path(a.source_path).parent)) in ff)
+                         (a.source_folder or str(Path(a.source_path).parent)).replace("\\", "/") in ff)
 
         query = self.search_box.text().strip().lower()
         if query:
