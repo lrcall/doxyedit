@@ -160,6 +160,7 @@ class MainWindow(QMainWindow):
         self.tag_panel.tag_section_changed.connect(self._on_tag_section_changed)
         self.tag_panel.batch_apply_tags.connect(self._on_batch_apply_tags)
         self.browser.tag_bar_toggled.connect(self._on_browser_tag_bar_toggled)
+        self.browser.files_toggled.connect(self._on_files_btn_toggled)
 
         self.work_tray.asset_selected.connect(self._on_asset_selected)
         self.work_tray.asset_preview.connect(self._on_asset_preview)
@@ -1387,6 +1388,13 @@ class MainWindow(QMainWindow):
                 self._toggle_tag_bar_action.setChecked(on)
                 self._toggle_tag_bar_action.blockSignals(False)
 
+    def _on_files_btn_toggled(self, checked):
+        self._file_browser.setVisible(checked)
+        self._settings.setValue("file_browser_visible", checked)
+        self._toggle_file_browser_action.setChecked(checked)
+        if checked and self._file_browser._project is None and self.project:
+            self._file_browser.set_project(self.project)
+
     # --- Recent files/folders ---
 
     def _get_recent(self, key: str) -> list[str]:
@@ -1708,6 +1716,8 @@ class MainWindow(QMainWindow):
         self._toggle_file_browser_action.setChecked(vis)
         if vis and self._file_browser._project is None and self.project:
             self._file_browser.set_project(self.project)
+        if hasattr(self.browser, '_files_btn'):
+            self.browser._files_btn.setChecked(self._file_browser.isVisible())
 
     def _on_file_browser_folder(self, folder: str):
         """Filter main grid to show assets from this folder and all subfolders."""

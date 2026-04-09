@@ -684,6 +684,7 @@ class AssetBrowser(QWidget):
     tags_modified = Signal()
     selection_changed = Signal(list)
     tag_bar_toggled = Signal(bool)  # emitted when toolbar filter btn changes
+    files_toggled = Signal(bool)
 
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
@@ -759,6 +760,13 @@ class AssetBrowser(QWidget):
         self._tray_btn.setStyleSheet(self._btn_style())
         toolbar.addWidget(self._tray_btn)
         self._toolbar_plain_btns.append(self._tray_btn)
+        self._files_btn = QPushButton("Files")
+        self._files_btn.setCheckable(True)
+        self._files_btn.setStyleSheet(self._btn_style())
+        self._files_btn.setToolTip("Toggle File Browser (Ctrl+B)")
+        self._files_btn.clicked.connect(lambda checked: self.files_toggled.emit(checked))
+        toolbar.addWidget(self._files_btn)
+        self._toolbar_plain_btns.append(self._files_btn)
 
         for label, handler in [("+ Folder", self.open_folder_dialog), ("+ Files", self.add_images_dialog)]:
             btn = QPushButton(label)
