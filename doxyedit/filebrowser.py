@@ -250,9 +250,43 @@ class FileBrowserPanel(QWidget):
         subprocess.Popen(f'explorer "{win_path}"')
 
     def set_project(self, project):
-        """Update project reference for asset counts."""
+        """Update project reference for asset counts, then expand to project folders."""
         self._project = project
         self._update_folder_counts()
+        self._auto_expand()
+        self._tree.viewport().update()
+
+    def _auto_expand(self):
+        """Expand tree to reveal folders that contain project assets."""
+        if not self._folder_counts:
+            return
+
+        folders = list(self._folder_counts.keys())
+        if not folders:
+            return
+
+        # Navigate to first pinned folder if it has assets, else most-populated folder
+        target = None
+        for pin in self._pinned:
+            pin_norm = pin.replace("\\", "/")
+            if self.get_folder_count(pin_norm) > 0:
+                target = pin
+                break
+
+        if not target:
+            # Pick the folder with the most assets
+            target = max(self._folder_counts, key=self._folder_counts.get)
+
+        if target:
+            idx = self._model.index(target)
+            if idx.isValid():
+                self._tree.setCurrentIndex(idx)
+                self._tree.scrollTo(idx)
+                # Expand this folder and its parent chain
+                parent = idx
+                while parent.isValid():
+                    self._tree.expand(parent)
+                    parent = parent.parent()
 
     def _update_folder_counts(self):
         """Recompute folder → asset count mapping from project data."""
