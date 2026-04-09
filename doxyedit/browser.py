@@ -1735,8 +1735,13 @@ class AssetBrowser(QWidget):
             if root not in seen_roots:
                 root_order.append(root)
                 seen_roots.add(root)
-            rel_depth = (len(Path(folder).parts) - len(Path(root).parts)
-                         if root else 0)
+            if root:
+                rel_depth = len(Path(folder).parts) - len(Path(root).parts)
+            else:
+                # No import root — compute depth from shallowest folder in project
+                all_parts = [len(Path(f).parts) for f in groups]
+                min_depth = min(all_parts) if all_parts else 0
+                rel_depth = len(Path(folder).parts) - min_depth
             root_groups[root].append((folder, assets, rel_depth))
 
         def _make_section(folder, assets, depth):
