@@ -3,6 +3,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QAbstractItemView, QMenu, QApplication,
+    QTabBar, QInputDialog,
 )
 from PySide6.QtCore import Qt, Signal, QSize, QUrl, QMimeData
 from PySide6.QtGui import QPixmap, QIcon, QFont, QDrag
@@ -13,7 +14,13 @@ PATH_ROLE = Qt.ItemDataRole.UserRole + 2  # stores source_path for drag-out
 
 
 class DragOutListWidget(QListWidget):
-    """QListWidget that supports dragging items out as file URLs to external apps."""
+    """QListWidget that supports dragging items out as file URLs and accepting drops."""
+
+    drop_received = Signal(list)  # list of file paths dropped onto the tray
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
 
     def startDrag(self, supportedActions):
         items = self.selectedItems()
@@ -36,6 +43,28 @@ class DragOutListWidget(QListWidget):
             drag.setPixmap(icon.pixmap(64, 64))
         drag.exec(Qt.DropAction.CopyAction)
 
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            paths = [url.toLocalFile() for url in event.mimeData().urls()
+                     if url.isLocalFile()]
+            if paths:
+                self.drop_received.emit(paths)
+            event.acceptProposedAction()
+        else:
+            super().dropEvent(event)
+
 
 class WorkTray(QWidget):
     """Collapsible right panel — drag images here as a work area / quickslot."""
@@ -50,9 +79,13 @@ class WorkTray(QWidget):
         self.setMinimumWidth(150)
         self.setMaximumWidth(400)
         self._asset_ids: list[str] = []
+        self._id_to_row: dict[str, int] = {}  # asset_id → list row index for O(1) lookup
         self._pixmaps: dict[str, QPixmap] = {}
         self._project = None
         self._paths: dict[str, str] = {}  # asset_id → source_path
+        # Named trays: tray_name → list of asset_ids
+        self._trays: dict[str, list[str]] = {"Tray 1": []}
+        self._current_tray: str = "Tray 1"
         self._build()
 
     def _build(self):
@@ -108,6 +141,30 @@ class WorkTray(QWidget):
         header.addWidget(self._close_btn)
         layout.addLayout(header)
 
+        # Tab bar for named trays
+        self._tab_bar = QTabBar()
+        self._tab_bar.setExpanding(False)
+        self._tab_bar.setTabsClosable(False)
+        self._tab_bar.setMovable(True)
+        self._tab_bar.setStyleSheet(
+            "QTabBar::tab { padding: 3px 10px; margin-right: 2px; }"
+            "QTabBar::tab:selected { font-weight: bold; }")
+        self._tab_bar.addTab("Tray 1")
+        self._add_tray_btn = QPushButton("+")
+        self._add_tray_btn.setFixedSize(20, 20)
+        self._add_tray_btn.setToolTip("New tray")
+        self._add_tray_btn.setStyleSheet("QPushButton { padding: 0; font-weight: bold; }")
+        self._add_tray_btn.clicked.connect(self._add_tray)
+        tab_row = QHBoxLayout()
+        tab_row.setContentsMargins(0, 0, 0, 0)
+        tab_row.setSpacing(2)
+        tab_row.addWidget(self._tab_bar, 1)
+        tab_row.addWidget(self._add_tray_btn)
+        layout.addLayout(tab_row)
+        self._tab_bar.currentChanged.connect(self._on_tab_changed)
+        self._tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._tab_bar.customContextMenuRequested.connect(self._tab_context_menu)
+
         # Count
         self._count_label = QLabel("0 items")
         self._count_label.setStyleSheet("color: rgba(128,128,128,0.6);")
@@ -117,8 +174,9 @@ class WorkTray(QWidget):
         self._list = DragOutListWidget()
         self._list.setIconSize(QSize(80, 80))
         self._list.setSpacing(2)
-        self._list.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
+        self._list.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
         self._list.setDragEnabled(True)
+        self._list.drop_received.connect(self._on_drop_received)
         self._list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._list.customContextMenuRequested.connect(self._on_context_menu)
@@ -130,11 +188,16 @@ class WorkTray(QWidget):
         self._list.verticalScrollBar().setSingleStep(20)
         layout.addWidget(self._list)
 
+    def _rebuild_index(self):
+        """Rebuild the id→row mapping from _asset_ids."""
+        self._id_to_row = {aid: i for i, aid in enumerate(self._asset_ids)}
+
     def add_asset(self, asset_id: str, name: str, pixmap: QPixmap = None, path: str = ""):
         """Add an asset to the tray."""
         if asset_id in self._asset_ids:
             return
         self._asset_ids.append(asset_id)
+        self._id_to_row[asset_id] = len(self._asset_ids) - 1
         if path:
             self._paths[asset_id] = path
 
@@ -153,13 +216,12 @@ class WorkTray(QWidget):
 
     def remove_asset(self, asset_id: str):
         """Remove an asset from the tray."""
-        for i in range(self._list.count()):
-            item = self._list.item(i)
-            if item.data(Qt.ItemDataRole.UserRole) == asset_id:
-                self._list.takeItem(i)
-                break
-        if asset_id in self._asset_ids:
+        row = self._id_to_row.get(asset_id)
+        if row is not None:
+            self._list.takeItem(row)
             self._asset_ids.remove(asset_id)
+            del self._id_to_row[asset_id]
+            self._rebuild_index()  # reindex after removal shifts rows
         self._pixmaps.pop(asset_id, None)
         self._paths.pop(asset_id, None)
         self._update_count()
@@ -167,6 +229,7 @@ class WorkTray(QWidget):
     def clear(self):
         self._list.clear()
         self._asset_ids.clear()
+        self._id_to_row.clear()
         self._pixmaps.clear()
         self._update_count()
 
@@ -233,24 +296,24 @@ class WorkTray(QWidget):
             QApplication.clipboard().setText(Path(path).stem)
 
     def _move_to_top(self, asset_id: str):
-        for i in range(self._list.count()):
-            item = self._list.item(i)
-            if item.data(Qt.ItemDataRole.UserRole) == asset_id:
-                taken = self._list.takeItem(i)
-                self._list.insertItem(0, taken)
-                self._asset_ids.remove(asset_id)
-                self._asset_ids.insert(0, asset_id)
-                break
+        row = self._id_to_row.get(asset_id)
+        if row is None:
+            return
+        item = self._list.takeItem(row)
+        self._list.insertItem(0, item)
+        self._asset_ids.remove(asset_id)
+        self._asset_ids.insert(0, asset_id)
+        self._rebuild_index()
 
     def _move_to_bottom(self, asset_id: str):
-        for i in range(self._list.count()):
-            item = self._list.item(i)
-            if item.data(Qt.ItemDataRole.UserRole) == asset_id:
-                taken = self._list.takeItem(i)
-                self._list.addItem(taken)
-                self._asset_ids.remove(asset_id)
-                self._asset_ids.append(asset_id)
-                break
+        row = self._id_to_row.get(asset_id)
+        if row is None:
+            return
+        item = self._list.takeItem(row)
+        self._list.addItem(item)
+        self._asset_ids.remove(asset_id)
+        self._asset_ids.append(asset_id)
+        self._rebuild_index()
 
     def _copy_path(self, asset_id: str):
         from PySide6.QtWidgets import QApplication
@@ -297,34 +360,131 @@ class WorkTray(QWidget):
             toggle_tags([asset], tag_id)
             self.tags_modified.emit()
 
+    def _on_drop_received(self, paths: list):
+        """Handle files dropped onto the tray — resolve to project assets and add."""
+        if not self._project:
+            return
+        # Build path→asset lookup
+        path_map = {a.source_path.replace("\\", "/"): a
+                    for a in self._project.assets}
+        for path in paths:
+            norm = path.replace("\\", "/")
+            asset = path_map.get(norm)
+            if asset and asset.id not in self._asset_ids:
+                self.add_asset(asset.id, Path(path).name, path=path)
+
     def _open_explorer(self, asset_id: str):
         import subprocess
         path = self._paths.get(asset_id, "").replace("/", "\\")
         if path:
             subprocess.Popen(f'explorer /select,"{path}"')
 
+    # --- Tab management ---
+
+    def _add_tray(self):
+        n = self._tab_bar.count() + 1
+        name = f"Tray {n}"
+        self._trays[name] = []
+        self._tab_bar.addTab(name)
+        self._tab_bar.setCurrentIndex(self._tab_bar.count() - 1)
+
+    def _on_tab_changed(self, index: int):
+        if index < 0:
+            return
+        # Save current tray contents
+        self._trays[self._current_tray] = list(self._asset_ids)
+        # Switch to new tray
+        new_name = self._tab_bar.tabText(index)
+        self._current_tray = new_name
+        # Reload list from stored data
+        self._list.clear()
+        self._asset_ids.clear()
+        self._id_to_row.clear()
+        self._pixmaps.clear()
+        self._paths.clear()
+        for aid in self._trays.get(new_name, []):
+            if self._project:
+                asset = self._project.get_asset(aid)
+                if asset:
+                    self.add_asset(aid, Path(asset.source_path).name, path=asset.source_path)
+
+    def _tab_context_menu(self, pos):
+        index = self._tab_bar.tabAt(pos)
+        if index < 0:
+            return
+        name = self._tab_bar.tabText(index)
+        menu = QMenu(self)
+        menu.addAction("Rename", lambda: self._rename_tray(index))
+        if self._tab_bar.count() > 1:
+            menu.addAction("Close", lambda: self._close_tray(index))
+        menu.exec(self._tab_bar.mapToGlobal(pos))
+
+    def _rename_tray(self, index: int):
+        old_name = self._tab_bar.tabText(index)
+        new_name, ok = QInputDialog.getText(self, "Rename Tray", "Name:", text=old_name)
+        if ok and new_name.strip() and new_name != old_name:
+            new_name = new_name.strip()
+            self._trays[new_name] = self._trays.pop(old_name, [])
+            if self._current_tray == old_name:
+                self._current_tray = new_name
+            self._tab_bar.setTabText(index, new_name)
+
+    def _close_tray(self, index: int):
+        name = self._tab_bar.tabText(index)
+        self._trays.pop(name, None)
+        self._tab_bar.removeTab(index)
+        # If we closed the active tray, switch to first remaining
+        if name == self._current_tray:
+            self._current_tray = self._tab_bar.tabText(0)
+
     # --- Save/Load ---
 
-    def save_state(self) -> list[str]:
-        return list(self._asset_ids)
+    def save_state(self):
+        """Return tray data. Dict of tray_name → asset_ids for named trays."""
+        # Save current tray before serializing
+        self._trays[self._current_tray] = list(self._asset_ids)
+        if len(self._trays) == 1 and "Tray 1" in self._trays:
+            # Single default tray — save as plain list for backward compat
+            return self._trays["Tray 1"]
+        return dict(self._trays)
 
-    def load_state(self, asset_ids: list[str], project):
-        """Restore tray from saved asset IDs."""
+    def load_state(self, data, project):
+        """Restore tray from saved data (list for compat, or dict for named trays)."""
+        self._project = project
         self.clear()
-        for aid in asset_ids:
+        # Backward compat: plain list → single "Tray 1"
+        if isinstance(data, list):
+            tray_dict = {"Tray 1": data}
+        elif isinstance(data, dict):
+            tray_dict = data
+        else:
+            tray_dict = {"Tray 1": []}
+
+        self._trays = tray_dict
+        # Rebuild tab bar — keep signals blocked through setCurrentIndex
+        # to prevent _on_tab_changed from wiping tray data
+        self._tab_bar.blockSignals(True)
+        while self._tab_bar.count():
+            self._tab_bar.removeTab(0)
+        for name in tray_dict:
+            self._tab_bar.addTab(name)
+        first_name = next(iter(tray_dict), "Tray 1")
+        self._current_tray = first_name
+        self._tab_bar.setCurrentIndex(0)
+        self._tab_bar.blockSignals(False)
+        for aid in tray_dict.get(first_name, []):
             asset = project.get_asset(aid)
             if asset:
                 self.add_asset(aid, Path(asset.source_path).name, path=asset.source_path)
 
     def update_pixmap(self, asset_id: str, pixmap: QPixmap):
         """Update thumbnail for an item already in the tray."""
-        if asset_id not in self._asset_ids:
+        row = self._id_to_row.get(asset_id)
+        if row is None:
             return
-        for i in range(self._list.count()):
-            item = self._list.item(i)
-            if item.data(Qt.ItemDataRole.UserRole) == asset_id:
-                scaled = pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio,
-                                       Qt.TransformationMode.SmoothTransformation)
-                item.setIcon(QIcon(scaled))
-                self._pixmaps[asset_id] = pixmap
-                break
+        item = self._list.item(row)
+        if item:
+            scaled = pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio,
+                                   Qt.TransformationMode.SmoothTransformation)
+            item.setIcon(QIcon(scaled))
+            self._pixmaps[asset_id] = pixmap
