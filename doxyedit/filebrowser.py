@@ -3,7 +3,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTreeView,
     QMenu, QFileSystemModel, QAbstractItemView, QApplication,
-    QStyledItemDelegate, QStyleOptionViewItem,
+    QStyledItemDelegate, QStyleOptionViewItem, QLineEdit,
 )
 from PySide6.QtCore import Qt, Signal, QDir, QSettings, QModelIndex, QRect, QSize
 from PySide6.QtGui import QFont, QPainter, QColor
@@ -131,6 +131,15 @@ class FileBrowserPanel(QWidget):
         header.addWidget(clear_btn)
         layout.addLayout(header)
 
+        # Search filter
+        self._search = QLineEdit()
+        self._search.setPlaceholderText("Filter folders...")
+        self._search.setClearButtonEnabled(True)
+        self._search.setFixedHeight(24)
+        self._search.setContentsMargins(8, 0, 8, 0)
+        self._search.textChanged.connect(self._on_search_changed)
+        layout.addWidget(self._search)
+
         # Pinned folders bar
         self._pin_bar = QVBoxLayout()
         self._pin_bar.setContentsMargins(8, 0, 8, 0)
@@ -211,6 +220,15 @@ class FileBrowserPanel(QWidget):
         """Clear the active folder highlight (called when filter is cleared)."""
         self._active_folder = None
         self._tree.viewport().update()
+
+    def _on_search_changed(self, text: str):
+        """Filter tree to folders matching the search text."""
+        text = text.strip()
+        if text:
+            self._model.setNameFilters([f"*{text}*"])
+            self._model.setNameFilterDisables(False)
+        else:
+            self._model.setNameFilters([])
 
     def _tree_context_menu(self, pos):
         index = self._tree.indexAt(pos)
