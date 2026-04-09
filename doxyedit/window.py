@@ -596,6 +596,7 @@ class MainWindow(QMainWindow):
         self._add_project_tab(project, None, Path(folder).name)
         self.browser.import_folder(folder)
         self._dirty = True
+        self._refresh_file_browser()
 
     def _new_project_blank_tab(self):
         project = Project(name="New Project")
@@ -1168,6 +1169,7 @@ class MainWindow(QMainWindow):
         for f in folders:
             total += self.browser.import_folder(f)
         self.status.showMessage(f"Imported {total} image(s) from folder", 2000)
+        self._refresh_file_browser()
 
     # --- Progress counter ---
 
@@ -1611,6 +1613,12 @@ class MainWindow(QMainWindow):
         """Clear any folder filter on the main grid."""
         self.browser.set_folder_filter(None)
         self._file_browser.clear_active()
+
+    def _refresh_file_browser(self):
+        """Refresh file browser counts after project data changes."""
+        if hasattr(self, '_file_browser') and self._file_browser.isVisible() and self.project:
+            self._file_browser._update_folder_counts()
+            self._file_browser._tree.viewport().update()
 
     def _send_to_tray(self):
         """Send selected assets to work tray."""
@@ -2253,6 +2261,7 @@ class MainWindow(QMainWindow):
         self._refresh_all_tags()
         self.browser.refresh()
         self._dirty = True
+        self._refresh_file_browser()
 
     def _move_to_project(self):
         """Move selected assets to another .doxyproj.json file."""
