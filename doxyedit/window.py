@@ -984,7 +984,7 @@ class MainWindow(QMainWindow):
         # Edit menu
         edit_menu = menu.addMenu("&Edit")
         edit_menu.addAction("Select &All", self._select_all, QKeySequence("Ctrl+A"))
-        edit_menu.addAction("Select &None", self._select_none, QKeySequence("Ctrl+D"))
+        edit_menu.addAction("Select &None", self._select_none, QKeySequence("Ctrl+Shift+D"))
         edit_menu.addAction("&Invert Selection", self._invert_selection)
         edit_menu.addSeparator()
         edit_menu.addAction("&Rename File on Disk", self._rename_selected, QKeySequence("F2"))
