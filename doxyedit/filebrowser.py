@@ -167,6 +167,10 @@ class FileBrowserPanel(QWidget):
         self._delegate = FolderDelegate(self)
         self._tree.setItemDelegate(self._delegate)
 
+        self._tree.setDragEnabled(True)
+        self._tree.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
+        self._tree.startDrag = self._start_drag
+
         layout.addWidget(self._tree, 1)
 
         self.setMinimumWidth(180)
@@ -350,6 +354,26 @@ class FileBrowserPanel(QWidget):
             }}
         """)
         self._tree.viewport().update()
+
+    def _start_drag(self, supported_actions):
+        """Start a drag with the selected folder as a file URL."""
+        from PySide6.QtCore import QMimeData, QUrl
+        from PySide6.QtGui import QDrag
+
+        index = self._tree.currentIndex()
+        if not index.isValid():
+            return
+        path = self._model.filePath(index)
+        if not path:
+            return
+
+        mime = QMimeData()
+        mime.setUrls([QUrl.fromLocalFile(path)])
+        mime.setData("application/x-doxyedit-folder-import", path.encode("utf-8"))
+
+        drag = QDrag(self._tree)
+        drag.setMimeData(mime)
+        drag.exec(Qt.DropAction.CopyAction)
 
     def highlight_folder(self, folder_path: str):
         """Highlight a folder in the tree without triggering a filter.
