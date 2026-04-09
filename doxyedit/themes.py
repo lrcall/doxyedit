@@ -297,6 +297,7 @@ def generate_stylesheet(theme: Theme) -> str:
         QSplitter::handle {{ background: {theme.border}; }}
         QSplitter::handle:vertical {{ height: 9px; }}
         QSplitter::handle:horizontal {{ width: 8px; }}
+        QSplitter::handle:hover {{ background: {theme.accent_dim}; }}
 
         #doxyedit_browser, #doxyedit_tagpanel, #doxyedit_grid,
         #doxyedit_grid_scroll, #doxyedit_grid_scroll > QWidget,
@@ -341,7 +342,6 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
         QMenu::separator {{ background: {theme.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
 
-        QSplitter::handle {{ background: {theme.border}; width: 7px; }}
 
         QTabWidget {{ background: {theme.bg_raised}; }}
         QTabWidget::pane {{ border: none; background: {theme.bg_deep}; }}
