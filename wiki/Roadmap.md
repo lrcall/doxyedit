@@ -5,7 +5,7 @@ description: Planned features and improvements for DoxyEdit — organized by eff
 
 # Roadmap
 
-Features still pending from TODO.md, organized by estimated effort. Items marked as completed in recent versions have been removed; this list reflects what is genuinely still open.
+Feature history for DoxyEdit. All items completed as of v2.2 (2026-04-09). Only Eagle Gallery 3-panel tab remains deferred for a future session.
 
 ---
 
@@ -17,35 +17,29 @@ These are well-scoped features that are close to the existing codebase.
 
 Visible drag slider in the toolbar for thumbnail size (80–320px). Supplements Ctrl+scroll. Done.
 
-### Rename Detection for Missing Files
+### ~~Rename Detection for Missing Files~~ ✓
 
-When the Health scan finds a missing file, check if it was renamed rather than deleted. Strategy:
-1. Look in `asset.source_folder` for files with the same extension that aren't already in the project
-2. If exactly one candidate exists, auto-suggest "Renamed to X?" with an **Update Path** button
-3. If multiple candidates, show a picker
-4. Could also match by file size as a secondary signal for confidence
+Done (v2.0). Health panel auto-suggests renames with "Find Rename" / "Locate…" button.
 
-Implementation: add a `_find_rename_candidates(asset)` helper in `health.py`. In `_build_asset_row` for missing assets, show a "Find Rename" button that calls it. On confirm, update `asset.source_path` and `asset.source_folder` and re-scan.
+### ~~Right-Click to Dismiss from Recent Lists~~ ✓
 
-### Right-Click to Dismiss from Recent Lists
+Done (v2.0). Right-click → "Remove from list" in Recent Projects/Folders menus.
 
-Right-click any entry in File > Recent Projects or File > Recent Folders to get a "Remove from list" option. Recent lists are stored in QSettings — just filter out the chosen path and rebuild the menu. Wire to the existing `_rebuild_recent_menus()` call in `window.py`.
+### ~~Project Accent Color — Title Bar Tint~~ ✓
 
-### Project Accent Color — Title Bar Tint
+Done (v2.0). DwmSetWindowAttribute with DWMWA_CAPTION_COLOR on Windows 11.
 
-When a project accent color is set, apply it to the Windows title bar as well. Use `DwmSetWindowAttribute` with `DWMWA_CAPTION_COLOR` (Windows 11) or `DWMWA_COLORIZATION_COLOR` (Windows 10) via ctypes. Fall back gracefully on older Windows. Wire to the existing `_set_project_color` / `_apply_theme` flow in `window.py`.
+### ~~Taskbar Flash on Cache Complete~~ ✓
 
-### Taskbar Flash on Cache Complete
+Done (v2.0). FlashWindowEx when Cache All finishes and app is unfocused.
 
-Flash the DoxyEdit taskbar button when a Cache All operation finishes. Use `QWinTaskbarButton` (Qt Windows Extras / `PySide6.QtWinExtras` if available) or the raw Win32 `FlashWindowEx` API (`FLASHWINFO` struct, `FLASHW_TRAY | FLASHW_TIMERNOFG` flags so it only flashes when DoxyEdit is not the foreground window). Wire to the existing cache-all completion signal in `browser.py`.
+### ~~Zoom Slider~~ ✓
 
-### Zoom Slider
+Done (v2.1). QSlider in toolbar row2, 80–320px, synced with Ctrl+scroll.
 
-Visible drag slider in the toolbar for thumbnail size (80–320px). Supplements existing Ctrl+scroll. One `QSlider` wired to the existing `_thumb_size` logic. Show current px value as a label next to it.
+### ~~Full Screen Button in Preview~~ ✓
 
-### Full Screen Button in Preview
-
-A fullscreen toggle button in the `ImagePreviewDialog` toolbar. `showFullScreen()` / `showNormal()` toggle, or wire to the existing `_toggle_fullscreen()` method which already exists but may not have a visible button.
+Done (v2.0). F11 toggle in preview toolbar.
 
 ### ~~Open in Native Editor~~ ✓
 
@@ -68,37 +62,37 @@ Drag one or more selected thumbnails out of the main grid directly to Photoshop,
 > [!note]
 > Work Tray drag-out already works. This extends the same behavior to the main grid.
 
-### Hover-Only Filenames
+### ~~Hover-Only Filenames~~ ✓
 
-View menu toggle: **Show Filenames** (always / hover only / never). When set to hover-only, the delegate suppresses the text draw unless the item is hovered. Cleaner grid at small zoom levels. Store in QSettings.
+Done (v2.0). View > Filenames — Always / Hover Only / Never.
 
-### Format Filter
+### ~~Format Filter~~ ✓
 
-Filter the grid by file extension. A dropdown or button group: All / PSD / PNG / JPG / SAI / Other. Filters `_filtered_assets` by `Path(source_path).suffix.lower()`. Useful in mixed-format folders.
+Done (v2.0). Format dropdown in toolbar: All / PSD / PNG / JPG / SAI / WEBP / CLIP / Other.
 
-### Drag-Select Over Tag Rows
+### ~~Drag-Select Over Tag Rows~~ ✓
 
-Rubber-band / drag selection across tag rows in the Tag Panel. Currently you click individual tags or Ctrl+click for multi-select. A drag gesture would let you select a range of tags in one motion.
+Done (pre-v2.2). Rubber-band drag selection in _TagContainer with geometry intersection.
 
-### Drag-Drop Tags Between Groups
+### ~~Drag-Drop Tags Between Groups~~ ✓
 
-Drag a tag from one section to another (e.g., move a custom tag into a different group), or create a new tag group by dropping. Requires a rethought data model for tag grouping.
+Done (pre-v2.2). Cross-section drag-drop via _TagContainer._finish_reorder().
 
-### Multiple Tray Views (Named Trays)
+### ~~Multiple Tray Views (Named Trays)~~ ✓
 
-The Work Tray currently holds one flat list. Named trays (tabs or labeled slots) would allow multiple staging areas — e.g., one tray per platform or per campaign stage.
+Done (pre-v2.2). Tab bar with add/rename/close, dict-based save/load, backward compat.
 
 ### ~~Quick-Launch Program List~~ ✓
 
 **Tools > Launch In** submenu — lists all configured editors. Click an entry to open selected assets matching that extension. Shares the same `native_editor/<ext>` QSettings table as Configure Editors.
 
-### Quick-Launch Program List (was)
+### ~~Quick-Launch Program List~~ ✓
 
-A configurable list of frequently-used apps (Photoshop, SAI, Clip Studio, etc.) accessible from the Tools menu or a toolbar button. Click an entry to open selected assets in that program. Config stored in QSettings — extension → exe path, same table as "Configure Editors". Could also populate a right-click **Send To ▸** submenu if desired (implementation is trivial via `ShellExecuteEx` on the system Send To folder at `%APPDATA%\Microsoft\Windows\SendTo`).
+Done (v2.1). Tools > Launch In submenu with configured editors.
 
-### Nuitka Build Optimization
+### ~~Nuitka Build Optimization~~ ✓
 
-The `build.bat` Nuitka build works but has room for size and speed optimization. The output `.exe` could likely be smaller with better include/exclude tuning.
+Done (v2.2). 11 new --nofollow-import-to exclusions added to build.bat.
 
 ---
 
