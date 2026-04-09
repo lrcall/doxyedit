@@ -600,7 +600,7 @@ class FolderSection(QWidget):
         self._view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._view.setStyleSheet("QListView { border: none; }")
         from PySide6.QtWidgets import QSizePolicy
-        self._view.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self._view.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         layout.addWidget(self._view)
 
         self._set_collapsed(collapsed, animate=False)
@@ -651,7 +651,7 @@ class FolderSection(QWidget):
             return
         if available_width <= 0:
             available_width = self.width()
-        if available_width <= 0:
+        if available_width < 100:  # too small, skip — will be called again on resize
             return
         view_h = self._view._compute_height(available_width)
         max_h = getattr(self, '_max_section_height', 0)
@@ -832,6 +832,8 @@ class AssetBrowser(QWidget):
 
         self.count_label = QLabel("0 assets")  # shown in status bar by window
 
+        # Force toolbar to recalculate height after all buttons added
+        self._toolbar_widget.updateGeometry()
         root.addWidget(self._toolbar_widget)
 
         # Row 2: search + sort
