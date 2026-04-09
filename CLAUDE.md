@@ -110,6 +110,16 @@ An asset at `Furry\Marty\file.psd` receives tags: `["furry", "marty"]`
 ## Scripts
 - `tag-by-folder.py` — auto-tags all assets by folder path (all depth levels). Safe to re-run; won't duplicate tags.
 
+## UI Rules
+- **NEVER** hardcode colors, fonts, or sizes on individual widgets via `setStyleSheet()`
+- ALL visual properties come from Theme tokens in `doxyedit/themes.py`
+- New panels: set `objectName`, add selectors to `generate_stylesheet()` — do NOT create `apply_theme()` methods
+- The global stylesheet cascades to all children automatically — no per-widget overrides needed
+- Use `setProperty()` + property selectors for dynamic state (status colors, etc.)
+- Exception: overlays (crop handles, censor rects, note annotations) may use fixed high-contrast colors
+- Full spec: `docs/ressources/uidocs/DOXYEDIT_UI_SPEC.md`
+- Reference design philosophy: `docs/ressources/uidocs/SHADER_LAB_UI_GUIDE.md`
+
 ## Rules
 - The project file is binary-safe JSON — always use `ensure_ascii=False` when writing
 - Never sort or reorder assets — order is meaningful (affects display)
