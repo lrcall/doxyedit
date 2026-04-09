@@ -1018,24 +1018,22 @@ class MainWindow(QMainWindow):
 
         # Tools menu
         tools_menu = menu.addMenu("&Tools")
+
+        # — Project —
         tools_menu.addAction("&Reload Project from Disk", self._reload_project, QKeySequence("F5"))
         tools_menu.addAction("Remove Missing Files", self._remove_missing_files)
         tools_menu.addAction("Refresh Thumbnails", self._refresh_thumbs, QKeySequence("Shift+F5"))
         tools_menu.addAction("Rebuild Tag Bar", lambda: self.browser.rebuild_tag_bar())
         tools_menu.addAction("Clear Unused Tags", self._clear_unused_tags)
+        tools_menu.addSeparator()
+
+        # — Import —
         tools_menu.addAction("Refresh Import Sources", self._refresh_import_sources, QKeySequence("Ctrl+R"))
         tools_menu.addAction("Show Import Sources...", self._show_import_sources)
         tools_menu.addSeparator()
+
+        # — Cache —
         tools_menu.addAction("Clear Thumbnail Cache", self._clear_thumb_cache)
-        self._auto_tag_action = tools_menu.addAction("Auto-Tag on Import")
-        self._auto_tag_action.setCheckable(True)
-        self._auto_tag_action.setChecked(False)
-        self._auto_tag_action.toggled.connect(lambda on: setattr(self.browser, 'auto_tag_enabled', on))
-        tools_menu.addSeparator()
-        tools_menu.addAction("Project &Summary (CLI)", self._show_summary)
-        tools_menu.addAction("Show Project File...", self._show_project_file)
-        tools_menu.addAction("Open Project File Location", self._open_project_location)
-        tools_menu.addSeparator()
         tools_menu.addAction("Set Cache Location...", self._set_cache_location)
         tools_menu.addAction("Open Cache Folder", self._open_cache_folder)
         self._shared_cache_action = tools_menu.addAction("Shared Cache (all projects)")
@@ -1050,19 +1048,30 @@ class MainWindow(QMainWindow):
             "Store thumbnails as uncompressed BMP for faster reads at the cost of disk space")
         self._fast_cache_action.toggled.connect(self._on_fast_cache_toggled)
         tools_menu.addSeparator()
+
+        # — Analysis —
         tools_menu.addAction("Find Duplicate Files...", self._find_duplicates)
         tools_menu.addAction("Find Similar Images (Perceptual)...", self._find_similar)
         tools_menu.addAction("Tag Usage Stats...", self._show_tag_stats)
         tools_menu.addAction("Posting Checklist...", self._show_checklist)
         tools_menu.addSeparator()
+
+        # — Editors —
         tools_menu.addAction("Configure Editors...", self._configure_editors)
         self._launch_menu = tools_menu.addMenu("Launch In")
         self._rebuild_launch_menu()
-        tools_menu.addSeparator()
         tools_menu.addAction("Mass Tag Editor (AI Training)...", self._mass_tag_editor)
         tools_menu.addSeparator()
+
+        # — Config —
         tools_menu.addAction("Edit Project Config (YAML)...", self._edit_project_config)
-        tools_menu.addSeparator()
+        tools_menu.addAction("Project &Summary (CLI)", self._show_summary)
+        tools_menu.addAction("Show Project File...", self._show_project_file)
+        tools_menu.addAction("Open Project File Location", self._open_project_location)
+        self._auto_tag_action = tools_menu.addAction("Auto-Tag on Import")
+        self._auto_tag_action.setCheckable(True)
+        self._auto_tag_action.setChecked(False)
+        self._auto_tag_action.toggled.connect(lambda on: setattr(self.browser, 'auto_tag_enabled', on))
         self._folder_scan_action = tools_menu.addAction("Folder Scan")
         self._folder_scan_action.setCheckable(True)
         self._folder_scan_action.setChecked(self.browser.folder_scan_check.isChecked())
