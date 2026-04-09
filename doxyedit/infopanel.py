@@ -3,10 +3,32 @@ import os
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
-    QScrollArea, QFrame,
+    QScrollArea, QFrame, QPushButton, QLineEdit, QCompleter,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QStringListModel
 from PySide6.QtGui import QFont, QColor
+
+from doxyedit.browser import FlowLayout
+
+
+class _TagPill(QPushButton):
+    """Clickable tag pill with remove button."""
+    removed = Signal(str)  # tag_id
+
+    def __init__(self, tag_id: str, removable: bool = True, parent=None):
+        super().__init__(parent)
+        self.tag_id = tag_id
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedHeight(22)
+        label = tag_id
+        if removable:
+            label += " \u00d7"
+            self.clicked.connect(lambda: self.removed.emit(self.tag_id))
+        self.setText(label)
+        self.setStyleSheet(
+            "QPushButton { background: rgba(255,255,255,0.1); color: rgba(200,200,200,0.9);"
+            " border: none; border-radius: 3px; padding: 1px 6px; font-size: 11px; }"
+            "QPushButton:hover { background: rgba(255,255,255,0.2); }")
 
 
 class InfoPanel(QWidget):
@@ -75,14 +97,38 @@ class InfoPanel(QWidget):
         # Separator after palette
         self._layout.addWidget(self._separator())
 
-        # Tags section
+        # Tags section (editable)
         self._tags_header = QLabel("Tags")
         self._tags_header.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         self._layout.addWidget(self._tags_header)
-        self._tags_label = QLabel()
-        self._tags_label.setWordWrap(True)
-        self._tags_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self._layout.addWidget(self._tags_label)
+        self._tag_flow_widget = QWidget()
+        self._tag_flow = FlowLayout(self._tag_flow_widget, spacing=4)
+        self._layout.addWidget(self._tag_flow_widget)
+        # "+" add tag button
+        self._add_tag_btn = QPushButton("+")
+        self._add_tag_btn.setFixedSize(22, 22)
+        self._add_tag_btn.setStyleSheet(
+            "QPushButton { background: rgba(255,255,255,0.08); color: rgba(200,200,200,0.7);"
+            " border: 1px solid rgba(255,255,255,0.15); border-radius: 3px; font-size: 14px; }"
+            "QPushButton:hover { background: rgba(255,255,255,0.15); }")
+        self._add_tag_btn.setToolTip("Add tag")
+        self._add_tag_btn.clicked.connect(self._start_add_tag)
+        # Tag add inline editor (hidden by default)
+        self._tag_add_edit = QLineEdit()
+        self._tag_add_edit.setFixedHeight(22)
+        self._tag_add_edit.setMaximumWidth(120)
+        self._tag_add_edit.setPlaceholderText("tag name...")
+        self._tag_add_edit.setStyleSheet(
+            "QLineEdit { background: rgba(255,255,255,0.1); color: rgba(200,200,200,0.9);"
+            " border: 1px solid rgba(255,255,255,0.2); border-radius: 3px; padding: 1px 4px; font-size: 11px; }")
+        self._tag_add_edit.returnPressed.connect(self._finish_add_tag)
+        self._tag_add_edit.hide()
+        self._available_tags: list[str] = []
+        self._completer_model = QStringListModel()
+        self._completer = QCompleter(self._completer_model)
+        self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self._tag_add_edit.setCompleter(self._completer)
 
         # Separator
         self._layout.addWidget(self._separator())
@@ -98,14 +144,19 @@ class InfoPanel(QWidget):
         # Separator
         self._layout.addWidget(self._separator())
 
-        # Notes section
+        # Notes section (editable)
         self._notes_header = QLabel("Notes")
         self._notes_header.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         self._layout.addWidget(self._notes_header)
-        self._notes_label = QLabel()
-        self._notes_label.setWordWrap(True)
-        self._notes_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self._layout.addWidget(self._notes_label)
+        self._notes_edit = QTextEdit()
+        self._notes_edit.setMinimumHeight(40)
+        self._notes_edit.setMaximumHeight(120)
+        self._notes_edit.setPlaceholderText("Add notes...")
+        self._notes_edit.setStyleSheet(
+            "QTextEdit { background: rgba(255,255,255,0.05); color: rgba(200,200,200,0.9);"
+            " border: 1px solid rgba(255,255,255,0.1); border-radius: 3px; padding: 4px; font-size: 11px; }")
+        self._notes_edit.textChanged.connect(self._on_notes_changed)
+        self._layout.addWidget(self._notes_edit)
 
         self._layout.addStretch()
 
@@ -154,9 +205,12 @@ class InfoPanel(QWidget):
             self._header.setText("No selection")
             self._name_label.setText("")
             self._props_label.setText("")
-            self._tags_label.setText("")
+            self._rebuild_tag_pills([])
             self._assign_label.setText("")
-            self._notes_label.setText("")
+            self._notes_edit.blockSignals(True)
+            self._notes_edit.clear()
+            self._notes_edit.blockSignals(False)
+            self._notes_edit.hide()
             self._render_palette([])
             return
 
@@ -197,14 +251,8 @@ class InfoPanel(QWidget):
             props.append(f"<b>Rating:</b> {stars}")
         self._props_label.setText("<br>".join(props))
 
-        # Tags
-        if asset.tags:
-            tag_pills = " ".join(f'<span style="background:rgba(255,255,255,0.1);'
-                                  f'padding:1px 6px;border-radius:3px;">{t}</span>'
-                                  for t in asset.tags)
-            self._tags_label.setText(tag_pills)
-        else:
-            self._tags_label.setText("<i>No tags</i>")
+        # Tags (editable pills)
+        self._rebuild_tag_pills(asset.tags, removable=True)
 
         # Assignments
         if asset.assignments:
@@ -220,11 +268,11 @@ class InfoPanel(QWidget):
         # Palette
         self._render_palette(asset.specs.get("palette", []))
 
-        # Notes
-        if asset.notes:
-            self._notes_label.setText(asset.notes)
-        else:
-            self._notes_label.setText("<i>No notes</i>")
+        # Notes (editable)
+        self._notes_edit.show()
+        self._notes_edit.blockSignals(True)
+        self._notes_edit.setPlainText(asset.notes or "")
+        self._notes_edit.blockSignals(False)
 
     def _show_multi(self, assets):
         """Display summary info for multiple selected assets."""
@@ -247,19 +295,83 @@ class InfoPanel(QWidget):
             f"<b>Starred:</b> {sum(1 for a in assets if a.starred)}"
         )
 
-        if common:
-            tag_pills = " ".join(f'<span style="background:rgba(255,255,255,0.1);'
-                                  f'padding:1px 6px;border-radius:3px;">{t}</span>'
-                                  for t in sorted(common))
-            self._tags_label.setText(f"Common: {tag_pills}")
-        else:
-            self._tags_label.setText("<i>No common tags</i>")
+        # Common tags (read-only pills + add button for bulk add)
+        self._rebuild_tag_pills(sorted(common) if common else [], removable=False)
 
         self._assign_label.setText(
             f"{sum(1 for a in assets if a.assignments)} assigned")
-        self._notes_label.setText(
-            f"{sum(1 for a in assets if a.notes)} with notes")
+        self._notes_edit.hide()  # No inline notes editing for multi-select
         self._render_palette([])
+
+    def set_available_tags(self, tags: list[str]):
+        """Set the list of known tags for autocomplete."""
+        self._available_tags = tags
+        self._completer_model.setStringList(tags)
+
+    def _rebuild_tag_pills(self, tags: list[str], removable: bool = True):
+        """Rebuild the tag flow with pills for each tag."""
+        # Clear existing
+        while self._tag_flow.count():
+            item = self._tag_flow.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        # Add pills
+        for tag_id in tags:
+            pill = _TagPill(tag_id, removable=removable)
+            if removable:
+                pill.removed.connect(self._remove_tag)
+            self._tag_flow.addWidget(pill)
+        # Add the "+" button and hide the editor
+        self._tag_add_edit.hide()
+        self._tag_add_edit.clear()
+        self._tag_flow.addWidget(self._add_tag_btn)
+
+    def _remove_tag(self, tag_id: str):
+        """Remove a tag from the current asset(s)."""
+        for asset in self._assets:
+            if tag_id in asset.tags:
+                asset.tags.remove(tag_id)
+        if self._assets and len(self._assets) == 1:
+            self._rebuild_tag_pills(self._assets[0].tags)
+        else:
+            common = set(self._assets[0].tags) if self._assets else set()
+            for a in self._assets[1:]:
+                common &= set(a.tags)
+            self._rebuild_tag_pills(sorted(common), removable=False)
+        self.tags_modified.emit()
+
+    def _start_add_tag(self):
+        """Show the inline tag name editor."""
+        self._tag_add_edit.show()
+        self._tag_add_edit.setFocus()
+
+    def _finish_add_tag(self):
+        """Add the typed tag to the current asset(s)."""
+        text = self._tag_add_edit.text().strip().lower().replace(" ", "_")
+        if not text:
+            self._tag_add_edit.hide()
+            return
+        for asset in self._assets:
+            if text not in asset.tags:
+                asset.tags.append(text)
+        self._tag_add_edit.hide()
+        self._tag_add_edit.clear()
+        if self._assets and len(self._assets) == 1:
+            self._rebuild_tag_pills(self._assets[0].tags)
+        else:
+            # Multi-select: rebuild common tags
+            common = set(self._assets[0].tags)
+            for a in self._assets[1:]:
+                common &= set(a.tags)
+            self._rebuild_tag_pills(sorted(common), removable=False)
+        self.tags_modified.emit()
+
+    def _on_notes_changed(self):
+        """Sync notes editor text back to asset."""
+        if not self._assets or len(self._assets) != 1:
+            return
+        self._assets[0].notes = self._notes_edit.toPlainText()
+        self.tags_modified.emit()
 
     def apply_theme(self, theme):
         """Apply theme colors to the info panel."""
@@ -278,5 +390,20 @@ class InfoPanel(QWidget):
             QScrollArea {{
                 background: {theme.bg_main};
                 border: none;
+            }}
+            _TagPill {{
+                font-size: {f - 1}px;
+            }}
+            QTextEdit {{
+                background: {theme.bg_input};
+                color: {theme.text_primary};
+                border: 1px solid {theme.border};
+                font-size: {f}px;
+            }}
+            QLineEdit {{
+                background: {theme.bg_input};
+                color: {theme.text_primary};
+                border: 1px solid {theme.border};
+                font-size: {f - 1}px;
             }}
         """)

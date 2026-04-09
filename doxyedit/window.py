@@ -184,6 +184,7 @@ class MainWindow(QMainWindow):
         # Info panel (right side, after preview, initially hidden)
         self._info_panel = InfoPanel()
         self._info_panel.hide()
+        self._info_panel.tags_modified.connect(self._on_tags_modified)
         self._browse_split.addWidget(self._info_panel)
         self._browse_split.setStretchFactor(0, 0)  # file browser
         self._browse_split.setStretchFactor(1, 0)  # tag panel
@@ -1611,6 +1612,9 @@ class MainWindow(QMainWindow):
         self.browser.rebuild_tag_bar()
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self.tag_panel.update_tag_counts(self.project.assets)
+        if hasattr(self, '_info_panel'):
+            tag_ids = sorted(self.project.get_tags().keys()) if self.project else []
+            self._info_panel.set_available_tags(tag_ids)
 
     def _on_tags_modified(self):
         """Browser added/removed a custom tag — sync both tag locations."""
@@ -3095,6 +3099,9 @@ Ctrl+Click tag — Search by tag
         self._file_browser.set_project(self.project)
         if hasattr(self, '_smart_folder_menu'):
             self._rebuild_smart_folder_menu()
+        if hasattr(self, '_info_panel'):
+            tag_ids = sorted(self.project.get_tags().keys()) if self.project else []
+            self._info_panel.set_available_tags(tag_ids)
         self.tag_panel.set_assets([])
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self.tag_panel.update_tag_counts(self.project.assets)
