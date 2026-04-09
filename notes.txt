@@ -1,0 +1,22 @@
+
+❯ take this note for "doxyedit" tool for now the other cli doenst work   ▘▘ ▝▝    E:\git\doxyedit
+
+  > todo notes - preview doesnt remember is position if closed on different monitor,
+    ⎿  529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"},"req
+       uest_id":"req_011CZqqMXtFLeeKNDbZR34Pa"}
+       Retrying in 31 seconds… (attempt 9/10)
+
+  * Orchestrating… (2m 31s)
+
+
+    > todo check if save collection needs to be be saved often or if it just collects
+      projects and has no real save elements beyond that. (meaning do i have to keep
+      saving collections or can theyj ust be saved once and forgotten untill i add a
+      new project)
+    > todo drag and drop to tray diesnt work on normal view
+
+collections dont work . or dont reload not sure, haven't really seen it ever work
+
+
+
+
