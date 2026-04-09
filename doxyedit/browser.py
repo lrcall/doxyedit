@@ -809,23 +809,23 @@ class AssetBrowser(QWidget):
 
         self.recursive_check = QCheckBox("Recursive")
         self.recursive_check.setChecked(False)
-        # toolbar.addWidget(self.recursive_check)  # moved to View menu
+        toolbar.addWidget(self.recursive_check)
 
         self.hover_check = QCheckBox("Hover Preview")
         self.hover_check.setChecked(True)
         self.hover_check.toggled.connect(lambda v: setattr(self, 'hover_preview_enabled', v))
-        # toolbar.addWidget(self.hover_check)  # moved to View menu
+        toolbar.addWidget(self.hover_check)
 
         self.cache_all_check = QCheckBox("Cache All")
         self.cache_all_check.setChecked(False)
         self.cache_all_check.toggled.connect(self._on_cache_all_toggled)
-        # toolbar.addWidget(self.cache_all_check)  # moved to View menu
+        toolbar.addWidget(self.cache_all_check)
 
         self.folder_scan_check = QCheckBox("Folder Scan")
         self.folder_scan_check.setChecked(False)
         self.folder_scan_check.setToolTip("Auto-detect new images in imported folders")
         self.folder_scan_check.toggled.connect(self._on_folder_scan_toggled)
-        # toolbar.addWidget(self.folder_scan_check)  # moved to Tools menu
+        toolbar.addWidget(self.folder_scan_check)
         self._folder_scan_timer = QTimer(self)
         self._folder_scan_timer.setInterval(5000)  # scan every 5 seconds
         self._folder_scan_timer.timeout.connect(self._scan_folders)
