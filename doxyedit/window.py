@@ -945,6 +945,8 @@ class MainWindow(QMainWindow):
         edit_menu.addSeparator()
         edit_menu.addAction("Clear Tags on Selected", self._clear_tags_selected)
         edit_menu.addAction("Add Tag to Selected...", self._add_tag_to_selected, QKeySequence("Alt+A"))
+        edit_menu.addSeparator()
+        edit_menu.addAction("Save Filter as Smart Folder...", self._save_smart_folder)
 
         # Tools menu
         tools_menu = menu.addMenu("&Tools")
@@ -1051,6 +1053,9 @@ class MainWindow(QMainWindow):
         self._toggle_project_notes_action.setCheckable(True)
         self._toggle_project_notes_action.setChecked(False)
         self._toggle_project_notes_action.toggled.connect(self._toggle_project_notes)
+        view_menu.addSeparator()
+        self._smart_folder_menu = view_menu.addMenu("Smart Folders")
+        self._rebuild_smart_folder_menu()
 
         # Help menu
         help_menu = menu.addMenu("&Help")
@@ -3012,6 +3017,8 @@ Ctrl+Click tag — Search by tag
         self.health_panel.project = self.project
         self.health_panel.refresh()
         self._file_browser.set_project(self.project)
+        if hasattr(self, '_smart_folder_menu'):
+            self._rebuild_smart_folder_menu()
         self.tag_panel.set_assets([])
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self.tag_panel.update_tag_counts(self.project.assets)
@@ -3406,6 +3413,59 @@ Ctrl+Click tag — Search by tag
                                         path_item.text().strip() if path_item else "")
         self._rebuild_launch_menu()
         self.status.showMessage("Editor configuration saved", 2000)
+
+    def _save_smart_folder(self):
+        """Save the current browser filter state as a named smart folder."""
+        from PySide6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "Smart Folder", "Name for this filter preset:")
+        if not ok or not name.strip():
+            return
+        state = self.browser.get_filter_state()
+        preset = {
+            "name": name.strip(),
+            "icon": "🔍",
+            "state": state,
+        }
+        self.project.filter_presets.append(preset)
+        self._dirty = True
+        self._rebuild_smart_folder_menu()
+        self.status.showMessage(f"Smart folder saved: {name.strip()}", 3000)
+
+    def _rebuild_smart_folder_menu(self):
+        """Rebuild the Smart Folders submenu from project presets."""
+        menu = self._smart_folder_menu
+        menu.clear()
+        menu.addAction("Save Current Filter...", self._save_smart_folder)
+        if not self.project or not self.project.filter_presets:
+            return
+        menu.addSeparator()
+        for i, preset in enumerate(self.project.filter_presets):
+            name = preset.get("name", f"Preset {i+1}")
+            icon = preset.get("icon", "🔍")
+            menu.addAction(f"{icon} {name}",
+                            lambda _, idx=i: self._load_smart_folder(idx))
+        menu.addSeparator()
+        menu.addAction("Clear All Smart Folders", self._clear_smart_folders)
+
+    def _load_smart_folder(self, index: int):
+        """Load a smart folder preset by index."""
+        if not self.project or index >= len(self.project.filter_presets):
+            return
+        preset = self.project.filter_presets[index]
+        state = preset.get("state", {})
+        self.browser.set_filter_state(state)
+        name = preset.get("name", "Untitled")
+        self.status.showMessage(f"Smart folder loaded: {name}", 3000)
+
+    def _clear_smart_folders(self):
+        """Remove all smart folder presets."""
+        from PySide6.QtWidgets import QMessageBox
+        if QMessageBox.question(self, "Clear Smart Folders",
+                                 "Remove all saved filter presets?") != QMessageBox.StandardButton.Yes:
+            return
+        self.project.filter_presets.clear()
+        self._dirty = True
+        self._rebuild_smart_folder_menu()
 
     def _rebuild_launch_menu(self):
         """Rebuild Tools > Launch In submenu from configured editors."""
