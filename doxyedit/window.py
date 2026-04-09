@@ -683,6 +683,9 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(generate_stylesheet(self._theme))
         self._settings.setValue("theme", theme_id)
         self._tint_titlebar(proj_accent)
+        # Panels with deeply nested widgets that need explicit theme
+        if hasattr(self, '_kanban_panel'):
+            self._kanban_panel.apply_theme(self._theme)
 
     def _tint_titlebar(self, hex_color: str = ""):
         """Apply accent color to Windows 11 title bar via DwmSetWindowAttribute."""

@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QFrame, QPushButton, QApplication, QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal, QMimeData, QByteArray
-from PySide6.QtGui import QFont, QColor, QDrag, QPixmap, QPainter
+from PySide6.QtGui import QFont, QColor, QDrag, QPixmap, QPainter, QPalette
 
 
 STATUS_COLS = [
@@ -36,13 +36,11 @@ class KanbanCard(QFrame):
         layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(1)
 
-        name_lbl = QLabel(asset_name)
-        name_lbl.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        layout.addWidget(name_lbl)
+        self._name_lbl = QLabel(asset_name)
+        layout.addWidget(self._name_lbl)
 
-        detail_lbl = QLabel(f"{platform} / {slot}")
-        layout.addWidget(detail_lbl)
-
+        self._detail_lbl = QLabel(f"{platform} / {slot}")
+        layout.addWidget(self._detail_lbl)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -61,7 +59,6 @@ class KanbanCard(QFrame):
         data = f"{self.asset_id}|{self.platform}|{self.slot}|{self.status}"
         mime.setData("application/x-kanban-card", QByteArray(data.encode("utf-8")))
         drag.setMimeData(mime)
-        # Mini pixmap
         pm = QPixmap(self.size())
         pm.fill(QColor(60, 60, 60))
         p = QPainter(pm)
@@ -82,7 +79,9 @@ class KanbanColumn(QWidget):
         super().__init__(parent)
         self.setObjectName("kanban_column")
         self.status = status
+        self._status_color = color
         self.setAcceptDrops(True)
+        self.setAutoFillBackground(True)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -90,12 +89,10 @@ class KanbanColumn(QWidget):
 
         # Header
         header = QHBoxLayout()
-        dot = QLabel("\u25cf")
-        dot.setStyleSheet(f"color: {color}; font-size: 14px;")
-        dot.setFixedWidth(18)
-        header.addWidget(dot)
+        self._dot = QLabel("\u25cf")
+        self._dot.setFixedWidth(18)
+        header.addWidget(self._dot)
         self._title = QLabel(f"{label}")
-        self._title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
         header.addWidget(self._title)
         self._count = QLabel("0")
         header.addWidget(self._count)
@@ -103,21 +100,18 @@ class KanbanColumn(QWidget):
         layout.addLayout(header)
 
         # Scrollable card area
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("")
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._card_widget = QWidget()
         self._card_layout = QVBoxLayout(self._card_widget)
         self._card_layout.setContentsMargins(0, 0, 0, 0)
         self._card_layout.setSpacing(4)
         self._card_layout.addStretch()
-        scroll.setWidget(self._card_widget)
-        layout.addWidget(scroll, 1)
-
+        self._scroll.setWidget(self._card_widget)
+        layout.addWidget(self._scroll, 1)
 
     def add_card(self, card: KanbanCard):
-        # Insert before the stretch
         idx = max(0, self._card_layout.count() - 1)
         self._card_layout.insertWidget(idx, card)
         self._count.setText(str(self._card_layout.count() - 1))
@@ -147,6 +141,19 @@ class KanbanColumn(QWidget):
                     self.card_dropped.emit(asset_id, platform, slot, self.status)
             event.acceptProposedAction()
 
+    def apply_theme(self, theme):
+        """Apply theme via QPalette (reliable for nested widgets)."""
+        pal = self.palette()
+        pal.setColor(QPalette.ColorRole.Window, QColor(theme.bg_main))
+        self.setPalette(pal)
+        # Scroll area + card widget backgrounds
+        self._scroll.setStyleSheet(f"QScrollArea {{ background: {theme.bg_main}; border: none; }}")
+        self._card_widget.setStyleSheet(f"background: {theme.bg_main};")
+        # Status dot keeps its fixed color
+        self._dot.setStyleSheet(f"color: {self._status_color}; font-size: 14px; background: transparent;")
+        self._title.setStyleSheet(f"color: {theme.text_primary}; background: transparent;")
+        self._count.setStyleSheet(f"color: {theme.text_muted}; background: transparent;")
+
 
 class KanbanPanel(QWidget):
     """Kanban board showing platform assignments in status columns."""
@@ -155,18 +162,19 @@ class KanbanPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("kanban_panel")
         self._project = None
+        self._theme = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
         # Title
-        title = QLabel("Posting Schedule")
-        title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        layout.addWidget(title)
+        self._title = QLabel("Posting Schedule")
+        layout.addWidget(self._title)
 
-        # Summary
+        # Summary / help text
         self._summary = QLabel()
         layout.addWidget(self._summary)
 
@@ -188,29 +196,38 @@ class KanbanPanel(QWidget):
     def refresh(self):
         if not self._project:
             return
-        # Clear all columns
         for col in self._columns.values():
             col.clear_cards()
-        # Populate from assignments
         total = 0
         for asset in self._project.assets:
             for pa in asset.assignments:
                 status = pa.status if pa.status in self._columns else "pending"
                 name = Path(asset.source_path).stem if asset.source_path else asset.id
                 card = KanbanCard(asset.id, pa.platform, pa.slot, name, status)
+                if self._theme:
+                    card.setStyleSheet(
+                        f"background: {self._theme.bg_raised};"
+                        f" border: 1px solid {self._theme.border};"
+                        f" border-radius: 4px;")
+                    card._name_lbl.setStyleSheet(f"color: {self._theme.text_primary}; background: transparent;")
+                    card._detail_lbl.setStyleSheet(f"color: {self._theme.text_secondary}; background: transparent;")
                 self._columns[status].add_card(card)
                 total += 1
         # Summary
-        counts = {s: int(self._columns[s]._count.text()) for s in self._columns}
-        self._summary.setText(
-            f"{total} assignments \u2014 "
-            f"{counts.get('pending', 0)} pending, "
-            f"{counts.get('ready', 0)} ready, "
-            f"{counts.get('posted', 0)} posted, "
-            f"{counts.get('skip', 0)} skip")
+        if total == 0:
+            self._summary.setText(
+                "No platform assignments yet.\n"
+                "Assign assets to platforms in the Platforms tab, then drag cards here to track status.")
+        else:
+            counts = {s: int(self._columns[s]._count.text()) for s in self._columns}
+            self._summary.setText(
+                f"{total} assignments \u2014 "
+                f"{counts.get('pending', 0)} pending, "
+                f"{counts.get('ready', 0)} ready, "
+                f"{counts.get('posted', 0)} posted, "
+                f"{counts.get('skip', 0)} skip")
 
     def _on_card_dropped(self, asset_id: str, platform: str, slot: str, new_status: str):
-        """Update assignment status when card is dropped on a new column."""
         if not self._project:
             return
         asset = self._project.get_asset(asset_id)
@@ -223,3 +240,17 @@ class KanbanPanel(QWidget):
         self.refresh()
         self.status_changed.emit()
 
+    def apply_theme(self, theme):
+        """Apply theme to kanban panel and all columns/cards."""
+        self._theme = theme
+        self.setStyleSheet(f"background: {theme.bg_deep};")
+        self._title.setStyleSheet(
+            f"color: {theme.text_primary}; font-size: {theme.font_size + 1}px;"
+            f" font-weight: bold; background: transparent;")
+        self._summary.setStyleSheet(
+            f"color: {theme.text_secondary}; font-size: {theme.font_size - 1}px;"
+            f" background: transparent;")
+        for col in self._columns.values():
+            col.apply_theme(theme)
+        # Re-theme existing cards
+        self.refresh()
