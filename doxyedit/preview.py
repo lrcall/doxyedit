@@ -834,6 +834,7 @@ class PreviewPane(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("preview_pane")
         self._asset = None
         self._assets: list = []
         self._nav_index: int = 0
@@ -848,7 +849,7 @@ class PreviewPane(QWidget):
         info_layout.setContentsMargins(8, 4, 8, 4)
         self._info_label = QLabel()
         self._info_label.setFont(QFont("Segoe UI", 10))
-        self._info_label.setStyleSheet("color: rgba(200,200,200,0.8);")
+        self._info_label.setStyleSheet("")
         info_layout.addWidget(self._info_label)
         info_layout.addStretch()
         self._fit_btn = QPushButton("Fit")
@@ -912,9 +913,6 @@ class PreviewPane(QWidget):
             self._view.fitInView(item, Qt.AspectRatioMode.KeepAspectRatio)
             self._view.centerOn(item)
 
-    def apply_theme(self, theme):
-        self._info_label.setStyleSheet(f"color: {theme.text_secondary};")
-        self._scene.setBackgroundBrush(QColor(theme.bg_deep))
 
     def _fit_to_view(self):
         items = self._scene.items()

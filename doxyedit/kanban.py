@@ -22,6 +22,7 @@ class KanbanCard(QFrame):
     def __init__(self, asset_id: str, platform: str, slot: str,
                  asset_name: str, status: str, parent=None):
         super().__init__(parent)
+        self.setObjectName("kanban_card")
         self.asset_id = asset_id
         self.platform = platform
         self.slot = slot
@@ -42,7 +43,6 @@ class KanbanCard(QFrame):
         detail_lbl = QLabel(f"{platform} / {slot}")
         layout.addWidget(detail_lbl)
 
-        self.setStyleSheet("")  # Themed by parent's apply_theme
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -80,6 +80,7 @@ class KanbanColumn(QWidget):
 
     def __init__(self, status: str, label: str, color: str, parent=None):
         super().__init__(parent)
+        self.setObjectName("kanban_column")
         self.status = status
         self.setAcceptDrops(True)
 
@@ -105,7 +106,7 @@ class KanbanColumn(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        scroll.setStyleSheet("")
         self._card_widget = QWidget()
         self._card_layout = QVBoxLayout(self._card_widget)
         self._card_layout.setContentsMargins(0, 0, 0, 0)
@@ -114,7 +115,6 @@ class KanbanColumn(QWidget):
         scroll.setWidget(self._card_widget)
         layout.addWidget(scroll, 1)
 
-        self.setStyleSheet("")  # Themed by parent's apply_theme
 
     def add_card(self, card: KanbanCard):
         # Insert before the stretch
@@ -156,7 +156,6 @@ class KanbanPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._project = None
-        self._theme = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -209,9 +208,6 @@ class KanbanPanel(QWidget):
             f"{counts.get('ready', 0)} ready, "
             f"{counts.get('posted', 0)} posted, "
             f"{counts.get('skip', 0)} skip")
-        # Re-apply theme to newly created cards
-        if self._theme:
-            self.apply_theme(self._theme)
 
     def _on_card_dropped(self, asset_id: str, platform: str, slot: str, new_status: str):
         """Update assignment status when card is dropped on a new column."""
@@ -227,26 +223,3 @@ class KanbanPanel(QWidget):
         self.refresh()
         self.status_changed.emit()
 
-    def apply_theme(self, theme):
-        self._theme = theme
-        f = theme.font_size
-        # Panel-level styles
-        self.setStyleSheet(f"""
-            QLabel {{ color: {theme.text_primary}; font-size: {f}px; }}
-        """)
-        self._summary.setStyleSheet(f"color: {theme.text_secondary}; font-size: {f - 1}px;")
-        # Style each column directly
-        col_style = (f"background: {theme.bg_deep}; border-radius: 6px;")
-        card_style = (
-            f"background: {theme.bg_raised}; border: 1px solid {theme.border};"
-            f" border-radius: 4px; color: {theme.text_primary};")
-        for col in self._columns.values():
-            col.setStyleSheet(col_style)
-            col._title.setStyleSheet(f"color: {theme.text_primary}; font-size: {f}px; background: transparent;")
-            col._count.setStyleSheet(f"color: {theme.text_muted}; font-size: {f - 2}px; background: transparent;")
-            # Style each card in this column
-            for i in range(col._card_layout.count()):
-                item = col._card_layout.itemAt(i)
-                w = item.widget() if item else None
-                if isinstance(w, KanbanCard):
-                    w.setStyleSheet(card_style)

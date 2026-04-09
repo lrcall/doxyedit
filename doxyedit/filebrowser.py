@@ -28,7 +28,7 @@ class FolderDelegate(QStyledItemDelegate):
         if is_active:
             painter.save()
             painter.setPen(Qt.PenStyle.NoPen)
-            if self._panel._theme:
+            if getattr(self._panel, '_theme', None):
                 bg = QColor(self._panel._theme.selection_bg)
                 bg.setAlpha(40)
             else:
@@ -67,7 +67,7 @@ class FolderDelegate(QStyledItemDelegate):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
         panel = self._panel
-        if panel._theme:
+        if getattr(panel, '_theme', None):
             if is_active:
                 badge_bg = QColor(panel._theme.accent)
                 badge_bg.setAlpha(80)
@@ -105,7 +105,6 @@ class FileBrowserPanel(QWidget):
         self._settings = QSettings("DoxyEdit", "DoxyEdit")
         self._load_pinned()
         self._active_folder: str | None = None  # currently filtering on this folder
-        self._theme = None
         self._build()
 
     def _load_pinned(self):
@@ -171,7 +170,7 @@ class FileBrowserPanel(QWidget):
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._tree_context_menu)
         self._tree.clicked.connect(self._on_folder_clicked)
-        self._tree.setStyleSheet("QTreeView { border: none; }")
+        self._tree.setStyleSheet("")
         self._tree.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
 
         # Set root to drives on Windows
@@ -198,10 +197,7 @@ class FileBrowserPanel(QWidget):
         for folder in self._pinned:
             btn = QPushButton(f"📌 {Path(folder).name}")
             btn.setToolTip(folder)
-            hover_bg = self._theme.bg_hover if self._theme else "rgba(255,255,255,0.08)"
-            btn.setStyleSheet(
-                f"QPushButton {{ text-align: left; padding: 2px 6px; border: none; }}"
-                f"QPushButton:hover {{ background: {hover_bg}; }}")
+            btn.setStyleSheet("QPushButton { text-align: left; }")
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, f=folder: self._navigate_to(f))
             self._pin_bar.addWidget(btn)
@@ -337,47 +333,6 @@ class FileBrowserPanel(QWidget):
                 count += c
         return count
 
-    def apply_theme(self, theme):
-        """Apply theme colors to the file browser panel."""
-        self._theme = theme
-        f = theme.font_size
-        self.setStyleSheet(f"""
-            #file_browser_panel {{
-                background: {theme.bg_main};
-                color: {theme.text_primary};
-                font-family: {theme.font_family};
-                font-size: {f}px;
-            }}
-            QTreeView {{
-                background: {theme.bg_deep};
-                color: {theme.text_primary};
-                border: none;
-                font-size: {f}px;
-            }}
-            QTreeView::item {{
-                padding: 2px 0;
-            }}
-            QTreeView::item:selected {{
-                background: {theme.selection_bg};
-            }}
-            QTreeView::item:hover {{
-                background: {theme.bg_hover};
-            }}
-            QPushButton {{
-                background: {theme.bg_raised};
-                color: {theme.text_primary};
-                border: 1px solid {theme.border};
-                padding: 2px 8px;
-                font-size: {f - 1}px;
-            }}
-            QPushButton:hover {{
-                background: {theme.bg_hover};
-            }}
-            QLabel {{
-                color: {theme.text_primary};
-            }}
-        """)
-        self._tree.viewport().update()
 
     def _start_drag(self, supported_actions):
         """Start a drag with the selected folder as a file URL."""

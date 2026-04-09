@@ -25,7 +25,7 @@ class _TagPill(QPushButton):
             label += " \u00d7"
             self.clicked.connect(lambda: self.removed.emit(self.tag_id))
         self.setText(label)
-        self.setStyleSheet("")  # Themed by InfoPanel.apply_theme
+        self.setStyleSheet("")
 
 
 class InfoPanel(QWidget):
@@ -37,7 +37,6 @@ class InfoPanel(QWidget):
         super().__init__(parent)
         self.setObjectName("info_panel")
         self._assets = []
-        self._theme = None
         self._build()
 
     def _build(self):
@@ -48,7 +47,6 @@ class InfoPanel(QWidget):
         # Header
         self._header = QLabel("No selection")
         self._header.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        self._header.setStyleSheet("padding: 8px;")
         self._header.setWordWrap(True)
         outer.addWidget(self._header)
 
@@ -56,7 +54,7 @@ class InfoPanel(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("QScrollArea { border: none; }")
+        scroll.setStyleSheet("")
         content = QWidget()
         self._layout = QVBoxLayout(content)
         self._layout.setContentsMargins(8, 4, 8, 8)
@@ -180,7 +178,7 @@ class InfoPanel(QWidget):
     def _separator(self) -> QFrame:
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("color: rgba(255,255,255,0.1);")
+        line.setStyleSheet("")
         line.setFixedHeight(1)
         return line
 
@@ -360,62 +358,3 @@ class InfoPanel(QWidget):
         self._assets[0].notes = self._notes_edit.toPlainText()
         self.tags_modified.emit()
 
-    def apply_theme(self, theme):
-        """Apply theme colors to the info panel."""
-        self._theme = theme
-        f = theme.font_size
-        self.setStyleSheet(f"""
-            #info_panel {{
-                background: {theme.bg_main};
-                color: {theme.text_primary};
-                font-family: {theme.font_family};
-                font-size: {f}px;
-            }}
-            QLabel {{
-                color: {theme.text_primary};
-            }}
-            QScrollArea {{
-                background: {theme.bg_main};
-                border: none;
-            }}
-            QPushButton {{
-                background: {theme.bg_raised};
-                color: {theme.text_primary};
-                border: none;
-                border-radius: 3px;
-                padding: 1px 6px;
-                font-size: {f - 1}px;
-            }}
-            QPushButton:hover {{
-                background: {theme.bg_hover};
-            }}
-            QLineEdit {{
-                background: {theme.bg_input};
-                color: {theme.text_primary};
-                border: 1px solid {theme.border};
-                border-radius: 3px;
-                padding: 1px 4px;
-                font-size: {f - 1}px;
-            }}
-            QTextEdit {{
-                background: {theme.bg_input};
-                color: {theme.text_primary};
-                border: 1px solid {theme.border};
-                border-radius: 3px;
-                padding: 4px;
-                font-size: {f}px;
-            }}
-        """)
-        # Update add tag button specifically (needs border + secondary color)
-        self._add_tag_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {theme.bg_input};
-                color: {theme.text_secondary};
-                border: 1px solid {theme.border_light};
-                border-radius: 3px;
-                font-size: 14px;
-            }}
-            QPushButton:hover {{
-                background: {theme.bg_hover};
-            }}
-        """)
