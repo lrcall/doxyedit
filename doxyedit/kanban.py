@@ -114,7 +114,7 @@ class KanbanColumn(QWidget):
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._card_widget = QWidget()
         self._card_layout = QVBoxLayout(self._card_widget)
-        self._card_layout.setContentsMargins(0, 0, 0, 0)
+        self._card_layout.setContentsMargins(0, 0, 0, 0)  # inside scroll area
         self._card_layout.setSpacing(4)
         self._card_layout.addStretch()
         self._scroll.setWidget(self._card_widget)

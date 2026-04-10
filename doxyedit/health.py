@@ -89,7 +89,7 @@ class HealthPanel(QWidget):
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setContentsMargins(_pad, _pad, _pad, _pad)
         outer.setSpacing(0)
 
         # Toolbar

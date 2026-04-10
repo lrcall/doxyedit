@@ -791,7 +791,7 @@ class AssetBrowser(QWidget):
         self._toolbar_widget = FlowWidget()
         self._toolbar_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         toolbar = FlowLayout(self._toolbar_widget, spacing=4)
-        toolbar.setContentsMargins(0, 0, 0, 0)
+        toolbar.setContentsMargins(0, 0, 0, 0)  # nested inside padded root
 
         # Track all plain toolbar buttons so update_font_size can refresh them
         self._toolbar_plain_btns: list[QPushButton] = []
@@ -1009,7 +1009,7 @@ class AssetBrowser(QWidget):
         self._folder_container = QWidget()
         self._folder_container.setObjectName("folder_container")
         self._folder_container_layout = QVBoxLayout(self._folder_container)
-        self._folder_container_layout.setContentsMargins(0, 0, 0, 0)
+        self._folder_container_layout.setContentsMargins(0, 0, 0, 0)  # scroll area provides framing
         self._folder_container_layout.setSpacing(_pad)
         self._folder_container_layout.addStretch()
 

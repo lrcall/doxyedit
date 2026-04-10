@@ -71,7 +71,7 @@ class PlatformPanel(QWidget):
         # ── Page 0: Cards view (existing) ─────────────────────────────────
         cards_page = QWidget()
         cards_layout = QVBoxLayout(cards_page)
-        cards_layout.setContentsMargins(0, 0, 0, 0)
+        cards_layout.setContentsMargins(0, 0, 0, 0)  # scroll area provides framing
 
         self._vsplit = QSplitter(Qt.Orientation.Vertical)
         cards_layout.addWidget(self._vsplit)

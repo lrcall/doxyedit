@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea,
     QFrame, QProgressBar, QSizePolicy, QPushButton,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QFont
 
 from doxyedit.models import Project, PLATFORMS
@@ -19,8 +19,10 @@ class StatsPanel(QWidget):
         self._build()
 
     def _build(self):
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setContentsMargins(_pad, _pad, _pad, _pad)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)

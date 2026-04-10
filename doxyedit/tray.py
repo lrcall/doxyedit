@@ -120,7 +120,7 @@ class WorkTray(QWidget):
         # Content (hideable)
         self._content = QWidget()
         layout = QVBoxLayout(self._content)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, _pad, 0, 0)
         layout.setSpacing(_pad)
         outer.addWidget(self._content)
 
