@@ -2028,13 +2028,13 @@ class AssetBrowser(QWidget):
         if asset:
             asset.specs["palette"] = colors
 
-    def _on_phash_ready(self, asset_id: str, phash_val: int):
+    def _on_phash_ready(self, asset_id: str, phash_hex: str):
         """Store computed perceptual hash in asset specs."""
         if not self.project:
             return
         asset = self.project.get_asset(asset_id)
         if asset:
-            asset.specs["phash"] = phash_val
+            asset.specs["phash"] = int(phash_hex, 16)
 
     # --- Selection ---
 

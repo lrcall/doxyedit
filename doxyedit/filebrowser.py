@@ -102,6 +102,7 @@ class FileBrowserPanel(QWidget):
         self.setObjectName("file_browser_panel")
         self._project = None
         self._folder_counts: dict[str, int] = {}  # folder_path → count of project assets
+        self._recursive_counts: dict[str, int] = {}  # pre-computed recursive totals
         self._pinned: list[str] = []
         self._settings = QSettings("DoxyEdit", "DoxyEdit")
         self._load_pinned()

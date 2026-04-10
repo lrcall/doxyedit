@@ -201,7 +201,7 @@ class ThumbWorker(QThread):
     thumb_ready = Signal(str, QImage, int, int, int)  # QImage is thread-safe; GUI converts to QPixmap
     visual_tags_ready = Signal(str, list)
     palette_ready = Signal(str, list)  # asset_id, list of hex color strings
-    phash_ready = Signal(str, int)  # asset_id, 64-bit hash value
+    phash_ready = Signal(str, str)  # asset_id, hex hash string (64-bit overflows Qt int)
 
     def __init__(self, disk_cache: DiskCache, parent=None):
         super().__init__(parent)
@@ -413,7 +413,7 @@ class ThumbWorker(QThread):
             from doxyedit.autotag import compute_phash
             ph = compute_phash(img)
             if ph is not None:
-                self.phash_ready.emit(asset_id, ph)
+                self.phash_ready.emit(asset_id, hex(ph))
         except Exception:
             pass
 
