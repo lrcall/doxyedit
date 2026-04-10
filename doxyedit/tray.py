@@ -78,6 +78,7 @@ class WorkTray(QWidget):
     asset_preview = Signal(str)
     tags_modified = Signal()
     toggle_requested = Signal()    # handle clicked — parent toggles visibility
+    pixmaps_needed = Signal(list)  # list of asset_ids that need thumbnails
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -437,6 +438,9 @@ class WorkTray(QWidget):
                 asset = self._project.get_asset(aid)
                 if asset:
                     self.add_asset(aid, Path(asset.source_path).name, path=asset.source_path)
+        # Request thumbnails for the newly visible items
+        if self._asset_ids:
+            self.pixmaps_needed.emit(list(self._asset_ids))
 
     def _tab_context_menu(self, pos):
         index = self._tab_bar.tabAt(pos)

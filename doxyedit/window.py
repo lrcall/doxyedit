@@ -168,6 +168,7 @@ class MainWindow(QMainWindow):
         self.work_tray.asset_preview.connect(self._on_asset_preview)
         self.work_tray.toggle_requested.connect(self._toggle_work_tray)
         self.work_tray.tags_modified.connect(self._on_tags_modified)
+        self.work_tray.pixmaps_needed.connect(self._feed_tray_pixmaps)
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
         # File browser (left, hidden by default)
@@ -1854,6 +1855,13 @@ class MainWindow(QMainWindow):
     def _on_thumb_for_tray(self, asset_id: str, pixmap):
         """Update tray thumbnail when thumb cache generates it."""
         self.work_tray.update_pixmap(asset_id, pixmap)
+
+    def _feed_tray_pixmaps(self, asset_ids: list):
+        """Feed cached pixmaps to tray items after tab switch."""
+        for aid in asset_ids:
+            pm = self.browser._thumb_cache.get(aid)
+            if pm:
+                self.work_tray.update_pixmap(aid, pm)
 
     def _send_single_to_tray(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
