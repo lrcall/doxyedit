@@ -1167,6 +1167,10 @@ class MainWindow(QMainWindow):
             act.setCheckable(True)
             act.setChecked(val == "always")
         self._filenames_actions = {a.text(): a for a in filenames_menu.actions()}
+        self._fill_mode_action = display_sub.addAction("Fill Thumbnails (Crop)")
+        self._fill_mode_action.setCheckable(True)
+        self._fill_mode_action.setChecked(False)
+        self._fill_mode_action.toggled.connect(self._toggle_fill_mode)
 
         # Font & Size submenu
         fontsize_sub = view_menu.addMenu("Font && Size")
@@ -2597,6 +2601,11 @@ class MainWindow(QMainWindow):
 
     def _toggle_dims(self, on: bool):
         self.browser._delegate.show_dims = on
+        self.browser.active_view.viewport().update()
+
+    def _toggle_fill_mode(self, on: bool):
+        self.browser._delegate.fill_mode = on
+        self.browser._delegate.invalidate_cache()
         self.browser.active_view.viewport().update()
 
     def _toggle_show_hidden_only(self, checked: bool):

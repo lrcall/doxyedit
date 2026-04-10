@@ -281,6 +281,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
     def __init__(self, thumb_size=THUMB_SIZE, parent=None):
         super().__init__(parent)
         self.thumb_size = thumb_size
+        self.fill_mode = False  # False=fit (keep ratio), True=fill (crop to cover)
         self.font_size = 10  # updated by update_font_size
         self.show_dims = True
         self.show_filenames = "always"  # "always" | "hover" | "never"
@@ -351,11 +352,22 @@ class ThumbnailDelegate(QStyledItemDelegate):
         # Thumbnail
         pixmap = index.data(ThumbnailModel.ThumbnailRole)
         if pixmap and not pixmap.isNull():
-            cache_key = (pixmap.cacheKey(), ts)
+            cache_key = (pixmap.cacheKey(), ts, self.fill_mode)
             if cache_key not in self._scaled_cache:
-                self._scaled_cache[cache_key] = pixmap.scaled(
-                    ts, ts, Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation)
+                if self.fill_mode:
+                    # Fill: scale to cover, then crop center
+                    scaled = pixmap.scaled(
+                        ts, ts, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                        Qt.TransformationMode.SmoothTransformation)
+                    # Crop to ts x ts from center
+                    cx = (scaled.width() - ts) // 2
+                    cy = (scaled.height() - ts) // 2
+                    scaled = scaled.copy(cx, cy, ts, ts)
+                else:
+                    scaled = pixmap.scaled(
+                        ts, ts, Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation)
+                self._scaled_cache[cache_key] = scaled
             scaled = self._scaled_cache[cache_key]
             x = rect.x() + (rect.width() - scaled.width()) // 2
             y = rect.y() + self.PADDING + (ts - scaled.height()) // 2
