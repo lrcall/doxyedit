@@ -640,10 +640,19 @@ class FolderSection(QWidget):
         self._header.setText(f"{indent}{arrow}  {self._short}  ({n})")
         self.updateGeometry()
 
+    collapse_children_requested = Signal(str, bool)  # (folder_path, collapse)
+
     def _toggle_collapse(self):
-        new_state = not self.is_collapsed
-        self._set_collapsed(new_state)
-        self.collapsed_changed.emit(self._folder, new_state)
+        from PySide6.QtWidgets import QApplication
+        mods = QApplication.keyboardModifiers()
+        if mods & Qt.KeyboardModifier.ControlModifier:
+            # Ctrl+click: collapse/expand all children, keep this folder as-is
+            want_collapse = not self.is_collapsed  # if this is expanded, collapse children; vice versa
+            self.collapse_children_requested.emit(self._folder, want_collapse)
+        else:
+            new_state = not self.is_collapsed
+            self._set_collapsed(new_state)
+            self.collapsed_changed.emit(self._folder, new_state)
 
     def _on_header_context(self, pos):
         import subprocess
@@ -1768,6 +1777,7 @@ class AssetBrowser(QWidget):
             section.collapsed_changed.connect(self._on_folder_collapsed)
             section.remove_requested.connect(self._on_folder_remove_requested)
             section.select_all_requested.connect(self._on_folder_select_all)
+            section.collapse_children_requested.connect(self._on_collapse_children)
             section.view.customContextMenuRequested.connect(
                 lambda pos, s=section: self._on_folder_context_menu_pos(pos, s))
             section.view.doubleClicked.connect(
@@ -1856,6 +1866,21 @@ class AssetBrowser(QWidget):
             self._collapsed_folders.add(folder)
         else:
             self._collapsed_folders.discard(folder)
+            self._request_visible_thumbs()
+
+    def _on_collapse_children(self, folder: str, collapse: bool):
+        """Ctrl+click: collapse/expand all child folders under this one."""
+        folder_norm = folder.replace("\\", "/")
+        prefix = folder_norm + "/"
+        for section in self._folder_sections:
+            sf = section.folder.replace("\\", "/")
+            if sf.startswith(prefix):
+                section._set_collapsed(collapse)
+                if collapse:
+                    self._collapsed_folders.add(section.folder)
+                else:
+                    self._collapsed_folders.discard(section.folder)
+        if not collapse:
             self._request_visible_thumbs()
 
     def _on_folder_select_all(self, folder: str, recursive: bool):
