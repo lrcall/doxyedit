@@ -655,17 +655,34 @@ class FolderSection(QWidget):
             self.collapsed_changed.emit(self._folder, new_state)
 
     def _on_header_context(self, pos):
-        import subprocess
+        import subprocess, random
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
         menu.addAction("Select All in Folder", lambda: self.select_all_requested.emit(self._folder, False))
         menu.addAction("Select All (Recursive)", lambda: self.select_all_requested.emit(self._folder, True))
+        menu.addSeparator()
+        menu.addAction("Random Highlight Color", self._set_random_color)
+        if getattr(self, '_highlight_color', None):
+            menu.addAction("Clear Color", self._clear_color)
         menu.addSeparator()
         menu.addAction("Open in Explorer", lambda: subprocess.Popen(
             ["explorer", self._folder.replace("/", "\\")]))
         menu.addSeparator()
         menu.addAction("Remove Folder from Project…", lambda: self.remove_requested.emit(self._folder))
         menu.exec(self._header.mapToGlobal(pos))
+
+    def _set_random_color(self):
+        import random
+        hue = random.randint(0, 359)
+        color = QColor.fromHsl(hue, 120, 80, 60)
+        self._highlight_color = color.name()
+        self._header.setStyleSheet(
+            self._header.styleSheet() +
+            f"; border-left: 4px solid {self._highlight_color}")
+
+    def _clear_color(self):
+        self._highlight_color = None
+        self._header.setStyleSheet("")  # reset to theme default
 
     def update_view_height(self, available_width: int = 0):
         """Set the view's fixed height based on actual available width.
