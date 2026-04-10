@@ -43,13 +43,43 @@ def load_psd_thumb(path: str, min_size: int = 0) -> tuple[PILImage.Image, int, i
     return None
 
 
+_PREVIEW_CACHE_DIR: Path | None = None
+
+def _get_preview_cache_dir() -> Path:
+    global _PREVIEW_CACHE_DIR
+    if _PREVIEW_CACHE_DIR is None:
+        _PREVIEW_CACHE_DIR = Path.home() / ".doxyedit" / "preview_cache"
+        _PREVIEW_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    return _PREVIEW_CACHE_DIR
+
+def _preview_cache_key(path: str) -> str:
+    import hashlib
+    mtime = int(Path(path).stat().st_mtime)
+    return hashlib.md5(f"{path}|{mtime}".encode()).hexdigest()
+
 def load_pixmap(path: str) -> tuple[QPixmap, int, int]:
-    """Load any supported image as QPixmap, including PSD and shell-supported formats."""
+    """Load any supported image as QPixmap, including PSD and shell-supported formats.
+    PSD full composites are cached to disk for instant subsequent loads."""
     ext = Path(path).suffix.lower()
     if ext in PSD_EXTS:
         try:
+            # Check preview cache first
+            cache_dir = _get_preview_cache_dir()
+            key = _preview_cache_key(path)
+            cached = cache_dir / f"{key}.png"
+            if cached.exists():
+                pm = QPixmap(str(cached))
+                if not pm.isNull():
+                    return pm, pm.width(), pm.height()
+            # Generate composite and cache it
             img, w, h = load_psd(path)
-            return pil_to_qpixmap(img), w, h
+            pm = pil_to_qpixmap(img)
+            # Save to cache in background-safe way
+            try:
+                img.save(str(cached), "PNG")
+            except Exception:
+                pass
+            return pm, w, h
         except Exception:
             return QPixmap(), 0, 0
 
