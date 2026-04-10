@@ -282,11 +282,27 @@ class WorkTray(QWidget):
                         a = qt_menu.addAction(f"{'✓ ' if checked else '   '}{tag.label}")
                         a.triggered.connect(lambda _, aid=asset_id, tid=tag.id: self._toggle_tray_tag(aid, tid))
         menu.addSeparator()
+        # Send to other tray
+        other_trays = [name for name in self._trays if name != self._current_tray]
+        if other_trays:
+            send_menu = menu.addMenu("Send to Tray")
+            for tray_name in other_trays:
+                send_menu.addAction(tray_name,
+                    lambda _, aid=asset_id, tn=tray_name: self._send_to_other_tray(aid, tn))
+        menu.addSeparator()
         menu.addAction("Remove from Tray", lambda: self.remove_asset(asset_id))
         n = self._list.count()
         if n > 1:
             menu.addAction(f"Clear All ({n})", self.clear)
         menu.exec(self._list.viewport().mapToGlobal(pos))
+
+    def _send_to_other_tray(self, asset_id: str, tray_name: str):
+        """Move an asset from current tray to another tray."""
+        if tray_name not in self._trays:
+            return
+        if asset_id not in self._trays[tray_name]:
+            self._trays[tray_name].append(asset_id)
+        self.remove_asset(asset_id)
 
     def _copy_filename(self, asset_id: str):
         from PySide6.QtWidgets import QApplication
