@@ -64,3 +64,82 @@
 08:13  ⏱ Plan started — DoxyEdit — Active Bug Fixes
        Active:   a. Tags/Tray buttons have NO signal handlers (root cause found)
 08:20  ⏱ Plan complete — 7m total — DoxyEdit v2.2 — 71 commits
+08:25  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: 
+08:41  ⏱ Plan complete — 15m total — DoxyEdit v2.2 — 71 commits
+11:47  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] Test app end-to-end
+11:48  ⏱ Plan complete — 0m total — DoxyEdit v2.2 — 71 commits
+11:51  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] Test app end-to-end
+11:53  ⏱ Plan complete — 2m total — DoxyEdit v2.2 — 71 commits
+12:35  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+12:38  ⏱ Plan complete — 3m total — DoxyEdit v2.2 — 71 commits
+12:39  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+12:40  ⏱ Plan complete — 0m total — DoxyEdit v2.2 — 71 commits
+12:40  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+12:40  01:10  FEATURE: Permanently delete files from disk while viewing 'Show Ignored' filter. Right-click → Delete from Disk (with confirmation). Only available when Show Ignored is active.
+12:42  ⏱ Plan complete — 1m total — DoxyEdit v2.2 — 71 commits
+12:43  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+12:43  01:20  FEATURE REQUEST: Cache full-size PSD previews (not just thumbnails). When user clicks to preview a PSD, the full composite is generated — cache this so subsequent views are instant. Invalidate when file mtime changes. Currently only thumbnail-sized cache exists in thumbcache.
+12:44  ⏱ Plan complete — 1m total — DoxyEdit v2.2 — 71 commits
+12:47  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+12:48  01:25  BUG: Open Collection reportedly does nothing — code looks correct, may be dialog-behind-window issue or no collection files exist. Needs user testing.
+12:51  ⏱ Plan complete — 4m total — DoxyEdit v2.2 — 71 commits
+12:52  01:30  FEATURE REQUEST: sort by file size (bytes) and by image resolution (width*height). Add to sort_combo dropdown.
+12:52  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+12:54  ⏱ Plan complete — 1m total — DoxyEdit v2.2 — 71 commits
+12:54  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+12:55  ⏱ Plan complete — 0m total — DoxyEdit v2.2 — 71 commits
+12:55  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+12:56  ⏱ Plan complete — 0m total — DoxyEdit v2.2 — 71 commits
+12:58  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+12:58  01:40  BUG: drag from thumbnail grid to tray not working. Need to check if tray accepts drops from the browser's QDrag with file URLs.
+13:00  ⏱ Plan complete — 1m total — DoxyEdit v2.2 — 71 commits
+13:00  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+13:01  01:45  BUGS: (1) Tray still feels width-locked — stretch=0 on splitter may need to be 1. (2) Tray thumbnails disappear/don't persist — related to pixmap cache eviction. (3) FEATURE: send tray items to other trays via right-click or drag to tab.
+13:04  ⏱ Plan complete — 3m total — DoxyEdit v2.2 — 71 commits
+13:05  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+13:05  01:50  BUG: (1) Drag from grid to tray still not working reliably. (2) Rubber band selection persists after a failed drag — doesn't clear. Both in browser.py eventFilter drag handling.
+13:07  ⏱ Plan complete — 1m total — DoxyEdit v2.2 — 71 commits
+13:07  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+13:08  ⏱ Plan complete — 0m total — DoxyEdit v2.2 — 71 commits
+13:12  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+13:12  ⏱ Plan complete — 0m total — DoxyEdit v2.2 — 71 commits
+13:12  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+13:13  ⏱ Plan complete — 1m total — DoxyEdit v2.2 — 71 commits
+13:13  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+13:15  ⏱ Plan complete — 1m total — DoxyEdit v2.2 — 71 commits
+13:17  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+13:20  02:00  SYSTEMIC ISSUE: Hardcoded pixel values (80, 160, 150, 400, 22, 56, etc.) scattered across ALL files. These should derive from theme.font_size or named constants. This is NOT a one-fix problem — needs a dedicated tokenization pass across every .py file. Examples: hive minHeight=80, tray minWidth=150, kanban card height=56, button sizes=22. Every setFixedHeight/setFixedWidth/setMinimumHeight/setMinimumWidth is a potential violation.
+13:26  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+13:37  ⏱ Plan complete — 11m total — DoxyEdit v2.2 — 71 commits
+13:42  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+13:46  ⏱ Plan complete — 4m total — DoxyEdit v2.2 — 71 commits
+13:48  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+13:48  02:15  BUG: switching tray tabs loses thumbnails — _on_tab_changed rebuilds items but doesn't fetch pixmaps from thumb cache. Need to request pixmaps for all visible tray items after tab switch.
+13:50  ⏱ Plan complete — 1m total — DoxyEdit v2.2 — 71 commits
+13:50  02:20  BUGS/FEATURES: (1) Send to tray from right-click doesn't work well. (2) Need 'Send to Tray' submenu in thumbnail grid right-click with all tray tab names. (3) Tray should auto-refresh when PSD files change on disk (file watcher for tray items).
+13:50  02:25  DESIGN RULE: zero margins are either intentional (nested inside padded parent) or a bug (panel with no breathing room). Don't blindly tokenize 0s — audit whether each 0 margin panel SHOULD have padding. Intentional zeros should get a comment: # nested, parent provides padding. Suspicious zeros should get _pad or _pad_lg.
+13:51  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
+13:59  ⏱ Plan complete — 8m total — DoxyEdit v2.2 — 71 commits
