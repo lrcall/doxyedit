@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QFrame, QSizePolicy, QSplitter, QStackedWidget,
     QProgressBar, QGridLayout,
 )
-from PySide6.QtCore import Qt, Signal, QSize
+from PySide6.QtCore import Qt, Signal, QSize, QSettings
 from PySide6.QtGui import QFont, QPixmap
 
 from doxyedit.models import Project, Asset, PlatformAssignment, PostStatus, PLATFORMS
@@ -433,6 +433,8 @@ class PlatformPanel(QWidget):
 
     def _rebuild_dashboard(self):
         """Build visual dashboard grid: one row per platform, one cell per slot."""
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _cb = max(14, _f + 2)
         # Clear previous dashboard contents
         while self._dash_layout.count() > 1:
             item = self._dash_layout.takeAt(0)
@@ -461,7 +463,7 @@ class PlatformPanel(QWidget):
             # Platform header with progress bar
             header_row = QHBoxLayout()
             name_lbl = QLabel(platform.name)
-            name_lbl.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+            name_lbl.setFont(QFont("", -1, QFont.Weight.Bold))
             if platform.needs_censor:
                 name_lbl.setStyleSheet("color: #ff6b6b;")
             header_row.addWidget(name_lbl)
@@ -476,7 +478,7 @@ class PlatformPanel(QWidget):
             progress.setRange(0, total)
             progress.setValue(filled)
             progress.setFormat(f"{filled}/{total} filled · {posted} posted")
-            progress.setFixedHeight(16)
+            progress.setFixedHeight(max(14, _f))
             progress.setFixedWidth(200)
             progress.setStyleSheet(
                 "QProgressBar { background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 3px; text-align: center; color: rgba(200,200,200,0.7); font-size: 10px; }"
@@ -504,6 +506,8 @@ class PlatformPanel(QWidget):
 
     def _dash_cell(self, slot, pid: str, entries: list) -> QWidget:
         """One slot cell in the dashboard grid."""
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _cb = max(14, _f + 2)
         THUMB = 80
         cell = QWidget()
         cell.setFixedWidth(THUMB + 16)
@@ -547,7 +551,7 @@ class PlatformPanel(QWidget):
         color = STATUS_COLORS.get(status, "#666")
         icon = STATUS_ICONS.get(status, "·")
         status_btn = QPushButton(f"{icon} {status}")
-        status_btn.setFixedHeight(18)
+        status_btn.setFixedHeight(_cb)
         status_btn.setStyleSheet(
             f"QPushButton {{ color: {color}; background: transparent; border: 1px solid {color}; border-radius: 3px; font-size: 10px; padding: 0 4px; }}"
             f"QPushButton:hover {{ background: rgba(255,255,255,0.08); }}")

@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox,
     QFrame, QScrollArea, QTextEdit, QPushButton, QSplitter, QColorDialog,
 )
-from PySide6.QtCore import Qt, Signal, QPoint, QRect, QEvent
+from PySide6.QtCore import Qt, Signal, QPoint, QRect, QEvent, QSettings
 from PySide6.QtGui import QFont, QColor, QPainter, QPen, QBrush
 
 from doxyedit.models import Asset, TAG_PRESETS, TAG_SIZED, TAG_ALL, TAG_SHORTCUTS, TagPreset, check_fitness
@@ -213,6 +213,8 @@ class TagRow(QFrame):
         self.tag = tag
         self._pinned = False
         self._row_selected = False
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _cb = max(14, _f + 2)
         self.setStyleSheet("TagRow { background: transparent; }")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -222,7 +224,7 @@ class TagRow(QFrame):
 
         # Eye toggle — hide/show images with this tag
         self.eye_btn = QPushButton("\u25C9")  # ◉ when visible
-        self.eye_btn.setFixedSize(24, 24)
+        self.eye_btn.setFixedSize(_cb, _cb)
         self.eye_btn.setCheckable(True)
         self.eye_btn.setChecked(True)
         self.eye_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -245,10 +247,10 @@ class TagRow(QFrame):
         # Object name scopes the rule so it beats the global theme QCheckBox selector
         self.checkbox = QCheckBox(tag.label)
         self.checkbox.setObjectName("tag_checkbox")
-        self.checkbox.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
+        self.checkbox.setFont(QFont("", -1, QFont.Weight.Bold))
         self.checkbox.setStyleSheet(
             f"QCheckBox#tag_checkbox {{ color: {tag.color}; }}"
-            f"QCheckBox#tag_checkbox::indicator {{ width: 13px; height: 13px; }}")
+            f"QCheckBox#tag_checkbox::indicator {{ width: {_cb-2}px; height: {_cb-2}px; }}")
         self.checkbox.setToolTip("Check to apply this tag to selected assets")
         self.checkbox.toggled.connect(lambda checked: self.toggled.emit(tag.id, checked))
         layout.addWidget(self.checkbox, 1)
@@ -270,12 +272,12 @@ class TagRow(QFrame):
             hints.append(f"[{shortcut_key}]")
 
         hint_label = QLabel("  ".join(hints) if hints else "any")
-        hint_label.setFont(QFont("Segoe UI"))
+        hint_label.setFont(QFont("", -1))
         hint_label.setStyleSheet("color: rgba(128,128,128,0.5);")
         layout.addWidget(hint_label)
 
         self._count_lbl = QLabel("")
-        self._count_lbl.setFont(QFont("Segoe UI"))
+        self._count_lbl.setFont(QFont("", -1))
         self._count_lbl.setStyleSheet("color: rgba(128,128,128,0.35); min-width: 24px;")
         self._count_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self._count_lbl)
@@ -396,19 +398,19 @@ class TagPanel(QWidget):
 
         # Header
         self.header = QLabel("Select an image to tag it")
-        self.header.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
+        self.header.setFont(QFont("", -1, QFont.Weight.Bold))
         self.header.setStyleSheet("color: rgba(128,128,128,0.6); padding-bottom: 4px;")
         self.header.setWordWrap(True)
         root.addWidget(self.header)
 
         self.hint_label = QLabel("Click an image on the left, then check tags below")
-        self.hint_label.setFont(QFont("Segoe UI"))
+        self.hint_label.setFont(QFont("", -1))
         self.hint_label.setStyleSheet("color: rgba(128,128,128,0.5); font-style: italic;")
         self.hint_label.setWordWrap(True)
         root.addWidget(self.hint_label)
 
         self.dim_label = QLabel("")
-        self.dim_label.setFont(QFont("Segoe UI"))
+        self.dim_label.setFont(QFont("", -1))
         self.dim_label.setStyleSheet("color: rgba(128,128,128,0.7);")
         root.addWidget(self.dim_label)
 
@@ -461,7 +463,7 @@ class TagPanel(QWidget):
 
         def _make_section_label(text, section_id):
             btn = QPushButton(f"\u25BC {text}")  # ▼ expanded
-            btn.setFont(QFont("Segoe UI"))
+            btn.setFont(QFont("", -1))
             btn.setStyleSheet(_lbl_style)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda: self._toggle_section(section_id, btn, text))
@@ -512,10 +514,11 @@ class TagPanel(QWidget):
         notes_layout.setContentsMargins(0, 0, 0, 0)
         notes_layout.setSpacing(2)
         notes_label = QLabel("Notes:")
-        notes_label.setFont(QFont("Segoe UI"))
+        notes_label.setFont(QFont("", -1))
         notes_layout.addWidget(notes_label)
         self.notes_edit = QTextEdit()
-        self.notes_edit.setMinimumHeight(30)
+        _f_notes = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        self.notes_edit.setMinimumHeight(max(30, _f_notes * 2))
         self.notes_edit.textChanged.connect(self._on_notes_changed)
         notes_layout.addWidget(self.notes_edit)
 
@@ -657,11 +660,11 @@ class TagPanel(QWidget):
         """Scale all fonts in the tag panel."""
         f = font_size
         for row in self._rows.values():
-            row.checkbox.setFont(QFont("Segoe UI", f, QFont.Weight.Bold))
+            row.checkbox.setFont(QFont("", -1, QFont.Weight.Bold))
             if hasattr(row, '_hint_label'):
-                row._hint_label.setFont(QFont("Segoe UI", max(7, f - 2)))
-        self.header.setFont(QFont("Segoe UI", f + 1, QFont.Weight.Bold))
-        self.notes_edit.setFont(QFont("Segoe UI", f))
+                row._hint_label.setFont(QFont("", -1))
+        self.header.setFont(QFont("", -1, QFont.Weight.Bold))
+        self.notes_edit.setFont(QFont("", -1))
 
     def set_assets(self, assets: list[Asset]):
         """Set which asset(s) the tag panel is editing."""

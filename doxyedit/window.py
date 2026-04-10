@@ -74,6 +74,8 @@ class MainWindow(QMainWindow):
         self._project_path = None
         self.project = Project(name="Untitled")
         self._settings = QSettings("DoxyEdit", "DoxyEdit")
+        _f = self._settings.value("font_size", 12, type=int)
+        _cb = max(14, _f + 2)
         self._current_theme_id = self._settings.value("theme", DEFAULT_THEME)
         self._apply_theme(self._current_theme_id)
 
@@ -102,7 +104,7 @@ class MainWindow(QMainWindow):
 
         # + button to open a new folder tab
         self._new_tab_btn = QPushButton("+")
-        self._new_tab_btn.setFixedSize(22, 22)
+        self._new_tab_btn.setFixedSize(_cb, _cb)
         self._new_tab_btn.setToolTip("New tab — open project, folder, or new project (Ctrl+T)")
         self._new_tab_btn.setStyleSheet(
             "QPushButton { font-size: 16px; font-weight: bold; border-radius: 4px;"
@@ -440,7 +442,7 @@ class MainWindow(QMainWindow):
         self._progress_bar = QProgressBar()
         self._progress_bar.setMinimumWidth(250)
         self._progress_bar.setMaximumWidth(400)
-        self._progress_bar.setFixedHeight(16)
+        self._progress_bar.setFixedHeight(max(12, _f))
         self._progress_bar.setTextVisible(True)
         self._progress_bar.setVisible(False)
         self.status.addPermanentWidget(self._progress_bar)
