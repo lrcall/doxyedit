@@ -379,6 +379,15 @@ class MainWindow(QMainWindow):
         self.browser._tags_btn.toggled.connect(self._toggle_tag_panel_btn)
         self._tags_toolbar_btn = self.browser._tags_btn
 
+        # Sync toolbar button states with actual panel visibility
+        self.browser._tags_btn.setChecked(self.tag_panel.isVisible())
+        self.browser._tray_btn.setChecked(self._tray_open)
+        if hasattr(self.browser, '_files_btn'):
+            self.browser._files_btn.setChecked(self._file_browser.isVisible())
+
+        # Tab key — toggle all side panels (hide/restore)
+        QShortcut(QKeySequence(Qt.Key.Key_Tab), self).activated.connect(self._toggle_all_panels)
+
         # Escape to deselect, Ctrl+F to focus search
         QShortcut(QKeySequence("Escape"), self).activated.connect(self._select_none)
         QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(
@@ -1386,6 +1395,33 @@ class MainWindow(QMainWindow):
                     btn.setChecked(True)
                     btn.setText("▼ Filters")
                     btn.blockSignals(False)
+
+    def _toggle_all_panels(self):
+        """Tab key — hide all side panels, or restore them if already hidden."""
+        any_visible = (self.tag_panel.isVisible() or self._tray_open
+                       or self._file_browser.isVisible())
+        if any_visible:
+            # Save state and hide all
+            self._panels_were = {
+                'tags': self.tag_panel.isVisible(),
+                'tray': self._tray_open,
+                'files': self._file_browser.isVisible(),
+            }
+            if self.tag_panel.isVisible():
+                self._toggle_tag_panel()
+            if self._tray_open:
+                self._toggle_work_tray()
+            if self._file_browser.isVisible():
+                self._toggle_file_browser()
+        else:
+            # Restore previous state
+            prev = getattr(self, '_panels_were', {'tags': True, 'tray': False, 'files': False})
+            if prev.get('tags') and not self.tag_panel.isVisible():
+                self._toggle_tag_panel()
+            if prev.get('tray') and not self._tray_open:
+                self._toggle_work_tray()
+            if prev.get('files') and not self._file_browser.isVisible():
+                self._toggle_file_browser()
 
     def _toggle_tag_panel(self):
         if self.tag_panel.isVisible():
