@@ -170,3 +170,18 @@
        Active: [ ] Test app end-to-end
 20:12  03:15  SESSION 2 SUMMARY — 109 commits total (105 session 1 + 4 prior). Key work: folder view fixes (4 attempts at height/width), tokenization pass (sizes + spacing + fonts across 9 files), Platforms tab restructure (kanban right, checklist right, hive full bottom), tray fixes (thumbnails on tab switch, notes moved to tray, max width finally killed), folder features (Ctrl+click collapse children, highlight/chip colors, depth indent fix), search matches folders, delete from disk, PSD preview cache. BUGS FIXED: _recursive_counts missing init, phash 64-bit overflow, _pad missing in TagRow, tagpanel crash. REWORK: ~30min on tray width (set in 3 different places), ~20min on folder view height (4 attempts, still needs testing).
 20:15  ⏱ Plan complete — 3m total — DoxyEdit v2.2 — 71 commits
+
+## 2026-04-11
+07:53  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] Test app end-to-end
+07:53  ⏱ Plan complete — 0m total — DoxyEdit v2.2 — 71 commits
+07:54  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] Test app end-to-end
+07:55  ⏱ Plan complete — 1m total — DoxyEdit v2.2 — 71 commits
+07:56  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] Test app end-to-end
+07:58  ⏱ Plan complete — 2m total — DoxyEdit v2.2 — 71 commits
+07:58  03:30  FEATURE REQUEST: When switching from Fast Cache (BMP) to PNG cache, don't force regen everything. Progressively swap out BMP with PNG as the user browses — if a BMP exists, convert it to PNG on demand during idle time or when the thumb is next requested.
+07:59  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] Test app end-to-end
+08:00  ⏱ Plan complete — 1m total — DoxyEdit v2.2 — 71 commits
