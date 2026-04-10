@@ -46,6 +46,8 @@ class InfoPanel(QWidget):
         from PySide6.QtCore import QSettings
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _cb = max(14, _f + 2)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -64,8 +66,8 @@ class InfoPanel(QWidget):
         scroll.setStyleSheet("")
         content = QWidget()
         self._layout = QVBoxLayout(content)
-        self._layout.setContentsMargins(8, 4, 8, 8)
-        self._layout.setSpacing(6)
+        self._layout.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad_lg)
+        self._layout.setSpacing(_pad_lg)
 
         # Filename
         self._name_label = QLabel()
@@ -90,7 +92,7 @@ class InfoPanel(QWidget):
         self._palette_header.setFont(QFont("", -1, QFont.Weight.Bold))
         self._layout.addWidget(self._palette_header)
         self._palette_row = QHBoxLayout()
-        self._palette_row.setSpacing(4)
+        self._palette_row.setSpacing(_pad)
         self._palette_row.setContentsMargins(0, 0, 0, 0)
         self._palette_container = QWidget()
         self._palette_container.setLayout(self._palette_row)

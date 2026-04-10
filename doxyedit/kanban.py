@@ -32,8 +32,13 @@ class KanbanCard(QFrame):
         self.setFixedHeight(56)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
+        from PySide6.QtCore import QSettings
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)
         layout.setSpacing(1)
 
         self._name_lbl = QLabel(asset_name)
@@ -83,9 +88,13 @@ class KanbanColumn(QWidget):
         self.setAcceptDrops(True)
         self.setAutoFillBackground(True)
 
+        from PySide6.QtCore import QSettings
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
+        layout.setContentsMargins(_pad, _pad, _pad, _pad)
+        layout.setSpacing(_pad)
 
         # Header
         header = QHBoxLayout()
@@ -166,9 +175,13 @@ class KanbanPanel(QWidget):
         self._project = None
         self._theme = None
 
+        from PySide6.QtCore import QSettings
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad_lg = max(6, _f // 2)
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
+        layout.setSpacing(_pad_lg)
 
         # Title
         self._title = QLabel("Posting Schedule")
@@ -180,7 +193,7 @@ class KanbanPanel(QWidget):
 
         # Columns
         cols_layout = QHBoxLayout()
-        cols_layout.setSpacing(8)
+        cols_layout.setSpacing(_pad_lg)
         self._columns: dict[str, KanbanColumn] = {}
         for status, label, color in STATUS_COLS:
             col = KanbanColumn(status, label, color)

@@ -119,14 +119,16 @@ class FileBrowserPanel(QWidget):
         from PySide6.QtCore import QSettings
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _cb = max(14, _f + 2)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(_pad)
 
         # Header
         header = QHBoxLayout()
-        header.setContentsMargins(8, 6, 8, 2)
+        header.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, max(2, _pad // 2))
         title = QLabel("Files")
         title.setFont(QFont("", -1, QFont.Weight.Bold))
         header.addWidget(title)
@@ -144,14 +146,14 @@ class FileBrowserPanel(QWidget):
         self._search.setPlaceholderText("Filter folders...")
         self._search.setClearButtonEnabled(True)
         self._search.setFixedHeight(_cb + 2)
-        self._search.setContentsMargins(8, 0, 8, 0)
+        self._search.setContentsMargins(_pad_lg, 0, _pad_lg, 0)
         self._search.textChanged.connect(self._on_search_changed)
         layout.addWidget(self._search)
 
         # Pinned folders bar
         self._pin_bar = QVBoxLayout()
-        self._pin_bar.setContentsMargins(8, 0, 8, 0)
-        self._pin_bar.setSpacing(2)
+        self._pin_bar.setContentsMargins(_pad_lg, 0, _pad_lg, 0)
+        self._pin_bar.setSpacing(max(2, _pad // 2))
         layout.addLayout(self._pin_bar)
         self._rebuild_pin_bar()
 

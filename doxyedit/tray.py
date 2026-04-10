@@ -97,6 +97,8 @@ class WorkTray(QWidget):
         from PySide6.QtCore import QSettings
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _cb = max(14, _f + 2)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
 
         outer = QHBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -118,7 +120,7 @@ class WorkTray(QWidget):
         self._content = QWidget()
         layout = QVBoxLayout(self._content)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(_pad)
         outer.addWidget(self._content)
 
         # Header
@@ -166,7 +168,7 @@ class WorkTray(QWidget):
         self._add_tray_btn.clicked.connect(self._add_tray)
         tab_row = QHBoxLayout()
         tab_row.setContentsMargins(0, 0, 0, 0)
-        tab_row.setSpacing(2)
+        tab_row.setSpacing(max(2, _pad // 2))
         tab_row.addWidget(self._tab_bar, 1)
         tab_row.addWidget(self._add_tray_btn)
         layout.addLayout(tab_row)
@@ -182,7 +184,7 @@ class WorkTray(QWidget):
         # List widget — shows thumbnails vertically
         self._list = DragOutListWidget()
         self._list.setIconSize(QSize(80, 80))
-        self._list.setSpacing(2)
+        self._list.setSpacing(max(2, _pad // 2))
         self._list.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
         self._list.setDragEnabled(True)
         self._list.drop_received.connect(self._on_drop_received)
@@ -347,6 +349,9 @@ class WorkTray(QWidget):
             QApplication.clipboard().setText(path)
 
     def _cycle_view_mode(self):
+        from PySide6.QtCore import QSettings
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
         self._view_mode = (self._view_mode + 1) % 3
         if self._view_mode == 0:
             # List mode — full filename + icon
@@ -354,7 +359,7 @@ class WorkTray(QWidget):
             self._list.setViewMode(QListWidget.ViewMode.ListMode)
             self._list.setIconSize(QSize(80, 80))
             self._list.setGridSize(QSize())  # auto
-            self._list.setSpacing(2)
+            self._list.setSpacing(max(2, _pad // 2))
             for i in range(self._list.count()):
                 item = self._list.item(i)
                 if item and item.data(NAME_ROLE):
@@ -367,7 +372,7 @@ class WorkTray(QWidget):
             self._list.setViewMode(QListWidget.ViewMode.IconMode)
             self._list.setIconSize(QSize(icon, icon))
             self._list.setGridSize(QSize(cell, cell))
-            self._list.setSpacing(2)
+            self._list.setSpacing(max(2, _pad // 2))
             # Store name and clear text so grid is clean
             for i in range(self._list.count()):
                 item = self._list.item(i)
