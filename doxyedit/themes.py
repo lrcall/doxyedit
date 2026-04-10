@@ -552,14 +552,14 @@ def generate_stylesheet(theme: Theme) -> str:
 
         /* Thin scrollbars inside folder sections */
         QWidget#folder_section QScrollBar:vertical {{
-            background: transparent; width: 8px; border: none;
+            background: transparent; width: 16px; border: none;
         }}
         QWidget#folder_section QScrollBar::handle:vertical {{
-            background: rgba(128,128,128,0.25); border-radius: 4px;
-            min-height: 30px;
+            background: rgba(128,128,128,0.15); border-radius: 8px;
+            min-height: 40px; margin: 2px;
         }}
         QWidget#folder_section QScrollBar::handle:vertical:hover {{
-            background: rgba(128,128,128,0.45);
+            background: rgba(128,128,128,0.3);
         }}
         QWidget#folder_section QScrollBar::add-line,
         QWidget#folder_section QScrollBar::sub-line {{

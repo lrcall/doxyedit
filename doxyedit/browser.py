@@ -709,6 +709,7 @@ class FolderSection(QWidget):
     def update_grid_size(self, thumb_size: int):
         self._thumb_size = thumb_size
         self._view.setGridSize(QSize(thumb_size + 16, thumb_size + 70))
+        self.update_view_height()
         self._view.updateGeometry()
 
 

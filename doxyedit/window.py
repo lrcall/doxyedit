@@ -3463,6 +3463,11 @@ Ctrl+Click tag — Search by tag
                 pm = self.browser._thumb_cache.get(aid)
                 if pm:
                     self.work_tray.update_pixmap(aid, pm)
+                else:
+                    # Not cached yet — request generation
+                    asset = self.project.get_asset(aid)
+                    if asset and asset.source_path:
+                        self.browser._thumb_cache.request(aid, asset.source_path)
             if all_aids:
                 self.work_tray.show()
                 self._toggle_tray_action.setText("Hide Work Tray")
