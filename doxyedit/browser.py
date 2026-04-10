@@ -687,29 +687,44 @@ class FolderSection(QWidget):
         menu.addAction("Remove Folder from Project…", lambda: self.remove_requested.emit(self._folder))
         menu.exec(self._header.mapToGlobal(pos))
 
-    def _is_dark_theme(self) -> bool:
-        bg = self.palette().color(self.backgroundRole())
-        return bg.lightness() < 128
+    def _theme_accent_variant(self) -> QColor:
+        """Generate a random color based on the theme's accent hue with random offset."""
+        import random
+        # Get accent color from the delegate's theme, or fallback
+        theme = getattr(getattr(self.parent(), '_delegate', None) if hasattr(self, '_view') else None, '_theme', None)
+        if not theme:
+            # Try via parent browser
+            browser = self.parent()
+            while browser and not hasattr(browser, '_delegate'):
+                browser = browser.parent()
+            if browser:
+                theme = getattr(browser._delegate, '_theme', None)
+        if theme:
+            base = QColor(theme.accent)
+            bg = QColor(theme.bg_deep)
+            is_dark = bg.lightness() < 128
+        else:
+            base = QColor("#7868b0")
+            is_dark = True
+        # Shift hue randomly by ±120 degrees from accent
+        h, s, l, _ = base.getHsl()
+        offset = random.randint(-120, 120)
+        new_hue = (h + offset) % 360
+        if is_dark:
+            return QColor.fromHsl(new_hue, max(60, s), min(90, max(40, l)), 60)
+        else:
+            return QColor.fromHsl(new_hue, max(40, s - 20), max(160, min(220, l + 80)), 100)
 
     def _set_random_highlight(self):
-        """Full line background color — adapts to dark/light theme."""
-        import random
-        hue = random.randint(0, 359)
-        if self._is_dark_theme():
-            color = QColor.fromHsl(hue, 80, 40, 50)  # dark bg: muted, semi-transparent
-        else:
-            color = QColor.fromHsl(hue, 60, 200, 80)  # light bg: pastel, visible
+        """Full line background color — theme-aware."""
+        color = self._theme_accent_variant()
         self._highlight_color = color.name()
         self._header.setStyleSheet(f"background: {self._highlight_color};")
 
     def _set_random_chip(self):
-        """Left border chip indicator — adapts to dark/light theme."""
-        import random
-        hue = random.randint(0, 359)
-        if self._is_dark_theme():
-            color = QColor.fromHsl(hue, 150, 120)  # dark: vivid
-        else:
-            color = QColor.fromHsl(hue, 180, 80)   # light: deeper
+        """Left border chip indicator — theme-aware."""
+        color = self._theme_accent_variant()
+        color.setAlpha(255)  # chip needs full opacity
         self._chip_color = color.name()
         self._header.setStyleSheet(
             self._header.styleSheet() +
