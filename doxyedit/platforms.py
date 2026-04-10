@@ -118,6 +118,7 @@ class PlatformPanel(QWidget):
         self._hive_layout.addStretch()
         hive_scroll.setWidget(self._hive_widget)
 
+        self._hive_container = hive_container  # exposed for reparenting by window.py
         self._vsplit.addWidget(hive_container)
         self._vsplit.setSizes([600, 180])
         self._vsplit.setStretchFactor(0, 1)

@@ -188,10 +188,19 @@ class MainWindow(QMainWindow):
         self._info_panel = InfoPanel()
         self._info_panel.tags_modified.connect(self._on_tags_modified)
         self.tag_panel._tag_notes_split.addWidget(self._info_panel)
-        # Move notes widget from tag panel to bottom of work tray content
+        # Move notes widget from tag panel to bottom of work tray (resizable via splitter)
         notes_w = self.tag_panel._tag_notes_split.widget(1)  # notes_widget
         if notes_w:
-            self.work_tray._content.layout().addWidget(notes_w)
+            # Replace the list in the tray content layout with a splitter: list + notes
+            tray_layout = self.work_tray._content.layout()
+            tray_layout.removeWidget(self.work_tray._list)
+            _tray_list_notes = QSplitter(Qt.Orientation.Vertical)
+            _tray_list_notes.addWidget(self.work_tray._list)
+            _tray_list_notes.addWidget(notes_w)
+            _tray_list_notes.setSizes([400, 100])
+            _tray_list_notes.setStretchFactor(0, 3)
+            _tray_list_notes.setStretchFactor(1, 0)
+            tray_layout.addWidget(_tray_list_notes)
         self.tag_panel._tag_notes_split.setSizes([300, 200])
         self._browse_split.setStretchFactor(0, 0)  # file browser
         self._browse_split.setStretchFactor(1, 0)  # tag panel
@@ -265,13 +274,21 @@ class MainWindow(QMainWindow):
         _right_col.setStretchFactor(0, 3)
         _right_col.setStretchFactor(1, 1)
         # Platforms (left) + kanban+checklist (right)
-        _plat_main_split = QSplitter(Qt.Orientation.Horizontal)
-        _plat_main_split.addWidget(self.platform_panel)
-        _plat_main_split.addWidget(_right_col)
-        _plat_main_split.setSizes([600, 400])
-        _plat_main_split.setStretchFactor(0, 3)
-        _plat_main_split.setStretchFactor(1, 2)
-        self.tabs.addTab(_plat_main_split, "Platforms")
+        _plat_top = QSplitter(Qt.Orientation.Horizontal)
+        _plat_top.addWidget(self.platform_panel)
+        _plat_top.addWidget(_right_col)
+        _plat_top.setSizes([600, 400])
+        _plat_top.setStretchFactor(0, 3)
+        _plat_top.setStretchFactor(1, 2)
+        # Assigned art hive at bottom — full width
+        _plat_full = QSplitter(Qt.Orientation.Vertical)
+        _plat_full.addWidget(_plat_top)
+        if hasattr(self.platform_panel, '_hive_container'):
+            _plat_full.addWidget(self.platform_panel._hive_container)
+        _plat_full.setSizes([500, 180])
+        _plat_full.setStretchFactor(0, 4)
+        _plat_full.setStretchFactor(1, 0)
+        self.tabs.addTab(_plat_full, "Platforms")
 
         # Tab 5: Project Notes — preview (left) + markdown source (right)
         from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser
