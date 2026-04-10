@@ -213,6 +213,10 @@ class MainWindow(QMainWindow):
         saved_collapsed = self._settings_early.value("collapsed_folders", [])
         if saved_collapsed:
             self.browser._collapsed_folders = set(str(f) for f in saved_collapsed)
+        # Restore collapsed tag sections
+        saved_tag_sections = self._settings_early.value("collapsed_tag_sections", [])
+        if saved_tag_sections:
+            self.tag_panel._collapsed_sections = set(str(s) for s in saved_tag_sections)
         # info_panel is now always visible inside the tag panel splitter
         # Restore tag-notes splitter
         saved_notes_split = self._settings_early.value("tag_notes_splitter", None)
@@ -1109,6 +1113,7 @@ class MainWindow(QMainWindow):
             "File Browser", self._toggle_file_browser, QKeySequence("Ctrl+B"))
         self._toggle_file_browser_action.setCheckable(True)
         self._toggle_file_browser_action.setChecked(self._file_browser.isVisible())
+        view_menu.addAction("Info Panel", self._toggle_info_panel, QKeySequence("Ctrl+I"))
         self._toggle_project_notes_action = view_menu.addAction("Project Notes Panel")
         self._toggle_project_notes_action.setCheckable(True)
         self._toggle_project_notes_action.setChecked(False)
@@ -1772,7 +1777,10 @@ class MainWindow(QMainWindow):
         # Open floating preview with same asset
         self._on_asset_preview(asset.id)
 
-    # _toggle_info_panel removed — panel is always visible in sidebar
+    def _toggle_info_panel(self):
+        """Ctrl+I — toggle info panel visibility in the sidebar."""
+        vis = not self._info_panel.isVisible()
+        self._info_panel.setVisible(vis)
 
     def _toggle_file_browser(self):
         vis = not self._file_browser.isVisible()
@@ -3912,6 +3920,7 @@ Ctrl+Click tag — Search by tag
         self._settings.setValue("splitter_sizes", self._browse_split.sizes())
         self._settings.setValue("tag_notes_splitter", self.tag_panel._tag_notes_split.sizes())
         self._settings.setValue("collapsed_folders", sorted(self.browser._collapsed_folders))
+        self._settings.setValue("collapsed_tag_sections", sorted(self.tag_panel._collapsed_sections))
         self._settings.setValue("window_width", self.width())
         self._settings.setValue("window_height", self.height())
         self._settings.setValue("window_x", self.x())
