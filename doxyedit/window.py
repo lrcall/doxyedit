@@ -1007,7 +1007,8 @@ class MainWindow(QMainWindow):
 
         # Collections submenu
         coll_sub = file_menu.addMenu("Collections")
-        coll_sub.addAction("Save Collection...", self._save_collection)
+        coll_sub.addAction("Save Collection", self._save_collection_quick)
+        coll_sub.addAction("Save Collection As...", self._save_collection)
         coll_sub.addAction("Open Collection...", self._open_collection)
         coll_sub.addAction("Reload Collection", self._reload_collection)
         coll_sub.addAction("Locate Last Collection", self._locate_last_collection)
@@ -3613,6 +3614,24 @@ Ctrl+Click tag — Search by tag
             QMessageBox.warning(self, "Last Collection",
                 f"File no longer exists:\n{path}\n\n"
                 "Use 'Save Collection…' to create a new one.")
+
+    def _save_collection_quick(self):
+        """Quick save — overwrite the last collection file, or fall back to Save As."""
+        last = self._settings.value("last_collection", "")
+        if not last or not Path(last).parent.exists():
+            self._save_collection()
+            return
+        projects = self._collect_open_project_paths()
+        if not projects:
+            self.status.showMessage("No saved projects open", 3000)
+            return
+        try:
+            Path(last).write_text(
+                json.dumps({"_type": "doxycoll", "projects": projects}, indent=2),
+                encoding="utf-8")
+            self.status.showMessage(f"Collection saved → {Path(last).name}", 3000)
+        except Exception as e:
+            self.status.showMessage(f"Save failed: {e}", 5000)
 
     def _save_collection(self):
         """Save all open project tabs/windows as a named collection (.doxycoll.json)."""
