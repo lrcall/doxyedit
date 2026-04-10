@@ -1744,7 +1744,7 @@ class MainWindow(QMainWindow):
         else:
             self._tray_open = True
             self.work_tray.setMinimumWidth(150)
-            self.work_tray.setMaximumWidth(400)
+            self.work_tray.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX — no limit
             self.work_tray._content.show()
             self.work_tray.show()
             if self._saved_tray_sizes:
