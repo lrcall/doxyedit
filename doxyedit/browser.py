@@ -675,19 +675,29 @@ class FolderSection(QWidget):
         menu.addAction("Remove Folder from Project…", lambda: self.remove_requested.emit(self._folder))
         menu.exec(self._header.mapToGlobal(pos))
 
+    def _is_dark_theme(self) -> bool:
+        bg = self.palette().color(self.backgroundRole())
+        return bg.lightness() < 128
+
     def _set_random_highlight(self):
-        """Full line background color."""
+        """Full line background color — adapts to dark/light theme."""
         import random
         hue = random.randint(0, 359)
-        color = QColor.fromHsl(hue, 80, 60, 40)
+        if self._is_dark_theme():
+            color = QColor.fromHsl(hue, 80, 40, 50)  # dark bg: muted, semi-transparent
+        else:
+            color = QColor.fromHsl(hue, 60, 200, 80)  # light bg: pastel, visible
         self._highlight_color = color.name()
         self._header.setStyleSheet(f"background: {self._highlight_color};")
 
     def _set_random_chip(self):
-        """Left border chip indicator."""
+        """Left border chip indicator — adapts to dark/light theme."""
         import random
         hue = random.randint(0, 359)
-        color = QColor.fromHsl(hue, 120, 80, 60)
+        if self._is_dark_theme():
+            color = QColor.fromHsl(hue, 150, 120)  # dark: vivid
+        else:
+            color = QColor.fromHsl(hue, 180, 80)   # light: deeper
         self._chip_color = color.name()
         self._header.setStyleSheet(
             self._header.styleSheet() +
