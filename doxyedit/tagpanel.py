@@ -248,7 +248,7 @@ class TagRow(QFrame):
         # Object name scopes the rule so it beats the global theme QCheckBox selector
         self.checkbox = QCheckBox(tag.label)
         self.checkbox.setObjectName("tag_checkbox")
-        self.checkbox.setFont(QFont("", -1, QFont.Weight.Bold))
+        _bold = self.checkbox.font(); _bold.setBold(True); self.checkbox.setFont(_bold)
         self.checkbox.setStyleSheet(
             f"QCheckBox#tag_checkbox {{ color: {tag.color}; }}"
             f"QCheckBox#tag_checkbox::indicator {{ width: {_cb-2}px; height: {_cb-2}px; }}")
@@ -273,12 +273,10 @@ class TagRow(QFrame):
             hints.append(f"[{shortcut_key}]")
 
         hint_label = QLabel("  ".join(hints) if hints else "any")
-        hint_label.setFont(QFont("", -1))
         hint_label.setStyleSheet("color: rgba(128,128,128,0.5);")
         layout.addWidget(hint_label)
 
         self._count_lbl = QLabel("")
-        self._count_lbl.setFont(QFont("", -1))
         self._count_lbl.setStyleSheet("color: rgba(128,128,128,0.35); min-width: 24px;")
         self._count_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self._count_lbl)
@@ -401,19 +399,17 @@ class TagPanel(QWidget):
 
         # Header
         self.header = QLabel("Select an image to tag it")
-        self.header.setFont(QFont("", -1, QFont.Weight.Bold))
+        _bold = self.header.font(); _bold.setBold(True); self.header.setFont(_bold)
         self.header.setStyleSheet("color: rgba(128,128,128,0.6); padding-bottom: 4px;")
         self.header.setWordWrap(True)
         root.addWidget(self.header)
 
         self.hint_label = QLabel("Click an image on the left, then check tags below")
-        self.hint_label.setFont(QFont("", -1))
         self.hint_label.setStyleSheet("color: rgba(128,128,128,0.5); font-style: italic;")
         self.hint_label.setWordWrap(True)
         root.addWidget(self.hint_label)
 
         self.dim_label = QLabel("")
-        self.dim_label.setFont(QFont("", -1))
         self.dim_label.setStyleSheet("color: rgba(128,128,128,0.7);")
         root.addWidget(self.dim_label)
 
@@ -466,7 +462,6 @@ class TagPanel(QWidget):
 
         def _make_section_label(text, section_id):
             btn = QPushButton(f"\u25BC {text}")  # ▼ expanded
-            btn.setFont(QFont("", -1))
             btn.setStyleSheet(_lbl_style)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda: self._toggle_section(section_id, btn, text))
@@ -517,7 +512,6 @@ class TagPanel(QWidget):
         notes_layout.setContentsMargins(0, 0, 0, 0)
         notes_layout.setSpacing(2)
         notes_label = QLabel("Notes:")
-        notes_label.setFont(QFont("", -1))
         notes_layout.addWidget(notes_label)
         self.notes_edit = QTextEdit()
         _f_notes = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
@@ -663,11 +657,10 @@ class TagPanel(QWidget):
         """Scale all fonts in the tag panel."""
         f = font_size
         for row in self._rows.values():
-            row.checkbox.setFont(QFont("", -1, QFont.Weight.Bold))
+            _bold = row.checkbox.font(); _bold.setBold(True); row.checkbox.setFont(_bold)
             if hasattr(row, '_hint_label'):
-                row._hint_label.setFont(QFont("", -1))
-        self.header.setFont(QFont("", -1, QFont.Weight.Bold))
-        self.notes_edit.setFont(QFont("", -1))
+                pass  # hint_label inherits font from stylesheet
+        _bold = self.header.font(); _bold.setBold(True); self.header.setFont(_bold)
 
     def set_assets(self, assets: list[Asset]):
         """Set which asset(s) the tag panel is editing."""

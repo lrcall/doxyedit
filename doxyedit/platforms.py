@@ -474,7 +474,7 @@ class PlatformPanel(QWidget):
             # Platform header with progress bar
             header_row = QHBoxLayout()
             name_lbl = QLabel(platform.name)
-            name_lbl.setFont(QFont("", -1, QFont.Weight.Bold))
+            _bold = name_lbl.font(); _bold.setBold(True); name_lbl.setFont(_bold)
             if platform.needs_censor:
                 name_lbl.setStyleSheet("color: #ff6b6b;")
             header_row.addWidget(name_lbl)

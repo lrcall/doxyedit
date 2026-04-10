@@ -131,7 +131,7 @@ class FileBrowserPanel(QWidget):
         header = QHBoxLayout()
         header.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, max(2, _pad // 2))
         title = QLabel("Files")
-        title.setFont(QFont("", -1, QFont.Weight.Bold))
+        _bold = title.font(); _bold.setBold(True); title.setFont(_bold)
         header.addWidget(title)
         header.addStretch()
 

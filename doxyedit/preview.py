@@ -85,7 +85,7 @@ class HoverPreview(QWidget):
 class NoteRectItem(QGraphicsRectItem):
     """A draggable note box with text label — text stays fixed screen size at any zoom."""
 
-    _FONT = QFont("", -1, QFont.Weight.Bold)
+    _FONT = QFont(); _FONT.setBold(True)
 
     def __init__(self, rect: QRectF, text: str = ""):
         super().__init__(rect)
@@ -311,7 +311,6 @@ class ImagePreviewDialog(QDialog):
         ratio = f"{w/h:.2f}" if h else "?"
 
         info = QLabel(f"{name}  |  {w} x {h}  |  ratio {ratio}")
-        info.setFont(QFont("", -1))
         info.setStyleSheet("color: rgba(200,200,200,0.8);")
         info_bar.addWidget(info)
         info_bar.addStretch()
@@ -386,7 +385,6 @@ class ImagePreviewDialog(QDialog):
         nav_hint = " |  ← → Space" if self._assets else ""
         hint_text = f"Scroll=zoom  Drag=pan  N=note  V=toggle  F11=full  Esc=close{nav_hint}"
         self._hint_lbl = QLabel(hint_text)
-        self._hint_lbl.setFont(QFont("", -1))
         self._hint_lbl.setStyleSheet("color: rgba(128,128,128,0.5);")
         self._hint_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         info_bar.addWidget(self._hint_lbl)
@@ -848,7 +846,6 @@ class PreviewPane(QWidget):
         info_layout = QHBoxLayout(self._info_bar)
         info_layout.setContentsMargins(8, 4, 8, 4)
         self._info_label = QLabel()
-        self._info_label.setFont(QFont("", -1))
         self._info_label.setStyleSheet("")
         info_layout.addWidget(self._info_label)
         info_layout.addStretch()
