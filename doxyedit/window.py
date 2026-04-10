@@ -188,7 +188,11 @@ class MainWindow(QMainWindow):
         self._info_panel = InfoPanel()
         self._info_panel.tags_modified.connect(self._on_tags_modified)
         self.tag_panel._tag_notes_split.addWidget(self._info_panel)
-        self.tag_panel._tag_notes_split.setSizes([300, 60, 150])
+        # Move notes widget from tag panel to bottom of work tray
+        notes_w = self.tag_panel._tag_notes_split.widget(1)  # notes_widget
+        if notes_w:
+            self.work_tray.layout().addWidget(notes_w)
+        self.tag_panel._tag_notes_split.setSizes([300, 200])
         self._browse_split.setStretchFactor(0, 0)  # file browser
         self._browse_split.setStretchFactor(1, 0)  # tag panel
         self._browse_split.setStretchFactor(2, 1)  # browser (stretches)
