@@ -550,6 +550,22 @@ def generate_stylesheet(theme: Theme) -> str:
             color: {theme.text_primary};
         }}
 
+        /* Thin scrollbars inside folder sections */
+        QWidget#folder_section QScrollBar:vertical {{
+            background: transparent; width: 8px; border: none;
+        }}
+        QWidget#folder_section QScrollBar::handle:vertical {{
+            background: rgba(128,128,128,0.25); border-radius: 4px;
+            min-height: 30px;
+        }}
+        QWidget#folder_section QScrollBar::handle:vertical:hover {{
+            background: rgba(128,128,128,0.45);
+        }}
+        QWidget#folder_section QScrollBar::add-line,
+        QWidget#folder_section QScrollBar::sub-line {{
+            height: 0; width: 0;
+        }}
+
         /* Scroll area viewports inside new panels inherit bg_deep */
         QWidget#platform_panel QScrollArea,
         QWidget#platform_panel QScrollArea > QWidget,

@@ -562,6 +562,7 @@ class FolderSection(QWidget):
 
     collapsed_changed = Signal(str, bool)   # (folder_path, is_collapsed)
     remove_requested  = Signal(str)         # (folder_path)
+    select_all_requested = Signal(str, bool)  # (folder_path, recursive)
 
     def __init__(self, folder: str, assets: list, delegate, thumb_size: int,
                  collapsed: bool = False, depth: int = 0, parent=None):
@@ -648,6 +649,9 @@ class FolderSection(QWidget):
         import subprocess
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
+        menu.addAction("Select All in Folder", lambda: self.select_all_requested.emit(self._folder, False))
+        menu.addAction("Select All (Recursive)", lambda: self.select_all_requested.emit(self._folder, True))
+        menu.addSeparator()
         menu.addAction("Open in Explorer", lambda: subprocess.Popen(
             ["explorer", self._folder.replace("/", "\\")]))
         menu.addSeparator()
@@ -1763,6 +1767,7 @@ class AssetBrowser(QWidget):
             )
             section.collapsed_changed.connect(self._on_folder_collapsed)
             section.remove_requested.connect(self._on_folder_remove_requested)
+            section.select_all_requested.connect(self._on_folder_select_all)
             section.view.customContextMenuRequested.connect(
                 lambda pos, s=section: self._on_folder_context_menu_pos(pos, s))
             section.view.doubleClicked.connect(
@@ -1852,6 +1857,24 @@ class AssetBrowser(QWidget):
         else:
             self._collapsed_folders.discard(folder)
             self._request_visible_thumbs()
+
+    def _on_folder_select_all(self, folder: str, recursive: bool):
+        """Select all assets in a folder (optionally recursive)."""
+        folder_norm = folder.replace("\\", "/")
+        ids = []
+        for a in self.project.assets:
+            af = (a.source_folder or str(Path(a.source_path).parent)).replace("\\", "/")
+            if recursive:
+                if af == folder_norm or af.startswith(folder_norm + "/"):
+                    ids.append(a.id)
+            else:
+                if af == folder_norm:
+                    ids.append(a.id)
+        self._selected_ids = set(ids)
+        self.selection_changed.emit(list(self._selected_ids))
+        if len(ids) == 1:
+            self.asset_selected.emit(ids[0])
+        self._refresh_grid()
 
     def _on_folder_remove_requested(self, folder: str):
         from PySide6.QtWidgets import QMessageBox

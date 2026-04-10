@@ -209,6 +209,10 @@ class MainWindow(QMainWindow):
             self._preview_pane.show()
         if self._settings_early.value("file_browser_visible", False, type=bool):
             self._file_browser.show()
+        # Restore collapsed folders state
+        saved_collapsed = self._settings_early.value("collapsed_folders", [])
+        if saved_collapsed:
+            self.browser._collapsed_folders = set(str(f) for f in saved_collapsed)
         # info_panel is now always visible inside the tag panel splitter
         # Restore tag-notes splitter
         saved_notes_split = self._settings_early.value("tag_notes_splitter", None)
@@ -3907,6 +3911,7 @@ Ctrl+Click tag — Search by tag
         # Save splitter and window position/size
         self._settings.setValue("splitter_sizes", self._browse_split.sizes())
         self._settings.setValue("tag_notes_splitter", self.tag_panel._tag_notes_split.sizes())
+        self._settings.setValue("collapsed_folders", sorted(self.browser._collapsed_folders))
         self._settings.setValue("window_width", self.width())
         self._settings.setValue("window_height", self.height())
         self._settings.setValue("window_x", self.x())
