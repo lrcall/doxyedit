@@ -19,7 +19,10 @@ class _TagPill(QPushButton):
         super().__init__(parent)
         self.tag_id = tag_id
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(22)
+        from PySide6.QtCore import QSettings
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _cb = max(14, _f + 2)
+        self.setFixedHeight(_cb)
         label = tag_id
         if removable:
             label += " \u00d7"
@@ -40,6 +43,10 @@ class InfoPanel(QWidget):
         self._build()
 
     def _build(self):
+        from PySide6.QtCore import QSettings
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _cb = max(14, _f + 2)
+
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
@@ -101,12 +108,12 @@ class InfoPanel(QWidget):
         self._layout.addWidget(self._tag_flow_widget)
         # "+" add tag button
         self._add_tag_btn = QPushButton("+")
-        self._add_tag_btn.setFixedSize(22, 22)
+        self._add_tag_btn.setFixedSize(_cb, _cb)
         self._add_tag_btn.setToolTip("Add tag")
         self._add_tag_btn.clicked.connect(self._start_add_tag)
         # Tag add inline editor (hidden by default)
         self._tag_add_edit = QLineEdit()
-        self._tag_add_edit.setFixedHeight(22)
+        self._tag_add_edit.setFixedHeight(_cb)
         self._tag_add_edit.setMaximumWidth(120)
         self._tag_add_edit.setPlaceholderText("tag name...")
         self._tag_add_edit.returnPressed.connect(self._finish_add_tag)
@@ -137,8 +144,8 @@ class InfoPanel(QWidget):
         self._notes_header.setFont(QFont("", -1, QFont.Weight.Bold))
         self._layout.addWidget(self._notes_header)
         self._notes_edit = QTextEdit()
-        self._notes_edit.setMinimumHeight(40)
-        self._notes_edit.setMaximumHeight(120)
+        self._notes_edit.setMinimumHeight(max(40, _f * 3))
+        self._notes_edit.setMaximumHeight(max(80, _f * 8))
         self._notes_edit.setPlaceholderText("Add notes...")
         self._notes_edit.textChanged.connect(self._on_notes_changed)
         self._layout.addWidget(self._notes_edit)

@@ -94,6 +94,10 @@ class WorkTray(QWidget):
         self._build()
 
     def _build(self):
+        from PySide6.QtCore import QSettings
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _cb = max(14, _f + 2)
+
         outer = QHBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
@@ -125,7 +129,7 @@ class WorkTray(QWidget):
         header.addStretch()
 
         self._view_btn = QPushButton("\u2630")  # ☰ hamburger
-        self._view_btn.setFixedSize(22, 22)
+        self._view_btn.setFixedSize(_cb, _cb)
         self._view_btn.setToolTip("Cycle view: list / 2-col / 3-col")
         self._view_btn.setStyleSheet("QPushButton { padding: 2px; }")
         self._view_btn.clicked.connect(self._cycle_view_mode)
@@ -133,13 +137,13 @@ class WorkTray(QWidget):
         header.addWidget(self._view_btn)
 
         self._clear_btn = QPushButton("Clear")
-        self._clear_btn.setFixedHeight(22)
+        self._clear_btn.setFixedHeight(_cb)
         self._clear_btn.setStyleSheet("QPushButton { padding: 2px 8px; }")
         self._clear_btn.clicked.connect(self.clear)
         header.addWidget(self._clear_btn)
 
         self._close_btn = QPushButton("\u2715")  # ✕
-        self._close_btn.setFixedSize(22, 22)
+        self._close_btn.setFixedSize(_cb, _cb)
         self._close_btn.setToolTip("Close tray (Ctrl+T)")
         self._close_btn.setStyleSheet("QPushButton { padding: 2px; }")
         self._close_btn.clicked.connect(lambda: self.toggle_requested.emit())
@@ -156,7 +160,7 @@ class WorkTray(QWidget):
             "QTabBar::tab:selected { font-weight: bold; }")
         self._tab_bar.addTab("Tray 1")
         self._add_tray_btn = QPushButton("+")
-        self._add_tray_btn.setFixedSize(20, 20)
+        self._add_tray_btn.setFixedSize(_cb, _cb)
         self._add_tray_btn.setToolTip("New tray")
         self._add_tray_btn.setStyleSheet("QPushButton { padding: 0; font-weight: bold; }")
         self._add_tray_btn.clicked.connect(self._add_tray)

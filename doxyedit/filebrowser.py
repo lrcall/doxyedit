@@ -116,6 +116,10 @@ class FileBrowserPanel(QWidget):
         self._settings.setValue("pinned_folders", self._pinned)
 
     def _build(self):
+        from PySide6.QtCore import QSettings
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _cb = max(14, _f + 2)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
@@ -129,7 +133,7 @@ class FileBrowserPanel(QWidget):
         header.addStretch()
 
         clear_btn = QPushButton("Clear Filter")
-        clear_btn.setFixedHeight(20)
+        clear_btn.setFixedHeight(_cb)
         clear_btn.setToolTip("Clear folder filter on main grid")
         clear_btn.clicked.connect(lambda: self.filter_cleared.emit())
         header.addWidget(clear_btn)
@@ -139,7 +143,7 @@ class FileBrowserPanel(QWidget):
         self._search = QLineEdit()
         self._search.setPlaceholderText("Filter folders...")
         self._search.setClearButtonEnabled(True)
-        self._search.setFixedHeight(24)
+        self._search.setFixedHeight(_cb + 2)
         self._search.setContentsMargins(8, 0, 8, 0)
         self._search.textChanged.connect(self._on_search_changed)
         layout.addWidget(self._search)
