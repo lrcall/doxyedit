@@ -108,7 +108,7 @@ class PlatformPanel(QWidget):
         hive_scroll = QScrollArea()
         hive_scroll.setWidgetResizable(True)
         hive_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        hive_scroll.setFixedHeight(160)
+        hive_scroll.setMinimumHeight(80)
         hive_v.addWidget(hive_scroll)
 
         self._hive_widget = QWidget()
