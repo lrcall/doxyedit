@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QFrame, QLineEdit, QCheckBox, QProgressBar,
     QSizePolicy,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QSettings
 from PySide6.QtGui import QFont, QKeySequence, QShortcut
 
 
@@ -18,9 +18,11 @@ class ChecklistPanel(QWidget):
         self._build()
 
     def _build(self):
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad_lg = max(6, _f // 2)
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(48, 28, 48, 24)
-        outer.setSpacing(12)
+        outer.setContentsMargins(_pad_lg * 6, _pad_lg * 4, _pad_lg * 6, _pad_lg * 4)
+        outer.setSpacing(_pad_lg * 2)
 
         # ── Header ────────────────────────────────────────────────────
         header = QHBoxLayout()
@@ -95,10 +97,12 @@ class ChecklistPanel(QWidget):
         self._update_progress()
 
     def _insert_row(self, text: str, checked: bool, at_end: bool = True):
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad_lg = max(6, _f // 2)
         row = QWidget()
         h = QHBoxLayout(row)
         h.setContentsMargins(0, 2, 0, 2)
-        h.setSpacing(10)
+        h.setSpacing(_pad_lg * 2)
 
         cb = QCheckBox(text)
         cb.setChecked(checked)

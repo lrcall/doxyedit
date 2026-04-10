@@ -44,9 +44,12 @@ class PlatformPanel(QWidget):
         self._thumb_cache = cache
 
     def _build(self):
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(12, 8, 12, 8)
-        outer.setSpacing(6)
+        outer.setSpacing(_pad_lg)
 
         # Top bar: summary + view toggle
         top_bar = QHBoxLayout()
@@ -82,12 +85,12 @@ class PlatformPanel(QWidget):
 
         self._col_layout = QHBoxLayout(self._cards_widget)
         self._col_layout.setContentsMargins(0, 4, 0, 4)
-        self._col_layout.setSpacing(12)
+        self._col_layout.setSpacing(_pad_lg * 2)
 
         self._col0 = QVBoxLayout()
         self._col1 = QVBoxLayout()
-        self._col0.setSpacing(10)
-        self._col1.setSpacing(10)
+        self._col0.setSpacing(_pad_lg * 2)
+        self._col1.setSpacing(_pad_lg * 2)
         self._col_layout.addLayout(self._col0)
         self._col_layout.addLayout(self._col1)
 
@@ -98,7 +101,7 @@ class PlatformPanel(QWidget):
         hive_container.setObjectName("hive_container")
         hive_v = QVBoxLayout(hive_container)
         hive_v.setContentsMargins(0, 4, 0, 0)
-        hive_v.setSpacing(4)
+        hive_v.setSpacing(_pad)
 
         hive_header = QLabel("Assigned Art")
         hive_header.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
@@ -114,7 +117,7 @@ class PlatformPanel(QWidget):
         self._hive_widget = QWidget()
         self._hive_layout = QHBoxLayout(self._hive_widget)
         self._hive_layout.setContentsMargins(4, 4, 4, 4)
-        self._hive_layout.setSpacing(8)
+        self._hive_layout.setSpacing(_pad_lg)
         self._hive_layout.addStretch()
         hive_scroll.setWidget(self._hive_widget)
 
@@ -133,7 +136,7 @@ class PlatformPanel(QWidget):
         self._dash_widget = QWidget()
         self._dash_layout = QVBoxLayout(self._dash_widget)
         self._dash_layout.setContentsMargins(4, 4, 4, 4)
-        self._dash_layout.setSpacing(12)
+        self._dash_layout.setSpacing(_pad_lg * 2)
         self._dash_layout.addStretch()
         self._dash_scroll.setWidget(self._dash_widget)
         self._stack.addWidget(self._dash_scroll)
@@ -213,6 +216,8 @@ class PlatformPanel(QWidget):
 
     def _hive_cell(self, asset, slot_label: str, plat_name: str, status: str) -> QWidget:
         """One thumbnail cell in the image hive."""
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
         THUMB = 100
         cell = QWidget()
         cell.setFixedWidth(THUMB + 8)
@@ -220,7 +225,7 @@ class PlatformPanel(QWidget):
         cell.setToolTip(f"{plat_name} — {slot_label}\n{asset.source_path}")
         v = QVBoxLayout(cell)
         v.setContentsMargins(4, 4, 4, 4)
-        v.setSpacing(3)
+        v.setSpacing(max(2, _pad // 2))
 
         # Thumbnail
         thumb = QLabel()
@@ -258,11 +263,13 @@ class PlatformPanel(QWidget):
         return cell
 
     def _build_card(self, platform, pid: str, assign_map: dict) -> QFrame:
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
         card = QFrame()
         card.setObjectName("platform_card")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(12, 10, 12, 12)
-        layout.setSpacing(3)
+        layout.setSpacing(max(2, _pad // 2))
 
         # ── Card header ──────────────────────────────────────────────────
         header = QHBoxLayout()
@@ -304,13 +311,15 @@ class PlatformPanel(QWidget):
         return card
 
     def _slot_row(self, slot, pid: str, entries: list) -> QWidget:
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad_lg = max(6, _f // 2)
         row = QWidget()
         row.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         row.customContextMenuRequested.connect(
             lambda pos, p=pid, s=slot, e=entries: self._slot_context_menu(row, pos, p, s, e))
         h = QHBoxLayout(row)
         h.setContentsMargins(0, 1, 0, 1)
-        h.setSpacing(8)
+        h.setSpacing(_pad_lg)
 
         # Slot label
         label_text = slot.label + (" *" if slot.required else "")
@@ -434,6 +443,8 @@ class PlatformPanel(QWidget):
     def _rebuild_dashboard(self):
         """Build visual dashboard grid: one row per platform, one cell per slot."""
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
         _cb = max(14, _f + 2)
         # Clear previous dashboard contents
         while self._dash_layout.count() > 1:
@@ -458,7 +469,7 @@ class PlatformPanel(QWidget):
             section = QWidget()
             section_layout = QVBoxLayout(section)
             section_layout.setContentsMargins(0, 0, 0, 0)
-            section_layout.setSpacing(4)
+            section_layout.setSpacing(_pad)
 
             # Platform header with progress bar
             header_row = QHBoxLayout()
@@ -491,7 +502,7 @@ class PlatformPanel(QWidget):
             grid_widget = QWidget()
             grid_flow = QHBoxLayout(grid_widget)
             grid_flow.setContentsMargins(0, 0, 0, 0)
-            grid_flow.setSpacing(6)
+            grid_flow.setSpacing(_pad_lg)
 
             for slot in platform.slots:
                 key = (pid, slot.name)

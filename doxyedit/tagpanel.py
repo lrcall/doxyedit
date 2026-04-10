@@ -220,7 +220,7 @@ class TagRow(QFrame):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(4, 2, 4, 2)
-        layout.setSpacing(4)
+        layout.setSpacing(_pad)
 
         # Eye toggle — hide/show images with this tag
         self.eye_btn = QPushButton("\u25C9")  # ◉ when visible
@@ -393,6 +393,8 @@ class TagPanel(QWidget):
         self._build()
 
     def _build(self):
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
         root = QVBoxLayout(self)
         root.setContentsMargins(3, 3, 3, 3)
 
@@ -447,7 +449,7 @@ class TagPanel(QWidget):
         scroll.setStyleSheet("QScrollArea, QScrollArea > QWidget > QWidget { border: none; background: transparent; }")
         tag_widget = _TagContainer(self)
         tag_layout = QVBoxLayout(tag_widget)
-        tag_layout.setSpacing(2)
+        tag_layout.setSpacing(max(2, _pad // 2))
         tag_layout.setContentsMargins(0, 0, 0, 0)
 
         self._tag_layout = tag_layout

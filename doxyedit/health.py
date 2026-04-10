@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QScrollArea, QFrame, QSizePolicy, QMessageBox, QFileDialog,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QSettings
 from PySide6.QtGui import QFont
 
 from doxyedit.models import Project, PLATFORMS
@@ -85,6 +85,9 @@ class HealthPanel(QWidget):
         self._build()
 
     def _build(self):
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
@@ -93,7 +96,7 @@ class HealthPanel(QWidget):
         toolbar = QWidget()
         toolbar.setObjectName("health_toolbar")
         tb_layout = QHBoxLayout(toolbar)
-        tb_layout.setContentsMargins(16, 8, 16, 8)
+        tb_layout.setContentsMargins(_pad_lg * 2, _pad_lg, _pad_lg * 2, _pad_lg)
 
         self._summary_lbl = QLabel("Run a scan to check for issues.")
         self._summary_lbl.setProperty("role", "muted")
@@ -134,8 +137,8 @@ class HealthPanel(QWidget):
 
         self._results_widget = QWidget()
         self._results_layout = QVBoxLayout(self._results_widget)
-        self._results_layout.setContentsMargins(16, 12, 16, 16)
-        self._results_layout.setSpacing(16)
+        self._results_layout.setContentsMargins(_pad_lg * 2, _pad_lg * 2, _pad_lg * 2, _pad_lg * 2)
+        self._results_layout.setSpacing(_pad_lg * 2)
         self._results_layout.addStretch()
         scroll.setWidget(self._results_widget)
 
@@ -196,10 +199,12 @@ class HealthPanel(QWidget):
 
     def _issue_section(self, label: str, severity: str, assets: list,
                        missing: bool = False) -> QWidget:
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
         section = QWidget()
         layout = QVBoxLayout(section)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(_pad)
 
         color = SEVERITY_COLORS.get(severity, "#888")
         header = QLabel(f"{label}  —  {len(assets)} asset{'s' if len(assets) != 1 else ''}")
@@ -222,14 +227,17 @@ class HealthPanel(QWidget):
         return section
 
     def _asset_row(self, asset, color: str) -> QWidget:
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
         row = QWidget()
         row.setCursor(Qt.CursorShape.PointingHandCursor)
         row.setStyleSheet(
             "QWidget { border-radius: 4px; padding: 1px; }"
             "QWidget:hover { background: rgba(255,255,255,0.05); }")
         h = QHBoxLayout(row)
-        h.setContentsMargins(8, 3, 8, 3)
-        h.setSpacing(8)
+        h.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)
+        h.setSpacing(_pad_lg)
 
         dot = QLabel("●")
         dot.setFixedWidth(12)
@@ -249,10 +257,13 @@ class HealthPanel(QWidget):
 
     def _missing_asset_row(self, asset, color: str) -> QWidget:
         """Row for a missing asset — includes rename detection."""
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
         outer = QWidget()
         outer_layout = QVBoxLayout(outer)
         outer_layout.setContentsMargins(0, 0, 0, 0)
-        outer_layout.setSpacing(2)
+        outer_layout.setSpacing(max(2, _pad // 2))
 
         # Main row
         row = QWidget()
@@ -261,8 +272,8 @@ class HealthPanel(QWidget):
             "QWidget { border-radius: 4px; padding: 1px; }"
             "QWidget:hover { background: rgba(255,255,255,0.05); }")
         h = QHBoxLayout(row)
-        h.setContentsMargins(8, 3, 8, 3)
-        h.setSpacing(8)
+        h.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)
+        h.setSpacing(_pad_lg)
 
         dot = QLabel("●")
         dot.setFixedWidth(12)
