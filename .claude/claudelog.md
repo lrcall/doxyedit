@@ -143,3 +143,26 @@
 13:51  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
        Active: [ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
 13:59  ⏱ Plan complete — 8m total — DoxyEdit v2.2 — 71 commits
+15:21  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] Test app end-to-end
+15:22  ⏱ Plan complete — 0m total — DoxyEdit v2.2 — 71 commits
+15:23  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] Test app end-to-end
+15:24  ⏱ Plan complete — 1m total — DoxyEdit v2.2 — 71 commits
+15:26  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] Test app end-to-end
+15:30  ⏱ Plan complete — 3m total — DoxyEdit v2.2 — 71 commits
+15:30  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] Test app end-to-end
+15:31  ⏱ Plan complete — 0m total — DoxyEdit v2.2 — 71 commits
+15:31  02:35  FEATURES REQUESTED: (1) Hover preview on tray items. (2) Send to specific tray from thumbnail grid right-click. (3) Tray still has width issues. (4) Folder scrollbar values should be tokenized not hardcoded.
+19:13  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] Test app end-to-end
+19:19  ⏱ Plan complete — 6m total — DoxyEdit v2.2 — 71 commits
+19:35  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] Test app end-to-end
+19:35  03:00  FEATURE: Search field should also match folder names, not just filenames. Currently only searches asset filenames/tags.
+19:37  ⏱ Plan complete — 1m total — DoxyEdit v2.2 — 71 commits
+20:05  ⏱ Plan started — DoxyEdit v2.2 — 71 commits
+       Active: [ ] Test app end-to-end
+20:06  ⏱ Plan complete — 0m total — DoxyEdit v2.2 — 71 commits
