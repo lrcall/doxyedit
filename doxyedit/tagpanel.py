@@ -215,6 +215,7 @@ class TagRow(QFrame):
         self._row_selected = False
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _cb = max(14, _f + 2)
+        _pad = max(4, _f // 3)
         self.setStyleSheet("TagRow { background: transparent; }")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
