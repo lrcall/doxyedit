@@ -246,12 +246,17 @@ class MainWindow(QMainWindow):
         self._notes_edit.setVisible(False)
         self._notes_edit.textChanged.connect(self._on_project_notes_changed)
 
-        self._assets_notes_split = QSplitter(Qt.Orientation.Vertical)
-        self._assets_notes_split.addWidget(self._browse_split)
-        self._assets_notes_split.addWidget(self._notes_edit)
-        self._assets_notes_split.setStretchFactor(0, 1)
-        self._assets_notes_split.setStretchFactor(1, 0)
-        self.tabs.addTab(self._assets_notes_split, "Assets")
+        # Wrap browser + notes in a vertical sub-splitter (notes under grid only, not full width)
+        _browser_notes_split = QSplitter(Qt.Orientation.Vertical)
+        # Remove browser from _browse_split, put it in the sub-splitter
+        self._browse_split.insertWidget(2, _browser_notes_split)
+        _browser_notes_split.addWidget(self.browser)
+        _browser_notes_split.addWidget(self._notes_edit)
+        _browser_notes_split.setStretchFactor(0, 1)
+        _browser_notes_split.setStretchFactor(1, 0)
+        _browser_notes_split.setSizes([600, 80])
+
+        self.tabs.addTab(self._browse_split, "Assets")
 
         # Tab 2: Canvas Editor
         self.scene = CanvasScene()
