@@ -2345,6 +2345,9 @@ class AssetBrowser(QWidget):
                                   for a in sel_assets for pa in a.assignments)
                     p_menu.addAction(f"{'✓ ' if already else ''}{slot.label}", _assign)
         menu.addAction("Remove from Project", lambda: self._remove_asset(asset))
+        if self.filter_show_ignored.isChecked():
+            menu.addSeparator()
+            menu.addAction("Delete from Disk (permanent)", lambda: self._delete_from_disk(asset))
         menu.exec(pos)
 
     def _set_assignment_status(self, pa, status: str):
@@ -2354,6 +2357,29 @@ class AssetBrowser(QWidget):
             self.window()._dirty = True
         except Exception:
             pass
+
+    def _delete_from_disk(self, asset):
+        """Permanently delete file from disk + remove from project. Requires confirmation."""
+        from PySide6.QtWidgets import QMessageBox
+        path = asset.source_path
+        name = Path(path).name
+        reply = QMessageBox.warning(
+            self, "Delete from Disk",
+            f"Permanently delete this file?\n\n{name}\n\nThis cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        # Delete file
+        try:
+            import os
+            if os.path.exists(path):
+                os.remove(path)
+        except OSError as e:
+            QMessageBox.critical(self, "Delete Failed", f"Could not delete:\n{e}")
+            return
+        # Remove from project
+        self._remove_asset(asset)
 
     def _export_selected(self):
         assets = self.get_selected_assets()
