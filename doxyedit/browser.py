@@ -2698,7 +2698,10 @@ class AssetBrowser(QWidget):
                             drag.setPixmap(icon_px.scaled(64, 64,
                                 Qt.AspectRatioMode.KeepAspectRatio,
                                 Qt.TransformationMode.SmoothTransformation))
-                        drag.exec(Qt.DropAction.CopyAction)
+                        drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
+                        # Clear rubber band state after drag ends
+                        self._drag_start_pos = None
+                        self._drag_snapshot_ids = set()
                         return True
 
             if (event.type() == event.Type.MouseButtonRelease
