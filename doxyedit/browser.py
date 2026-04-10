@@ -1557,9 +1557,12 @@ class AssetBrowser(QWidget):
                 preds.append(lambda a, q=query: any(q in t.lower() for t in a.tags))
             elif "*" in query or "?" in query:
                 preds.append(lambda a, q=query:
-                             fnmatch.fnmatch(Path(a.source_path).name.lower(), q))
+                             fnmatch.fnmatch(Path(a.source_path).name.lower(), q) or
+                             fnmatch.fnmatch((a.source_folder or str(Path(a.source_path).parent)).lower(), q))
             else:
-                preds.append(lambda a, q=query: q in Path(a.source_path).name.lower())
+                preds.append(lambda a, q=query:
+                             q in Path(a.source_path).name.lower() or
+                             q in (a.source_folder or str(Path(a.source_path).parent)).lower())
 
         if self.filter_starred.isChecked():
             preds.append(lambda a: a.starred > 0)
