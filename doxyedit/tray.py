@@ -46,6 +46,7 @@ class DragOutListWidget(QListWidget):
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
+            self.setStyleSheet("QListWidget { border: 2px solid rgba(100,180,255,0.6); }")
         else:
             super().dragEnterEvent(event)
 
@@ -55,7 +56,12 @@ class DragOutListWidget(QListWidget):
         else:
             super().dragMoveEvent(event)
 
+    def dragLeaveEvent(self, event):
+        self.setStyleSheet("")
+        super().dragLeaveEvent(event)
+
     def dropEvent(self, event):
+        self.setStyleSheet("")
         if event.mimeData().hasUrls():
             paths = [url.toLocalFile() for url in event.mimeData().urls()
                      if url.isLocalFile()]
