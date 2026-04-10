@@ -571,6 +571,9 @@ class FolderSection(QWidget):
         self._folder = folder
         self._thumb_size = thumb_size
         self._depth = depth
+        _s = QSettings("DoxyEdit", "DoxyEdit")
+        _f = _s.value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 2, 0, 0)
@@ -603,7 +606,7 @@ class FolderSection(QWidget):
         self._view.setMovement(QListView.Movement.Static)
         self._view.setUniformItemSizes(False)
         self._view.setGridSize(QSize(thumb_size + 16, thumb_size + 70))
-        self._view.setSpacing(4)
+        self._view.setSpacing(_pad)
         self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._view.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
@@ -739,6 +742,9 @@ class AssetBrowser(QWidget):
         self._filtered_assets: list[Asset] = []
         settings = QSettings("DoxyEdit", "DoxyEdit")
         self._thumb_size = max(80, min(320, int(settings.value("thumb_size", THUMB_SIZE))))
+        _f = settings.value("font_size", 12, type=int)
+        self._pad = max(4, _f // 3)
+        self._pad_lg = max(6, _f // 2)
         self.hover_preview_enabled = True
         self._eye_hidden_tags: set[str] = set()
         self._temp_hidden_ids: set[str] = set()  # Alt+H temporary hide (not saved)
@@ -776,8 +782,10 @@ class AssetBrowser(QWidget):
         self._build()
 
     def _build(self):
+        _pad = self._pad
+        _pad_lg = self._pad_lg
         root = QVBoxLayout(self)
-        root.setContentsMargins(8, 8, 8, 8)
+        root.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
 
         # Row 1: import + filters (FlowLayout so buttons wrap on narrow windows)
         self._toolbar_widget = FlowWidget()
@@ -978,7 +986,7 @@ class AssetBrowser(QWidget):
         self._list_view.setMovement(QListView.Movement.Static)
         self._list_view.setUniformItemSizes(False)  # True causes paint artifacts in IconMode
         self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
-        self._list_view.setSpacing(4)
+        self._list_view.setSpacing(_pad)
         self._list_view.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
         self._list_view.setHorizontalScrollMode(QListView.ScrollMode.ScrollPerPixel)
         self._list_view.verticalScrollBar().setSingleStep(20)
@@ -1002,7 +1010,7 @@ class AssetBrowser(QWidget):
         self._folder_container.setObjectName("folder_container")
         self._folder_container_layout = QVBoxLayout(self._folder_container)
         self._folder_container_layout.setContentsMargins(0, 0, 0, 0)
-        self._folder_container_layout.setSpacing(4)
+        self._folder_container_layout.setSpacing(_pad)
         self._folder_container_layout.addStretch()
 
         self._folder_scroll = QScrollArea()
