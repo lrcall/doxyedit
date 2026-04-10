@@ -555,11 +555,11 @@ def generate_stylesheet(theme: Theme) -> str:
             background: transparent; width: 16px; border: none;
         }}
         QWidget#folder_section QScrollBar::handle:vertical {{
-            background: rgba(128,128,128,0.15); border-radius: 8px;
-            min-height: 40px; margin: 2px;
+            background: {theme.text_muted}; border-radius: 8px;
+            min-height: 40px; margin: 2px; opacity: 0.4;
         }}
         QWidget#folder_section QScrollBar::handle:vertical:hover {{
-            background: rgba(128,128,128,0.3);
+            background: {theme.text_secondary};
         }}
         QWidget#folder_section QScrollBar::add-line,
         QWidget#folder_section QScrollBar::sub-line {{
