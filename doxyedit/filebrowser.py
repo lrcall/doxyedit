@@ -72,11 +72,12 @@ class FolderDelegate(QStyledItemDelegate):
                 badge_bg = QColor(panel._theme.accent)
                 badge_bg.setAlpha(80)
             else:
-                badge_bg = QColor(255, 255, 255, 25)
-            text_color = QColor(panel._theme.text_primary)
+                badge_bg = QColor(panel._theme.text_muted)
+                badge_bg.setAlpha(40)
+            text_color = QColor(panel._theme.text_secondary)
         else:
-            badge_bg = QColor(255, 255, 255, 40) if is_active else QColor(255, 255, 255, 25)
-            text_color = QColor(200, 200, 200)
+            badge_bg = QColor(128, 128, 128, 40)
+            text_color = QColor(128, 128, 128)
         painter.setBrush(badge_bg)
         painter.drawRoundedRect(badge_rect, th // 2, th // 2)
 
