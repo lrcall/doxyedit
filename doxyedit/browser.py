@@ -1297,11 +1297,24 @@ class AssetBrowser(QWidget):
         # Collect all folders into one worker to avoid spawning many threads
         all_new: list[str] = []
 
+        import_sources = list(self.project.import_sources)
+
         def _do_scan():
             for folder in folders:
                 fp = Path(folder)
                 if not fp.exists():
                     continue
+                # Check date filter from import sources
+                folder_norm = str(fp).replace("\\", "/")
+                source = next((s for s in import_sources
+                               if s.get("path", "").replace("\\", "/") == folder_norm), None)
+                cutoff = None
+                if source and source.get("filter_newer_than"):
+                    from datetime import datetime
+                    try:
+                        cutoff = datetime.fromisoformat(source["filter_newer_than"]).timestamp()
+                    except ValueError:
+                        pass
                 it = fp.rglob("*") if recursive else fp.iterdir()
                 try:
                     for f in it:
@@ -1309,6 +1322,12 @@ class AssetBrowser(QWidget):
                                 and str(f) not in existing
                                 and str(f) not in excluded
                                 and str(f.parent) not in excluded):
+                            if cutoff is not None:
+                                try:
+                                    if f.stat().st_mtime < cutoff:
+                                        continue
+                                except OSError:
+                                    pass
                             all_new.append(str(f))
                 except Exception:
                     pass

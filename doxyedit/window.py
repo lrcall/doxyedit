@@ -468,6 +468,10 @@ class MainWindow(QMainWindow):
         # --- Asset file watcher — detect edits to source images ---
         self._asset_watcher = QFileSystemWatcher(self)
         self._asset_watcher.fileChanged.connect(self._on_asset_file_changed)
+
+        # --- Import folder watcher — detect new files in import sources ---
+        self._folder_watcher = QFileSystemWatcher(self)
+        self._folder_watcher.directoryChanged.connect(self._on_watched_folder_changed)
         self._reload_debounce = QTimer(self)
         self._reload_debounce.setSingleShot(True)
         self._reload_debounce.setInterval(500)
@@ -2453,6 +2457,7 @@ class MainWindow(QMainWindow):
             self.status.showMessage(f"Refresh: added {total} new file(s) from {len(folder_sources)} source(s)")
         else:
             self.status.showMessage("Refresh: no new files found")
+        self._watch_import_folders()
 
     def _show_import_sources(self):
         """Show a dialog listing all recorded import sources."""
@@ -3346,6 +3351,38 @@ Ctrl+Click tag — Search by tag
         if paths:
             self._asset_watcher.addPaths(paths)
 
+    def _watch_import_folders(self):
+        """Watch all import source folders for new files."""
+        old = self._folder_watcher.directories()
+        if old:
+            self._folder_watcher.removePaths(old)
+        folders = [s["path"] for s in self.project.import_sources
+                   if s.get("type") == "folder" and Path(s["path"]).is_dir()]
+        if folders:
+            self._folder_watcher.addPaths(folders)
+
+    def _on_watched_folder_changed(self, folder_path: str):
+        """A watched import folder changed — debounce then rescan."""
+        if not hasattr(self, '_folder_change_timer'):
+            from PySide6.QtCore import QTimer
+            self._folder_change_timer = QTimer(self)
+            self._folder_change_timer.setSingleShot(True)
+            self._folder_change_timer.setInterval(1000)
+            self._folder_change_timer.timeout.connect(self._do_folder_rescan)
+        self._folder_change_timer.start()
+
+    def _do_folder_rescan(self):
+        """Rescan all import sources for new files."""
+        total = 0
+        for source in self.project.import_sources:
+            if source.get("type") == "folder":
+                n = self.browser.import_folder(source["path"], source.get("recursive", False))
+                total += n
+        if total:
+            self._refresh_all_tags()
+            self._dirty = True
+            self.status.showMessage(f"Auto-imported {total} new file(s)", 3000)
+
     def _on_project_file_changed_raw(self, path: str):
         """Debounce — wait 500ms before reloading to avoid partial writes."""
         # Re-add to watcher (Qt removes it after change on some platforms)
@@ -3467,6 +3504,7 @@ Ctrl+Click tag — Search by tag
         self._render_notes_preview(self.project.notes)
         self._update_progress()
         self._watch_asset_files()
+        self._watch_import_folders()
         # Restore work tray
         if self.project.tray_items:
             self.work_tray.load_state(self.project.tray_items, self.project)
