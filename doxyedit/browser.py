@@ -2361,14 +2361,13 @@ class AssetBrowser(QWidget):
         editor_menu = menu.addMenu("Open in Editor")
         editor_menu.addAction("Native Editor\tF3", lambda: self._open_in_native_editor())
         editor_menu.addSeparator()
-        # Add configured editors for this file's extension
-        ext = Path(asset.source_path).suffix.lower()
+        # Add ALL configured editors (user picks what to open with)
         s = QSettings("DoxyEdit", "DoxyEdit")
         all_keys = [k for k in s.allKeys() if k.startswith("native_editor/")]
         for key in sorted(all_keys):
             editor_ext = key.replace("native_editor/", "")
             editor_path = s.value(key, "")
-            if editor_path and (editor_ext == ext or editor_ext == "*"):
+            if editor_path:
                 name = Path(editor_path).stem
                 editor_menu.addAction(f"{name} ({editor_ext})",
                     lambda p=editor_path, sp=asset.source_path: subprocess.Popen([p, sp]))
