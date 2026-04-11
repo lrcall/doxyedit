@@ -2357,7 +2357,21 @@ class AssetBrowser(QWidget):
         menu.addAction("Send to Censor", lambda: self.asset_to_censor.emit(asset_id))
         menu.addSeparator()
         menu.addAction("Open in Explorer", lambda: _open_explorer(asset))
-        menu.addAction("Open in Native Editor\tF3", lambda: self._open_in_native_editor())
+        # Open in Editor submenu
+        editor_menu = menu.addMenu("Open in Editor")
+        editor_menu.addAction("Native Editor\tF3", lambda: self._open_in_native_editor())
+        editor_menu.addSeparator()
+        # Add configured editors for this file's extension
+        ext = Path(asset.source_path).suffix.lower()
+        s = QSettings("DoxyEdit", "DoxyEdit")
+        all_keys = [k for k in s.allKeys() if k.startswith("native_editor/")]
+        for key in sorted(all_keys):
+            editor_ext = key.replace("native_editor/", "")
+            editor_path = s.value(key, "")
+            if editor_path and (editor_ext == ext or editor_ext == "*"):
+                name = Path(editor_path).stem
+                editor_menu.addAction(f"{name} ({editor_ext})",
+                    lambda p=editor_path, sp=asset.source_path: subprocess.Popen([p, sp]))
         menu.addAction("Copy Path", lambda: QApplication.clipboard().setText(asset.source_path))
         menu.addAction("Copy Filename", lambda: QApplication.clipboard().setText(Path(asset.source_path).name))
         menu.addAction("Copy Name (no ext)", lambda: QApplication.clipboard().setText(Path(asset.source_path).stem))
