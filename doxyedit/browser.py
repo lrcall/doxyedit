@@ -676,8 +676,8 @@ class FolderSection(QWidget):
         menu.addAction("Select All in Folder", lambda: self.select_all_requested.emit(self._folder, False))
         menu.addAction("Select All (Recursive)", lambda: self.select_all_requested.emit(self._folder, True))
         menu.addSeparator()
-        menu.addAction("Random Highlight Color", self._set_random_highlight)
-        menu.addAction("Random Chip Color", self._set_random_chip)
+        menu.addAction("Highlight Color", self._set_random_highlight)
+        menu.addAction("Chip Color", self._set_random_chip)
         if getattr(self, '_highlight_color', None) or getattr(self, '_chip_color', None):
             menu.addAction("Clear Color", self._clear_color)
         menu.addSeparator()
