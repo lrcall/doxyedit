@@ -2202,6 +2202,7 @@ class AssetBrowser(QWidget):
             "recursive": recursive,
             "added_at": datetime.datetime.now().isoformat(timespec="seconds"),
             "last_imported": datetime.datetime.now().isoformat(timespec="seconds"),
+            "filter_newer_than": "",
         })
 
     def import_folder(self, folder: str, recursive: bool = None):
@@ -2219,6 +2220,18 @@ class AssetBrowser(QWidget):
                     and str(f) not in existing
                     and str(f) not in excluded
                     and str(f.parent) not in excluded):
+                # Date filter: skip files older than the source's filter date
+                source_entry = next((s for s in self.project.import_sources
+                                     if s.get("path", "").replace("\\", "/") == str(f.parent).replace("\\", "/")
+                                     or s.get("path", "").replace("\\", "/") == folder.replace("\\", "/")), None)
+                if source_entry and source_entry.get("filter_newer_than"):
+                    from datetime import datetime
+                    try:
+                        cutoff = datetime.fromisoformat(source_entry["filter_newer_than"]).timestamp()
+                        if f.stat().st_mtime < cutoff:
+                            continue
+                    except (ValueError, OSError):
+                        pass
                 self.project.assets.append(Asset(
                     id=f.stem + "_" + str(len(self.project.assets)),
                     source_path=str(f), source_folder=str(f.parent),
