@@ -2370,7 +2370,7 @@ class AssetBrowser(QWidget):
             if editor_path:
                 name = Path(editor_path).stem
                 editor_menu.addAction(f"{name} ({editor_ext})",
-                    lambda p=editor_path, sp=asset.source_path: subprocess.Popen([p, sp]))
+                    lambda p=editor_path: [subprocess.Popen([p, a.source_path]) for a in self.get_selected_assets()])
         menu.addAction("Copy Path", lambda: QApplication.clipboard().setText(asset.source_path))
         menu.addAction("Copy Filename", lambda: QApplication.clipboard().setText(Path(asset.source_path).name))
         menu.addAction("Copy Name (no ext)", lambda: QApplication.clipboard().setText(Path(asset.source_path).stem))
@@ -2482,10 +2482,18 @@ class AssetBrowser(QWidget):
                     already = any(pa.platform == pid and pa.slot == slot.name
                                   for a in sel_assets for pa in a.assignments)
                     p_menu.addAction(f"{'✓ ' if already else ''}{slot.label}", _assign)
-        menu.addAction("Remove from Project", lambda: self._remove_asset(asset))
+        if n_sel > 1:
+            menu.addAction(f"Remove {n_sel} from Project", lambda: self._remove_selected())
+        else:
+            menu.addAction("Remove from Project", lambda: self._remove_asset(asset))
         if self.filter_show_ignored.isChecked():
             menu.addSeparator()
-            menu.addAction("Delete from Disk (permanent)", lambda: self._delete_from_disk(asset))
+            if n_sel > 1:
+                menu.addAction(f"Delete {n_sel} from Disk (permanent)",
+                    lambda: self._delete_selected_from_disk())
+            else:
+                menu.addAction("Delete from Disk (permanent)",
+                    lambda: self._delete_from_disk(asset))
         menu.exec(pos)
 
     def _set_assignment_status(self, pa, status: str):
@@ -2606,6 +2614,53 @@ class AssetBrowser(QWidget):
         if asset.id in self._selected_ids:
             self._selected_ids.remove(asset.id)
         self._refresh_grid()
+
+    def _remove_selected(self):
+        """Remove all selected assets from project."""
+        from PySide6.QtWidgets import QMessageBox
+        n = len(self._selected_ids)
+        if QMessageBox.question(self, "Remove from Project",
+            f"Remove {n} assets from project?") != QMessageBox.StandardButton.Yes:
+            return
+        ids = set(self._selected_ids)
+        self.project.assets = [a for a in self.project.assets if a.id not in ids]
+        self._selected_ids.clear()
+        self._refresh_grid()
+        try:
+            self.window()._dirty = True
+        except Exception:
+            pass
+
+    def _delete_selected_from_disk(self):
+        """Permanently delete all selected files from disk + remove from project."""
+        from PySide6.QtWidgets import QMessageBox
+        assets = self.get_selected_assets()
+        n = len(assets)
+        reply = QMessageBox.warning(
+            self, "Delete from Disk",
+            f"Permanently delete {n} files?\n\nThis cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        import os
+        deleted = 0
+        for asset in assets:
+            try:
+                if os.path.exists(asset.source_path):
+                    os.remove(asset.source_path)
+                    deleted += 1
+            except OSError:
+                pass
+        # Remove from project
+        ids = {a.id for a in assets}
+        self.project.assets = [a for a in self.project.assets if a.id not in ids]
+        self._selected_ids.clear()
+        self._refresh_grid()
+        try:
+            self.window()._dirty = True
+        except Exception:
+            pass
 
     # --- Hover preview ---
 
