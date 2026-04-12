@@ -756,6 +756,8 @@ class MainWindow(QMainWindow):
             self.browser._delegate.set_theme(self._theme)
         if hasattr(self, '_file_browser'):
             self._file_browser._theme = self._theme
+        if hasattr(self, '_preview_pane'):
+            self._preview_pane.update_theme(self._theme)
 
     def _tint_titlebar(self, hex_color: str = ""):
         """Apply accent color to Windows 11 title bar via DwmSetWindowAttribute."""
@@ -2265,6 +2267,7 @@ class MainWindow(QMainWindow):
             asset.source_path, asset=asset, parent=self,
             assets=filtered, current_index=idx)
         dlg.setStyleSheet(self.styleSheet())
+        dlg.update_theme(self._theme)
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         dlg.finished.connect(self._on_preview_closed)
         dlg.navigated.connect(self._navigate_to_asset_in_browser)

@@ -1130,18 +1130,18 @@ class AssetBrowser(QWidget):
 
         # Row 3: Quick-tag bar
         self._tag_bar_frame = FlowWidget()
-        self._tag_bar_frame.setStyleSheet("border-bottom: 1px solid rgba(128,128,128,0.15);")
+        self._tag_bar_frame.setObjectName("tag_bar_frame")
         self._tag_bar_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         self._tag_flow = FlowLayout(self._tag_bar_frame, spacing=4)
         self._tag_flow.setContentsMargins(0, 2, 0, 2)
         self._tag_buttons: list[tuple[QPushButton, str]] = []
         self._tag_button_map: dict[str, QPushButton] = {}  # tag_id → button, O(1) lookup
         self._add_tag_btn = QPushButton("+")
+        self._add_tag_btn.setObjectName("add_tag_btn")
         self._add_tag_btn.setToolTip("Add a custom tag")
         self._add_tag_btn.clicked.connect(self._add_custom_tag)
         self._clear_filter_btn = QPushButton("✕ Clear Filters")
         self._clear_filter_btn.setToolTip("Clear all tag filters")
-        self._clear_filter_btn.setStyleSheet(self._btn_style())
         self._clear_filter_btn.clicked.connect(self.clear_bar_filters)
         self._clear_filter_btn.setVisible(False)
         self._rebuild_tag_buttons()
@@ -1339,13 +1339,9 @@ class AssetBrowser(QWidget):
                 f"QPushButton:checked {{ background: {color}; color: rgba(0,0,0,0.85);"
                 f" border-color: {color}; }}"
                 f"QPushButton:checked:hover {{ background: {color}; }}")
+        self._add_tag_btn.setObjectName("add_tag_btn")
         self._add_tag_btn.setFixedHeight(h)
         self._add_tag_btn.setFixedWidth(h)
-        self._add_tag_btn.setStyleSheet(
-            f"QPushButton {{ background: transparent; color: rgba(128,128,128,0.6);"
-            f" border: 1px dashed rgba(128,128,128,0.6); border-radius: {h // 2}px;"
-            f" font-size: {font_size + 2}px; font-weight: bold; }}"
-            f"QPushButton:hover {{ color: rgba(200,200,200,0.9); border-color: rgba(200,200,200,0.9); }}")
 
     def update_font_size(self, font_size: int):
         self._apply_tag_button_styles(font_size)

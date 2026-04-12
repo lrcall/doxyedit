@@ -25,9 +25,7 @@ class HoverPreview(QWidget):
         super().__init__(None, Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
         self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setStyleSheet(
-            "HoverPreview { background: rgba(20,20,20,0.95); border: 2px solid rgba(128,128,128,0.3); border-radius: 6px; padding: 4px; }"
-        )
+        self.setObjectName("hover_preview")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(2)
@@ -35,7 +33,7 @@ class HoverPreview(QWidget):
         self._img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._img_label)
         self._info_label = QLabel()
-        self._info_label.setStyleSheet("color: rgba(200,200,200,0.8); font-size: 12px;")
+        self._info_label.setObjectName("hover_preview_info")
         self._info_label.setWordWrap(True)
         layout.addWidget(self._info_label)
         self.hide()
@@ -291,8 +289,7 @@ class ImagePreviewDialog(QDialog):
                         geom.top() + (geom.height() - self.height()) // 2)
         # Stylesheet applied externally by caller (so theme is inherited)
         # Fall back to a dark background if none is provided
-        if not self.styleSheet():
-            self.setStyleSheet("QDialog { background: #141414; }")
+        self.setObjectName("preview_dialog")
 
         self._annotating = False
         self._draw_start = None
@@ -385,7 +382,7 @@ class ImagePreviewDialog(QDialog):
         nav_hint = " |  ← → Space" if self._assets else ""
         hint_text = f"Scroll=zoom  Drag=pan  N=note  V=toggle  F11=full  Esc=close{nav_hint}"
         self._hint_lbl = QLabel(hint_text)
-        self._hint_lbl.setStyleSheet("color: rgba(128,128,128,0.5);")
+        self._hint_lbl.setObjectName("preview_hint")
         self._hint_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         info_bar.addWidget(self._hint_lbl)
 
@@ -404,7 +401,6 @@ class ImagePreviewDialog(QDialog):
         )
         self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self.view.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-        self.view.setStyleSheet("border: none;")
         # Allow panning beyond the image edges
         self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -447,6 +443,10 @@ class ImagePreviewDialog(QDialog):
         # Load existing annotations from asset notes
         self._load_saved_notes()
         self._load_existing_crops()
+
+    def update_theme(self, theme):
+        """Update QGraphicsScene background from theme (can't use QSS for scenes)."""
+        self.scene.setBackgroundBrush(QColor(theme.bg_deep))
 
     def eventFilter(self, obj, event):
         # Parent window activated — raise preview above it (On Top mode)
@@ -855,7 +855,7 @@ class PreviewPane(QWidget):
         info_layout = QHBoxLayout(self._info_bar)
         info_layout.setContentsMargins(8, 4, 8, 4)
         self._info_label = QLabel()
-        self._info_label.setStyleSheet("")
+        self._info_label.setObjectName("preview_info")
         info_layout.addWidget(self._info_label)
         info_layout.addStretch()
         self._fit_btn = QPushButton("Fit")
@@ -881,13 +881,16 @@ class PreviewPane(QWidget):
         )
         self._view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self._view.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-        self._view.setStyleSheet("border: none;")
         self._view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._view.wheelEvent = self._wheel_zoom
         layout.addWidget(self._view)
 
         self.setMinimumWidth(200)
+
+    def update_theme(self, theme):
+        """Update QGraphicsScene background from theme (can't use QSS for scenes)."""
+        self._scene.setBackgroundBrush(QColor(theme.bg_deep))
 
     def show_asset(self, asset, assets: list = None, index: int = 0):
         """Display an asset in the docked pane."""

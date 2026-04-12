@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal, QSettings
-from PySide6.QtGui import QFont, QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut
 
 
 class ChecklistPanel(QWidget):
@@ -27,12 +27,12 @@ class ChecklistPanel(QWidget):
         # ── Header ────────────────────────────────────────────────────
         header = QHBoxLayout()
         title = QLabel("Posting Checklist")
-        title.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
+        _bold = title.font(); _bold.setBold(True); title.setFont(_bold)
         header.addWidget(title)
         header.addStretch()
 
         self._clear_btn = QPushButton("Clear Completed")
-        self._clear_btn.setStyleSheet("QPushButton { padding: 3px 10px; }")
+        self._clear_btn.setObjectName("checklist_action_btn")
         self._clear_btn.clicked.connect(self._clear_completed)
         header.addWidget(self._clear_btn)
         outer.addLayout(header)
@@ -44,9 +44,7 @@ class ChecklistPanel(QWidget):
         self._progress.setValue(0)
         self._progress.setFixedHeight(6)
         self._progress.setTextVisible(False)
-        self._progress.setStyleSheet(
-            "QProgressBar { background: rgba(255,255,255,0.08); border: none; border-radius: 3px; }"
-            "QProgressBar::chunk { background: #44cc44; border-radius: 3px; }")
+        self._progress.setObjectName("checklist_progress")
         outer.addWidget(self._progress)
 
         self._progress_lbl = QLabel("0 / 0 complete")
@@ -114,10 +112,7 @@ class ChecklistPanel(QWidget):
 
         del_btn = QPushButton("✕")
         del_btn.setFixedSize(20, 20)
-        del_btn.setStyleSheet(
-            "QPushButton { background: transparent; border: none;"
-            " color: rgba(180,100,100,0.5); }"
-            "QPushButton:hover { color: rgba(220,80,80,0.9); }")
+        del_btn.setObjectName("checklist_del_btn")
         del_btn.clicked.connect(lambda _, r=row: self._delete_row(r))
         h.addWidget(del_btn)
 
@@ -126,10 +121,9 @@ class ChecklistPanel(QWidget):
         self._list_layout.insertWidget(pos, row)
 
     def _apply_check_style(self, cb: QCheckBox, checked: bool):
-        if checked:
-            cb.setStyleSheet("color: rgba(150,150,150,0.5); text-decoration: line-through;")
-        else:
-            cb.setStyleSheet("")
+        cb.setProperty("checked_state", "done" if checked else "")
+        cb.style().unpolish(cb)
+        cb.style().polish(cb)
 
     def _on_check_changed(self):
         self._sync_to_project()

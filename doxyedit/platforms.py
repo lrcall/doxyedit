@@ -6,17 +6,11 @@ from PySide6.QtWidgets import (
     QProgressBar, QGridLayout,
 )
 from PySide6.QtCore import Qt, Signal, QSize, QSettings
-from PySide6.QtGui import QFont, QPixmap
+from PySide6.QtGui import QPixmap
 
 from doxyedit.models import Project, Asset, PlatformAssignment, PostStatus, PLATFORMS
 
 
-STATUS_COLORS = {
-    "pending": "#666666",
-    "ready":   "#ffa500",
-    "posted":  "#44cc44",
-    "skip":    "#555555",
-}
 STATUS_ICONS = {
     "pending": "·",
     "ready":   "◑",
@@ -55,7 +49,6 @@ class PlatformPanel(QWidget):
         top_bar = QHBoxLayout()
         self.summary_label = QLabel()
         self.summary_label.setProperty("role", "muted")
-        self.summary_label.setStyleSheet("padding: 2px 0;")
         top_bar.addWidget(self.summary_label, 1)
         self._view_toggle = QPushButton("Dashboard")
         self._view_toggle.setFixedWidth(80)
@@ -104,7 +97,7 @@ class PlatformPanel(QWidget):
         hive_v.setSpacing(_pad)
 
         hive_header = QLabel("Assigned Art")
-        hive_header.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
+        _bold = hive_header.font(); _bold.setBold(True); hive_header.setFont(_bold)
         hive_header.setProperty("role", "secondary")
         hive_v.addWidget(hive_header)
 
@@ -252,10 +245,10 @@ class PlatformPanel(QWidget):
         v.addWidget(slot_lbl)
 
         # Status dot
-        color = STATUS_COLORS.get(str(status), "#666")
         dot = QLabel(STATUS_ICONS.get(str(status), "·"))
         dot.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        dot.setStyleSheet(f"color: {color};")
+        dot.setObjectName("hive_status_dot")
+        dot.setProperty("status", str(status))
         v.addWidget(dot)
 
         # Click → emit asset_selected if signal wired (handled via mousePressEvent)
@@ -274,9 +267,9 @@ class PlatformPanel(QWidget):
         # ── Card header ──────────────────────────────────────────────────
         header = QHBoxLayout()
         name_lbl = QLabel(platform.name)
-        name_lbl.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
+        _bold = name_lbl.font(); _bold.setBold(True); name_lbl.setFont(_bold)
         if platform.needs_censor:
-            name_lbl.setStyleSheet("color: #ff6b6b;")
+            name_lbl.setProperty("severity", "error")
         header.addWidget(name_lbl)
         header.addStretch()
 
@@ -285,14 +278,12 @@ class PlatformPanel(QWidget):
         # Progress dots
         dots = "".join("●" if assign_map.get((pid, s.name)) else "○" for s in platform.slots)
         dots_lbl = QLabel(dots)
-        dots_lbl.setProperty("role", "muted")
-        dots_lbl.setStyleSheet("letter-spacing: 1px;")
+        dots_lbl.setObjectName("platform_dots")
         dots_lbl.setToolTip(f"{filled}/{total} slots filled")
         header.addWidget(dots_lbl)
 
         count_lbl = QLabel(f"{filled}/{total}")
-        count_lbl.setProperty("role", "muted")
-        count_lbl.setStyleSheet("margin-left: 6px;")
+        count_lbl.setObjectName("platform_count")
         header.addWidget(count_lbl)
         layout.addLayout(header)
 
@@ -337,10 +328,9 @@ class PlatformPanel(QWidget):
         if len(entries) == 0:
             asset_lbl = QLabel("empty — right-click to assign")
             if slot.required:
-                asset_lbl.setStyleSheet("color: #e06c6c; font-style: italic;")
+                asset_lbl.setObjectName("slot_empty_required")
             else:
-                asset_lbl.setProperty("role", "muted")
-                asset_lbl.setStyleSheet("font-style: italic;")
+                asset_lbl.setObjectName("slot_empty")
         elif len(entries) == 1:
             asset, _ = entries[0]
             stem = Path(asset.source_path).stem
@@ -409,15 +399,10 @@ class PlatformPanel(QWidget):
         self.refresh()
 
     def _style_status_btn(self, btn: QPushButton, status: str):
-        color = STATUS_COLORS.get(status, "#666")
-        btn.setStyleSheet(
-            f"QPushButton {{"
-            f"  color: {color}; background: transparent;"
-            f"  border: 1px solid {color}; border-radius: 3px;"
-            f"}}"
-            f"QPushButton:hover {{ background: rgba(255,255,255,0.08); }}"
-            f"QPushButton:disabled {{ color: #333; border-color: #333; }}"
-        )
+        btn.setObjectName("status_btn")
+        btn.setProperty("status", status)
+        btn.style().unpolish(btn)
+        btn.style().polish(btn)
 
     def _advance_slot_status(self, pid: str, slot_name: str) -> str | None:
         """Cycle all assignments in the slot to the next status. Returns new status or None."""
@@ -476,7 +461,7 @@ class PlatformPanel(QWidget):
             name_lbl = QLabel(platform.name)
             _bold = name_lbl.font(); _bold.setBold(True); name_lbl.setFont(_bold)
             if platform.needs_censor:
-                name_lbl.setStyleSheet("color: #ff6b6b;")
+                name_lbl.setProperty("severity", "error")
             header_row.addWidget(name_lbl)
 
             filled = sum(1 for s in platform.slots if assign_map.get((pid, s.name)))
@@ -486,14 +471,12 @@ class PlatformPanel(QWidget):
                          all(str(pa.status) == "posted" for _, pa in assign_map[(pid, s.name)]))
 
             progress = QProgressBar()
+            progress.setObjectName("dash_progress")
             progress.setRange(0, total)
             progress.setValue(filled)
             progress.setFormat(f"{filled}/{total} filled · {posted} posted")
             progress.setFixedHeight(max(14, _f))
             progress.setFixedWidth(200)
-            progress.setStyleSheet(
-                "QProgressBar { background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 3px; text-align: center; color: rgba(200,200,200,0.7); font-size: 10px; }"
-                "QProgressBar::chunk { background: rgba(100,180,100,0.5); border-radius: 2px; }")
             header_row.addWidget(progress)
             header_row.addStretch()
             section_layout.addLayout(header_row)
@@ -530,8 +513,7 @@ class PlatformPanel(QWidget):
         thumb_lbl = QLabel()
         thumb_lbl.setFixedSize(THUMB, THUMB)
         thumb_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        thumb_lbl.setStyleSheet(
-            "background: rgba(255,255,255,0.03); border: 1px solid #333; border-radius: 3px;")
+        thumb_lbl.setObjectName("dash_thumb")
 
         if entries:
             asset, pa = entries[0]
@@ -545,7 +527,7 @@ class PlatformPanel(QWidget):
             status = str(pa.status)
         else:
             thumb_lbl.setText("—")
-            thumb_lbl.setStyleSheet(thumb_lbl.styleSheet() + "color: #555;")
+            thumb_lbl.setProperty("empty", "true")
             status = "pending"
 
         v.addWidget(thumb_lbl)
@@ -555,17 +537,15 @@ class PlatformPanel(QWidget):
         slot_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         slot_lbl.setWordWrap(True)
         slot_lbl.setMaximumWidth(THUMB + 16)
-        slot_lbl.setStyleSheet("font-size: 10px; color: rgba(200,200,200,0.7);")
+        slot_lbl.setObjectName("dash_slot_label")
         v.addWidget(slot_lbl)
 
         # Status badge — clickable to cycle
-        color = STATUS_COLORS.get(status, "#666")
         icon = STATUS_ICONS.get(status, "·")
         status_btn = QPushButton(f"{icon} {status}")
         status_btn.setFixedHeight(_cb)
-        status_btn.setStyleSheet(
-            f"QPushButton {{ color: {color}; background: transparent; border: 1px solid {color}; border-radius: 3px; font-size: 10px; padding: 0 4px; }}"
-            f"QPushButton:hover {{ background: rgba(255,255,255,0.08); }}")
+        status_btn.setObjectName("status_btn")
+        status_btn.setProperty("status", status)
         if entries:
             status_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             status_btn.clicked.connect(
@@ -578,7 +558,7 @@ class PlatformPanel(QWidget):
         if len(entries) > 1:
             multi = QLabel(f"+{len(entries)-1} more")
             multi.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            multi.setStyleSheet("font-size: 9px; color: rgba(200,200,200,0.4);")
+            multi.setObjectName("dash_multi")
             v.addWidget(multi)
 
         return cell
@@ -587,12 +567,11 @@ class PlatformPanel(QWidget):
         new_status = self._advance_slot_status(pid, slot_name)
         if not new_status:
             return
-        color = STATUS_COLORS.get(new_status, "#666")
         icon = STATUS_ICONS.get(new_status, "·")
         btn.setText(f"{icon} {new_status}")
-        btn.setStyleSheet(
-            f"QPushButton {{ color: {color}; background: transparent; border: 1px solid {color}; border-radius: 3px; font-size: 10px; padding: 0 4px; }}"
-            f"QPushButton:hover {{ background: rgba(255,255,255,0.08); }}")
+        btn.setProperty("status", new_status)
+        btn.style().unpolish(btn)
+        btn.style().polish(btn)
 
     def assign_asset(self, asset: Asset, platform_id: str, slot_name: str):
         """Add asset to slot without clearing existing — skip if already assigned."""

@@ -5,16 +5,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QFrame, QSizePolicy, QMessageBox, QFileDialog,
 )
 from PySide6.QtCore import Qt, Signal, QSettings
-from PySide6.QtGui import QFont
-
 from doxyedit.models import Project, PLATFORMS
-
-
-SEVERITY_COLORS = {
-    "error":   "#e06c6c",
-    "warning": "#ffa500",
-    "info":    "#7ca1c0",
-}
 
 ISSUE_DEFS = [
     # (key, severity, label, check_fn(asset, project) -> bool)
@@ -104,21 +95,21 @@ class HealthPanel(QWidget):
         tb_layout.addStretch()
 
         self._auto_locate_btn = QPushButton("Auto-Locate All")
-        self._auto_locate_btn.setStyleSheet("QPushButton { padding: 4px 16px; }")
+        self._auto_locate_btn.setObjectName("health_action_btn")
         self._auto_locate_btn.setToolTip("Auto-update paths for all missing files with exactly one candidate match")
         self._auto_locate_btn.setEnabled(False)
         self._auto_locate_btn.clicked.connect(self._auto_locate_all)
         tb_layout.addWidget(self._auto_locate_btn)
 
         self._remove_missing_btn = QPushButton("Remove Missing")
-        self._remove_missing_btn.setStyleSheet("QPushButton { padding: 4px 16px; }")
+        self._remove_missing_btn.setObjectName("health_action_btn")
         self._remove_missing_btn.setToolTip("Delete all assets whose source file no longer exists")
         self._remove_missing_btn.setEnabled(False)
         self._remove_missing_btn.clicked.connect(self._confirm_remove_missing)
         tb_layout.addWidget(self._remove_missing_btn)
 
         scan_btn = QPushButton("Scan Now")
-        scan_btn.setStyleSheet("QPushButton { padding: 4px 16px; }")
+        scan_btn.setObjectName("health_action_btn")
         scan_btn.clicked.connect(self.run_scan)
         tb_layout.addWidget(scan_btn)
         outer.addWidget(toolbar)
@@ -169,17 +160,13 @@ class HealthPanel(QWidget):
         if path_warning:
             warn_lbl = QLabel(path_warning)
             warn_lbl.setWordWrap(True)
-            warn_lbl.setStyleSheet(
-                "background: rgba(255,165,0,0.15); color: #ffa500; padding: 12px;"
-                " border: 1px solid rgba(255,165,0,0.3); border-radius: 6px;")
-            warn_lbl.setFont(QFont("Segoe UI", 10))
+            warn_lbl.setObjectName("health_warning")
             self._results_layout.addWidget(warn_lbl)
 
         total_issues = sum(len(v) for v in buckets.values())
         if total_issues == 0:
             ok = QLabel("✓  No issues found — project looks healthy.")
-            ok.setStyleSheet("color: #44cc44; padding: 16px;")
-            ok.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
+            ok.setObjectName("health_ok")
             self._results_layout.addWidget(ok)
         else:
             for key, severity, label, _ in ISSUE_DEFS:
@@ -190,12 +177,14 @@ class HealthPanel(QWidget):
                     self._issue_section(label, severity, assets, missing=(key == "missing")))
 
         self._results_layout.addStretch()
-        color = "#44cc44" if total_issues == 0 else SEVERITY_COLORS["error"] if any(
-            buckets[k] for k, s, *_ in ISSUE_DEFS if s == "error") else SEVERITY_COLORS["warning"]
+        severity = "success" if total_issues == 0 else "error" if any(
+            buckets[k] for k, s, *_ in ISSUE_DEFS if s == "error") else "warning"
         self._summary_lbl.setText(
             f"{total_issues} issue{'s' if total_issues != 1 else ''} found across "
             f"{len(self.project.assets)} assets.")
-        self._summary_lbl.setStyleSheet(f"color: {color};")
+        self._summary_lbl.setProperty("severity", severity)
+        self._summary_lbl.style().unpolish(self._summary_lbl)
+        self._summary_lbl.style().polish(self._summary_lbl)
 
     def _issue_section(self, label: str, severity: str, assets: list,
                        missing: bool = False) -> QWidget:
@@ -206,17 +195,16 @@ class HealthPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(_pad)
 
-        color = SEVERITY_COLORS.get(severity, "#888")
         header = QLabel(f"{label}  —  {len(assets)} asset{'s' if len(assets) != 1 else ''}")
-        header.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
-        header.setStyleSheet(f"color: {color};")
+        header.setObjectName("health_section_header")
+        header.setProperty("severity", severity)
         layout.addWidget(header)
 
         for asset in assets[:50]:
             if missing:
-                row = self._missing_asset_row(asset, color)
+                row = self._missing_asset_row(asset, severity)
             else:
-                row = self._asset_row(asset, color)
+                row = self._asset_row(asset, severity)
             layout.addWidget(row)
 
         if len(assets) > 50:
@@ -226,22 +214,21 @@ class HealthPanel(QWidget):
 
         return section
 
-    def _asset_row(self, asset, color: str) -> QWidget:
+    def _asset_row(self, asset, severity: str) -> QWidget:
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
         row = QWidget()
+        row.setObjectName("health_row")
         row.setCursor(Qt.CursorShape.PointingHandCursor)
-        row.setStyleSheet(
-            "QWidget { border-radius: 4px; padding: 1px; }"
-            "QWidget:hover { background: rgba(255,255,255,0.05); }")
         h = QHBoxLayout(row)
         h.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)
         h.setSpacing(_pad_lg)
 
         dot = QLabel("●")
         dot.setFixedWidth(12)
-        dot.setStyleSheet(f"color: {color};")
+        dot.setObjectName("health_dot")
+        dot.setProperty("severity", severity)
         h.addWidget(dot)
 
         name = QLabel(Path(asset.source_path).name)
@@ -255,7 +242,7 @@ class HealthPanel(QWidget):
         row.mousePressEvent = lambda _, aid=asset.id: self.asset_selected.emit(aid)
         return row
 
-    def _missing_asset_row(self, asset, color: str) -> QWidget:
+    def _missing_asset_row(self, asset, severity: str) -> QWidget:
         """Row for a missing asset — includes rename detection."""
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _pad = max(4, _f // 3)
@@ -267,17 +254,16 @@ class HealthPanel(QWidget):
 
         # Main row
         row = QWidget()
+        row.setObjectName("health_row")
         row.setCursor(Qt.CursorShape.PointingHandCursor)
-        row.setStyleSheet(
-            "QWidget { border-radius: 4px; padding: 1px; }"
-            "QWidget:hover { background: rgba(255,255,255,0.05); }")
         h = QHBoxLayout(row)
         h.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)
         h.setSpacing(_pad_lg)
 
         dot = QLabel("●")
         dot.setFixedWidth(12)
-        dot.setStyleSheet(f"color: {color};")
+        dot.setObjectName("health_dot")
+        dot.setProperty("severity", severity)
         h.addWidget(dot)
 
         name_lbl = QLabel(Path(asset.source_path).name)
@@ -302,18 +288,18 @@ class HealthPanel(QWidget):
             if len(candidates) > 1:
                 hint_text += f"  (+{len(candidates)-1} more)"
             hint_lbl = QLabel(hint_text)
-            hint_lbl.setStyleSheet("color: #7ca1c0; font-style: italic;")
+            hint_lbl.setObjectName("health_hint")
             hint_lbl.setToolTip(str(best))
             h.addWidget(hint_lbl)
 
             accept_btn = QPushButton("Update Path")
-            accept_btn.setStyleSheet("QPushButton { padding: 2px 10px; }")
+            accept_btn.setObjectName("health_action_btn")
             accept_btn.clicked.connect(
                 lambda _, a=asset, c=candidates: self._apply_rename(a, c))
             h.addWidget(accept_btn)
         else:
             browse_btn = QPushButton("Locate…")
-            browse_btn.setStyleSheet("QPushButton { padding: 2px 10px; }")
+            browse_btn.setObjectName("health_action_btn")
             browse_btn.clicked.connect(lambda _, a=asset: self._browse_for_rename(a))
             h.addWidget(browse_btn)
 

@@ -216,7 +216,7 @@ class TagRow(QFrame):
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _cb = max(14, _f + 2)
         _pad = max(4, _f // 3)
-        self.setStyleSheet("TagRow { background: transparent; }")
+        self.setObjectName("tag_row")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         layout = QHBoxLayout(self)
@@ -225,14 +225,12 @@ class TagRow(QFrame):
 
         # Eye toggle — hide/show images with this tag
         self.eye_btn = QPushButton("\u25C9")  # ◉ when visible
+        self.eye_btn.setObjectName("tag_eye_btn")
         self.eye_btn.setFixedSize(_cb, _cb)
         self.eye_btn.setCheckable(True)
         self.eye_btn.setChecked(True)
         self.eye_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.eye_btn.setToolTip("Toggle visibility — hide/show images with this tag")
-        self.eye_btn.setStyleSheet(
-            "QPushButton { background: transparent; border: none; font-size: 16px; padding: 0; color: rgba(100,200,100,0.8); }"
-            "QPushButton:!checked { color: rgba(128,128,128,0.25); }")
         self.eye_btn.toggled.connect(self._on_eye_click)
         layout.addWidget(self.eye_btn)
 
@@ -273,11 +271,11 @@ class TagRow(QFrame):
             hints.append(f"[{shortcut_key}]")
 
         hint_label = QLabel("  ".join(hints) if hints else "any")
-        hint_label.setStyleSheet("color: rgba(128,128,128,0.5);")
+        hint_label.setObjectName("tag_hint")
         layout.addWidget(hint_label)
 
         self._count_lbl = QLabel("")
-        self._count_lbl.setStyleSheet("color: rgba(128,128,128,0.35); min-width: 24px;")
+        self._count_lbl.setObjectName("tag_count")
         self._count_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self._count_lbl)
 
@@ -399,40 +397,40 @@ class TagPanel(QWidget):
 
         # Header
         self.header = QLabel("Select an image to tag it")
+        self.header.setObjectName("tagpanel_header")
         _bold = self.header.font(); _bold.setBold(True); self.header.setFont(_bold)
-        self.header.setStyleSheet("color: rgba(128,128,128,0.6); padding-bottom: 4px;")
         self.header.setWordWrap(True)
         root.addWidget(self.header)
 
         self.hint_label = QLabel("Click an image on the left, then check tags below")
-        self.hint_label.setStyleSheet("color: rgba(128,128,128,0.5); font-style: italic;")
+        self.hint_label.setObjectName("tagpanel_hint")
         self.hint_label.setWordWrap(True)
         root.addWidget(self.hint_label)
 
         self.dim_label = QLabel("")
-        self.dim_label.setStyleSheet("color: rgba(128,128,128,0.7);")
+        self.dim_label.setObjectName("tagpanel_dim")
         root.addWidget(self.dim_label)
 
         # Batch buttons
         batch_row = QHBoxLayout()
         btn_ignore = QPushButton("Mark Ignore")
-        btn_ignore.setStyleSheet(self._btn_style())
+        btn_ignore.setObjectName("tagpanel_action_btn")
         btn_ignore.clicked.connect(lambda: self._batch_tag("ignore", True))
         batch_row.addWidget(btn_ignore)
 
         btn_clear = QPushButton("Clear All")
-        btn_clear.setStyleSheet(self._btn_style())
+        btn_clear.setObjectName("tagpanel_action_btn")
         btn_clear.clicked.connect(self._clear_all_tags)
         batch_row.addWidget(btn_clear)
 
         self._btn_show_all = QPushButton("Show All")
-        self._btn_show_all.setStyleSheet(self._btn_style())
+        self._btn_show_all.setObjectName("tagpanel_action_btn")
         self._btn_show_all.clicked.connect(self._show_all_tags)
         self._btn_show_all.setVisible(False)
         batch_row.addWidget(self._btn_show_all)
 
         self._collapse_all_btn = QPushButton("Collapse All")
-        self._collapse_all_btn.setStyleSheet(self._btn_style())
+        self._collapse_all_btn.setObjectName("tagpanel_action_btn")
         self._collapse_all_btn.setToolTip("Collapse / expand all tag sections")
         self._collapse_all_btn.clicked.connect(self._toggle_all_sections)
         batch_row.addWidget(self._collapse_all_btn)
@@ -442,8 +440,8 @@ class TagPanel(QWidget):
 
         # Tag checkboxes
         scroll = QScrollArea()
+        scroll.setObjectName("tag_scroll")
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea, QScrollArea > QWidget > QWidget { border: none; background: transparent; }")
         tag_widget = _TagContainer(self)
         tag_layout = QVBoxLayout(tag_widget)
         tag_layout.setSpacing(max(2, _pad // 2))
@@ -454,23 +452,18 @@ class TagPanel(QWidget):
         self._tag_scroll = scroll
 
         self._collapsed_sections: set[str] = set()
-        _lbl_style = ("QPushButton { color: rgba(160,160,160,0.75); padding: 2px 4px;"
-                       " background: rgba(128,128,128,0.07); border: none;"
-                       " border-radius: 3px; text-align: left; font-weight: bold; }"
-                       "QPushButton:hover { color: rgba(200,200,200,0.95);"
-                       " background: rgba(128,128,128,0.15); }")
 
         def _make_section_label(text, section_id):
             btn = QPushButton(f"\u25BC {text}")  # ▼ expanded
-            btn.setStyleSheet(_lbl_style)
+            btn.setObjectName("tag_section_btn")
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda: self._toggle_section(section_id, btn, text))
             return btn
 
         def _make_sep(label_text, section_id, visible=True):
             sep = QFrame()
+            sep.setObjectName("tag_separator")
             sep.setFrameShape(QFrame.Shape.HLine)
-            sep.setStyleSheet("color: rgba(128,128,128,0.2);")
             sep.setVisible(visible)
             tag_layout.addWidget(sep)
             lbl = _make_section_label(label_text, section_id)
@@ -668,7 +661,9 @@ class TagPanel(QWidget):
 
         if not assets:
             self.header.setText("Select an image to tag it")
-            self.header.setStyleSheet("color: rgba(128,128,128,0.6); padding-bottom: 4px;")
+            self.header.setProperty("state", "empty")
+            self.header.style().unpolish(self.header)
+            self.header.style().polish(self.header)
             self.hint_label.setText("Click an image on the left, then check tags below")
             self.hint_label.show()
             self.dim_label.setText("")
@@ -677,9 +672,10 @@ class TagPanel(QWidget):
             return
 
         # Active state — highlight the panel
-        self.header.setStyleSheet("padding-bottom: 4px;")
+        self.header.setProperty("state", "active")
+        self.header.style().unpolish(self.header)
+        self.header.style().polish(self.header)
         self.hint_label.setText("Check the boxes below to tag this image for use")
-        self.hint_label.setStyleSheet("font-style: italic; font-size: 9px;")
 
         if len(assets) == 1:
             a = assets[0]

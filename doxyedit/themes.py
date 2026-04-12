@@ -747,4 +747,285 @@ def generate_stylesheet(theme: Theme) -> str:
         QLabel#preview_info {{
             color: {theme.text_secondary};
         }}
+
+        /* ── Health panel ──────────────────────────────────────────────── */
+        QPushButton#health_action_btn {{
+            padding: {pad}px {pad_lg * 2}px;
+        }}
+        QLabel#health_warning {{
+            background: rgba(255,165,0,0.15);
+            color: {theme.warning};
+            padding: {pad_lg * 2}px;
+            border: 1px solid rgba(255,165,0,0.3);
+            border-radius: 6px;
+        }}
+        QLabel#health_ok {{
+            color: {theme.success};
+            padding: {pad_lg * 2}px;
+            font-weight: bold;
+        }}
+        QLabel#health_section_header {{
+            font-weight: bold;
+        }}
+        QLabel#health_section_header[severity="error"] {{ color: {theme.error}; }}
+        QLabel#health_section_header[severity="warning"] {{ color: {theme.warning}; }}
+        QLabel#health_section_header[severity="info"] {{ color: {theme.accent_bright}; }}
+        QWidget#health_row {{
+            border-radius: {rad}px; padding: 1px;
+        }}
+        QWidget#health_row:hover {{
+            background: {theme.bg_hover};
+        }}
+        QLabel#health_dot[severity="error"] {{ color: {theme.error}; }}
+        QLabel#health_dot[severity="warning"] {{ color: {theme.warning}; }}
+        QLabel#health_dot[severity="info"] {{ color: {theme.accent_bright}; }}
+        QLabel#health_hint {{
+            color: {theme.accent_bright};
+            font-style: italic;
+        }}
+        QLabel[severity="success"] {{ color: {theme.success}; }}
+        QLabel[severity="error"] {{ color: {theme.error}; }}
+        QLabel[severity="warning"] {{ color: {theme.warning}; }}
+
+        /* ── Checklist panel ───────────────────────────────────────────── */
+        QPushButton#checklist_action_btn {{
+            padding: {pad}px {pad_lg * 2}px;
+        }}
+        QProgressBar#checklist_progress {{
+            background: {theme.bg_hover};
+            border: none;
+            border-radius: {rad}px;
+        }}
+        QProgressBar#checklist_progress::chunk {{
+            background: {theme.success};
+            border-radius: {rad}px;
+        }}
+        QPushButton#checklist_del_btn {{
+            background: transparent;
+            border: none;
+            color: rgba(180,100,100,0.5);
+        }}
+        QPushButton#checklist_del_btn:hover {{
+            color: rgba(220,80,80,0.9);
+        }}
+        QCheckBox[checked_state="done"] {{
+            color: {theme.text_muted};
+            text-decoration: line-through;
+        }}
+
+        /* ── Platform panel ────────────────────────────────────────────── */
+        QLabel#platform_dots {{
+            color: {theme.text_muted};
+            letter-spacing: 1px;
+        }}
+        QLabel#platform_count {{
+            color: {theme.text_muted};
+            margin-left: 6px;
+        }}
+        QLabel#slot_empty_required {{
+            color: {theme.error};
+            font-style: italic;
+        }}
+        QLabel#slot_empty {{
+            color: {theme.text_muted};
+            font-style: italic;
+        }}
+        QPushButton#status_btn {{
+            background: transparent;
+            border: 1px solid {theme.text_muted};
+            border-radius: {rad}px;
+            padding: 0 {pad}px;
+        }}
+        QPushButton#status_btn:hover {{
+            background: {theme.bg_hover};
+        }}
+        QPushButton#status_btn:disabled {{
+            color: {theme.text_muted};
+            border-color: {theme.text_muted};
+        }}
+        QPushButton#status_btn[status="pending"] {{
+            color: {theme.text_muted};
+            border-color: {theme.text_muted};
+        }}
+        QPushButton#status_btn[status="ready"] {{
+            color: {theme.warning};
+            border-color: {theme.warning};
+        }}
+        QPushButton#status_btn[status="posted"] {{
+            color: {theme.success};
+            border-color: {theme.success};
+        }}
+        QPushButton#status_btn[status="skip"] {{
+            color: {theme.text_muted};
+            border-color: {theme.text_muted};
+        }}
+        QLabel#hive_status_dot[status="pending"] {{ color: {theme.text_muted}; }}
+        QLabel#hive_status_dot[status="ready"] {{ color: {theme.warning}; }}
+        QLabel#hive_status_dot[status="posted"] {{ color: {theme.success}; }}
+        QLabel#hive_status_dot[status="skip"] {{ color: {theme.text_muted}; }}
+
+        /* Dashboard */
+        QProgressBar#dash_progress {{
+            background: {theme.bg_hover};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            text-align: center;
+            color: {theme.text_secondary};
+            font-size: {fxs}px;
+        }}
+        QProgressBar#dash_progress::chunk {{
+            background: {theme.success};
+            border-radius: {max(1, rad - 1)}px;
+        }}
+        QLabel#dash_thumb {{
+            background: {theme.bg_input};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+        }}
+        QLabel#dash_thumb[empty="true"] {{
+            color: {theme.text_muted};
+        }}
+        QLabel#dash_slot_label {{
+            font-size: {fxs}px;
+            color: {theme.text_secondary};
+        }}
+        QLabel#dash_multi {{
+            font-size: {fxs}px;
+            color: {theme.text_muted};
+        }}
+
+        /* ── Hover preview (tooltip popup) ─────────────────────────────── */
+        QWidget#hover_preview {{
+            background: {theme.bg_deep};
+            border: 2px solid {theme.border_light};
+            border-radius: 6px;
+            padding: {pad}px;
+        }}
+        QLabel#hover_preview_info {{
+            color: {theme.text_secondary};
+            font-size: {fs}px;
+        }}
+
+        /* ── Preview dialog ────────────────────────────────────────────── */
+        QDialog#preview_dialog {{
+            background: {theme.bg_deep};
+        }}
+        QDialog#preview_dialog QGraphicsView {{
+            border: none;
+        }}
+        QLabel#preview_hint {{
+            color: {theme.text_muted};
+        }}
+
+        /* ── Tag panel ─────────────────────────────────────────────────── */
+        QPushButton#tag_eye_btn {{
+            background: transparent;
+            border: none;
+            font-size: {fl + 3}px;
+            padding: 0;
+            color: {theme.success};
+        }}
+        QPushButton#tag_eye_btn:!checked {{
+            color: {theme.text_muted};
+        }}
+        QLabel#tag_hint {{
+            color: {theme.text_muted};
+        }}
+        QLabel#tag_count {{
+            color: {theme.text_muted};
+            min-width: 24px;
+        }}
+        QLabel#tagpanel_header {{
+            color: {theme.text_muted};
+            padding-bottom: {pad}px;
+        }}
+        QLabel#tagpanel_hint {{
+            color: {theme.text_muted};
+            font-style: italic;
+        }}
+        QLabel#tagpanel_dim {{
+            color: {theme.text_secondary};
+        }}
+        QPushButton#tagpanel_action_btn {{
+            padding: {pad}px {pad_lg}px;
+        }}
+        QPushButton#tag_section_btn {{
+            color: {theme.text_secondary};
+            padding: 2px {pad}px;
+            background: rgba(128,128,128,0.07);
+            border: none;
+            border-radius: {rad}px;
+            text-align: left;
+            font-weight: bold;
+        }}
+        QPushButton#tag_section_btn:hover {{
+            color: {theme.text_primary};
+            background: rgba(128,128,128,0.15);
+        }}
+        QWidget#tag_row {{
+            background: transparent;
+        }}
+        QScrollArea#tag_scroll, QScrollArea#tag_scroll > QWidget > QWidget {{
+            border: none;
+            background: transparent;
+        }}
+        QFrame#tag_separator {{
+            color: {theme.border_light};
+        }}
+        QLabel#tagpanel_header[state="empty"] {{
+            color: {theme.text_muted};
+            padding-bottom: {pad}px;
+        }}
+        QLabel#tagpanel_header[state="active"] {{
+            padding-bottom: {pad}px;
+        }}
+
+        /* ── Work tray ─────────────────────────────────────────────────── */
+        QPushButton#tray_handle {{
+            background: rgba(128,128,128,0.15);
+            border: none;
+            border-radius: 0;
+            color: {theme.text_muted};
+        }}
+        QPushButton#tray_handle:hover {{
+            background: rgba(128,128,128,0.3);
+        }}
+        QPushButton#tray_small_btn {{
+            padding: 2px;
+        }}
+        QPushButton#tray_action_btn {{
+            padding: 2px {pad_lg}px;
+        }}
+        QTabBar#tray_tab_bar::tab {{
+            padding: 3px 10px;
+            margin-right: 2px;
+        }}
+        QTabBar#tray_tab_bar::tab:selected {{
+            font-weight: bold;
+        }}
+        QLabel#tray_count {{
+            color: {theme.text_muted};
+        }}
+        QListWidget#tray_list {{
+            border: none;
+        }}
+        QListWidget[drag_over="true"] {{
+            border: 2px solid {theme.accent};
+        }}
+
+        /* ── Browser tag bar ───────────────────────────────────────────── */
+        QWidget#tag_bar_frame {{
+            border-bottom: 1px solid {theme.border_light};
+        }}
+        QPushButton#add_tag_btn {{
+            background: transparent;
+            color: {theme.text_muted};
+            border: 1px dashed {theme.text_muted};
+            border-radius: 50%;
+            font-weight: bold;
+        }}
+        QPushButton#add_tag_btn:hover {{
+            color: {theme.text_primary};
+            border-color: {theme.text_primary};
+        }}
     """

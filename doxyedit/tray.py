@@ -46,7 +46,9 @@ class DragOutListWidget(QListWidget):
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
-            self.setStyleSheet("QListWidget { border: 2px solid rgba(100,180,255,0.6); }")
+            self.setProperty("drag_over", True)
+            self.style().unpolish(self)
+            self.style().polish(self)
         else:
             super().dragEnterEvent(event)
 
@@ -57,11 +59,15 @@ class DragOutListWidget(QListWidget):
             super().dragMoveEvent(event)
 
     def dragLeaveEvent(self, event):
-        self.setStyleSheet("")
+        self.setProperty("drag_over", False)
+        self.style().unpolish(self)
+        self.style().polish(self)
         super().dragLeaveEvent(event)
 
     def dropEvent(self, event):
-        self.setStyleSheet("")
+        self.setProperty("drag_over", False)
+        self.style().unpolish(self)
+        self.style().polish(self)
         if event.mimeData().hasUrls():
             paths = [url.toLocalFile() for url in event.mimeData().urls()
                      if url.isLocalFile()]
@@ -107,13 +113,10 @@ class WorkTray(QWidget):
 
         # Handle — clickable arrow on left edge
         self._handle = QPushButton("\u25C0")  # ◀
+        self._handle.setObjectName("tray_handle")
         self._handle.setFixedWidth(16)
         self._handle.setCursor(Qt.CursorShape.PointingHandCursor)
         self._handle.setToolTip("Close tray (Ctrl+T)")
-        self._handle.setStyleSheet(
-            "QPushButton { background: rgba(128,128,128,0.15); border: none;"
-            " border-radius: 0; color: rgba(128,128,128,0.6); }"
-            "QPushButton:hover { background: rgba(128,128,128,0.3); }")
         self._handle.clicked.connect(lambda: self.toggle_requested.emit())
         outer.addWidget(self._handle)
 
@@ -132,40 +135,38 @@ class WorkTray(QWidget):
         header.addStretch()
 
         self._view_btn = QPushButton("\u2630")  # ☰ hamburger
+        self._view_btn.setObjectName("tray_small_btn")
         self._view_btn.setFixedSize(_cb, _cb)
         self._view_btn.setToolTip("Cycle view: list / 2-col / 3-col")
-        self._view_btn.setStyleSheet("QPushButton { padding: 2px; }")
         self._view_btn.clicked.connect(self._cycle_view_mode)
         self._view_mode = 0  # 0=list, 1=2col, 2=3col
         header.addWidget(self._view_btn)
 
         self._clear_btn = QPushButton("Clear")
+        self._clear_btn.setObjectName("tray_action_btn")
         self._clear_btn.setFixedHeight(_cb)
-        self._clear_btn.setStyleSheet("QPushButton { padding: 2px 8px; }")
         self._clear_btn.clicked.connect(self.clear)
         header.addWidget(self._clear_btn)
 
         self._close_btn = QPushButton("\u2715")  # ✕
+        self._close_btn.setObjectName("tray_small_btn")
         self._close_btn.setFixedSize(_cb, _cb)
         self._close_btn.setToolTip("Close tray (Ctrl+T)")
-        self._close_btn.setStyleSheet("QPushButton { padding: 2px; }")
         self._close_btn.clicked.connect(lambda: self.toggle_requested.emit())
         header.addWidget(self._close_btn)
         layout.addLayout(header)
 
         # Tab bar for named trays
         self._tab_bar = QTabBar()
+        self._tab_bar.setObjectName("tray_tab_bar")
         self._tab_bar.setExpanding(False)
         self._tab_bar.setTabsClosable(False)
         self._tab_bar.setMovable(True)
-        self._tab_bar.setStyleSheet(
-            "QTabBar::tab { padding: 3px 10px; margin-right: 2px; }"
-            "QTabBar::tab:selected { font-weight: bold; }")
         self._tab_bar.addTab("Tray 1")
         self._add_tray_btn = QPushButton("+")
+        self._add_tray_btn.setObjectName("tray_small_btn")
         self._add_tray_btn.setFixedSize(_cb, _cb)
         self._add_tray_btn.setToolTip("New tray")
-        self._add_tray_btn.setStyleSheet("QPushButton { padding: 0; font-weight: bold; }")
         self._add_tray_btn.clicked.connect(self._add_tray)
         tab_row = QHBoxLayout()
         tab_row.setContentsMargins(0, 0, 0, 0)
@@ -179,7 +180,7 @@ class WorkTray(QWidget):
 
         # Count
         self._count_label = QLabel("0 items")
-        self._count_label.setStyleSheet("color: rgba(128,128,128,0.6);")
+        self._count_label.setObjectName("tray_count")
         layout.addWidget(self._count_label)
 
         # List widget — shows thumbnails vertically
@@ -194,7 +195,7 @@ class WorkTray(QWidget):
         self._list.customContextMenuRequested.connect(self._on_context_menu)
         self._list.itemClicked.connect(self._on_item_clicked)
         self._list.itemDoubleClicked.connect(self._on_item_double_clicked)
-        self._list.setStyleSheet("QListWidget { border: none; }")
+        self._list.setObjectName("tray_list")
         self._list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._list.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._list.verticalScrollBar().setSingleStep(20)
