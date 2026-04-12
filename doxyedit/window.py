@@ -519,14 +519,17 @@ class MainWindow(QMainWindow):
             self.project = Project.load(last_project)
             self._project_path = last_project
             self._register_initial_slot(last_project, Path(last_project).stem)
+            # Load collapsed/hidden state BEFORE _rebind_project so grid uses them
+            _saved_collapsed = self._settings.value("collapsed_folders", [])
+            _saved_hidden = self._settings.value("hidden_folders", [])
             self._rebind_project()
-            # Restore collapsed/hidden folders AFTER _rebind_project (which clears them)
-            saved_collapsed = self._settings.value("collapsed_folders", [])
-            if saved_collapsed:
-                self.browser._collapsed_folders = set(str(f) for f in saved_collapsed)
-            saved_hidden = self._settings.value("hidden_folders", [])
-            if saved_hidden:
-                self.browser._hidden_folders = set(str(f) for f in saved_hidden)
+            # Restore after _rebind_project clears them, then re-trigger grid
+            if _saved_collapsed:
+                self.browser._collapsed_folders = set(str(f) for f in _saved_collapsed)
+            if _saved_hidden:
+                self.browser._hidden_folders = set(str(f) for f in _saved_hidden)
+            if _saved_collapsed or _saved_hidden:
+                self.browser.refresh()
             self.setWindowTitle(f"DoxyEdit — {Path(last_project).name}")
             self.status.showMessage(f"Restored: {Path(last_project).name}")
             return
@@ -2727,11 +2730,14 @@ class MainWindow(QMainWindow):
             return
         # Preserve UI state across reload
         saved_collapsed = set(self.browser._collapsed_folders)
+        saved_hidden = set(self.browser._hidden_folders)
         saved_filters = self.browser.get_filter_state()
         self.project = Project.load(self._project_path)
         self._rebind_project()
         self.browser._collapsed_folders = saved_collapsed
+        self.browser._hidden_folders = saved_hidden
         self.browser.set_filter_state(saved_filters)
+        self.browser.refresh()
         self._dirty = False
         self.status.showMessage(f"Reloaded project from disk", 2000)
 
@@ -4084,6 +4090,7 @@ Ctrl+Click tag — Search by tag
         self._settings.setValue("splitter_sizes", self._browse_split.sizes())
         self._settings.setValue("tag_notes_splitter", self.tag_panel._tag_notes_split.sizes())
         self._settings.setValue("collapsed_folders", sorted(self.browser._collapsed_folders))
+        self._settings.setValue("hidden_folders", sorted(self.browser._hidden_folders))
         self._settings.setValue("collapsed_tag_sections", sorted(self.tag_panel._collapsed_sections))
         self._settings.setValue("window_width", self.width())
         self._settings.setValue("window_height", self.height())
