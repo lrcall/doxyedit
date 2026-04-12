@@ -830,6 +830,33 @@ def generate_stylesheet(theme: Theme) -> str:
             border: 1px solid {theme.border}; border-radius: 4px;
             padding: 5px 10px;
         }}
+        QDateEdit {{
+            background: {theme.bg_input}; color: {theme.text_primary};
+            border: 1px solid {theme.border}; border-radius: 4px;
+            padding: 3px 8px;
+        }}
+        QCalendarWidget {{
+            background: {theme.bg_main};
+        }}
+        QCalendarWidget QAbstractItemView {{
+            background: {theme.bg_deep}; color: {theme.text_primary};
+            selection-background-color: {theme.selection_bg};
+            selection-color: {theme.text_on_accent};
+        }}
+        QCalendarWidget QToolButton {{
+            color: {theme.text_primary}; background: {theme.bg_raised};
+            border: none; padding: 4px 8px;
+        }}
+        QCalendarWidget QToolButton:hover {{
+            background: {theme.bg_hover};
+        }}
+        QCalendarWidget QMenu {{
+            background: {theme.bg_raised}; color: {theme.text_primary};
+        }}
+        QCalendarWidget QSpinBox {{
+            background: {theme.bg_input}; color: {theme.text_primary};
+            border: 1px solid {theme.border};
+        }}
 
         /* ── New panels (v2.2) ─────────────────────────────────────────── */
         QWidget#kanban_panel {{

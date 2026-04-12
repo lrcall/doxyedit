@@ -522,6 +522,8 @@ class MainWindow(QMainWindow):
             self.browser._hidden_folders = set(str(f).replace("\\", "/") for f in saved_hidden)
         if saved_collapsed or saved_hidden:
             self.browser.refresh()
+        # Apply tag panel collapsed sections
+        self.tag_panel.apply_collapsed_state()
 
     def _restore_last_project(self):
         """Restore last single project, or last folder, or blank slate."""

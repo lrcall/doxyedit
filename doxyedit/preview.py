@@ -360,6 +360,7 @@ class ImagePreviewDialog(QDialog):
 
         self._on_top_btn = QPushButton("On Top")
         self._on_top_btn.setCheckable(True)
+        self._on_top_btn.setChecked(True)
         self._on_top_btn.setToolTip("Stay above DoxyEdit window")
         self._on_top_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._on_top_btn.toggled.connect(self._toggle_on_top)

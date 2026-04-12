@@ -534,7 +534,7 @@ class TagPanel(QWidget):
         row.select_all_requested.connect(lambda tid: self.select_all_with_tag.emit(tid))
         row.color_changed.connect(self._on_tag_color_changed)
         row.reorder_requested.connect(self._reorder_tag)
-        if tag_id in self._hidden_tags:
+        if tag_id in self._hidden_tags or section in self._collapsed_sections:
             row.setVisible(False)
         if insert_after is not None:
             # Find the widget index and insert after it
@@ -612,6 +612,18 @@ class TagPanel(QWidget):
                 self._add_tag_row(tid, preset, section=saved_section, insert_after=last_visual)
                 last_visual = self._rows[tid]
                 existing_ids.add(tid)
+
+    def apply_collapsed_state(self):
+        """Apply saved _collapsed_sections to the UI — update arrows and row visibility."""
+        for sid, (btn, label) in self._section_btns.items():
+            if sid in self._collapsed_sections:
+                btn.setText(f"\u25B6 {label}")  # ▶ collapsed
+            else:
+                btn.setText(f"\u25BC {label}")  # ▼ expanded
+        for tag_id, row in self._rows.items():
+            sid = self._tag_sections.get(tag_id)
+            row.setVisible(sid not in self._collapsed_sections
+                           and tag_id not in self._hidden_tags)
 
     def _toggle_section(self, section_id: str, btn, label_text: str):
         """Collapse/expand a tag section."""
