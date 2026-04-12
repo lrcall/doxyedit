@@ -920,7 +920,7 @@ class AssetBrowser(QWidget):
         self._thumb_cache.connect_phash(self._on_phash_ready)
         self._filtered_assets: list[Asset] = []
         settings = QSettings("DoxyEdit", "DoxyEdit")
-        self._thumb_size = max(80, min(320, int(settings.value("thumb_size", THUMB_SIZE))))
+        self._thumb_size = max(80, min(512, int(settings.value("thumb_size", THUMB_SIZE))))
         _f = settings.value("font_size", 12, type=int)
         self._pad = max(4, _f // 3)
         self._pad_lg = max(6, _f // 2)
@@ -1212,10 +1212,10 @@ class AssetBrowser(QWidget):
         status = QHBoxLayout()
         status.setContentsMargins(0, 2, 0, 0)
         self._zoom_slider = QSlider(Qt.Orientation.Horizontal)
-        self._zoom_slider.setRange(80, 320)
+        self._zoom_slider.setRange(80, 512)
         self._zoom_slider.setValue(self._thumb_size)
         self._zoom_slider.setFixedWidth(110)
-        self._zoom_slider.setToolTip("Thumbnail size (80–320px)  ·  Ctrl+Scroll")
+        self._zoom_slider.setToolTip("Thumbnail size (80–512px)  ·  Ctrl+Scroll")
         self._zoom_slider.valueChanged.connect(self._on_zoom_slider)
         self._zoom_label = QLabel(f"{self._thumb_size}px")
         self._zoom_label.setFixedWidth(34)
@@ -1359,7 +1359,7 @@ class AssetBrowser(QWidget):
             btn.setStyleSheet(style)
 
     def _set_thumb_size(self, sz: int):
-        sz = max(80, min(320, sz))
+        sz = max(80, min(512, sz))
         self._thumb_size = sz
         self._delegate.thumb_size = sz
         self._delegate.invalidate_cache()
