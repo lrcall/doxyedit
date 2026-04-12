@@ -404,6 +404,8 @@ class WorkTray(QWidget):
             asset = path_map.get(norm)
             if asset and asset.id not in self._asset_ids:
                 self.add_asset(asset.id, Path(path).name, path=path)
+        # Request thumbnails for newly added items
+        self.pixmaps_needed.emit(list(self._asset_ids))
 
     def _open_explorer(self, asset_id: str):
         import subprocess

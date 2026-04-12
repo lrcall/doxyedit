@@ -10,12 +10,12 @@ from PySide6.QtWidgets import (
     QStackedWidget, QScrollArea, QSlider,
 )
 from PySide6.QtCore import (
-    Qt, Signal, QThread, QTimer, QSettings, QSize, QRect, QPoint,
-    QAbstractListModel, QModelIndex, QItemSelectionModel, QMimeData, QUrl,
+    Qt, Signal, QThread, QTimer, QSettings, QSize, QRect, QPoint, QPointF,
+    QAbstractListModel, QModelIndex, QItemSelectionModel, QMimeData, QUrl, QEvent,
 )
 from PySide6.QtGui import (
     QPixmap, QFont, QColor, QCursor, QPainter, QPen, QFontMetrics, QPainterPath,
-    QKeySequence, QShortcut, QDrag,
+    QKeySequence, QShortcut, QDrag, QMouseEvent,
 )
 
 from doxyedit.models import (
@@ -3075,6 +3075,12 @@ class AssetBrowser(QWidget):
                         # Clear rubber band state after drag ends
                         self._drag_start_pos = None
                         self._drag_snapshot_ids = set()
+                        # Force-release rubber band — the view never got MouseRelease
+                        fake_release = QMouseEvent(
+                            QEvent.Type.MouseButtonRelease,
+                            event.position() if hasattr(event, 'position') else QPointF(event.pos()),
+                            Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+                        QApplication.sendEvent(view, fake_release)
                         return True
 
             if (event.type() == event.Type.MouseButtonRelease
