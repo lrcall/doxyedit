@@ -311,7 +311,7 @@ class ImagePreviewDialog(QDialog):
         ratio = f"{w/h:.2f}" if h else "?"
 
         info = QLabel(f"{name}  |  {w} x {h}  |  ratio {ratio}")
-        info.setStyleSheet("color: rgba(200,200,200,0.8);")
+        info.setObjectName("preview_info")
         info_bar.addWidget(info)
         info_bar.addStretch()
 
@@ -455,6 +455,15 @@ class ImagePreviewDialog(QDialog):
             if self.isVisible():
                 QTimer.singleShot(0, self.raise_)
             return False  # don't consume
+
+        # Ctrl+C — copy image to clipboard
+        if event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            if key == Qt.Key.Key_C and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                if self._pixmap_item and not self._pixmap_item.pixmap().isNull():
+                    QApplication.clipboard().setPixmap(self._pixmap_item.pixmap())
+                    self._hint_lbl.setText("Copied to clipboard")
+                return True
 
         # Navigation keys — intercept before any child widget
         if event.type() == QEvent.Type.KeyPress and self._assets:

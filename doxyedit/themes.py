@@ -744,4 +744,7 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.bg_deep};
             border: none;
         }}
+        QLabel#preview_info {{
+            color: {theme.text_secondary};
+        }}
     """
