@@ -658,12 +658,14 @@ class FolderSection(QWidget):
     remove_requested  = Signal(str)         # (folder_path)
     select_all_requested = Signal(str, bool)  # (folder_path, recursive)
     date_filter_requested = Signal(str)     # (folder_path)
+    hide_requested = Signal(str)            # (folder_path)
 
     def __init__(self, folder: str, assets: list, delegate, thumb_size: int,
                  collapsed: bool = False, depth: int = 0, parent=None):
         super().__init__(parent)
         self.setObjectName("folder_section")
         self._folder = folder
+        self._child_folder_count = 0
         self._thumb_size = thumb_size
         self._depth = depth
         _s = QSettings("DoxyEdit", "DoxyEdit")
@@ -732,11 +734,19 @@ class FolderSection(QWidget):
 
     def _set_collapsed(self, collapsed: bool, animate=True):
         self._view.setVisible(not collapsed)
+        self._update_header_text()
+        self.updateGeometry()
+
+    def _update_header_text(self):
+        collapsed = self.is_collapsed
         n = self._model.rowCount()
         arrow = "▶" if collapsed else "▼"
         indent = "   " * self._depth
-        self._header.setText(f"{indent}{arrow}  {self._short}  ({n})")
-        self.updateGeometry()
+        child_count = getattr(self, '_child_folder_count', 0)
+        if collapsed and child_count > 0:
+            self._header.setText(f"{indent}{arrow}  {self._short}  ({n})  +{child_count} folders")
+        else:
+            self._header.setText(f"{indent}{arrow}  {self._short}  ({n})")
 
     collapse_children_requested = Signal(str, bool)  # (folder_path, collapse)
 
@@ -774,6 +784,7 @@ class FolderSection(QWidget):
         menu.addSeparator()
         menu.addAction("Set Date Filter…", lambda: self.date_filter_requested.emit(self._folder))
         menu.addSeparator()
+        menu.addAction("Hide Folder", lambda: self.hide_requested.emit(self._folder))
         menu.addAction("Remove Folder from Project…", lambda: self.remove_requested.emit(self._folder))
         menu.exec(self._header.mapToGlobal(pos))
 
@@ -920,6 +931,7 @@ class AssetBrowser(QWidget):
         self.auto_tag_enabled = False
         self.show_hidden_only = False
         self._collapsed_folders: set[str] = set()
+        self._hidden_folders: set[str] = set()
         self._folder_filter: set[str] | None = None  # None = show all
         self._folder_sections: list[FolderSection] = []
         self._prev_sort_mode: str = "Name A-Z"  # last non-folder sort; used as within-folder secondary sort
@@ -1985,6 +1997,8 @@ class AssetBrowser(QWidget):
             root_groups[root].append((folder, assets, rel_depth))
 
         def _make_section(folder, assets, depth):
+            if folder in self._hidden_folders:
+                return None
             collapsed = folder in self._collapsed_folders
             section = FolderSection(
                 folder=folder, assets=assets, delegate=self._delegate,
@@ -1996,6 +2010,7 @@ class AssetBrowser(QWidget):
             section.select_all_requested.connect(self._on_folder_select_all)
             section.collapse_children_requested.connect(self._on_collapse_children)
             section.date_filter_requested.connect(self._on_folder_date_filter)
+            section.hide_requested.connect(self._on_folder_hide)
             section.restore_colors()
             section.view.customContextMenuRequested.connect(
                 lambda pos, s=section: self._on_folder_context_menu_pos(pos, s))
@@ -2028,6 +2043,8 @@ class AssetBrowser(QWidget):
                 child_sections = []
                 for folder, assets, depth in entries:
                     section = _make_section(folder, assets, depth + 1)
+                    if section is None:
+                        continue
                     insert_before_stretch(section)
                     self._folder_sections.append(section)
                     child_sections.append(section)
@@ -2036,8 +2053,25 @@ class AssetBrowser(QWidget):
                 # Single folder or no matching root — show flat at depth 0
                 for folder, assets, depth in entries:
                     section = _make_section(folder, assets, 0)
+                    if section is None:
+                        continue
                     insert_before_stretch(section)
                     self._folder_sections.append(section)
+
+        # Apply parent-collapsed visibility: hide children of collapsed parents
+        for section in self._folder_sections:
+            if section.is_collapsed:
+                sf = section.folder.replace("\\", "/")
+                prefix = sf + "/"
+                child_count = 0
+                for child in self._folder_sections:
+                    cf = child.folder.replace("\\", "/")
+                    if cf.startswith(prefix):
+                        child.setVisible(False)
+                        child_count += 1
+                if child_count:
+                    section._child_folder_count = child_count
+                    section._update_header_text()
 
         # Backfill cached pixmaps into new model instances so thumbs don't vanish on rebuild
         cached = self._thumb_cache._pixmaps
@@ -2085,6 +2119,31 @@ class AssetBrowser(QWidget):
             self._collapsed_folders.add(folder)
         else:
             self._collapsed_folders.discard(folder)
+        # Hide/show child section widgets under this folder
+        folder_norm = folder.replace("\\", "/")
+        prefix = folder_norm + "/"
+        child_count = 0
+        for section in self._folder_sections:
+            sf = section.folder.replace("\\", "/")
+            if sf.startswith(prefix):
+                child_count += 1
+                if is_collapsed:
+                    section.setVisible(False)
+                else:
+                    section.setVisible(True)
+                    # But respect if a *parent* between us is also collapsed
+                    for other in self._folder_sections:
+                        of = other.folder.replace("\\", "/")
+                        if of != folder_norm and sf.startswith(of + "/") and other.is_collapsed:
+                            section.setVisible(False)
+                            break
+        # Update header to show subfolder count when collapsed
+        source_section = next((s for s in self._folder_sections
+                               if s.folder.replace("\\", "/") == folder_norm), None)
+        if source_section and child_count > 0:
+            source_section._child_folder_count = child_count
+            source_section._update_header_text()
+        if not is_collapsed:
             self._request_visible_thumbs()
 
     def _on_collapse_children(self, folder: str, collapse: bool):
@@ -2103,6 +2162,20 @@ class AssetBrowser(QWidget):
             self._request_visible_thumbs()
 
 
+
+    def _on_folder_hide(self, folder: str):
+        """Hide a folder from the view (persisted to QSettings)."""
+        self._hidden_folders.add(folder)
+        QSettings("DoxyEdit", "DoxyEdit").setValue("hidden_folders", sorted(self._hidden_folders))
+        self._refresh_grid()
+
+    def show_all_hidden_folders(self):
+        """Unhide all hidden folders."""
+        if not self._hidden_folders:
+            return
+        self._hidden_folders.clear()
+        QSettings("DoxyEdit", "DoxyEdit").remove("hidden_folders")
+        self._refresh_grid()
 
     def _on_folder_select_all(self, folder: str, recursive: bool):
         """Select all assets in a folder (optionally recursive)."""

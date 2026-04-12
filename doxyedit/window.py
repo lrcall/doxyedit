@@ -226,9 +226,7 @@ class MainWindow(QMainWindow):
         if self._settings_early.value("file_browser_visible", False, type=bool):
             self._file_browser.show()
         # Restore collapsed folders state
-        saved_collapsed = self._settings_early.value("collapsed_folders", [])
-        if saved_collapsed:
-            self.browser._collapsed_folders = set(str(f) for f in saved_collapsed)
+        # Collapsed/hidden folders restored in _restore_last_project (after _rebind_project)
         # Restore collapsed tag sections
         saved_tag_sections = self._settings_early.value("collapsed_tag_sections", [])
         if saved_tag_sections:
@@ -522,6 +520,13 @@ class MainWindow(QMainWindow):
             self._project_path = last_project
             self._register_initial_slot(last_project, Path(last_project).stem)
             self._rebind_project()
+            # Restore collapsed/hidden folders AFTER _rebind_project (which clears them)
+            saved_collapsed = self._settings.value("collapsed_folders", [])
+            if saved_collapsed:
+                self.browser._collapsed_folders = set(str(f) for f in saved_collapsed)
+            saved_hidden = self._settings.value("hidden_folders", [])
+            if saved_hidden:
+                self.browser._hidden_folders = set(str(f) for f in saved_hidden)
             self.setWindowTitle(f"DoxyEdit — {Path(last_project).name}")
             self.status.showMessage(f"Restored: {Path(last_project).name}")
             return
@@ -1154,6 +1159,7 @@ class MainWindow(QMainWindow):
         self._toggle_project_notes_action.toggled.connect(self._toggle_project_notes)
         view_menu.addSeparator()
         view_menu.addAction("Refresh Grid", lambda: self.browser.refresh())
+        view_menu.addAction("Show Hidden Folders", lambda: self.browser.show_all_hidden_folders())
         view_menu.addSeparator()
 
         # Display submenu
