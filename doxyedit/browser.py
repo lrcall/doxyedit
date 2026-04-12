@@ -1995,9 +1995,10 @@ class AssetBrowser(QWidget):
             root_groups[root].append((folder, assets, rel_depth))
 
         def _make_section(folder, assets, depth):
-            if folder in self._hidden_folders:
+            fn = folder.replace("\\", "/")
+            if fn in self._hidden_folders:
                 return None
-            collapsed = folder in self._collapsed_folders
+            collapsed = fn in self._collapsed_folders
             section = FolderSection(
                 folder=folder, assets=assets, delegate=self._delegate,
                 thumb_size=self._thumb_size, collapsed=collapsed,
@@ -2115,10 +2116,11 @@ class AssetBrowser(QWidget):
         self._request_visible_thumbs()
 
     def _on_folder_collapsed(self, folder: str, is_collapsed: bool):
+        norm = folder.replace("\\", "/")
         if is_collapsed:
-            self._collapsed_folders.add(folder)
+            self._collapsed_folders.add(norm)
         else:
-            self._collapsed_folders.discard(folder)
+            self._collapsed_folders.discard(norm)
             self._request_visible_thumbs()
 
     def _on_collapse_children(self, folder: str, collapse: bool):

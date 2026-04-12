@@ -520,8 +520,8 @@ class MainWindow(QMainWindow):
             self._project_path = last_project
             self._register_initial_slot(last_project, Path(last_project).stem)
             # Pre-load collapsed/hidden state so _rebind_project's refresh() uses them
-            _saved_collapsed = set(str(f) for f in self._settings.value("collapsed_folders", []))
-            _saved_hidden = set(str(f) for f in self._settings.value("hidden_folders", []))
+            _saved_collapsed = set(str(f).replace("\\", "/") for f in self._settings.value("collapsed_folders", []))
+            _saved_hidden = set(str(f).replace("\\", "/") for f in self._settings.value("hidden_folders", []))
             self._pending_collapsed = _saved_collapsed
             self._pending_hidden = _saved_hidden
             self._rebind_project()
