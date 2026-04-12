@@ -922,6 +922,9 @@ class PreviewPane(QWidget):
 
     def keyPressEvent(self, event):
         key = event.key()
+        if key == Qt.Key.Key_C and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self._copy_image_to_clipboard()
+            return
         if self._assets:
             if key in (Qt.Key.Key_Right, Qt.Key.Key_Down, Qt.Key.Key_Space):
                 self._navigate(1)
@@ -930,6 +933,14 @@ class PreviewPane(QWidget):
                 self._navigate(-1)
                 return
         super().keyPressEvent(event)
+
+    def _copy_image_to_clipboard(self):
+        """Copy the current preview image to clipboard."""
+        item = getattr(self, '_pixmap_item', None)
+        if item and item.pixmap() and not item.pixmap().isNull():
+            QApplication.clipboard().setPixmap(item.pixmap())
+            if hasattr(self, '_hint_lbl'):
+                self._hint_lbl.setText("Copied to clipboard")
 
     def _navigate(self, direction: int):
         if not self._assets:

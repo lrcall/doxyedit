@@ -303,11 +303,13 @@ class InfoPanel(QWidget):
 
     def _rebuild_tag_pills(self, tags: list[str], removable: bool = True):
         """Rebuild the tag flow with pills for each tag."""
-        # Clear existing
+        # Clear existing — remove all widgets except the persistent add button and editor
+        keep = {self._add_tag_btn, self._tag_add_edit}
         while self._tag_flow.count():
             item = self._tag_flow.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            w = item.widget()
+            if w and w not in keep:
+                w.deleteLater()
         # Add pills
         for tag_id in tags:
             pill = _TagPill(tag_id, removable=removable)

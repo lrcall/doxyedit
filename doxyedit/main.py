@@ -1,9 +1,40 @@
 """DoxyEdit main entry point."""
 import sys
+import traceback
+import logging
 from pathlib import Path
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont, QIcon
 from doxyedit.window import MainWindow
+
+_LOG_PATH = Path(__file__).parent.parent / "doxyedit.log"
+
+def _setup_logging():
+    """File logger for all warnings/errors — survives windowless mode."""
+    logging.basicConfig(
+        filename=str(_LOG_PATH),
+        level=logging.WARNING,
+        format="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+def _install_exception_hook():
+    """Catch unhandled exceptions: log to file + show in status bar."""
+    _orig = sys.excepthook
+    def _hook(exc_type, exc_value, exc_tb):
+        msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        logging.error("Unhandled exception:\n%s", msg)
+        # Show short message in status bar if window exists
+        try:
+            for w in QApplication.topLevelWidgets():
+                if hasattr(w, 'status'):
+                    short = f"Error: {exc_type.__name__}: {exc_value}"
+                    w.status.showMessage(short, 10000)
+                    break
+        except Exception:
+            pass
+        _orig(exc_type, exc_value, exc_tb)
+    sys.excepthook = _hook
 
 
 def _apply_config():
@@ -27,6 +58,8 @@ def _apply_config():
 
 
 def main():
+    _setup_logging()
+    _install_exception_hook()
     _apply_config()
     app = QApplication(sys.argv)
     app.setApplicationName("DoxyEdit")

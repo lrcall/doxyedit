@@ -229,6 +229,9 @@ class MainWindow(QMainWindow):
         saved_collapsed = self._settings_early.value("collapsed_folders", [])
         if saved_collapsed:
             self.browser._collapsed_folders = set(str(f) for f in saved_collapsed)
+        saved_hidden = self._settings_early.value("hidden_folders", [])
+        if saved_hidden:
+            self.browser._hidden_folders = set(str(f) for f in saved_hidden)
         # Restore collapsed tag sections
         saved_tag_sections = self._settings_early.value("collapsed_tag_sections", [])
         if saved_tag_sections:
@@ -1154,6 +1157,7 @@ class MainWindow(QMainWindow):
         self._toggle_project_notes_action.toggled.connect(self._toggle_project_notes)
         view_menu.addSeparator()
         view_menu.addAction("Refresh Grid", lambda: self.browser.refresh())
+        view_menu.addAction("Show Hidden Folders", lambda: self.browser.show_all_hidden_folders())
         view_menu.addSeparator()
 
         # Display submenu
@@ -2467,8 +2471,8 @@ class MainWindow(QMainWindow):
         dlg.setWindowTitle("Import Sources")
         dlg.resize(700, 400)
         layout = QVBoxLayout(dlg)
-        table = QTableWidget(len(sources), 4)
-        table.setHorizontalHeaderLabels(["Type", "Path", "Recursive", "Last Imported"])
+        table = QTableWidget(len(sources), 5)
+        table.setHorizontalHeaderLabels(["Type", "Path", "Recursive", "Last Imported", "Date Filter"])
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -2477,6 +2481,8 @@ class MainWindow(QMainWindow):
             table.setItem(i, 1, QTableWidgetItem(rec.get("path", "")))
             table.setItem(i, 2, QTableWidgetItem("Yes" if rec.get("recursive") else "No"))
             table.setItem(i, 3, QTableWidgetItem(rec.get("last_imported", rec.get("added_at", ""))))
+            df = rec.get("filter_newer_than", "")
+            table.setItem(i, 4, QTableWidgetItem(f"Since {df[:10]}" if df else ""))
         layout.addWidget(table)
         btn_row = QHBoxLayout()
         btn_remove = QPushButton("Remove Selected")
@@ -2488,6 +2494,22 @@ class MainWindow(QMainWindow):
             self._dirty = True
         btn_remove.clicked.connect(_remove)
         btn_row.addWidget(btn_remove)
+        btn_set_filter = QPushButton("Set Date Filter...")
+        def _set_filter():
+            rows = sorted({idx.row() for idx in table.selectedIndexes()})
+            if not rows:
+                return
+            from doxyedit.browser import _ImportOptionsDialog
+            fdlg = _ImportOptionsDialog(dlg)
+            if fdlg.exec() != QDialog.DialogCode.Accepted:
+                return
+            new_filter = fdlg.filter_date
+            for r in rows:
+                sources[r]["filter_newer_than"] = new_filter
+                table.setItem(r, 4, QTableWidgetItem(f"Since {new_filter[:10]}" if new_filter else ""))
+            self._dirty = True
+        btn_set_filter.clicked.connect(_set_filter)
+        btn_row.addWidget(btn_set_filter)
         btn_refresh = QPushButton("Refresh Now")
         btn_refresh.clicked.connect(lambda: (dlg.accept(), self._refresh_import_sources()))
         btn_row.addWidget(btn_refresh)
@@ -2701,8 +2723,13 @@ class MainWindow(QMainWindow):
             self.browser.refresh()
             self.status.showMessage("No project file to reload — refreshed grid", 2000)
             return
+        # Preserve UI state across reload
+        saved_collapsed = set(self.browser._collapsed_folders)
+        saved_filters = self.browser.get_filter_state()
         self.project = Project.load(self._project_path)
         self._rebind_project()
+        self.browser._collapsed_folders = saved_collapsed
+        self.browser.set_filter_state(saved_filters)
         self._dirty = False
         self.status.showMessage(f"Reloaded project from disk", 2000)
 
@@ -3352,7 +3379,8 @@ Ctrl+Click tag — Search by tag
             self._asset_watcher.addPaths(paths)
 
     def _watch_import_folders(self):
-        """Watch all import source folders for new files."""
+        """Watch all import source folders for new files.
+        Folders with date filters also get a 3-second poll timer for rapid dev cycles."""
         old = self._folder_watcher.directories()
         if old:
             self._folder_watcher.removePaths(old)
@@ -3360,6 +3388,17 @@ Ctrl+Click tag — Search by tag
                    if s.get("type") == "folder" and Path(s["path"]).is_dir()]
         if folders:
             self._folder_watcher.addPaths(folders)
+        # Start/stop poll timer based on whether any source has a date filter
+        has_date_filter = any(s.get("filter_newer_than") for s in self.project.import_sources
+                             if s.get("type") == "folder")
+        if not hasattr(self, '_folder_poll_timer'):
+            self._folder_poll_timer = QTimer(self)
+            self._folder_poll_timer.setInterval(3000)
+            self._folder_poll_timer.timeout.connect(self._do_folder_rescan)
+        if has_date_filter:
+            self._folder_poll_timer.start()
+        else:
+            self._folder_poll_timer.stop()
 
     def _on_watched_folder_changed(self, folder_path: str):
         """A watched import folder changed — debounce then rescan."""
@@ -3911,6 +3950,8 @@ Ctrl+Click tag — Search by tag
         for key in self._settings.childKeys():
             self._settings.remove(key)
         self._settings.endGroup()
+        # Store multiple editors per extension: native_editor/.psd/0, .psd/1, etc.
+        ext_counts: dict[str, int] = {}
         for row in range(table.rowCount()):
             ext_item = table.item(row, 0)
             path_item = table.item(row, 1)
@@ -3918,8 +3959,10 @@ Ctrl+Click tag — Search by tag
                 ext = ext_item.text().strip().lower()
                 if not ext.startswith("."):
                     ext = "." + ext
-                self._settings.setValue(f"native_editor/{ext}",
-                                        path_item.text().strip() if path_item else "")
+                idx = ext_counts.get(ext, 0)
+                ext_counts[ext] = idx + 1
+                key = f"native_editor/{ext}" if idx == 0 else f"native_editor/{ext}/{idx}"
+                self._settings.setValue(key, path_item.text().strip() if path_item else "")
         self._rebuild_launch_menu()
         self.status.showMessage("Editor configuration saved", 2000)
 
@@ -3976,19 +4019,31 @@ Ctrl+Click tag — Search by tag
         self._dirty = True
         self._rebuild_smart_folder_menu()
 
+    def _get_all_editors(self) -> list[tuple[str, str]]:
+        """Return all configured editors as [(ext, exe_path), ...] including numbered duplicates."""
+        editors = []
+        all_keys = [k for k in self._settings.allKeys() if k.startswith("native_editor/")]
+        for key in sorted(all_keys):
+            exe = self._settings.value(key, "")
+            if not exe:
+                continue
+            # Extract extension: "native_editor/.psd" or "native_editor/.psd/1"
+            parts = key.replace("native_editor/", "").split("/")
+            ext = parts[0]
+            editors.append((ext, exe))
+        return editors
+
     def _rebuild_launch_menu(self):
         """Rebuild Tools > Launch In submenu from configured editors."""
         self._launch_menu.clear()
-        self._settings.beginGroup("native_editor")
-        keys = self._settings.childKeys()
-        self._settings.endGroup()
-        for ext in sorted(keys):
-            exe = self._settings.value(f"native_editor/{ext}", "")
-            label = Path(exe).stem if exe else f"{ext} (system default)"
+        editors = self._get_all_editors()
+        for ext, exe in editors:
+            name = Path(exe).stem if exe else "system default"
+            label = f"{name} ({ext})"
             action = self._launch_menu.addAction(label)
-            action.setToolTip(exe or f"Open {ext} files with system default")
+            action.setToolTip(exe)
             action.triggered.connect(lambda _=False, e=ext, x=exe: self._launch_in(e, x))
-        if not keys:
+        if not editors:
             placeholder = self._launch_menu.addAction("(no editors configured)")
             placeholder.setEnabled(False)
         self._launch_menu.addSeparator()

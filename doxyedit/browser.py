@@ -57,6 +57,88 @@ def auto_suggest_tags(filename: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Date-filter dialog shown when adding a folder interactively
+# ---------------------------------------------------------------------------
+
+from PySide6.QtWidgets import QDialog, QDateEdit
+from PySide6.QtCore import QDate
+
+
+class _ImportOptionsDialog(QDialog):
+    """Import options: recursive scan, date filter."""
+
+    def __init__(self, has_subdirs: bool = False, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Import Options")
+        layout = QVBoxLayout(self)
+
+        self._recursive = QCheckBox("Include subfolders (recursive)")
+        self._recursive.setChecked(has_subdirs)
+        layout.addWidget(self._recursive)
+
+        self._use_date = QCheckBox("Only import files newer than:")
+        layout.addWidget(self._use_date)
+        self._date = QDateEdit(QDate.currentDate().addDays(-1))
+        self._date.setCalendarPopup(True)
+        self._date.setEnabled(False)
+        self._use_date.toggled.connect(self._date.setEnabled)
+        layout.addWidget(self._date)
+
+        btns = QHBoxLayout()
+        ok = QPushButton("Import")
+        ok.clicked.connect(self.accept)
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(self.reject)
+        btns.addWidget(ok)
+        btns.addWidget(cancel)
+        layout.addLayout(btns)
+
+    @property
+    def recursive(self) -> bool:
+        return self._recursive.isChecked()
+
+    @property
+    def filter_date(self) -> str:
+        if self._use_date.isChecked():
+            return self._date.date().toString("yyyy-MM-dd") + "T00:00:00"
+        return ""
+
+
+class _DateFilterDialog(QDialog):
+    """Edit date filter on an existing import source folder."""
+
+    def __init__(self, current: str = "", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Date Filter")
+        layout = QVBoxLayout(self)
+        self._use_date = QCheckBox("Only include files newer than:")
+        layout.addWidget(self._use_date)
+        if current:
+            self._date = QDateEdit(QDate.fromString(current[:10], "yyyy-MM-dd"))
+            self._use_date.setChecked(True)
+        else:
+            self._date = QDateEdit(QDate.currentDate().addDays(-1))
+        self._date.setCalendarPopup(True)
+        self._date.setEnabled(self._use_date.isChecked())
+        self._use_date.toggled.connect(self._date.setEnabled)
+        layout.addWidget(self._date)
+        btns = QHBoxLayout()
+        ok = QPushButton("OK")
+        ok.clicked.connect(self.accept)
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(self.reject)
+        btns.addWidget(ok)
+        btns.addWidget(cancel)
+        layout.addLayout(btns)
+
+    @property
+    def filter_date(self) -> str:
+        if self._use_date.isChecked():
+            return self._date.date().toString("yyyy-MM-dd") + "T00:00:00"
+        return ""
+
+
+# ---------------------------------------------------------------------------
 # Background folder scanner — avoids blocking the UI on large folder imports
 # ---------------------------------------------------------------------------
 
@@ -575,6 +657,8 @@ class FolderSection(QWidget):
     collapsed_changed = Signal(str, bool)   # (folder_path, is_collapsed)
     remove_requested  = Signal(str)         # (folder_path)
     select_all_requested = Signal(str, bool)  # (folder_path, recursive)
+    date_filter_requested = Signal(str)     # (folder_path)
+    hide_requested = Signal(str)            # (folder_path) — hide this folder from view
 
     def __init__(self, folder: str, assets: list, delegate, thumb_size: int,
                  collapsed: bool = False, depth: int = 0, parent=None):
@@ -661,9 +745,11 @@ class FolderSection(QWidget):
         from PySide6.QtWidgets import QApplication
         mods = QApplication.keyboardModifiers()
         if mods & Qt.KeyboardModifier.ControlModifier:
-            # Ctrl+click: collapse/expand all children, keep this folder as-is
-            want_collapse = not self.is_collapsed  # if this is expanded, collapse children; vice versa
-            self.collapse_children_requested.emit(self._folder, want_collapse)
+            # Ctrl+click: toggle this folder + all children together
+            new_state = not self.is_collapsed
+            self._set_collapsed(new_state)
+            self.collapsed_changed.emit(self._folder, new_state)
+            self.collapse_children_requested.emit(self._folder, new_state)
         else:
             new_state = not self.is_collapsed
             self._set_collapsed(new_state)
@@ -683,6 +769,9 @@ class FolderSection(QWidget):
         menu.addSeparator()
         menu.addAction("Open in Explorer", lambda: subprocess.Popen(
             ["explorer", self._folder.replace("/", "\\")]))
+        menu.addSeparator()
+        menu.addAction("Set Date Filter…", lambda: self.date_filter_requested.emit(self._folder))
+        menu.addAction("Hide Folder", lambda: self.hide_requested.emit(self._folder))
         menu.addSeparator()
         menu.addAction("Remove Folder from Project…", lambda: self.remove_requested.emit(self._folder))
         menu.exec(self._header.mapToGlobal(pos))
@@ -719,21 +808,50 @@ class FolderSection(QWidget):
         """Full line background color — theme-aware."""
         color = self._theme_accent_variant()
         self._highlight_color = color.name()
-        self._header.setStyleSheet(f"background: {self._highlight_color};")
+        self._apply_header_colors()
+        self._save_folder_colors()
 
     def _set_random_chip(self):
         """Left border chip indicator — theme-aware."""
         color = self._theme_accent_variant()
         color.setAlpha(255)  # chip needs full opacity
         self._chip_color = color.name()
-        self._header.setStyleSheet(
-            self._header.styleSheet() +
-            f"; border-left: 4px solid {self._chip_color}")
+        self._apply_header_colors()
+        self._save_folder_colors()
 
     def _clear_color(self):
         self._highlight_color = None
         self._chip_color = None
         self._header.setStyleSheet("")
+        self._save_folder_colors()
+
+    def _apply_header_colors(self):
+        parts = []
+        if self._highlight_color:
+            parts.append(f"background: {self._highlight_color}")
+        if self._chip_color:
+            parts.append(f"border-left: 4px solid {self._chip_color}")
+        self._header.setStyleSheet("; ".join(parts))
+
+    def _save_folder_colors(self):
+        s = QSettings("DoxyEdit", "DoxyEdit")
+        key = f"folder_colors/{self._folder.replace('/', '_')}"
+        if self._highlight_color or self._chip_color:
+            s.setValue(key, {"highlight": self._highlight_color or "",
+                            "chip": self._chip_color or ""})
+        else:
+            s.remove(key)
+
+    def restore_colors(self):
+        """Restore saved highlight/chip colors from QSettings."""
+        s = QSettings("DoxyEdit", "DoxyEdit")
+        key = f"folder_colors/{self._folder.replace('/', '_')}"
+        data = s.value(key)
+        if data:
+            self._highlight_color = data.get("highlight") or None
+            self._chip_color = data.get("chip") or None
+            if self._highlight_color or self._chip_color:
+                self._apply_header_colors()
 
     def update_view_height(self, available_width: int = 0):
         """Set the view's fixed height based on actual available width.
@@ -801,6 +919,7 @@ class AssetBrowser(QWidget):
         self.auto_tag_enabled = False
         self.show_hidden_only = False
         self._collapsed_folders: set[str] = set()
+        self._hidden_folders: set[str] = set()
         self._folder_filter: set[str] | None = None  # None = show all
         self._folder_sections: list[FolderSection] = []
         self._prev_sort_mode: str = "Name A-Z"  # last non-folder sort; used as within-folder secondary sort
@@ -891,17 +1010,17 @@ class AssetBrowser(QWidget):
         toolbar.addWidget(self.filter_posted)
         toolbar.addWidget(self.filter_needs_censor)
 
-
         self.filter_show_ignored = QPushButton("Show Ignored")
         self.filter_show_ignored.setCheckable(True)
         self.filter_show_ignored.setChecked(False)
         self.filter_show_ignored.setStyleSheet(self._btn_style())
         self.filter_show_ignored.toggled.connect(self._on_filter_changed)
         toolbar.addWidget(self.filter_show_ignored)
-        self._toolbar_plain_btns.append(self.filter_show_ignored)
+
         for _fb in [self.filter_starred, self.filter_untagged, self.filter_tagged,
                     self.filter_assigned, self.filter_posted, self.filter_needs_censor]:
             self._toolbar_plain_btns.append(_fb)
+        self._toolbar_plain_btns.append(self.filter_show_ignored)
 
 
         self.recursive_check = QCheckBox("Recursive")
@@ -978,7 +1097,7 @@ class AssetBrowser(QWidget):
 
         self._format_filter = ""
         self._format_combo = QComboBox()
-        self._format_combo.addItems(["All", "PSD", "PNG", "JPG", "SAI", "WEBP", "CLIP", "Other"])
+        self._format_combo.addItems(["All", "PSD", "PNG", "JPG", "SAI", "WEBP", "CLIP", "Other", "Ignored"])
         self._format_combo.setToolTip("Filter by file format")
         self._format_combo.currentTextChanged.connect(self._on_format_filter_changed)
         row2.addWidget(self._format_combo)
@@ -1626,7 +1745,9 @@ class AssetBrowser(QWidget):
             preds.append(lambda a: not a.tags)
         if self.filter_tagged.isChecked():
             preds.append(lambda a: bool(a.tags))
-        if not self.filter_show_ignored.isChecked():
+        if self._format_filter == "ignored":
+            preds.append(lambda a: "ignore" in a.tags)
+        elif not self.filter_show_ignored.isChecked():
             preds.append(lambda a: "ignore" not in a.tags)
         if self.filter_has_notes.isChecked():
             preds.append(lambda a: bool(a.notes and a.notes.strip()))
@@ -1640,7 +1761,7 @@ class AssetBrowser(QWidget):
             preds.append(lambda a, cp=_cp:
                          any(pa.platform in cp for pa in a.assignments) and not a.censors)
 
-        if self._format_filter:
+        if self._format_filter and self._format_filter != "ignored":
             _known = {".psd", ".png", ".jpg", ".jpeg", ".sai", ".sai2", ".webp", ".clip", ".csp"}
             _ff = self._format_filter
             if _ff == "other":
@@ -1864,6 +1985,8 @@ class AssetBrowser(QWidget):
             root_groups[root].append((folder, assets, rel_depth))
 
         def _make_section(folder, assets, depth):
+            if folder in self._hidden_folders:
+                return None
             collapsed = folder in self._collapsed_folders
             section = FolderSection(
                 folder=folder, assets=assets, delegate=self._delegate,
@@ -1874,6 +1997,9 @@ class AssetBrowser(QWidget):
             section.remove_requested.connect(self._on_folder_remove_requested)
             section.select_all_requested.connect(self._on_folder_select_all)
             section.collapse_children_requested.connect(self._on_collapse_children)
+            section.date_filter_requested.connect(self._on_folder_date_filter)
+            section.hide_requested.connect(self._on_folder_hide)
+            section.restore_colors()
             section.view.customContextMenuRequested.connect(
                 lambda pos, s=section: self._on_folder_context_menu_pos(pos, s))
             section.view.doubleClicked.connect(
@@ -1905,6 +2031,8 @@ class AssetBrowser(QWidget):
                 child_sections = []
                 for folder, assets, depth in entries:
                     section = _make_section(folder, assets, depth + 1)
+                    if section is None:
+                        continue
                     insert_before_stretch(section)
                     self._folder_sections.append(section)
                     child_sections.append(section)
@@ -1913,6 +2041,8 @@ class AssetBrowser(QWidget):
                 # Single folder or no matching root — show flat at depth 0
                 for folder, assets, depth in entries:
                     section = _make_section(folder, assets, 0)
+                    if section is None:
+                        continue
                     insert_before_stretch(section)
                     self._folder_sections.append(section)
 
@@ -1979,6 +2109,22 @@ class AssetBrowser(QWidget):
         if not collapse:
             self._request_visible_thumbs()
 
+    def _on_folder_hide(self, folder: str):
+        """Hide a folder from the view (persisted to QSettings)."""
+        self._hidden_folders.add(folder)
+        s = QSettings("DoxyEdit", "DoxyEdit")
+        s.setValue("hidden_folders", sorted(self._hidden_folders))
+        self._refresh_grid()
+
+    def show_all_hidden_folders(self):
+        """Unhide all hidden folders."""
+        if not self._hidden_folders:
+            return
+        self._hidden_folders.clear()
+        s = QSettings("DoxyEdit", "DoxyEdit")
+        s.remove("hidden_folders")
+        self._refresh_grid()
+
     def _on_folder_select_all(self, folder: str, recursive: bool):
         """Select all assets in a folder (optionally recursive)."""
         folder_norm = folder.replace("\\", "/")
@@ -2012,6 +2158,30 @@ class AssetBrowser(QWidget):
         self.project.excluded_paths.add(folder)
         self.project.invalidate_index()
         self._refresh_grid()
+
+    def _on_folder_date_filter(self, folder: str):
+        """Right-click → Set Date Filter on a folder header."""
+        from PySide6.QtWidgets import QDialog
+        norm = folder.replace("\\", "/")
+        source = next((s for s in self.project.import_sources
+                       if s.get("path", "").replace("\\", "/") == norm), None)
+        dlg = _DateFilterDialog(current=source.get("filter_newer_than", "") if source else "",
+                                parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        date_val = dlg.filter_date
+        if source:
+            source["filter_newer_than"] = date_val
+        else:
+            self._record_import_source("folder", folder, recursive=False)
+            for s in self.project.import_sources:
+                if s.get("path", "").replace("\\", "/") == norm:
+                    s["filter_newer_than"] = date_val
+                    break
+        if date_val:
+            self.window().status.showMessage(f"Date filter set: only files after {date_val[:10]}", 3000)
+        else:
+            self.window().status.showMessage("Date filter cleared", 3000)
 
     def _on_folder_selection_changed(self, active_section=None):
         # Clear other sections so cross-folder sticky selection doesn't accumulate
@@ -2193,16 +2363,21 @@ class AssetBrowser(QWidget):
         folder = QFileDialog.getExistingDirectory(self, "Open Image Folder", last_dir)
         if folder:
             settings.setValue("last_folder", folder)
-            from PySide6.QtWidgets import QMessageBox
             has_subdirs = any(p.is_dir() for p in Path(folder).iterdir())
-            if has_subdirs and not self.recursive_check.isChecked():
-                reply = QMessageBox.question(
-                    self.window(), "Subfolders Found",
-                    f"'{Path(folder).name}' contains subfolders.\n\nImport recursively?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-                recursive = (reply == QMessageBox.StandardButton.Yes)
-            else:
-                recursive = self.recursive_check.isChecked()
+            opts = _ImportOptionsDialog(has_subdirs=has_subdirs, parent=self)
+            if opts.exec() != QDialog.DialogCode.Accepted:
+                return
+            recursive = opts.recursive
+            date_filter = opts.filter_date
+            # Pre-create the import source record so the date filter is
+            # available immediately (the async worker will update it later).
+            self._record_import_source("folder", folder, recursive)
+            if date_filter:
+                norm = folder.replace("\\", "/")
+                for source in self.project.import_sources:
+                    if source.get("path", "").replace("\\", "/") == norm:
+                        source["filter_newer_than"] = date_filter
+                        break
             self._import_folder_async(folder, recursive=recursive)
 
     def _record_import_source(self, source_type: str, path: str, recursive: bool = False):
@@ -2393,16 +2568,17 @@ class AssetBrowser(QWidget):
         editor_menu = menu.addMenu("Open in Editor")
         editor_menu.addAction("Native Editor\tF3", lambda: self._open_in_native_editor())
         editor_menu.addSeparator()
-        # Add ALL configured editors (user picks what to open with)
+        # Add ALL configured editors (multiple per extension supported)
         s = QSettings("DoxyEdit", "DoxyEdit")
         all_keys = [k for k in s.allKeys() if k.startswith("native_editor/")]
         for key in sorted(all_keys):
-            editor_ext = key.replace("native_editor/", "")
             editor_path = s.value(key, "")
-            if editor_path:
-                name = Path(editor_path).stem
-                editor_menu.addAction(f"{name} ({editor_ext})",
-                    lambda p=editor_path: [subprocess.Popen([p, a.source_path]) for a in self.get_selected_assets()])
+            if not editor_path:
+                continue
+            ext = key.replace("native_editor/", "").split("/")[0]
+            name = Path(editor_path).stem
+            editor_menu.addAction(f"{name} ({ext})",
+                lambda p=editor_path: [subprocess.Popen([p, a.source_path]) for a in self.get_selected_assets()])
         menu.addAction("Copy Path", lambda: QApplication.clipboard().setText(asset.source_path))
         menu.addAction("Copy Filename", lambda: QApplication.clipboard().setText(Path(asset.source_path).name))
         menu.addAction("Copy Name (no ext)", lambda: QApplication.clipboard().setText(Path(asset.source_path).stem))
@@ -2518,7 +2694,7 @@ class AssetBrowser(QWidget):
             menu.addAction(f"Remove {n_sel} from Project", lambda: self._remove_selected())
         else:
             menu.addAction("Remove from Project", lambda: self._remove_asset(asset))
-        if self.filter_show_ignored.isChecked():
+        if self._format_filter == "ignored" or self.filter_show_ignored.isChecked():
             menu.addSeparator()
             if n_sel > 1:
                 menu.addAction(f"Delete {n_sel} from Disk (permanent)",
