@@ -519,17 +519,12 @@ class MainWindow(QMainWindow):
             self.project = Project.load(last_project)
             self._project_path = last_project
             self._register_initial_slot(last_project, Path(last_project).stem)
-            # Load collapsed/hidden state BEFORE _rebind_project so grid uses them
-            _saved_collapsed = self._settings.value("collapsed_folders", [])
-            _saved_hidden = self._settings.value("hidden_folders", [])
+            # Pre-load collapsed/hidden state so _rebind_project's refresh() uses them
+            _saved_collapsed = set(str(f) for f in self._settings.value("collapsed_folders", []))
+            _saved_hidden = set(str(f) for f in self._settings.value("hidden_folders", []))
+            self._pending_collapsed = _saved_collapsed
+            self._pending_hidden = _saved_hidden
             self._rebind_project()
-            # Restore after _rebind_project clears them, then re-trigger grid
-            if _saved_collapsed:
-                self.browser._collapsed_folders = set(str(f) for f in _saved_collapsed)
-            if _saved_hidden:
-                self.browser._hidden_folders = set(str(f) for f in _saved_hidden)
-            if _saved_collapsed or _saved_hidden:
-                self.browser.refresh()
             self.setWindowTitle(f"DoxyEdit — {Path(last_project).name}")
             self.status.showMessage(f"Restored: {Path(last_project).name}")
             return
@@ -2729,15 +2724,12 @@ class MainWindow(QMainWindow):
             self.status.showMessage("No project file to reload — refreshed grid", 2000)
             return
         # Preserve UI state across reload
-        saved_collapsed = set(self.browser._collapsed_folders)
-        saved_hidden = set(self.browser._hidden_folders)
         saved_filters = self.browser.get_filter_state()
+        self._pending_collapsed = set(self.browser._collapsed_folders)
+        self._pending_hidden = set(self.browser._hidden_folders)
         self.project = Project.load(self._project_path)
         self._rebind_project()
-        self.browser._collapsed_folders = saved_collapsed
-        self.browser._hidden_folders = saved_hidden
         self.browser.set_filter_state(saved_filters)
-        self.browser.refresh()
         self._dirty = False
         self.status.showMessage(f"Reloaded project from disk", 2000)
 
@@ -3495,6 +3487,14 @@ Ctrl+Click tag — Search by tag
         self.browser._clear_filter_btn.setVisible(False)
         self.browser._temp_hidden_ids.clear()
         self.browser._collapsed_folders.clear()
+        self.browser._hidden_folders.clear()
+        # Apply pending state from startup/reload before refresh builds the grid
+        if hasattr(self, '_pending_collapsed'):
+            self.browser._collapsed_folders = self._pending_collapsed
+            del self._pending_collapsed
+        if hasattr(self, '_pending_hidden'):
+            self.browser._hidden_folders = self._pending_hidden
+            del self._pending_hidden
         self.browser._selected_ids.clear()
         self.browser._eye_hidden_tags.clear()
         self.browser._folder_filter = None

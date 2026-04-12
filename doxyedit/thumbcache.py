@@ -429,7 +429,7 @@ class ThumbWorker(QThread):
                 _global_index.save()
 
 
-_LRU_MAX = 600  # max pixmaps kept in memory (~30 MB at 160px thumbs)
+_LRU_MAX = 300  # max pixmaps kept in memory (~120 MB at 512px thumbs)
 
 
 def _safe_name(project_name: str) -> str:

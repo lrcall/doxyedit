@@ -19,8 +19,8 @@ def _setup_logging():
             format="%(asctime)s %(levelname)s %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
-    except Exception:
-        pass  # logging is best-effort — don't block app startup
+    except Exception as e:
+        print(f"Logging setup failed: {e}", file=sys.stderr)
 
 def _install_exception_hook():
     """Catch unhandled exceptions: log to file + show in status bar."""
