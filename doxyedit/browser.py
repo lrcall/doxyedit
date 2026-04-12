@@ -666,6 +666,8 @@ class FolderSection(QWidget):
         self.setObjectName("folder_section")
         self._folder = folder
         self._child_folder_count = 0
+        self._highlight_color = None
+        self._chip_color = None
         self._thumb_size = thumb_size
         self._depth = depth
         _s = QSettings("DoxyEdit", "DoxyEdit")
