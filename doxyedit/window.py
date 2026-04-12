@@ -507,10 +507,21 @@ class MainWindow(QMainWindow):
         last_coll = self._settings.value("last_collection", "")
         if last_coll and Path(last_coll).exists():
             if self._restore_collection(last_coll):
+                self._restore_folder_state()
                 return
-            # Collection file exists but projects are missing — fall through to last_project
             self.status.showMessage("Collection projects not found, restoring last project…")
         self._restore_last_project()
+
+    def _restore_folder_state(self):
+        """Restore collapsed/hidden folders from QSettings into the browser."""
+        saved_collapsed = self._settings.value("collapsed_folders", [])
+        if saved_collapsed:
+            self.browser._collapsed_folders = set(str(f).replace("\\", "/") for f in saved_collapsed)
+        saved_hidden = self._settings.value("hidden_folders", [])
+        if saved_hidden:
+            self.browser._hidden_folders = set(str(f).replace("\\", "/") for f in saved_hidden)
+        if saved_collapsed or saved_hidden:
+            self.browser.refresh()
 
     def _restore_last_project(self):
         """Restore last single project, or last folder, or blank slate."""
@@ -519,14 +530,8 @@ class MainWindow(QMainWindow):
             self.project = Project.load(last_project)
             self._project_path = last_project
             self._register_initial_slot(last_project, Path(last_project).stem)
-            # Restore collapsed/hidden state before rebind so refresh() uses them
-            saved_collapsed = self._settings.value("collapsed_folders", [])
-            if saved_collapsed:
-                self.browser._collapsed_folders = set(str(f).replace("\\", "/") for f in saved_collapsed)
-            saved_hidden = self._settings.value("hidden_folders", [])
-            if saved_hidden:
-                self.browser._hidden_folders = set(str(f).replace("\\", "/") for f in saved_hidden)
             self._rebind_project()
+            self._restore_folder_state()
             self.setWindowTitle(f"DoxyEdit — {Path(last_project).name}")
             self.status.showMessage(f"Restored: {Path(last_project).name}")
             return
