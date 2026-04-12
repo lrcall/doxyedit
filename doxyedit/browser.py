@@ -3074,10 +3074,8 @@ class AssetBrowser(QWidget):
                         drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
                         self._drag_start_pos = None
                         self._drag_snapshot_ids = set()
-                        # Kill stuck rubber band — find and hide it
-                        from PySide6.QtWidgets import QRubberBand
-                        for child in view.viewport().findChildren(QRubberBand):
-                            child.hide()
+                        # Reset Qt's internal state machine to kill stuck rubber band
+                        view.setState(QListView.State.NoState)
                         view.viewport().update()
                         return True
 
