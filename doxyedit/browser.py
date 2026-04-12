@@ -563,6 +563,38 @@ class ThumbnailDelegate(QStyledItemDelegate):
 class FolderListView(QListView):
     """QListView that reports a sizeHint tall enough to show all items unwrapped."""
 
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def startDrag(self, supportedActions):
+        """Override Qt's startDrag so the view handles drag lifecycle properly.
+        This ensures Qt cleans up its own rubber band state."""
+        indexes = self.selectedIndexes()
+        if not indexes:
+            return
+        model = self.model()
+        urls = []
+        first_pm = None
+        for idx in indexes:
+            asset = model.get_asset(idx) if hasattr(model, 'get_asset') else None
+            if asset and Path(asset.source_path).exists():
+                urls.append(QUrl.fromLocalFile(asset.source_path))
+                if first_pm is None:
+                    pm = model._pixmaps.get(asset.id)
+                    if isinstance(pm, QPixmap) and not pm.isNull():
+                        first_pm = pm
+        if not urls:
+            return
+        mime = QMimeData()
+        mime.setUrls(urls)
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        if first_pm:
+            drag.setPixmap(first_pm.scaled(64, 64,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation))
+        drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
+
     def _compute_height(self, available_width: int = 0) -> int:
         m = self.model()
         if not m or m.rowCount() == 0:
@@ -712,6 +744,8 @@ class FolderSection(QWidget):
         self._view.setMouseTracking(True)
         self._view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._view.setStyleSheet("QListView { border: none; }")
+        self._view.setDragEnabled(True)
+        self._view.setDragDropMode(QListView.DragDropMode.DragOnly)
         from PySide6.QtWidgets import QSizePolicy
         self._view.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         layout.addWidget(self._view)
@@ -1153,7 +1187,7 @@ class AssetBrowser(QWidget):
         # QListView — replaces QGridLayout + ThumbnailWidget
         self._model = ThumbnailModel(self)
         self._delegate = ThumbnailDelegate(self._thumb_size, self)
-        self._list_view = QListView()
+        self._list_view = FolderListView()
         self._delegate._list_view = self._list_view
         self._list_view.setObjectName("doxyedit_grid")
         self._list_view.setModel(self._model)
@@ -1173,6 +1207,8 @@ class AssetBrowser(QWidget):
             lambda _: (self._request_visible_thumbs(), self._idle_timer.start()))
         self._list_view.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
         self._list_view.setMouseTracking(True)
+        self._list_view.setDragEnabled(True)
+        self._list_view.setDragDropMode(QListView.DragDropMode.DragOnly)
         self._list_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._list_view.customContextMenuRequested.connect(self._on_context_menu_pos)
         self._list_view.doubleClicked.connect(self._on_double_click)
@@ -3021,65 +3057,7 @@ class AssetBrowser(QWidget):
                             model.dataChanged.emit(index, index)
                         return True
 
-            # Left press — record drag start point for any valid item click.
-            # We don't require the item to already be selected: for a fresh
-            # click+drag the item won't be in _selected_ids yet (Qt processes
-            # the press *after* our event filter returns), so we'd never set
-            # _drag_start_pos and the drag would silently fail in the flat view.
-            # Instead, always arm on a valid item click and let _drag_snapshot_ids
-            # fall back to get_selected_assets() at drag-fire time (by which point
-            # Qt has already updated the selection model).
-            if (event.type() == event.Type.MouseButtonPress
-                    and event.button() == Qt.MouseButton.LeftButton):
-                pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
-                index = view.indexAt(pos)
-                asset = model.get_asset(index) if index.isValid() else None
-                if asset:
-                    self._drag_start_pos = view.mapToGlobal(pos)
-                    # Snapshot the full selection now if clicking an already-selected
-                    # item (preserves multi-select); otherwise leave empty so drag
-                    # falls back to get_selected_assets() after Qt updates selection.
-                    if asset.id in self._selected_ids:
-                        self._drag_snapshot_ids = set(self._selected_ids)
-                    else:
-                        self._drag_snapshot_ids = set()
-                else:
-                    self._drag_start_pos = None
-                    self._drag_snapshot_ids = set()
-
-            # Left move — initiate drag-out after threshold
-            if (event.type() == event.Type.MouseMove
-                    and event.buttons() & Qt.MouseButton.LeftButton
-                    and getattr(self, '_drag_start_pos', None) is not None
-                    and not getattr(self, '_middle_held', False)):
-                cur_global = view.mapToGlobal(
-                    event.position().toPoint() if hasattr(event, 'position') else event.pos())
-                if (cur_global - self._drag_start_pos).manhattanLength() >= QApplication.startDragDistance():
-                    self._drag_start_pos = None
-                    snap_ids = getattr(self, '_drag_snapshot_ids', set())
-                    assets = [a for a in self.project.assets if a.id in snap_ids] if snap_ids else self.get_selected_assets()
-                    urls = [QUrl.fromLocalFile(a.source_path) for a in assets
-                            if Path(a.source_path).exists()]
-                    if urls:
-                        mime = QMimeData()
-                        mime.setUrls(urls)
-                        drag = QDrag(view)
-                        drag.setMimeData(mime)
-                        # Pixmap from first asset's cached thumbnail
-                        icon_px = self._model._pixmaps.get(assets[0].id) if assets else None
-                        if isinstance(icon_px, QPixmap) and not icon_px.isNull():
-                            drag.setPixmap(icon_px.scaled(64, 64,
-                                Qt.AspectRatioMode.KeepAspectRatio,
-                                Qt.TransformationMode.SmoothTransformation))
-                        drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
-                        self._drag_start_pos = None
-                        self._drag_snapshot_ids = set()
-                        return True
-
-            if (event.type() == event.Type.MouseButtonRelease
-                    and event.button() == Qt.MouseButton.LeftButton):
-                self._drag_start_pos = None
-                self._drag_snapshot_ids = set()
+            # Drag is handled natively by FolderListView.startDrag()
 
             # Middle-click — instant preview regardless of hover setting
             if event.type() == event.Type.MouseButtonPress:
