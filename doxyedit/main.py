@@ -7,16 +7,20 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont, QIcon
 from doxyedit.window import MainWindow
 
-_LOG_PATH = Path(__file__).parent.parent / "doxyedit.log"
+_LOG_PATH = Path.home() / ".doxyedit" / "doxyedit.log"
 
 def _setup_logging():
     """File logger for all warnings/errors — survives windowless mode."""
-    logging.basicConfig(
-        filename=str(_LOG_PATH),
-        level=logging.WARNING,
-        format="%(asctime)s %(levelname)s %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    try:
+        _LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        logging.basicConfig(
+            filename=str(_LOG_PATH),
+            level=logging.WARNING,
+            format="%(asctime)s %(levelname)s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    except Exception:
+        pass  # logging is best-effort — don't block app startup
 
 def _install_exception_hook():
     """Catch unhandled exceptions: log to file + show in status bar."""
