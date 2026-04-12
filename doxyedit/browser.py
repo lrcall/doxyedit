@@ -3071,16 +3071,13 @@ class AssetBrowser(QWidget):
                             drag.setPixmap(icon_px.scaled(64, 64,
                                 Qt.AspectRatioMode.KeepAspectRatio,
                                 Qt.TransformationMode.SmoothTransformation))
+                        # Disable rubber band during drag so it doesn't stick
+                        old_sel_mode = view.selectionMode()
+                        view.setSelectionMode(QListView.SelectionMode.NoSelection)
                         drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
-                        # Clear rubber band state after drag ends
+                        view.setSelectionMode(old_sel_mode)
                         self._drag_start_pos = None
                         self._drag_snapshot_ids = set()
-                        # Force-release rubber band — the view never got MouseRelease
-                        fake_release = QMouseEvent(
-                            QEvent.Type.MouseButtonRelease,
-                            event.position() if hasattr(event, 'position') else QPointF(event.pos()),
-                            Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
-                        QApplication.sendEvent(view, fake_release)
                         return True
 
             if (event.type() == event.Type.MouseButtonRelease
