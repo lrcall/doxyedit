@@ -2585,6 +2585,7 @@ class AssetBrowser(QWidget):
         """F8 — cycle through rubber band fix methods."""
         self._rb_fix_method = (self._rb_fix_method + 1) % len(self._RB_FIX_NAMES)
         name = self._RB_FIX_NAMES[self._rb_fix_method]
+        print(f"[F8] Rubber band fix: {name} (method {self._rb_fix_method})")
         try:
             self.window().status.showMessage(f"Rubber band fix: {name} (method {self._rb_fix_method})", 3000)
         except Exception:
@@ -2592,6 +2593,7 @@ class AssetBrowser(QWidget):
 
     def _apply_rubberband_fix(self, view):
         m = self._rb_fix_method
+        print(f"[drag] Applying rubber band fix method {m}: {self._RB_FIX_NAMES[m]}")
         if m == 0:
             pass  # none
         elif m == 1:
