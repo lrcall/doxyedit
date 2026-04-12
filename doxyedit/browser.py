@@ -2576,45 +2576,14 @@ class AssetBrowser(QWidget):
         if files:
             self.import_files(files)
 
-    # --- Rubber band fix (F8 cycles methods) ---
-
-    _rb_fix_method = 0
-    _RB_FIX_NAMES = ["none", "viewport update", "fake release", "hide QRubberBand", "clearSelection"]
-
-    def cycle_rubberband_fix(self):
-        """F8 — cycle through rubber band fix methods."""
-        self._rb_fix_method = (self._rb_fix_method + 1) % len(self._RB_FIX_NAMES)
-        name = self._RB_FIX_NAMES[self._rb_fix_method]
-        print(f"[F8] Rubber band fix: {name} (method {self._rb_fix_method})")
-        try:
-            self.window().status.showMessage(f"Rubber band fix: {name} (method {self._rb_fix_method})", 3000)
-        except Exception:
-            pass
-
-    def _apply_rubberband_fix(self, view):
-        m = self._rb_fix_method
-        print(f"[drag] Applying rubber band fix method {m}: {self._RB_FIX_NAMES[m]}")
-        if m == 0:
-            pass  # none
-        elif m == 1:
-            view.viewport().update()
-        elif m == 2:
-            fake = QMouseEvent(
-                QEvent.Type.MouseButtonRelease,
-                QPointF(0, 0),
-                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
-                Qt.KeyboardModifier.NoModifier)
-            QApplication.sendEvent(view.viewport(), fake)
-        elif m == 3:
-            from PySide6.QtWidgets import QRubberBand
-            for child in view.findChildren(QRubberBand):
-                child.hide()
-            for child in view.viewport().findChildren(QRubberBand):
-                child.hide()
-            view.viewport().update()
-        elif m == 4:
-            view.clearSelection()
-            view.viewport().update()
+    def _clear_rubber_band(self, view):
+        """Send fake release to viewport to clear stuck rubber band after drag."""
+        fake = QMouseEvent(
+            QEvent.Type.MouseButtonRelease,
+            QPointF(0, 0),
+            Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(view.viewport(), fake)
 
     # --- Context menu ---
 
@@ -3103,8 +3072,7 @@ class AssetBrowser(QWidget):
                         drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
                         self._drag_start_pos = None
                         self._drag_snapshot_ids = set()
-                        # Apply rubber band fix method (cycled via F8)
-                        self._apply_rubberband_fix(view)
+                        self._clear_rubber_band(view)
                         return True
 
             if (event.type() == event.Type.MouseButtonRelease
