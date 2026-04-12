@@ -3069,10 +3069,22 @@ class AssetBrowser(QWidget):
                             drag.setPixmap(icon_px.scaled(64, 64,
                                 Qt.AspectRatioMode.KeepAspectRatio,
                                 Qt.TransformationMode.SmoothTransformation))
+                        # Save selection before drag (drag may clear it)
+                        saved_sel = set(self._selected_ids)
                         drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
                         self._drag_start_pos = None
                         self._drag_snapshot_ids = set()
                         self._clear_rubber_band(view)
+                        # Re-apply visual selection after rubber band fix clears it
+                        if saved_sel:
+                            sel_model = view.selectionModel()
+                            sel_model.blockSignals(True)
+                            for i in range(model.rowCount()):
+                                idx = model.index(i)
+                                a = model.get_asset(idx)
+                                if a and a.id in saved_sel:
+                                    sel_model.select(idx, QItemSelectionModel.SelectionFlag.Select)
+                            sel_model.blockSignals(False)
                         return True
 
             if (event.type() == event.Type.MouseButtonRelease
