@@ -261,6 +261,185 @@ DARK = Theme(
 )
 
 
+# ---------------------------------------------------------------------------
+# Neon — high-contrast dark with electric green/magenta (from focus neon)
+# ---------------------------------------------------------------------------
+
+NEON = Theme(
+    name="Neon",
+    bg_deep="#0a0a0a",
+    bg_main="#121212",
+    bg_raised="#1a1a1a",
+    bg_input="#161616",
+    bg_hover="#252525",
+    accent="#00e676",
+    accent_dim="#004d25",
+    accent_bright="#00ff88",
+    text_primary="#e0e0e0",
+    text_secondary="#888888",
+    text_muted="#505050",
+    text_on_accent="#000000",
+    statusbar_bg="#00c853",
+    statusbar_text="#000000",
+    border="#2a2a2a",
+    border_light="#3a3a3a",
+    selection_bg="#004d25",
+    selection_border="#00e676",
+    thumb_bg="#161616",
+    success="#00e676",
+    warning="#ffea00",
+    error="#ff1744",
+    star="#ffea00",
+)
+
+# ---------------------------------------------------------------------------
+# Ember — warm dark amber/orange (from focus ember)
+# ---------------------------------------------------------------------------
+
+EMBER = Theme(
+    name="Ember",
+    bg_deep="#0e0a08",
+    bg_main="#1a1210",
+    bg_raised="#241a14",
+    bg_input="#1e1410",
+    bg_hover="#322418",
+    accent="#e68a30",
+    accent_dim="#5a3818",
+    accent_bright="#ffa040",
+    text_primary="#d8c8b0",
+    text_secondary="#9a8870",
+    text_muted="#6a5a48",
+    text_on_accent="#0e0a08",
+    statusbar_bg="#c87020",
+    statusbar_text="#d8c8b0",
+    border="#3a2818",
+    border_light="#4a3828",
+    selection_bg="#5a3818",
+    selection_border="#e68a30",
+    thumb_bg="#1a1210",
+)
+
+# ---------------------------------------------------------------------------
+# Midnight — deep blue-black (from focus midnight/navy)
+# ---------------------------------------------------------------------------
+
+MIDNIGHT = Theme(
+    name="Midnight",
+    bg_deep="#080a10",
+    bg_main="#0e1220",
+    bg_raised="#141a2a",
+    bg_input="#101828",
+    bg_hover="#1a2438",
+    accent="#4488cc",
+    accent_dim="#1a3050",
+    accent_bright="#66aaee",
+    text_primary="#b0c0d8",
+    text_secondary="#7088a0",
+    text_muted="#405060",
+    text_on_accent="#080a10",
+    statusbar_bg="#2060a0",
+    statusbar_text="#b0c0d8",
+    border="#1a2438",
+    border_light="#283848",
+    selection_bg="#1a3050",
+    selection_border="#4488cc",
+    thumb_bg="#0e1220",
+)
+
+# ---------------------------------------------------------------------------
+# Dawn — light warm pink/peach (from focus dawn)
+# ---------------------------------------------------------------------------
+
+DAWN = Theme(
+    name="Dawn",
+    bg_deep="#e8d8d0",
+    bg_main="#f4e8e0",
+    bg_raised="#f8f0ea",
+    bg_input="#fcf4ee",
+    bg_hover="#e0d0c4",
+    accent="#c06048",
+    accent_dim="#d8a898",
+    accent_bright="#a04030",
+    text_primary="#3a2820",
+    text_secondary="#7a5848",
+    text_muted="#a08878",
+    text_on_accent="#fcf4ee",
+    statusbar_bg="#b05040",
+    statusbar_text="#f8f0ea",
+    border="#d0c0b4",
+    border_light="#ddd0c4",
+    selection_bg="#d8a898",
+    selection_border="#c06048",
+    thumb_bg="#f4e8e0",
+    success="#608850",
+    warning="#b08030",
+    error="#b04040",
+    star="#c06048",
+)
+
+# ---------------------------------------------------------------------------
+# Citrus — light green/yellow (from focus citrus)
+# ---------------------------------------------------------------------------
+
+CITRUS = Theme(
+    name="Citrus",
+    bg_deep="#d8dcc8",
+    bg_main="#e8ecd8",
+    bg_raised="#f0f4e4",
+    bg_input="#f4f8ea",
+    bg_hover="#ccd4b8",
+    accent="#5a8828",
+    accent_dim="#b0c890",
+    accent_bright="#408018",
+    text_primary="#283020",
+    text_secondary="#586848",
+    text_muted="#8a9878",
+    text_on_accent="#f0f4e4",
+    statusbar_bg="#4a7820",
+    statusbar_text="#f0f4e4",
+    border="#b8c4a0",
+    border_light="#c8d4b0",
+    selection_bg="#b0c890",
+    selection_border="#5a8828",
+    thumb_bg="#e8ecd8",
+    success="#5a8828",
+    warning="#a09020",
+    error="#a04838",
+    star="#a09020",
+)
+
+# ---------------------------------------------------------------------------
+# Candy — light pink/magenta (from focus candy)
+# ---------------------------------------------------------------------------
+
+CANDY = Theme(
+    name="Candy",
+    bg_deep="#e4d0dc",
+    bg_main="#f0e0ea",
+    bg_raised="#f6eaf0",
+    bg_input="#faf0f4",
+    bg_hover="#dcc4d0",
+    accent="#c04888",
+    accent_dim="#d8a0c0",
+    accent_bright="#a83870",
+    text_primary="#3a2030",
+    text_secondary="#785068",
+    text_muted="#a08090",
+    text_on_accent="#f6eaf0",
+    statusbar_bg="#a83870",
+    statusbar_text="#f6eaf0",
+    border="#ccb4c4",
+    border_light="#d8c4d0",
+    selection_bg="#d8a0c0",
+    selection_border="#c04888",
+    thumb_bg="#f0e0ea",
+    success="#58884a",
+    warning="#a08030",
+    error="#b83848",
+    star="#c04888",
+)
+
+
 # All available themes
 THEMES: dict[str, Theme] = {
     "vinik24": VINIK24,
@@ -270,6 +449,12 @@ THEMES: dict[str, Theme] = {
     "milk_glass": MILK_GLASS,
     "forest": FOREST,
     "dark": DARK,
+    "neon": NEON,
+    "ember": EMBER,
+    "midnight": MIDNIGHT,
+    "dawn": DAWN,
+    "citrus": CITRUS,
+    "candy": CANDY,
 }
 
 DEFAULT_THEME = "soot"
