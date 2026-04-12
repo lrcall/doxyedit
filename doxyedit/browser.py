@@ -928,6 +928,7 @@ class AssetBrowser(QWidget):
         self.auto_tag_enabled = False
         self.show_hidden_only = False
         self._collapsed_folders: set[str] = set()
+        self._folded_children: set[str] = set()  # folders whose children are hidden (Ctrl+click)
         self._hidden_folders: set[str] = set()
         self._folder_filter: set[str] | None = None  # None = show all
         self._folder_sections: list[FolderSection] = []
@@ -2055,10 +2056,10 @@ class AssetBrowser(QWidget):
                     insert_before_stretch(section)
                     self._folder_sections.append(section)
 
-        # Apply parent-collapsed visibility: hide children of collapsed parents
+        # Apply folded-children visibility (from Ctrl+click)
         for section in self._folder_sections:
-            if section.is_collapsed:
-                sf = section.folder.replace("\\", "/")
+            sf = section.folder.replace("\\", "/")
+            if sf in self._folded_children:
                 prefix = sf + "/"
                 child_count = 0
                 for child in self._folder_sections:
@@ -2116,45 +2117,28 @@ class AssetBrowser(QWidget):
             self._collapsed_folders.add(folder)
         else:
             self._collapsed_folders.discard(folder)
-        # Hide/show child section widgets under this folder
+            self._request_visible_thumbs()
+
+    def _on_collapse_children(self, folder: str, collapse: bool):
+        """Ctrl+click: hide/show all child folder sections under this one."""
         folder_norm = folder.replace("\\", "/")
         prefix = folder_norm + "/"
+        if collapse:
+            self._folded_children.add(folder_norm)
+        else:
+            self._folded_children.discard(folder_norm)
         child_count = 0
         for section in self._folder_sections:
             sf = section.folder.replace("\\", "/")
             if sf.startswith(prefix):
                 child_count += 1
-                if is_collapsed:
-                    section.setVisible(False)
-                else:
-                    section.setVisible(True)
-                    # But respect if a *parent* between us is also collapsed
-                    for other in self._folder_sections:
-                        of = other.folder.replace("\\", "/")
-                        if of != folder_norm and sf.startswith(of + "/") and other.is_collapsed:
-                            section.setVisible(False)
-                            break
-        # Update header to show subfolder count when collapsed
+                section.setVisible(not collapse)
+        # Update parent header to show subfolder count
         source_section = next((s for s in self._folder_sections
                                if s.folder.replace("\\", "/") == folder_norm), None)
-        if source_section and child_count > 0:
-            source_section._child_folder_count = child_count
+        if source_section:
+            source_section._child_folder_count = child_count if collapse else 0
             source_section._update_header_text()
-        if not is_collapsed:
-            self._request_visible_thumbs()
-
-    def _on_collapse_children(self, folder: str, collapse: bool):
-        """Ctrl+click: collapse/expand all child folders under this one."""
-        folder_norm = folder.replace("\\", "/")
-        prefix = folder_norm + "/"
-        for section in self._folder_sections:
-            sf = section.folder.replace("\\", "/")
-            if sf.startswith(prefix):
-                section._set_collapsed(collapse)
-                if collapse:
-                    self._collapsed_folders.add(section.folder)
-                else:
-                    self._collapsed_folders.discard(section.folder)
         if not collapse:
             self._request_visible_thumbs()
 
