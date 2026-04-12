@@ -607,6 +607,14 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.bg_raised};
             padding: 4px;
         }}
+        QLabel#stats_section_label {{
+            padding-top: 4px;
+        }}
+        QProgressBar#stats_bar {{
+            background: rgba(255,255,255,0.06);
+            border: none;
+            border-radius: 4px;
+        }}
 
         /* Image hive */
         QWidget#hive_container {{

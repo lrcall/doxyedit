@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QTabBar, QInputDialog,
 )
 from PySide6.QtCore import Qt, Signal, QSize, QUrl, QMimeData
-from PySide6.QtGui import QPixmap, QIcon, QFont, QDrag
+from PySide6.QtGui import QPixmap, QIcon, QDrag
 
 
 NAME_ROLE = Qt.ItemDataRole.UserRole + 1  # stores display name for view mode switching
@@ -130,7 +130,7 @@ class WorkTray(QWidget):
         # Header
         header = QHBoxLayout()
         title = QLabel("Work Tray")
-        title.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
+        f = title.font(); f.setBold(True); title.setFont(f)
         header.addWidget(title)
         header.addStretch()
 

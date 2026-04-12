@@ -5,7 +5,6 @@ from PySide6.QtWidgets import (
     QFrame, QProgressBar, QSizePolicy, QPushButton,
 )
 from PySide6.QtCore import Qt, QSettings
-from PySide6.QtGui import QFont
 
 from doxyedit.models import Project, PLATFORMS
 
@@ -157,9 +156,9 @@ class StatsPanel(QWidget):
 
     def _section_label(self, text: str) -> QLabel:
         lbl = QLabel(text)
-        lbl.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
+        f = lbl.font(); f.setBold(True); lbl.setFont(f)
         lbl.setProperty("role", "secondary")
-        lbl.setStyleSheet("padding-top: 4px;")
+        lbl.setObjectName("stats_section_label")
         return lbl
 
     def _stat_card(self, label: str, value: str) -> QFrame:
@@ -169,7 +168,7 @@ class StatsPanel(QWidget):
         layout.setContentsMargins(14, 10, 14, 10)
         layout.setSpacing(2)
         val_lbl = QLabel(value)
-        val_lbl.setFont(QFont("Segoe UI", -1, QFont.Weight.Bold))
+        f = val_lbl.font(); f.setBold(True); val_lbl.setFont(f)
         val_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_lbl = QLabel(label)
         lbl_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -196,10 +195,8 @@ class StatsPanel(QWidget):
         bar.setValue(value)
         bar.setTextVisible(False)
         bar.setFixedHeight(12)
-        bar.setStyleSheet(
-            f"QProgressBar {{ background: rgba(255,255,255,0.06); border: none;"
-            f" border-radius: 4px; }}"
-            f"QProgressBar::chunk {{ background: {color}; border-radius: 4px; }}")
+        bar.setObjectName("stats_bar")
+        bar.setStyleSheet(f"QProgressBar::chunk {{ background: {color}; border-radius: 4px; }}")
         h.addWidget(bar, 1)
 
         count_lbl = QLabel(suffix)
