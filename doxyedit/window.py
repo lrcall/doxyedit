@@ -229,9 +229,6 @@ class MainWindow(QMainWindow):
         saved_collapsed = self._settings_early.value("collapsed_folders", [])
         if saved_collapsed:
             self.browser._collapsed_folders = set(str(f) for f in saved_collapsed)
-        saved_hidden = self._settings_early.value("hidden_folders", [])
-        if saved_hidden:
-            self.browser._hidden_folders = set(str(f) for f in saved_hidden)
         # Restore collapsed tag sections
         saved_tag_sections = self._settings_early.value("collapsed_tag_sections", [])
         if saved_tag_sections:
@@ -1157,7 +1154,6 @@ class MainWindow(QMainWindow):
         self._toggle_project_notes_action.toggled.connect(self._toggle_project_notes)
         view_menu.addSeparator()
         view_menu.addAction("Refresh Grid", lambda: self.browser.refresh())
-        view_menu.addAction("Show Hidden Folders", lambda: self.browser.show_all_hidden_folders())
         view_menu.addSeparator()
 
         # Display submenu

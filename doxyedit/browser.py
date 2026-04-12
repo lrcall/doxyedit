@@ -658,7 +658,6 @@ class FolderSection(QWidget):
     remove_requested  = Signal(str)         # (folder_path)
     select_all_requested = Signal(str, bool)  # (folder_path, recursive)
     date_filter_requested = Signal(str)     # (folder_path)
-    hide_requested = Signal(str)            # (folder_path) — hide this folder from view
 
     def __init__(self, folder: str, assets: list, delegate, thumb_size: int,
                  collapsed: bool = False, depth: int = 0, parent=None):
@@ -770,8 +769,10 @@ class FolderSection(QWidget):
         menu.addAction("Open in Explorer", lambda: subprocess.Popen(
             ["explorer", self._folder.replace("/", "\\")]))
         menu.addSeparator()
+        menu.addAction("Collapse Subfolders", lambda: self.collapse_children_requested.emit(self._folder, True))
+        menu.addAction("Expand Subfolders", lambda: self.collapse_children_requested.emit(self._folder, False))
+        menu.addSeparator()
         menu.addAction("Set Date Filter…", lambda: self.date_filter_requested.emit(self._folder))
-        menu.addAction("Hide Folder", lambda: self.hide_requested.emit(self._folder))
         menu.addSeparator()
         menu.addAction("Remove Folder from Project…", lambda: self.remove_requested.emit(self._folder))
         menu.exec(self._header.mapToGlobal(pos))
@@ -919,7 +920,6 @@ class AssetBrowser(QWidget):
         self.auto_tag_enabled = False
         self.show_hidden_only = False
         self._collapsed_folders: set[str] = set()
-        self._hidden_folders: set[str] = set()
         self._folder_filter: set[str] | None = None  # None = show all
         self._folder_sections: list[FolderSection] = []
         self._prev_sort_mode: str = "Name A-Z"  # last non-folder sort; used as within-folder secondary sort
@@ -1985,8 +1985,6 @@ class AssetBrowser(QWidget):
             root_groups[root].append((folder, assets, rel_depth))
 
         def _make_section(folder, assets, depth):
-            if folder in self._hidden_folders:
-                return None
             collapsed = folder in self._collapsed_folders
             section = FolderSection(
                 folder=folder, assets=assets, delegate=self._delegate,
@@ -1998,7 +1996,6 @@ class AssetBrowser(QWidget):
             section.select_all_requested.connect(self._on_folder_select_all)
             section.collapse_children_requested.connect(self._on_collapse_children)
             section.date_filter_requested.connect(self._on_folder_date_filter)
-            section.hide_requested.connect(self._on_folder_hide)
             section.restore_colors()
             section.view.customContextMenuRequested.connect(
                 lambda pos, s=section: self._on_folder_context_menu_pos(pos, s))
@@ -2031,8 +2028,6 @@ class AssetBrowser(QWidget):
                 child_sections = []
                 for folder, assets, depth in entries:
                     section = _make_section(folder, assets, depth + 1)
-                    if section is None:
-                        continue
                     insert_before_stretch(section)
                     self._folder_sections.append(section)
                     child_sections.append(section)
@@ -2041,8 +2036,6 @@ class AssetBrowser(QWidget):
                 # Single folder or no matching root — show flat at depth 0
                 for folder, assets, depth in entries:
                     section = _make_section(folder, assets, 0)
-                    if section is None:
-                        continue
                     insert_before_stretch(section)
                     self._folder_sections.append(section)
 
@@ -2109,21 +2102,7 @@ class AssetBrowser(QWidget):
         if not collapse:
             self._request_visible_thumbs()
 
-    def _on_folder_hide(self, folder: str):
-        """Hide a folder from the view (persisted to QSettings)."""
-        self._hidden_folders.add(folder)
-        s = QSettings("DoxyEdit", "DoxyEdit")
-        s.setValue("hidden_folders", sorted(self._hidden_folders))
-        self._refresh_grid()
 
-    def show_all_hidden_folders(self):
-        """Unhide all hidden folders."""
-        if not self._hidden_folders:
-            return
-        self._hidden_folders.clear()
-        s = QSettings("DoxyEdit", "DoxyEdit")
-        s.remove("hidden_folders")
-        self._refresh_grid()
 
     def _on_folder_select_all(self, folder: str, recursive: bool):
         """Select all assets in a folder (optionally recursive)."""
