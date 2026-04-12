@@ -1099,6 +1099,19 @@ class MainWindow(QMainWindow):
         self._fast_cache_action.setToolTip(
             "Store thumbnails as uncompressed BMP for faster reads at the cost of disk space")
         self._fast_cache_action.toggled.connect(self._on_fast_cache_toggled)
+        # Memory cache size
+        mem_menu = cache_menu.addMenu("Memory Cache Size")
+        from doxyedit.thumbcache import _LRU_MAX
+        saved_lru = self._settings.value("lru_max", _LRU_MAX, type=int)
+        self.browser._thumb_cache.set_lru_max(saved_lru)
+        from PySide6.QtGui import QActionGroup
+        lru_group = QActionGroup(self)
+        for n in [500, 1000, 2000, 5000, 10000]:
+            a = mem_menu.addAction(f"{n} thumbnails")
+            a.setCheckable(True)
+            a.setChecked(saved_lru == n)
+            a.triggered.connect(lambda _, v=n: self._set_lru_max(v))
+            lru_group.addAction(a)
 
         # — Tags submenu —
         tags_menu = tools_menu.addMenu("Tags")
@@ -2265,6 +2278,11 @@ class MainWindow(QMainWindow):
     def _on_fast_cache_toggled(self, on: bool):
         self._settings.setValue("fast_cache", int(on))
         self.browser._thumb_cache._disk_cache.set_fast_cache(on)
+
+    def _set_lru_max(self, n: int):
+        self._settings.setValue("lru_max", n)
+        self.browser._thumb_cache.set_lru_max(n)
+        self.status.showMessage(f"Memory cache set to {n} thumbnails", 3000)
 
     def _navigate_to_asset_in_browser(self, asset_id: str):
         """Select an asset in the browser while preview dialog is open."""

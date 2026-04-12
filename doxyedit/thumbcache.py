@@ -429,7 +429,7 @@ class ThumbWorker(QThread):
                 _global_index.save()
 
 
-_LRU_MAX = 300  # max pixmaps kept in memory (~120 MB at 512px thumbs)
+_LRU_MAX = 2000  # max pixmaps kept in memory — prioritize speed over footprint
 
 
 def _safe_name(project_name: str) -> str:
@@ -457,6 +457,7 @@ class ThumbCache:
     """Manages memory + disk cache of thumbnails and a background worker."""
 
     def __init__(self):
+        self._lru_max = _LRU_MAX
         self._pixmaps: OrderedDict[str, QPixmap] = OrderedDict()
         self._gen_sizes: dict[str, int] = {}
         self._dims: dict[str, tuple[int, int]] = {}
@@ -474,6 +475,10 @@ class ThumbCache:
         self._disk_cache = DiskCache(cache_dir=str(self._base_cache_dir / "default"))
         self._worker = ThumbWorker(self._disk_cache)
         self._worker.start()
+
+    def set_lru_max(self, n: int):
+        """Set the max number of pixmaps kept in memory."""
+        self._lru_max = max(100, n)
 
     def set_project(self, project_name: str):
         """Switch disk cache to a per-project subfolder. Clears in-memory cache."""
@@ -543,7 +548,7 @@ class ThumbCache:
         if w and h:
             self._dims[asset_id] = (w, h)
         # Evict oldest entries if over limit
-        while len(self._pixmaps) > _LRU_MAX:
+        while len(self._pixmaps) > self._lru_max:
             evicted = next(iter(self._pixmaps))
             del self._pixmaps[evicted]
             self._gen_sizes.pop(evicted, None)
