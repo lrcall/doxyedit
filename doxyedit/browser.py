@@ -3071,13 +3071,14 @@ class AssetBrowser(QWidget):
                             drag.setPixmap(icon_px.scaled(64, 64,
                                 Qt.AspectRatioMode.KeepAspectRatio,
                                 Qt.TransformationMode.SmoothTransformation))
-                        # Disable rubber band during drag so it doesn't stick
-                        old_sel_mode = view.selectionMode()
-                        view.setSelectionMode(QListView.SelectionMode.NoSelection)
                         drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
-                        view.setSelectionMode(old_sel_mode)
                         self._drag_start_pos = None
                         self._drag_snapshot_ids = set()
+                        # Kill stuck rubber band — find and hide it
+                        from PySide6.QtWidgets import QRubberBand
+                        for child in view.viewport().findChildren(QRubberBand):
+                            child.hide()
+                        view.viewport().update()
                         return True
 
             if (event.type() == event.Type.MouseButtonRelease
