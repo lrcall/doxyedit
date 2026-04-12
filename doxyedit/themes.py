@@ -916,7 +916,9 @@ def generate_stylesheet(theme: Theme) -> str:
             padding: 1px 4px;
             font-size: {fs}px;
         }}
-        QWidget#info_panel QScrollArea {{
+        QWidget#info_panel QScrollArea,
+        QWidget#info_panel QScrollArea > QWidget,
+        QWidget#info_panel QScrollArea QWidget {{
             background: {theme.bg_main};
             border: none;
         }}
