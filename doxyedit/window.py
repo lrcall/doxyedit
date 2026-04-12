@@ -2221,7 +2221,7 @@ class MainWindow(QMainWindow):
 
     def _navigate_to_asset(self, asset_id: str):
         """Switch to Assets tab and scroll to the given asset."""
-        self.tabs.setCurrentWidget(self._assets_notes_split)
+        self.tabs.setCurrentWidget(self._browse_split)
         self.browser.scroll_to_asset(asset_id)
 
     def _remove_missing_files(self):

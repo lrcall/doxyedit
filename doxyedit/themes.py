@@ -656,6 +656,10 @@ def generate_stylesheet(theme: Theme) -> str:
         QWidget#health_panel, QWidget#stats_panel {{
             background: {theme.bg_deep};
         }}
+        QWidget#platform_panel QSplitter,
+        QWidget#platform_panel QStackedWidget {{
+            background: {theme.bg_deep};
+        }}
         QTextBrowser#project_info_panel {{
             background: {theme.bg_deep};
             border: none;
@@ -802,13 +806,12 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
 
         /* Image hive */
-        QWidget#hive_container {{
+        QWidget#hive_container,
+        QWidget#hive_container QWidget {{
             background: {theme.bg_main};
-            border-top: 1px solid {theme.border};
         }}
-        QWidget#hive_container QScrollArea,
-        QWidget#hive_container QScrollArea > QWidget {{
-            background: {theme.bg_main};
+        QWidget#hive_container {{
+            border-top: 1px solid {theme.border};
         }}
         QLabel#hive_thumb {{
             background: {theme.thumb_bg};
