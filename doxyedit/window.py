@@ -519,11 +519,13 @@ class MainWindow(QMainWindow):
             self.project = Project.load(last_project)
             self._project_path = last_project
             self._register_initial_slot(last_project, Path(last_project).stem)
-            # Pre-load collapsed/hidden state so _rebind_project's refresh() uses them
-            _saved_collapsed = set(str(f).replace("\\", "/") for f in self._settings.value("collapsed_folders", []))
-            _saved_hidden = set(str(f).replace("\\", "/") for f in self._settings.value("hidden_folders", []))
-            self._pending_collapsed = _saved_collapsed
-            self._pending_hidden = _saved_hidden
+            # Restore collapsed/hidden state before rebind so refresh() uses them
+            saved_collapsed = self._settings.value("collapsed_folders", [])
+            if saved_collapsed:
+                self.browser._collapsed_folders = set(str(f).replace("\\", "/") for f in saved_collapsed)
+            saved_hidden = self._settings.value("hidden_folders", [])
+            if saved_hidden:
+                self.browser._hidden_folders = set(str(f).replace("\\", "/") for f in saved_hidden)
             self._rebind_project()
             self.setWindowTitle(f"DoxyEdit — {Path(last_project).name}")
             self.status.showMessage(f"Restored: {Path(last_project).name}")
@@ -552,7 +554,7 @@ class MainWindow(QMainWindow):
         self.project = Project.load(first)
         self._project_path = first
         self._register_initial_slot(first, Path(first).stem)
-        self._rebind_project()
+        self._rebind_project(clear_folder_state=True)
         self.setWindowTitle(f"DoxyEdit — {Path(first).name}")
         # Load remaining projects as additional tabs
         failed = []
@@ -629,7 +631,7 @@ class MainWindow(QMainWindow):
         self._current_slot = idx
         self.project = slot["project"]
         self._project_path = slot["path"]
-        self._rebind_project()
+        self._rebind_project(clear_folder_state=True)
         self.setWindowTitle(f"DoxyEdit — {slot['label']}")
         self._proj_tab_bar.setTabText(idx, slot["label"])
 
@@ -1700,7 +1702,7 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         self.project = Project.load(path)
-        self._rebind_project()
+        self._rebind_project(clear_folder_state=True)
         self._project_path = path
         self._watch_project()
         self._settings.setValue("last_project", path)
@@ -2746,8 +2748,6 @@ class MainWindow(QMainWindow):
             return
         # Preserve UI state across reload
         saved_filters = self.browser.get_filter_state()
-        self._pending_collapsed = set(self.browser._collapsed_folders)
-        self._pending_hidden = set(self.browser._hidden_folders)
         self.project = Project.load(self._project_path)
         self._rebind_project()
         self.browser.set_filter_state(saved_filters)
@@ -3463,8 +3463,6 @@ Ctrl+Click tag — Search by tag
             self.status.showMessage("External change detected — save first or reopen", 3000)
             return
         try:
-            self._pending_collapsed = set(self.browser._collapsed_folders)
-            self._pending_hidden = set(self.browser._hidden_folders)
             self.project = Project.load(self._project_path)
             self._rebind_project()
             self.status.showMessage("Project reloaded (external change detected)", 3000)
@@ -3500,24 +3498,18 @@ Ctrl+Click tag — Search by tag
         self.project = Project(name="Untitled")
         self.scene.clear()
         self._project_path = None
-        self._rebind_project()
+        self._rebind_project(clear_folder_state=True)
         self.setWindowTitle("DoxyEdit — New Project")
         self.status.showMessage("New project")
 
-    def _rebind_project(self):
-        # Clear all per-project browser state from the previous project
+    def _rebind_project(self, clear_folder_state: bool = False):
+        # Clear per-project browser state
         self.browser._bar_tag_filters.clear()
         self.browser._clear_filter_btn.setVisible(False)
         self.browser._temp_hidden_ids.clear()
-        self.browser._collapsed_folders.clear()
-        self.browser._hidden_folders.clear()
-        # Apply pending state from startup/reload before refresh builds the grid
-        if hasattr(self, '_pending_collapsed'):
-            self.browser._collapsed_folders = self._pending_collapsed
-            del self._pending_collapsed
-        if hasattr(self, '_pending_hidden'):
-            self.browser._hidden_folders = self._pending_hidden
-            del self._pending_hidden
+        if clear_folder_state:
+            self.browser._collapsed_folders.clear()
+            self.browser._hidden_folders.clear()
         self.browser._selected_ids.clear()
         self.browser._eye_hidden_tags.clear()
         self.browser._folder_filter = None
