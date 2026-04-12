@@ -3463,6 +3463,8 @@ Ctrl+Click tag — Search by tag
             self.status.showMessage("External change detected — save first or reopen", 3000)
             return
         try:
+            self._pending_collapsed = set(self.browser._collapsed_folders)
+            self._pending_hidden = set(self.browser._hidden_folders)
             self.project = Project.load(self._project_path)
             self._rebind_project()
             self.status.showMessage("Project reloaded (external change detected)", 3000)
