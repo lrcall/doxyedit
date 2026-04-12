@@ -742,7 +742,11 @@ class FolderSection(QWidget):
         n = self._model.rowCount()
         arrow = "▶" if collapsed else "▼"
         indent = "   " * self._depth
-        self._header.setText(f"{indent}{arrow}  {self._short}  ({n})")
+        child_count = getattr(self, '_child_folder_count', 0)
+        if child_count > 0:
+            self._header.setText(f"{indent}{arrow}  {self._short}  ({n})  +{child_count} folders")
+        else:
+            self._header.setText(f"{indent}{arrow}  {self._short}  ({n})")
 
     collapse_children_requested = Signal(str, bool)  # (folder_path, collapse)
 
@@ -777,7 +781,8 @@ class FolderSection(QWidget):
         menu.addSeparator()
         menu.addAction("Set Date Filter…", lambda: self.date_filter_requested.emit(self._folder))
         menu.addSeparator()
-        menu.addAction("Hide Folder", lambda: self.hide_requested.emit(self._folder))
+        hide_label = "Show Subfolders" if getattr(self, '_child_folder_count', 0) > 0 else "Hide Subfolders"
+        menu.addAction(hide_label, lambda: self.hide_requested.emit(self._folder))
         menu.addAction("Remove Folder from Project…", lambda: self.remove_requested.emit(self._folder))
         menu.exec(self._header.mapToGlobal(pos))
 
@@ -2052,6 +2057,22 @@ class AssetBrowser(QWidget):
                     self._folder_sections.append(section)
 
 
+        # Re-apply hidden subfolders from right-click Hide Subfolders
+        for folder_norm in list(self._hidden_folders):
+            prefix = folder_norm + "/"
+            child_count = 0
+            for section in self._folder_sections:
+                sf = section.folder.replace("\\", "/")
+                if sf.startswith(prefix):
+                    section.setVisible(False)
+                    child_count += 1
+            if child_count:
+                source = next((s for s in self._folder_sections
+                               if s.folder.replace("\\", "/") == folder_norm), None)
+                if source:
+                    source._child_folder_count = child_count
+                    source._update_header_text()
+
         # Backfill cached pixmaps into new model instances so thumbs don't vanish on rebuild
         cached = self._thumb_cache._pixmaps
         for section in self._folder_sections:
@@ -2118,18 +2139,38 @@ class AssetBrowser(QWidget):
 
 
     def _on_folder_hide(self, folder: str):
-        """Hide a folder from the view (persisted to QSettings)."""
-        self._hidden_folders.add(folder)
-        QSettings("DoxyEdit", "DoxyEdit").setValue("hidden_folders", sorted(self._hidden_folders))
-        self._refresh_grid()
-
-    def show_all_hidden_folders(self):
-        """Unhide all hidden folders."""
-        if not self._hidden_folders:
-            return
-        self._hidden_folders.clear()
-        QSettings("DoxyEdit", "DoxyEdit").remove("hidden_folders")
-        self._refresh_grid()
+        """Toggle hide/show child folder sections under this folder."""
+        folder_norm = folder.replace("\\", "/")
+        prefix = folder_norm + "/"
+        # Check if children are currently hidden
+        currently_hidden = folder_norm in self._hidden_folders
+        if currently_hidden:
+            # Unhide children
+            self._hidden_folders.discard(folder_norm)
+            for section in self._folder_sections:
+                sf = section.folder.replace("\\", "/")
+                if sf.startswith(prefix):
+                    section.setVisible(True)
+            source = next((s for s in self._folder_sections
+                           if s.folder.replace("\\", "/") == folder_norm), None)
+            if source:
+                source._child_folder_count = 0
+                source._update_header_text()
+            self._request_visible_thumbs()
+        else:
+            # Hide children
+            self._hidden_folders.add(folder_norm)
+            child_count = 0
+            for section in self._folder_sections:
+                sf = section.folder.replace("\\", "/")
+                if sf.startswith(prefix):
+                    section.setVisible(False)
+                    child_count += 1
+            source = next((s for s in self._folder_sections
+                           if s.folder.replace("\\", "/") == folder_norm), None)
+            if source:
+                source._child_folder_count = child_count
+                source._update_header_text()
 
     def _on_folder_select_all(self, folder: str, recursive: bool):
         """Select all assets in a folder (optionally recursive)."""
