@@ -769,20 +769,21 @@ class FolderSection(QWidget):
         import subprocess, random
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
+        hide_label = "Show Subfolders" if self._child_folder_count > 0 else "Hide Subfolders"
+        menu.addAction(hide_label, lambda: self.hide_requested.emit(self._folder))
+        menu.addSeparator()
         menu.addAction("Select All in Folder", lambda: self.select_all_requested.emit(self._folder, False))
         menu.addAction("Select All (Recursive)", lambda: self.select_all_requested.emit(self._folder, True))
         menu.addSeparator()
         menu.addAction("Highlight Color", self._set_random_highlight)
         menu.addAction("Chip Color", self._set_random_chip)
-        if getattr(self, '_highlight_color', None) or getattr(self, '_chip_color', None):
+        if self._highlight_color or self._chip_color:
             menu.addAction("Clear Color", self._clear_color)
         menu.addSeparator()
         menu.addAction("Open in Explorer", lambda: subprocess.Popen(
             ["explorer", self._folder.replace("/", "\\")]))
-        menu.addSeparator()
         menu.addAction("Set Date Filter…", lambda: self.date_filter_requested.emit(self._folder))
-        hide_label = "Show Subfolders" if self._child_folder_count > 0 else "Hide Subfolders"
-        menu.addAction(hide_label, lambda: self.hide_requested.emit(self._folder))
+        menu.addSeparator()
         menu.addAction("Remove Folder from Project…", lambda: self.remove_requested.emit(self._folder))
         menu.exec(self._header.mapToGlobal(pos))
 
