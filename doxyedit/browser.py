@@ -754,7 +754,6 @@ class FolderSection(QWidget):
         from PySide6.QtWidgets import QApplication
         mods = QApplication.keyboardModifiers()
         if mods & Qt.KeyboardModifier.ControlModifier:
-            # Ctrl+click: toggle this folder + all children together
             new_state = not self.is_collapsed
             self._set_collapsed(new_state)
             self.collapsed_changed.emit(self._folder, new_state)
@@ -779,8 +778,6 @@ class FolderSection(QWidget):
         menu.addAction("Open in Explorer", lambda: subprocess.Popen(
             ["explorer", self._folder.replace("/", "\\")]))
         menu.addSeparator()
-        menu.addAction("Collapse Subfolders", lambda: self.collapse_children_requested.emit(self._folder, True))
-        menu.addAction("Expand Subfolders", lambda: self.collapse_children_requested.emit(self._folder, False))
         menu.addSeparator()
         menu.addAction("Set Date Filter…", lambda: self.date_filter_requested.emit(self._folder))
         menu.addSeparator()
