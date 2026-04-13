@@ -1063,14 +1063,19 @@ class AssetBrowser(QWidget):
         self._toolbar_widget.updateGeometry()
         root.addWidget(self._toolbar_widget)
 
-        # Row 2: search + sort
-        row2 = QHBoxLayout()
+        # Row 2: search + sort (FlowLayout so it wraps at narrow widths)
+        self._row2_widget = FlowWidget()
+        self._row2_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        row2 = FlowLayout(self._row2_widget, spacing=4)
+        row2.setContentsMargins(0, 0, 0, 0)
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Search...")
         self.search_box.setClearButtonEnabled(True)
+        self.search_box.setMinimumWidth(120)
+        self.search_box.setMaximumWidth(16777215)
         self.search_box.textChanged.connect(self._on_filter_changed)
         self.search_box.installEventFilter(self)
-        row2.addWidget(self.search_box, 1)
+        row2.addWidget(self.search_box)
 
         self._tag_bar_toggle_btn = QPushButton("▼ Filters")
         self._tag_bar_toggle_btn.setCheckable(True)
@@ -1113,7 +1118,8 @@ class AssetBrowser(QWidget):
         self._format_combo.currentTextChanged.connect(self._on_format_filter_changed)
         row2.addWidget(self._format_combo)
 
-        row2.addWidget(QLabel("Sort:"))
+        self._sort_label = QLabel("Sort:")
+        row2.addWidget(self._sort_label)
         self.sort_combo = QComboBox()
         self.sort_combo.addItems(["By Folder", "Name A-Z", "Name Z-A", "Newest", "Oldest", "Largest", "Smallest", "Starred First", "Most Tagged"])
         _saved_sort = QSettings("DoxyEdit", "DoxyEdit").value("sort_mode", "By Folder")
@@ -1126,7 +1132,8 @@ class AssetBrowser(QWidget):
         self.sort_combo.currentTextChanged.connect(self._on_sort_mode_changed)
         row2.addWidget(self.sort_combo)
 
-        root.addLayout(row2)
+        self._row2_widget.updateGeometry()
+        root.addWidget(self._row2_widget)
 
         # Row 3: Quick-tag bar
         self._tag_bar_frame = FlowWidget()
