@@ -79,10 +79,9 @@ class _DayCell(QFrame):
         """
         self._iso = iso
         self._day_label.setText(str(day_num))
-        self.setProperty("day_type", day_type)
-        # Force style recalculation after property change
-        self.style().unpolish(self)
-        self.style().polish(self)
+        # Use distinct objectNames per day_type — Qt property selectors
+        # are unreliable on dynamically-set properties
+        self.setObjectName(f"calendar_day_{day_type}")
 
         # Clear old dots
         while self._dot_row.count():
