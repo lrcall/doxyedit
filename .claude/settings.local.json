@@ -51,7 +51,21 @@
       "Bash(cd E:\\\\\\\\git\\\\\\\\doxyedit)",
       "Bash(wc -l /E/git/doxyedit/doxyedit/*.py)",
       "Bash(sed -i 's/QFont\\(\"Segoe UI\", 10, QFont.Weight.Bold\\)/QFont\\(\"\", -1, QFont.Weight.Bold\\)/g' doxyedit/infopanel.py)",
-      "Bash(sed -i 's/QFont\\(\"Segoe UI\", 9, QFont.Weight.Bold\\)/QFont\\(\"\", -1, QFont.Weight.Bold\\)/g' doxyedit/infopanel.py)"
+      "Bash(sed -i 's/QFont\\(\"Segoe UI\", 9, QFont.Weight.Bold\\)/QFont\\(\"\", -1, QFont.Weight.Bold\\)/g' doxyedit/infopanel.py)",
+      "Read(//c/Users/dikud/Desktop/sai/**)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Program Files \\(x86\\)/**)",
+      "Read(//c/Users/dikud/**)",
+      "Bash(py -c ':*)",
+      "Bash('C:\\\\Users\\\\dikud\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe' -c ':*)",
+      "Bash(C:\\\\Users\\\\dikud\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe:*)",
+      "Bash(\"C:\\\\Users\\\\dikud\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe\" test_collapsed.py)",
+      "Bash(\"C:\\\\Users\\\\dikud\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe\" test_tray.py)",
+      "Bash(\"C:\\\\Users\\\\dikud\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe\" test_rubberband.py)",
+      "Bash(\"C:\\\\Users\\\\dikud\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe\" test_drag.py)",
+      "WebFetch(domain:github.com)",
+      "Bash(\"C:\\\\Users\\\\dikud\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe\" test_state.py)",
+      "Bash(\"C:\\\\Users\\\\dikud\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe\" test_drag_sel.py)"
     ]
   },
   "statusLine": {
