@@ -267,11 +267,7 @@ class MainWindow(QMainWindow):
         self.censor_editor = CensorEditor()
         self.tabs.addTab(self.censor_editor, "Censor")
 
-        # Tab 4: Platforms — left: PlatformPanel, right: Timeline/Kanban + Checklist
-        self.platform_panel = PlatformPanel(self.project)
-        self.platform_panel.set_thumb_cache(self.browser._thumb_cache)
-
-        # Timeline (new primary) + Kanban (legacy toggle)
+        # Tab 4: Social — Timeline + Checklist (posting pipeline)
         self._timeline = TimelineStream()
         self._timeline.set_thumb_cache(self.browser._thumb_cache)
         self._timeline.set_project(self.project)
@@ -279,32 +275,35 @@ class MainWindow(QMainWindow):
         self._timeline.new_post_requested.connect(self._on_new_post)
         self._timeline.sync_requested.connect(self._on_sync_oneup)
 
+        self.checklist_panel = ChecklistPanel(self.project)
+
+        _social_split = QSplitter(Qt.Orientation.Vertical)
+        _social_split.addWidget(self._timeline)
+        _social_split.addWidget(self.checklist_panel)
+        _social_split.setSizes([600, 150])
+        _social_split.setStretchFactor(0, 4)
+        _social_split.setStretchFactor(1, 1)
+        self.tabs.addTab(_social_split, "Social")
+
+        # Tab 5: Platforms — slot assignments + kanban (legacy)
+        self.platform_panel = PlatformPanel(self.project)
+        self.platform_panel.set_thumb_cache(self.browser._thumb_cache)
+
         self._kanban_panel = KanbanPanel()
         self._kanban_panel.status_changed.connect(self._on_data_changed)
         self._kanban_panel.status_changed.connect(lambda: self.platform_panel.refresh())
         self._kanban_panel.status_changed.connect(lambda: self._timeline.refresh())
 
-        from PySide6.QtWidgets import QStackedWidget
-        self._plat_stack = QStackedWidget()
-        self._plat_stack.addWidget(self._timeline)       # page 0
-        self._plat_stack.addWidget(self._kanban_panel)    # page 1
-
-        self.checklist_panel = ChecklistPanel(self.project)
-
-        # Right column: timeline/kanban (top) + checklist (bottom)
-        _right_col = QSplitter(Qt.Orientation.Vertical)
-        _right_col.addWidget(self._plat_stack)
-        _right_col.addWidget(self.checklist_panel)
-        _right_col.setSizes([500, 150])
-        _right_col.setStretchFactor(0, 3)
-        _right_col.setStretchFactor(1, 1)
-        # Platforms (left) + timeline+checklist (right)
+        _plat_right = QSplitter(Qt.Orientation.Vertical)
+        _plat_right.addWidget(self._kanban_panel)
+        _plat_right.setSizes([500])
+        # Platforms (left) + kanban (right)
         _plat_top = QSplitter(Qt.Orientation.Horizontal)
         _plat_top.addWidget(self.platform_panel)
-        _plat_top.addWidget(_right_col)
-        _plat_top.setSizes([400, 600])
-        _plat_top.setStretchFactor(0, 2)
-        _plat_top.setStretchFactor(1, 3)
+        _plat_top.addWidget(_plat_right)
+        _plat_top.setSizes([600, 400])
+        _plat_top.setStretchFactor(0, 3)
+        _plat_top.setStretchFactor(1, 2)
         # Assigned art hive at bottom — full width
         _plat_full = QSplitter(Qt.Orientation.Vertical)
         _plat_full.addWidget(_plat_top)
@@ -390,7 +389,7 @@ class MainWindow(QMainWindow):
         self.tabs.tabBar().setVisible(False)
 
         # Tab toolbar — styled identical to the menu bar so both rows look like one bar
-        _TAB_NAMES = ["Assets", "Canvas", "Censor", "Platforms", "Overview", "Notes"]
+        _TAB_NAMES = ["Assets", "Canvas", "Censor", "Social", "Platforms", "Overview", "Notes"]
         self._tab_toolbar = QToolBar("Tabs")
         self._tab_toolbar.setObjectName("tab_toolbar")
         self._tab_toolbar.setMovable(False)
@@ -1274,11 +1273,6 @@ class MainWindow(QMainWindow):
         self._cache_all_action.setChecked(self.browser.cache_all_check.isChecked())
         self._cache_all_action.toggled.connect(self.browser.cache_all_check.setChecked)
         self.browser.cache_all_check.toggled.connect(self._cache_all_action.setChecked)
-        self._kanban_toggle_action = view_menu.addAction("Show Kanban (legacy)")
-        self._kanban_toggle_action.setCheckable(True)
-        self._kanban_toggle_action.setChecked(False)
-        self._kanban_toggle_action.toggled.connect(
-            lambda show_kanban: self._plat_stack.setCurrentIndex(1 if show_kanban else 0))
         view_menu.addSeparator()
         self._smart_folder_menu = view_menu.addMenu("Smart Folders")
         self._rebuild_smart_folder_menu()
