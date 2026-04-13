@@ -247,13 +247,32 @@ class PostComposer(QDialog):
             "Claude analyzes the actual image + full context — real strategic insight")
         self._ai_strategy_btn.clicked.connect(self._generate_ai_strategy)
         strategy_btn_row.addWidget(self._ai_strategy_btn)
+        self._strategy_edit_btn = QPushButton("Edit")
+        self._strategy_edit_btn.setObjectName("strategy_generate_btn")
+        self._strategy_edit_btn.setCheckable(True)
+        self._strategy_edit_btn.setToolTip("Toggle between rendered and raw markdown")
+        self._strategy_edit_btn.clicked.connect(self._toggle_strategy_edit)
+        strategy_btn_row.addWidget(self._strategy_edit_btn)
         strategy_btn_row.addStretch()
         strategy_layout.addLayout(strategy_btn_row)
+
+        # Stacked: rendered HTML view (default) / raw text edit
+        from PySide6.QtWidgets import QStackedWidget, QTextBrowser
+        self._strategy_stack = QStackedWidget()
+
+        self._strategy_browser = QTextBrowser()
+        self._strategy_browser.setObjectName("strategy_browser")
+        self._strategy_browser.setOpenExternalLinks(True)
+        self._strategy_browser.setPlaceholderText(
+            "Click 'Generate Strategy' or 'AI Strategy' to analyze this post")
+        self._strategy_stack.addWidget(self._strategy_browser)  # index 0 = rendered
+
         self._strategy_edit = QTextEdit()
-        self._strategy_edit.setPlaceholderText(
-            "Click 'Generate Strategy' to auto-analyze this post — "
-            "tags, history, calendar context, platform fit, brand voice")
-        strategy_layout.addWidget(self._strategy_edit, 1)
+        self._strategy_edit.setPlaceholderText("Raw markdown — edit here, click Edit again to render")
+        self._strategy_stack.addWidget(self._strategy_edit)  # index 1 = raw edit
+
+        self._strategy_raw = ""  # cached raw markdown
+        strategy_layout.addWidget(self._strategy_stack, 1)
         self._composer_split.addWidget(strategy_box)
 
         # -- Scrollable bottom: caption, links, schedule, replies --
@@ -443,7 +462,7 @@ class PostComposer(QDialog):
 
         # Strategy notes
         if post.strategy_notes:
-            self._strategy_edit.setPlainText(post.strategy_notes)
+            self._set_strategy_text(post.strategy_notes)
 
     # ------------------------------------------------------------------
     # Image preview
@@ -585,6 +604,47 @@ class PostComposer(QDialog):
     # Strategy generation
     # ------------------------------------------------------------------
 
+    def _set_strategy_text(self, text: str) -> None:
+        """Set strategy content — renders as HTML in browser, caches raw."""
+        self._strategy_raw = text
+        self._strategy_edit.setPlainText(text)
+        if text:
+            import markdown
+            html = markdown.markdown(text, extensions=["tables", "fenced_code"])
+            # Inject minimal styling that respects the theme
+            self._strategy_browser.setHtml(html)
+        else:
+            self._strategy_browser.setHtml("")
+        # Show rendered view
+        self._strategy_stack.setCurrentIndex(0)
+        self._strategy_edit_btn.setChecked(False)
+
+    def _get_strategy_text(self) -> str:
+        """Get the current strategy text (raw markdown)."""
+        if self._strategy_stack.currentIndex() == 1:
+            # Currently editing — grab from editor
+            self._strategy_raw = self._strategy_edit.toPlainText()
+        return self._strategy_raw
+
+    def _toggle_strategy_edit(self, checked: bool) -> None:
+        """Toggle between rendered HTML and raw markdown edit."""
+        if checked:
+            # Switch to raw edit
+            self._strategy_edit.setPlainText(self._strategy_raw)
+            self._strategy_stack.setCurrentIndex(1)
+            self._strategy_edit_btn.setText("Done")
+        else:
+            # Switch back to rendered — save edits first
+            self._strategy_raw = self._strategy_edit.toPlainText()
+            if self._strategy_raw:
+                import markdown
+                html = markdown.markdown(self._strategy_raw, extensions=["tables", "fenced_code"])
+                self._strategy_browser.setHtml(html)
+            else:
+                self._strategy_browser.setHtml("")
+            self._strategy_stack.setCurrentIndex(0)
+            self._strategy_edit_btn.setText("Edit")
+
     def _build_temp_post(self) -> SocialPost:
         """Build a temporary SocialPost from current form state."""
         asset_ids = [s.strip() for s in self._images_edit.text().split(",") if s.strip()]
@@ -603,7 +663,7 @@ class PostComposer(QDialog):
         """Local data analysis — show cached or generate fresh."""
         # If we're viewing AI and local cache exists, just switch back
         if self._strategy_view == "ai" and self._local_strategy_cache:
-            self._strategy_edit.setPlainText(self._local_strategy_cache)
+            self._set_strategy_text(self._local_strategy_cache)
             self._strategy_view = "local"
             self._update_strategy_btn_labels()
             return
@@ -611,7 +671,7 @@ class PostComposer(QDialog):
         from doxyedit.strategy import generate_strategy_briefing
         briefing = generate_strategy_briefing(self._project, self._build_temp_post())
         self._local_strategy_cache = briefing
-        self._strategy_edit.setPlainText(briefing)
+        self._set_strategy_text(briefing)
         self._strategy_view = "local"
         self._update_strategy_btn_labels()
 
@@ -619,7 +679,7 @@ class PostComposer(QDialog):
         """Show cached AI strategy or generate new one."""
         # If we're viewing local and AI cache exists, just switch
         if self._strategy_view != "ai" and self._ai_strategy_cache:
-            self._strategy_edit.setPlainText(self._ai_strategy_cache)
+            self._set_strategy_text(self._ai_strategy_cache)
             self._strategy_view = "ai"
             self._update_strategy_btn_labels()
             return
@@ -628,14 +688,14 @@ class PostComposer(QDialog):
         from PySide6.QtCore import QThread, Signal as _Signal
 
         # Save current text as local cache if we haven't yet
-        current = self._strategy_edit.toPlainText()
+        current = self._get_strategy_text()
         if current and not self._local_strategy_cache:
             self._local_strategy_cache = current
 
         temp_post = self._build_temp_post()
 
         # Show loading state
-        self._strategy_edit.setPlainText("Claude is analyzing the image(s)...\nThis may take 30-60 seconds.")
+        self._set_strategy_text("*Analyzing with Claude... 30-60 seconds.*")
         self._ai_strategy_btn.setEnabled(False)
         self._ai_strategy_btn.setText("Generating...")
 
@@ -658,7 +718,7 @@ class PostComposer(QDialog):
     def _on_ai_strategy_done(self, result: str) -> None:
         """Handle completed AI strategy generation."""
         self._ai_strategy_cache = result
-        self._strategy_edit.setPlainText(result)
+        self._set_strategy_text(result)
         self._strategy_view = "ai"
         self._ai_strategy_btn.setEnabled(True)
         self._update_strategy_btn_labels()
@@ -716,7 +776,7 @@ class PostComposer(QDialog):
 
         reply_text = self._reply_edit.toPlainText()
         reply_templates = [line for line in reply_text.splitlines() if line.strip()]
-        strategy_notes = self._strategy_edit.toPlainText()
+        strategy_notes = self._get_strategy_text()
 
         if self._editing is not None:
             # Update in place

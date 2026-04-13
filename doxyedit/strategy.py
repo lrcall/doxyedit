@@ -545,42 +545,36 @@ def generate_ai_strategy(
         recent_posts.append(f"  - {dt} [{status}] {plats}: {caption_preview}")
     recent_block = "\n".join(recent_posts) if recent_posts else "  (no other posts)"
 
-    text_prompt = f"""You are a social media strategist for an art/illustration creator. Study the attached image(s) carefully and provide a detailed, actionable posting strategy.
+    text_prompt = f"""You are a senior social media marketing strategist specializing in art/illustration creators. You've managed accounts with 100k+ followers. Be direct, opinionated, and specific. No filler.
 
-## Creator Identity
-- Name: {identity.name or 'not set'}
-- Voice/tone: {identity.voice or 'not set'}
-- Bio: {identity.bio_blurb or 'not set'}
-- Content notes: {identity.content_notes or 'none'}
-- Default hashtags: {' '.join(identity.hashtags) if identity.hashtags else 'none'}
-- Gumroad: {identity.gumroad_url or 'none'}
-- Patreon: {identity.patreon_url or 'none'}
+**Creator:** {identity.name or 'indie artist'} · Voice: {identity.voice or 'casual'} · {identity.content_notes or 'no content notes'}
+**Platforms:** {platform_list}
+**Scheduled:** {post.scheduled_time or 'TBD'}
+**Tags:** {', '.join(t for a in assets for t in a.tags) if assets else 'none'}
+**Hashtags:** {' '.join(identity.hashtags) if identity.hashtags else 'none'}
+{f"**Gumroad:** {identity.gumroad_url}" if identity.gumroad_url else ""}{f"  **Patreon:** {identity.patreon_url}" if identity.patreon_url else ""}
 
-## This Post
-- Target platforms: {platform_list}
-- Scheduled: {post.scheduled_time or 'not yet scheduled'}
-- Asset tags: {', '.join(t for a in assets for t in a.tags) if assets else 'none'}
-
-## Local Data Analysis
+## Data
 {local_briefing}
 
-## Recent Post History
+## Recent Posts
 {recent_block}
 
-## What I Need
+## Deliverables (be concise, no generic advice)
 
-Look at the image(s) and provide:
+**Captions** — One ready-to-copy caption per platform. Short, punchy, in the creator's voice. Include 3-5 hashtags inline. No placeholder text.
 
-1. **Image Analysis** — What's in the art? Style, mood, characters, composition. What makes it stand out?
-2. **Caption Suggestions** — 2-3 caption options per platform. Match the creator's voice. Include hashtags.
-3. **Best Posting Time** — When to post for max engagement per platform. Day of week + time zones.
-4. **Platform-Specific Strategy** — Carousel? Thread? Reel? What works for this content on each platform.
-5. **Engagement Hooks** — Questions, CTAs, conversation starters.
-6. **Cross-Promotion** — How this connects to the posting calendar. Series potential?
-7. **Content Warnings** — Flag anything needing age-gating or platform-specific handling.
-8. **Monetization** — Natural Gumroad/Patreon/merch tie-ins.
+**Timing** — Is the scheduled slot good? If not, what's better and why. One sentence.
 
-Be specific to THIS image. Reference what you actually see."""
+**Platform play** — For each platform: the one specific format/tactic that fits THIS content. Carousel, thread, reel, static, story — pick one and say why. Don't list all options.
+
+**Hook** — One question or CTA that drives replies, not just likes.
+
+**Monetization** — Only if there's a natural angle. Skip if forced.
+
+**Flags** — Content warnings, age-gating needs, or platform-specific restrictions. Skip if none.
+
+Skip sections that don't apply. Don't pad. Write like you're texting a colleague, not writing a report."""
 
     # 4. Use claude CLI — uses the same subscription/auth as Claude Code
     return _generate_ai_strategy_cli(text_prompt, local_briefing)
