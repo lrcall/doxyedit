@@ -148,15 +148,15 @@ class PostComposer(QDialog):
         self._images_edit.textChanged.connect(self._update_thumb_preview)
         layout.addWidget(images_box)
 
-        # --- Platforms ---
+        # --- Platforms (flow layout — wraps when narrow) ---
         platforms_box = QGroupBox("Platforms")
-        platforms_layout = QHBoxLayout(platforms_box)
-        platforms_layout.setSpacing(6)
-        for plat in SOCIAL_PLATFORMS:
+        from PySide6.QtWidgets import QGridLayout
+        platforms_grid = QGridLayout(platforms_box)
+        platforms_grid.setSpacing(6)
+        for i, plat in enumerate(SOCIAL_PLATFORMS):
             cb = QCheckBox(plat)
             self._platform_checks[plat] = cb
-            platforms_layout.addWidget(cb)
-        platforms_layout.addStretch()
+            platforms_grid.addWidget(cb, i // 4, i % 4)
         layout.addWidget(platforms_box)
 
         # --- AI Strategy Notes (right after platforms for context) ---
@@ -175,8 +175,10 @@ class PostComposer(QDialog):
         self._strategy_edit.setPlaceholderText(
             "Click 'Generate Strategy' to auto-analyze this post — "
             "tags, history, calendar context, platform fit, brand voice")
-        strategy_layout.addWidget(self._strategy_edit)
-        layout.addWidget(strategy_box)
+        self._strategy_edit.setMinimumHeight(120)
+        self._strategy_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        strategy_layout.addWidget(self._strategy_edit, 1)
+        layout.addWidget(strategy_box, 1)
 
         # --- Caption ---
         caption_box = QGroupBox("Caption")
