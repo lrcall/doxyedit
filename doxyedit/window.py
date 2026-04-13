@@ -284,21 +284,30 @@ class MainWindow(QMainWindow):
         self.checklist_panel = ChecklistPanel(self.project)
 
         # Left side: calendar + checklist stacked vertically
-        _left_split = QSplitter(Qt.Orientation.Vertical)
-        _left_split.addWidget(self._calendar_pane)
-        _left_split.addWidget(self.checklist_panel)
-        _left_split.setSizes([350, 200])
-        _left_split.setStretchFactor(0, 1)
-        _left_split.setStretchFactor(1, 1)
+        self._social_left_split = QSplitter(Qt.Orientation.Vertical)
+        self._social_left_split.addWidget(self._calendar_pane)
+        self._social_left_split.addWidget(self.checklist_panel)
+        self._social_left_split.setSizes([350, 200])
+        self._social_left_split.setStretchFactor(0, 1)
+        self._social_left_split.setStretchFactor(1, 1)
 
         # Horizontal: calendar+checklist left, timeline right
-        _social_split = QSplitter(Qt.Orientation.Horizontal)
-        _social_split.addWidget(_left_split)
-        _social_split.addWidget(self._timeline)
-        _social_split.setSizes([250, 600])
-        _social_split.setStretchFactor(0, 0)
-        _social_split.setStretchFactor(1, 1)
-        self.tabs.addTab(_social_split, "Social")
+        self._social_split = QSplitter(Qt.Orientation.Horizontal)
+        self._social_split.addWidget(self._social_left_split)
+        self._social_split.addWidget(self._timeline)
+        self._social_split.setSizes([250, 600])
+        self._social_split.setStretchFactor(0, 0)
+        self._social_split.setStretchFactor(1, 1)
+
+        # Restore saved social splitter sizes
+        saved_social = self._settings_early.value("social_splitter", None)
+        if saved_social:
+            self._social_split.setSizes([int(s) for s in saved_social])
+        saved_social_left = self._settings_early.value("social_left_splitter", None)
+        if saved_social_left:
+            self._social_left_split.setSizes([int(s) for s in saved_social_left])
+
+        self.tabs.addTab(self._social_split, "Social")
 
         # Tab 5: Platforms — slot assignments + kanban (legacy)
         self.platform_panel = PlatformPanel(self.project)
@@ -4243,6 +4252,8 @@ Ctrl+Click tag — Search by tag
             self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
         # Save splitter and window position/size
         self._settings.setValue("splitter_sizes", self._browse_split.sizes())
+        self._settings.setValue("social_splitter", self._social_split.sizes())
+        self._settings.setValue("social_left_splitter", self._social_left_split.sizes())
         self._settings.setValue("tag_notes_splitter", self.tag_panel._tag_notes_split.sizes())
         self._settings.setValue("collapsed_folders", sorted(self.browser._collapsed_folders))
         self._settings.setValue("hidden_folders", sorted(self.browser._hidden_folders))
