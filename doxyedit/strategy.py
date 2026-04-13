@@ -591,7 +591,7 @@ def _generate_ai_strategy_cli(prompt: str, fallback: str) -> str:
     No extra API key or billing needed."""
     try:
         result = subprocess.run(
-            ["claude", "-p", "--no-input", prompt],
+            ["claude", "-p", prompt],
             capture_output=True, text=True, timeout=180,
         )
         if result.returncode == 0 and result.stdout.strip():
