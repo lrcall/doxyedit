@@ -15,6 +15,14 @@ class PostStatus(str, Enum):
     SKIP = "skip"
 
 
+class SocialPostStatus(str, Enum):
+    DRAFT = "draft"
+    QUEUED = "queued"
+    POSTED = "posted"
+    FAILED = "failed"
+    PARTIAL = "partial"
+
+
 # ---- Use-case tags with target sizes ----
 
 @dataclass
@@ -175,6 +183,63 @@ class PlatformAssignment:
     status: str = PostStatus.PENDING
     crop: Optional[CropRegion] = None
     notes: str = ""
+
+
+@dataclass
+class CollectionIdentity:
+    name: str = ""
+    voice: str = ""
+    hashtags: list[str] = field(default_factory=list)
+    default_platforms: list[str] = field(default_factory=list)
+    gumroad_url: str = ""
+    patreon_url: str = ""
+    bio_blurb: str = ""
+    content_notes: str = ""
+
+
+@dataclass
+class SocialPost:
+    id: str = ""
+    asset_ids: list[str] = field(default_factory=list)
+    platforms: list[str] = field(default_factory=list)
+    captions: dict[str, str] = field(default_factory=dict)
+    caption_default: str = ""
+    links: list[str] = field(default_factory=list)
+    scheduled_time: str = ""
+    status: str = SocialPostStatus.DRAFT
+    platform_status: dict[str, str] = field(default_factory=dict)
+    oneup_post_id: str = ""
+    reply_templates: list[str] = field(default_factory=list)
+    created_at: str = ""
+    updated_at: str = ""
+    notes: str = ""
+    collection: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id, "asset_ids": self.asset_ids, "platforms": self.platforms,
+            "captions": self.captions, "caption_default": self.caption_default,
+            "links": self.links, "scheduled_time": self.scheduled_time,
+            "status": self.status, "platform_status": self.platform_status,
+            "oneup_post_id": self.oneup_post_id, "reply_templates": self.reply_templates,
+            "created_at": self.created_at, "updated_at": self.updated_at,
+            "notes": self.notes, "collection": self.collection,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "SocialPost":
+        return cls(
+            id=d.get("id", ""), asset_ids=d.get("asset_ids", []),
+            platforms=d.get("platforms", []), captions=d.get("captions", {}),
+            caption_default=d.get("caption_default", ""), links=d.get("links", []),
+            scheduled_time=d.get("scheduled_time", ""),
+            status=d.get("status", SocialPostStatus.DRAFT),
+            platform_status=d.get("platform_status", {}),
+            oneup_post_id=d.get("oneup_post_id", ""),
+            reply_templates=d.get("reply_templates", []),
+            created_at=d.get("created_at", ""), updated_at=d.get("updated_at", ""),
+            notes=d.get("notes", ""), collection=d.get("collection", ""),
+        )
 
 
 @dataclass
@@ -422,6 +487,9 @@ class Project:
     folder_presets: list[dict] = field(default_factory=list)  # [{id, name, folders: [str]}]
     filter_presets: list[dict] = field(default_factory=list)  # [{name, icon, state: {filter dict}}]
     local_mode: bool = False  # store paths relative to project file (for repo/multi-PC use)
+    posts: list[SocialPost] = field(default_factory=list)
+    identity: dict = field(default_factory=dict)
+    oneup_config: dict = field(default_factory=dict)
 
     def get_tags(self) -> dict[str, TagPreset]:
         """Get merged tag presets — defaults + tag_definitions + legacy custom_tags."""
@@ -502,6 +570,9 @@ class Project:
                 for src in self.import_sources],
             "folder_presets": self.folder_presets,
             "filter_presets": self.filter_presets,
+            "posts": [p.to_dict() for p in self.posts],
+            "identity": self.identity,
+            "oneup_config": self.oneup_config,
             "assets": [_asset_dict(a) for a in self.assets],
         }
         Path(path).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
@@ -535,6 +606,11 @@ class Project:
             folder_presets=raw.get("folder_presets", []),
             filter_presets=raw.get("filter_presets", []),
         )
+        proj.identity = raw.get("identity", {})
+        proj.oneup_config = raw.get("oneup_config", {})
+        for p in raw.get("posts", []):
+            proj.posts.append(SocialPost.from_dict(p))
+
         # Load config.yaml and merge custom platforms
         config = load_config(str(base))
         if config:
@@ -588,6 +664,15 @@ class Project:
                 asset.assignments.append(pa)
             proj.assets.append(asset)
         return proj
+
+    def get_post(self, post_id: str) -> Optional[SocialPost]:
+        for p in self.posts:
+            if p.id == post_id:
+                return p
+        return None
+
+    def get_identity(self) -> CollectionIdentity:
+        return CollectionIdentity(**self.identity) if self.identity else CollectionIdentity()
 
     def get_platforms(self) -> dict:
         """Get merged platforms (built-in + config.yaml custom)."""
