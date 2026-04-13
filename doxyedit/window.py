@@ -3547,15 +3547,31 @@ Ctrl+Click tag — Search by tag
         if getattr(self, '_own_save_pending', 0) > 0:
             self._own_save_pending -= 1
             return
-        if self._dirty:
-            self.status.showMessage("External change detected — save first or reopen", 3000)
-            return
         try:
-            self.project = Project.load(self._project_path)
-            self._rebind_project()
-            self.status.showMessage("Project reloaded (external change detected)", 3000)
+            fresh = Project.load(self._project_path)
         except Exception:
-            pass
+            return
+        if self._dirty:
+            # Merge: pick up new/changed posts from the external file
+            # while keeping everything else from the in-memory version
+            existing_ids = {p.id for p in self.project.posts}
+            new_posts = [p for p in fresh.posts if p.id not in existing_ids]
+            if new_posts:
+                self.project.posts.extend(new_posts)
+                if hasattr(self, '_timeline'):
+                    self._timeline.refresh()
+                self.status.showMessage(f"Merged {len(new_posts)} new post(s) from CLI", 3000)
+            else:
+                self.status.showMessage("External change detected — save first or reopen", 3000)
+            # Also update identity/oneup_config if they changed
+            if fresh.identity and not self.project.identity:
+                self.project.identity = fresh.identity
+            if fresh.oneup_config and not self.project.oneup_config:
+                self.project.oneup_config = fresh.oneup_config
+            return
+        self.project = fresh
+        self._rebind_project()
+        self.status.showMessage("Project reloaded (external change detected)", 3000)
 
     def _watch_project(self):
         """Start watching the current project file for external changes."""
