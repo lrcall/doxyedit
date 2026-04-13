@@ -345,8 +345,11 @@ class TimelineStream(QWidget):
         if self._day_filter:
             posts = [p for p in posts if p.scheduled_time and p.scheduled_time[:10] == self._day_filter]
 
-        # Sort by scheduled_time (empty times sort to end)
-        posts.sort(key=lambda p: p.scheduled_time or "9999")
+        # Sort by scheduled_time (normalize to YYYY-MM-DDTHH:MM for consistent ordering)
+        def _sort_key(p):
+            t = p.scheduled_time or ""
+            return t[:16] if t else "9999"
+        posts.sort(key=_sort_key)
 
         # Partition: scheduled vs unscheduled
         scheduled = [p for p in posts if p.scheduled_time]
