@@ -2576,12 +2576,71 @@ class AssetBrowser(QWidget):
         if files:
             self.import_files(files)
 
-    def _clear_rubber_band(self, view):
-        """Clear stuck rubber band after drag by sending fake release to viewport."""
-        fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
-            Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
-            Qt.KeyboardModifier.NoModifier)
-        QApplication.sendEvent(view.viewport(), fake)
+    # --- Drag fix (F8 cycles methods) ---
+
+    _drag_fix = 0
+    _DRAG_FIXES = [
+        "consume press + fake release",
+        "consume press + setState(NoState)",
+        "consume press + viewport repaint only",
+        "consume press + fake release + re-select",
+        "consume press + deferred viewport update 50ms",
+        "don't consume press + fake release + re-select",
+    ]
+
+    def cycle_drag_fix(self):
+        self._drag_fix = (self._drag_fix + 1) % len(self._DRAG_FIXES)
+        name = self._DRAG_FIXES[self._drag_fix]
+        print(f"[F8] Drag fix: {name} (method {self._drag_fix})")
+        try:
+            self.window().status.showMessage(f"Drag fix: {name} ({self._drag_fix})", 3000)
+        except Exception:
+            pass
+
+    def _should_consume_press(self):
+        return self._drag_fix != 5  # method 5 doesn't consume
+
+    def _post_drag_cleanup(self, view, model, saved_sel):
+        m = self._drag_fix
+        print(f"[drag] Fix {m}: {self._DRAG_FIXES[m]}")
+        if m == 0:
+            fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
+                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+            QApplication.sendEvent(view.viewport(), fake)
+        elif m == 1:
+            view.setState(QListView.State.NoState)
+        elif m == 2:
+            view.viewport().repaint()
+        elif m == 3:
+            fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
+                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+            QApplication.sendEvent(view.viewport(), fake)
+            if saved_sel:
+                sm = view.selectionModel()
+                sm.blockSignals(True)
+                for i in range(model.rowCount()):
+                    idx = model.index(i)
+                    a = model.get_asset(idx)
+                    if a and a.id in saved_sel:
+                        sm.select(idx, QItemSelectionModel.SelectionFlag.Select)
+                sm.blockSignals(False)
+                view.viewport().update()
+        elif m == 4:
+            QTimer.singleShot(50, view.viewport().repaint)
+        elif m == 5:
+            fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
+                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+            QApplication.sendEvent(view.viewport(), fake)
+            if saved_sel:
+                sm = view.selectionModel()
+                sm.blockSignals(True)
+                for i in range(model.rowCount()):
+                    idx = model.index(i)
+                    a = model.get_asset(idx)
+                    if a and a.id in saved_sel:
+                        sm.select(idx, QItemSelectionModel.SelectionFlag.Select)
+                sm.blockSignals(False)
+                view.viewport().update()
 
     # --- Context menu ---
 
@@ -3038,9 +3097,8 @@ class AssetBrowser(QWidget):
                     self._drag_start_pos = view.mapToGlobal(pos)
                     if asset.id in self._selected_ids:
                         self._drag_snapshot_ids = set(self._selected_ids)
-                        # Consume press on already-selected item to prevent
-                        # Qt from arming deselect-on-release during multi-select drag
-                        return True
+                        if self._should_consume_press():
+                            return True
                     else:
                         self._drag_snapshot_ids = set()
                 else:
@@ -3070,10 +3128,11 @@ class AssetBrowser(QWidget):
                             drag.setPixmap(icon_px.scaled(64, 64,
                                 Qt.AspectRatioMode.KeepAspectRatio,
                                 Qt.TransformationMode.SmoothTransformation))
+                        saved_sel = set(self._selected_ids)
                         drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
                         self._drag_start_pos = None
                         self._drag_snapshot_ids = set()
-                        self._clear_rubber_band(view)
+                        self._post_drag_cleanup(view, model, saved_sel)
                         return True
 
             if (event.type() == event.Type.MouseButtonRelease
