@@ -1376,12 +1376,16 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
 
         /* ── Post composer dialog ─────────────────────────────────────── */
-        QDialog#post_composer {{
+        QDialog#post_composer,
+        QDialog#post_composer QWidget,
+        QDialog#post_composer QScrollArea,
+        QDialog#post_composer QScrollArea > QWidget {{
             background: {theme.bg_main};
             color: {theme.text_primary};
         }}
         QDialog#post_composer QGroupBox {{
             color: {theme.text_primary};
+            background: {theme.bg_main};
             border: 1px solid {theme.border};
             border-radius: {rad}px;
             margin-top: {f}px;
@@ -1400,6 +1404,13 @@ def generate_stylesheet(theme: Theme) -> str:
             padding: {pad}px;
         }}
         QDialog#post_composer QTextEdit {{
+            background: {theme.bg_input};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            padding: {pad}px;
+        }}
+        QDialog#post_composer QDateTimeEdit {{
             background: {theme.bg_input};
             color: {theme.text_primary};
             border: 1px solid {theme.border};

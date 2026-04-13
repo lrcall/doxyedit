@@ -226,7 +226,9 @@ class PostComposer(QDialog):
     # Save
     # ------------------------------------------------------------------
 
-    def _save(self, status: str) -> None:
+    def _save(self, status) -> None:
+        # Normalize enum to string value
+        status = status.value if hasattr(status, 'value') else str(status)
         now = datetime.now().isoformat()
 
         # Gather fields

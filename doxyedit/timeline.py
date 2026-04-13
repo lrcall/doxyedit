@@ -14,11 +14,11 @@ from doxyedit.models import Project, SocialPost, SocialPostStatus
 
 # Status icon map
 _STATUS_ICONS = {
-    SocialPostStatus.DRAFT:   "○",
-    SocialPostStatus.QUEUED:  "◷",
-    SocialPostStatus.POSTED:  "✓",
-    SocialPostStatus.FAILED:  "✗",
-    SocialPostStatus.PARTIAL: "◑",
+    "draft":   "○",
+    "queued":  "◷",
+    "posted":  "✓",
+    "failed":  "✗",
+    "partial": "◑",
 }
 
 
@@ -34,10 +34,12 @@ class StatusBadge(QLabel):
     """Post status label with icon, styled via QSS property selector."""
 
     def __init__(self, status: str, parent=None):
-        icon = _STATUS_ICONS.get(status, "○")
-        super().__init__(f"{icon} {status}", parent)
+        # Normalize: enum value or raw string → plain lowercase
+        status_str = status.value if hasattr(status, 'value') else str(status)
+        icon = _STATUS_ICONS.get(status_str, _STATUS_ICONS.get(status, "○"))
+        super().__init__(f"{icon} {status_str}", parent)
         self.setObjectName("post_status_badge")
-        self.setProperty("status", status)
+        self.setProperty("status", status_str)
 
 
 class PostCard(QFrame):
