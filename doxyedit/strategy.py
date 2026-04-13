@@ -589,18 +589,38 @@ Be specific to THIS image. Reference what you actually see."""
 def _generate_ai_strategy_cli(prompt: str, fallback: str) -> str:
     """Pipe prompt to claude CLI — uses the same auth/subscription as Claude Code.
     No extra API key or billing needed."""
+    import sys
+    print("[AI Strategy] Starting claude CLI subprocess...", file=sys.stderr, flush=True)
+    print(f"[AI Strategy] Prompt length: {len(prompt)} chars", file=sys.stderr, flush=True)
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             ["claude", "-p", prompt],
-            capture_output=True, text=True, timeout=180,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True,
         )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
-        err = result.stderr.strip() if result.stderr else "Unknown error"
+        print("[AI Strategy] Process started, waiting for response...", file=sys.stderr, flush=True)
+
+        try:
+            stdout, stderr = proc.communicate(timeout=180)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            print("[AI Strategy] TIMEOUT after 180s", file=sys.stderr, flush=True)
+            return f"[Claude CLI timed out after 180s]\n\nLocal analysis:\n\n{fallback}"
+
+        print(f"[AI Strategy] Process finished — exit code {proc.returncode}", file=sys.stderr, flush=True)
+        if stderr.strip():
+            print(f"[AI Strategy] stderr: {stderr.strip()[:200]}", file=sys.stderr, flush=True)
+
+        if proc.returncode == 0 and stdout.strip():
+            print(f"[AI Strategy] Got {len(stdout.strip())} chars of response", file=sys.stderr, flush=True)
+            return stdout.strip()
+
+        err = stderr.strip() if stderr else "Unknown error"
+        print(f"[AI Strategy] FAILED: {err[:200]}", file=sys.stderr, flush=True)
         return f"[Claude CLI error: {err}]\n\nLocal analysis:\n\n{fallback}"
     except FileNotFoundError:
+        print("[AI Strategy] ERROR: claude CLI not found", file=sys.stderr, flush=True)
         return f"[Claude CLI not found — is claude-code installed?]\n\nLocal analysis:\n\n{fallback}"
-    except subprocess.TimeoutExpired:
-        return f"[Claude CLI timed out after 180s]\n\nLocal analysis:\n\n{fallback}"
     except Exception as e:
+        print(f"[AI Strategy] ERROR: {e}", file=sys.stderr, flush=True)
         return f"[Error: {e}]\n\nLocal analysis:\n\n{fallback}"
