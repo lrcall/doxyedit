@@ -326,7 +326,7 @@ class PostComposer(QDialog):
             lbl = QLabel(plat)
             lbl.setStyleSheet("font-weight: bold;")
             te = QTextEdit()
-            te.setMaximumHeight(60)
+            te.setMaximumHeight(100)
             te.setPlaceholderText(f"Caption for {plat} (leave blank to use default)")
             self._platform_captions[plat] = te
             pp_layout.addWidget(lbl)

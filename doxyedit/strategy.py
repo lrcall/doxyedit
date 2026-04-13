@@ -547,11 +547,11 @@ def generate_ai_strategy(
 
     text_prompt = f"""You are a senior social media marketing strategist for art/illustration creators. Be direct, specific, no filler.
 
-STRICT RULES:
-- NEVER use em dashes. Use commas, periods, or "or" instead.
-- NEVER use corporate/AI speak. No "leverage", "elevate", "showcase", "delve", "craft", "resonate".
-- Write like a real person texting a colleague.
-- Captions must sound human, not generated.
+STRICT WRITING RULES (violations will be rejected):
+- ZERO em dashes (the long dash). Use commas or periods instead. WRONG: "great art — love it" RIGHT: "great art, love it"
+- ZERO corporate buzzwords: never write "leverage", "elevate", "showcase", "delve", "craft", "resonate", "captivate", "stunning", "gorgeous", "masterpiece", "breathtaking"
+- ZERO filler phrases: never write "In terms of", "When it comes to", "It's worth noting"
+- Write like a real person. Short sentences. Casual tone.
 
 **Creator:** {identity.name or 'indie artist'} / Voice: {identity.voice or 'casual'} / {identity.content_notes or 'no content notes'}
 **Platforms:** {platform_list}
@@ -586,6 +586,19 @@ Skip sections that don't apply. No padding."""
     return _generate_ai_strategy_cli(text_prompt, local_briefing)
 
 
+def _clean_ai_output(text: str) -> str:
+    """Strip em dashes and common AI-speak from Claude's output."""
+    import re
+    # Replace em dash (U+2014) and en dash (U+2013) with comma or hyphen
+    text = text.replace("\u2014", ",")   # em dash -> comma
+    text = text.replace("\u2013", "-")   # en dash -> hyphen
+    text = text.replace(" ,", ",")       # clean up double space before comma
+    # Remove "—" HTML entity if present
+    text = text.replace("&mdash;", ",")
+    text = text.replace("&ndash;", "-")
+    return text
+
+
 def _generate_ai_strategy_cli(prompt: str, fallback: str) -> str:
     """Pipe prompt to claude CLI — uses the same auth/subscription as Claude Code.
     No extra API key or billing needed."""
@@ -612,8 +625,9 @@ def _generate_ai_strategy_cli(prompt: str, fallback: str) -> str:
             print(f"[AI Strategy] stderr: {stderr.strip()[:200]}", file=sys.stderr, flush=True)
 
         if proc.returncode == 0 and stdout.strip():
-            print(f"[AI Strategy] Got {len(stdout.strip())} chars of response", file=sys.stderr, flush=True)
-            return stdout.strip()
+            cleaned = _clean_ai_output(stdout.strip())
+            print(f"[AI Strategy] Got {len(cleaned)} chars of response", file=sys.stderr, flush=True)
+            return cleaned
 
         err = stderr.strip() if stderr else "Unknown error"
         print(f"[AI Strategy] FAILED: {err[:200]}", file=sys.stderr, flush=True)
