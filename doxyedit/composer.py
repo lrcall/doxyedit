@@ -694,8 +694,12 @@ class PostComposer(QDialog):
 
         temp_post = self._build_temp_post()
 
-        # Show loading state
-        self._set_strategy_text("*Analyzing with Claude... 30-60 seconds.*")
+        # Show loading state (keep existing content visible with append indicator)
+        existing = self._ai_strategy_cache
+        if existing:
+            self._set_strategy_text(existing + "\n\n---\n\n*Generating follow-up...*")
+        else:
+            self._set_strategy_text("*Analyzing with Claude... 30-60 seconds.*")
         self._ai_strategy_btn.setEnabled(False)
         self._ai_strategy_btn.setText("Generating...")
 
@@ -716,9 +720,13 @@ class PostComposer(QDialog):
         self._strategy_worker.start()
 
     def _on_ai_strategy_done(self, result: str) -> None:
-        """Handle completed AI strategy generation."""
-        self._ai_strategy_cache = result
-        self._set_strategy_text(result)
+        """Handle completed AI strategy generation. Appends to existing."""
+        if self._ai_strategy_cache:
+            # Append new response below previous with separator
+            self._ai_strategy_cache += f"\n\n---\n\n**Follow-up:**\n\n{result}"
+        else:
+            self._ai_strategy_cache = result
+        self._set_strategy_text(self._ai_strategy_cache)
         self._strategy_view = "ai"
         self._ai_strategy_btn.setEnabled(True)
         self._update_strategy_btn_labels()

@@ -306,6 +306,13 @@ class TimelineStream(QWidget):
     # Public API
     # ------------------------------------------------------------------
 
+    def set_oneup_label(self, label: str) -> None:
+        """Update the Sync button to show which OneUp account is active."""
+        if label:
+            self._btn_sync.setText(f"Sync OneUp ({label})")
+        else:
+            self._btn_sync.setText("Sync OneUp")
+
     def set_thumb_cache(self, cache):
         self._thumb_cache = cache
 

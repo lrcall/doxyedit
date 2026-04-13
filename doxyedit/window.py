@@ -275,6 +275,10 @@ class MainWindow(QMainWindow):
         self._timeline.post_selected.connect(self._on_post_selected)
         self._timeline.new_post_requested.connect(self._on_new_post)
         self._timeline.sync_requested.connect(self._on_sync_oneup)
+        # Show active OneUp account on sync button
+        from doxyedit.oneup import get_active_account_label
+        project_dir = str(Path(self._project_path).parent) if hasattr(self, '_project_path') and self._project_path else "."
+        self._timeline.set_oneup_label(get_active_account_label(project_dir))
 
         self._calendar_pane = CalendarPane()
         self._calendar_pane.set_project(self.project)

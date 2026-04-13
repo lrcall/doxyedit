@@ -140,7 +140,16 @@ class OneUpClient:
 
 
 def get_client_from_config(project_dir: str) -> Optional[OneUpClient]:
-    """Load OneUp client from config.yaml or env var."""
+    """Load OneUp client from config.yaml or env var.
+
+    Supports multi-account format:
+        oneup:
+          active_account: "main"
+          accounts:
+            main: { api_key: "...", category_id: "...", label: "Main" }
+
+    Falls back to flat format: oneup: { api_key: "...", category_id: "..." }
+    """
     config_path = Path(project_dir) / "config.yaml"
     api_key = ""
     category_id = ""
@@ -149,8 +158,18 @@ def get_client_from_config(project_dir: str) -> Optional[OneUpClient]:
             import yaml
             config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
             oneup = config.get("oneup") or {}
-            api_key = oneup.get("api_key", "")
-            category_id = str(oneup.get("category_id", ""))
+
+            # Multi-account format
+            accounts = oneup.get("accounts")
+            if accounts and isinstance(accounts, dict):
+                active = oneup.get("active_account", "")
+                acct = accounts.get(active) or next(iter(accounts.values()), {})
+                api_key = acct.get("api_key", "")
+                category_id = str(acct.get("category_id", ""))
+            else:
+                # Flat format (legacy)
+                api_key = oneup.get("api_key", "")
+                category_id = str(oneup.get("category_id", ""))
         except Exception:
             pass
     if not api_key:
@@ -158,3 +177,39 @@ def get_client_from_config(project_dir: str) -> Optional[OneUpClient]:
     if api_key:
         return OneUpClient(api_key, category_id)
     return None
+
+
+def get_active_account_label(project_dir: str) -> str:
+    """Return the label of the currently active OneUp account."""
+    config_path = Path(project_dir) / "config.yaml"
+    if not config_path.exists():
+        return ""
+    try:
+        import yaml
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        oneup = config.get("oneup") or {}
+        accounts = oneup.get("accounts")
+        if accounts and isinstance(accounts, dict):
+            active = oneup.get("active_account", "")
+            acct = accounts.get(active, {})
+            return acct.get("label", active)
+        return ""
+    except Exception:
+        return ""
+
+
+def list_account_names(project_dir: str) -> list[tuple[str, str]]:
+    """Return [(id, label), ...] of all configured OneUp accounts."""
+    config_path = Path(project_dir) / "config.yaml"
+    if not config_path.exists():
+        return []
+    try:
+        import yaml
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        oneup = config.get("oneup") or {}
+        accounts = oneup.get("accounts")
+        if accounts and isinstance(accounts, dict):
+            return [(k, v.get("label", k)) for k, v in accounts.items()]
+        return []
+    except Exception:
+        return []

@@ -545,9 +545,15 @@ def generate_ai_strategy(
         recent_posts.append(f"  - {dt} [{status}] {plats}: {caption_preview}")
     recent_block = "\n".join(recent_posts) if recent_posts else "  (no other posts)"
 
-    text_prompt = f"""You are a senior social media marketing strategist specializing in art/illustration creators. You've managed accounts with 100k+ followers. Be direct, opinionated, and specific. No filler.
+    text_prompt = f"""You are a senior social media marketing strategist for art/illustration creators. Be direct, specific, no filler.
 
-**Creator:** {identity.name or 'indie artist'} · Voice: {identity.voice or 'casual'} · {identity.content_notes or 'no content notes'}
+STRICT RULES:
+- NEVER use em dashes. Use commas, periods, or "or" instead.
+- NEVER use corporate/AI speak. No "leverage", "elevate", "showcase", "delve", "craft", "resonate".
+- Write like a real person texting a colleague.
+- Captions must sound human, not generated.
+
+**Creator:** {identity.name or 'indie artist'} / Voice: {identity.voice or 'casual'} / {identity.content_notes or 'no content notes'}
 **Platforms:** {platform_list}
 **Scheduled:** {post.scheduled_time or 'TBD'}
 **Tags:** {', '.join(t for a in assets for t in a.tags) if assets else 'none'}
@@ -560,21 +566,21 @@ def generate_ai_strategy(
 ## Recent Posts
 {recent_block}
 
-## Deliverables (be concise, no generic advice)
+## Deliverables (concise, no generic advice)
 
-**Captions** — One ready-to-copy caption per platform. Short, punchy, in the creator's voice. Include 3-5 hashtags inline. No placeholder text.
+**Captions**: One ready-to-copy caption per platform. Short, punchy, in the creator's voice. 3-5 hashtags inline. No placeholder text.
 
-**Timing** — Is the scheduled slot good? If not, what's better and why. One sentence.
+**Timing**: Is the scheduled slot good? If not, what's better and why. One sentence.
 
-**Platform play** — For each platform: the one specific format/tactic that fits THIS content. Carousel, thread, reel, static, story — pick one and say why. Don't list all options.
+**Platform play**: For each platform, the one format that fits THIS content. Pick one and say why.
 
-**Hook** — One question or CTA that drives replies, not just likes.
+**Hook**: One question or CTA that drives replies, not just likes.
 
-**Monetization** — Only if there's a natural angle. Skip if forced.
+**Monetization**: Only if natural. Skip if forced.
 
-**Flags** — Content warnings, age-gating needs, or platform-specific restrictions. Skip if none.
+**Flags**: Content warnings or platform restrictions. Skip if none.
 
-Skip sections that don't apply. Don't pad. Write like you're texting a colleague, not writing a report."""
+Skip sections that don't apply. No padding."""
 
     # 4. Use claude CLI — uses the same subscription/auth as Claude Code
     return _generate_ai_strategy_cli(text_prompt, local_briefing)
