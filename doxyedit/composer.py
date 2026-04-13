@@ -1,6 +1,8 @@
 from __future__ import annotations
+import os
 import uuid
 from datetime import datetime, timedelta
+from pathlib import Path
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QTextEdit, QPushButton, QCheckBox, QDateTimeEdit, QFrame,
@@ -8,6 +10,52 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QDateTime, QSettings
 from doxyedit.models import Project, SocialPost, SocialPostStatus
+
+class AssetDropLineEdit(QLineEdit):
+    """QLineEdit that accepts file drops and resolves to asset IDs."""
+
+    def __init__(self, project, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self._project = project
+        self._path_index: dict[str, str] = {}  # normalized path → asset id
+        for a in project.assets:
+            if a.source_path:
+                self._path_index[os.path.normpath(a.source_path).lower()] = a.id
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            paths = [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()]
+            ids = []
+            names = []
+            for p in paths:
+                norm = os.path.normpath(p).lower()
+                aid = self._path_index.get(norm, "")
+                if aid:
+                    ids.append(aid)
+                    asset = self._project.get_asset(aid)
+                    names.append(Path(asset.source_path).stem if asset else aid)
+            if ids:
+                existing = [x.strip() for x in self.text().split(",") if x.strip()]
+                merged = existing + [i for i in ids if i not in existing]
+                self.setText(", ".join(merged))
+                self.setToolTip("Assets: " + ", ".join(names))
+            event.acceptProposedAction()
+        else:
+            super().dropEvent(event)
+
 
 SOCIAL_PLATFORMS = [
     "twitter", "instagram", "bluesky", "reddit",
@@ -65,10 +113,14 @@ class PostComposer(QDialog):
 
         # --- Images ---
         images_box = QGroupBox("Images")
-        images_layout = QVBoxLayout(images_box)
-        self._images_edit = QLineEdit()
-        self._images_edit.setPlaceholderText("Comma-separated asset IDs")
-        images_layout.addWidget(self._images_edit)
+        images_layout = QHBoxLayout(images_box)
+        self._images_edit = AssetDropLineEdit(project)
+        self._images_edit.setPlaceholderText("Drag from Work Tray or select in Assets tab → 'Use Selected'")
+        images_layout.addWidget(self._images_edit, 1)
+        self._use_selected_btn = QPushButton("Use Selected")
+        self._use_selected_btn.setToolTip("Grab currently selected assets from the browser")
+        self._use_selected_btn.clicked.connect(self._use_selected_assets)
+        images_layout.addWidget(self._use_selected_btn)
         layout.addWidget(images_box)
 
         # --- Platforms ---
@@ -211,6 +263,30 @@ class PostComposer(QDialog):
         # Reply templates
         if post.reply_templates:
             self._reply_edit.setPlainText("\n".join(post.reply_templates))
+
+    # ------------------------------------------------------------------
+    # Image picker
+    # ------------------------------------------------------------------
+
+    def _use_selected_assets(self):
+        """Grab selected asset IDs from the main window's browser."""
+        parent = self.parent()
+        if parent and hasattr(parent, 'browser'):
+            selected = list(parent.browser._selected_ids)
+            if selected:
+                # Show filenames instead of raw IDs for readability
+                names = []
+                for aid in selected:
+                    asset = self._project.get_asset(aid)
+                    if asset:
+                        names.append(Path(asset.source_path).stem)
+                    else:
+                        names.append(aid)
+                self._images_edit.setText(", ".join(selected))
+                self._images_edit.setToolTip("Selected: " + ", ".join(names))
+                self._images_edit.setPlaceholderText(", ".join(names))
+            else:
+                self._images_edit.setPlaceholderText("No assets selected — select in Assets tab first")
 
     # ------------------------------------------------------------------
     # Toggle per-platform captions
