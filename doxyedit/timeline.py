@@ -165,17 +165,17 @@ class TimelineStream(QWidget):
 
         self._btn_new = QPushButton("+ New Post")
         self._btn_new.setObjectName("timeline_btn_new")
-        self._btn_new.clicked.connect(self.new_post_requested)
+        self._btn_new.clicked.connect(lambda: self.new_post_requested.emit())
         toolbar.addWidget(self._btn_new)
 
         self._btn_sync = QPushButton("Sync OneUp")
         self._btn_sync.setObjectName("timeline_btn_sync")
-        self._btn_sync.clicked.connect(self.sync_requested)
+        self._btn_sync.clicked.connect(lambda: self.sync_requested.emit())
         toolbar.addWidget(self._btn_sync)
 
         self._btn_fill = QPushButton("Fill Gaps")
         self._btn_fill.setObjectName("timeline_btn_fill")
-        self._btn_fill.clicked.connect(self.fill_gaps_requested)
+        self._btn_fill.clicked.connect(lambda: self.fill_gaps_requested.emit())
         toolbar.addWidget(self._btn_fill)
 
         toolbar.addStretch()
