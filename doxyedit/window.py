@@ -3556,18 +3556,23 @@ Ctrl+Click tag — Search by tag
             # while keeping everything else from the in-memory version
             existing_ids = {p.id for p in self.project.posts}
             new_posts = [p for p in fresh.posts if p.id not in existing_ids]
-            if new_posts:
-                self.project.posts.extend(new_posts)
-                if hasattr(self, '_timeline'):
-                    self._timeline.refresh()
-                self.status.showMessage(f"Merged {len(new_posts)} new post(s) from CLI", 3000)
-            else:
-                self.status.showMessage("External change detected — save first or reopen", 3000)
             # Also update identity/oneup_config if they changed
             if fresh.identity and not self.project.identity:
                 self.project.identity = fresh.identity
             if fresh.oneup_config and not self.project.oneup_config:
                 self.project.oneup_config = fresh.oneup_config
+            if new_posts:
+                self.project.posts.extend(new_posts)
+                # Save merged state immediately so autosave won't clobber
+                if self._project_path:
+                    self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1
+                    self.project.save(self._project_path)
+                    self._dirty = False
+                if hasattr(self, '_timeline'):
+                    self._timeline.refresh()
+                self.status.showMessage(f"Merged {len(new_posts)} new post(s) from CLI", 3000)
+            else:
+                self.status.showMessage("External change detected — save first or reopen", 3000)
             return
         self.project = fresh
         self._rebind_project()
