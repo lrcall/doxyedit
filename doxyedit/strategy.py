@@ -513,63 +513,87 @@ def generate_strategy_briefing(project: Project, post: SocialPost) -> str:
 # AI-powered strategy (calls Claude via CLI)
 # ---------------------------------------------------------------------------
 
-def _load_image_for_prompt(src: Path, max_size: int = 1024) -> str | None:
-    """Load an image as a file path string for passing to claude CLI.
-    For PSD files, export a temp JPEG first."""
+def _load_image_base64(src: Path, max_size: int = 1200) -> tuple[str, str] | None:
+    """Load an image as base64 + media type for the Anthropic API.
+    Returns (base64_data, media_type) or None."""
     if not src.exists():
         return None
     ext = src.suffix.lower()
-    if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
-        return str(src)
+
+    # For PSD/PSB, export a temp JPEG
     if ext in (".psd", ".psb"):
         try:
             from doxyedit.imaging import load_psd
             from PIL import Image
-            import tempfile
+            import io
             img, _, _ = load_psd(str(src))
             img.thumbnail((max_size, max_size), Image.LANCZOS)
-            tmp = Path(tempfile.gettempdir()) / f"doxyedit_strategy_{src.stem}.jpg"
-            img.save(str(tmp), "JPEG", quality=85)
-            return str(tmp)
+            buf = io.BytesIO()
+            img.save(buf, "JPEG", quality=85)
+            return base64.b64encode(buf.getvalue()).decode(), "image/jpeg"
         except Exception:
             return None
-    return None
+
+    media_map = {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp",
+    }
+    media_type = media_map.get(ext)
+    if not media_type:
+        return None
+
+    try:
+        data = src.read_bytes()
+        # Resize if too large (>5MB)
+        if len(data) > 5_000_000:
+            from PIL import Image
+            import io
+            img = Image.open(io.BytesIO(data))
+            img.thumbnail((max_size, max_size), Image.LANCZOS)
+            buf = io.BytesIO()
+            fmt = "JPEG" if ext in (".jpg", ".jpeg") else "PNG"
+            img.save(buf, fmt, quality=85)
+            data = buf.getvalue()
+            media_type = "image/jpeg" if fmt == "JPEG" else "image/png"
+        return base64.b64encode(data).decode(), media_type
+    except Exception:
+        return None
 
 
 def generate_ai_strategy(
     project: Project,
     post: SocialPost,
-    callback: "callable | None" = None,
 ) -> str:
-    """Call Claude via CLI with images + project context for real strategy.
+    """Call Claude API with images + project context for real strategy.
 
-    Args:
-        project: The loaded Project.
-        post: The SocialPost being planned.
-        callback: Optional callable(str) for streaming partial output.
-
-    Returns:
-        AI-generated strategy string, or error message on failure.
+    Uses the Anthropic Python SDK with vision to analyze the actual images.
+    Falls back to local briefing if the SDK or API key is unavailable.
     """
     # 1. Gather local context briefing
     local_briefing = generate_strategy_briefing(project, post)
 
-    # 2. Resolve image paths
-    image_paths: list[str] = []
+    # 2. Load images as base64
+    image_content: list[dict] = []
     assets: list[Asset] = []
     for aid in post.asset_ids:
         a = project.get_asset(aid)
         if a:
             assets.append(a)
-            img = _load_image_for_prompt(Path(a.source_path))
-            if img:
-                image_paths.append(img)
+            result = _load_image_base64(Path(a.source_path))
+            if result:
+                b64, media = result
+                image_content.append({
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": media, "data": b64},
+                })
+
+    if not image_content:
+        return f"[No images could be loaded for AI analysis]\n\nLocal analysis:\n\n{local_briefing}"
 
     # 3. Build the prompt
     identity = project.get_identity()
     platform_list = ", ".join(post.platforms) if post.platforms else "not yet selected"
 
-    # Existing posts summary for cross-post awareness
     recent_posts = []
     for p in sorted(project.posts, key=lambda x: x.scheduled_time or "")[-15:]:
         if p.id == post.id:
@@ -581,7 +605,7 @@ def generate_ai_strategy(
         recent_posts.append(f"  - {dt} [{status}] {plats}: {caption_preview}")
     recent_block = "\n".join(recent_posts) if recent_posts else "  (no other posts)"
 
-    prompt = f"""You are a social media strategist for an art/illustration creator. Study the attached image(s) carefully and provide a detailed, actionable posting strategy.
+    text_prompt = f"""You are a social media strategist for an art/illustration creator. Study the attached image(s) carefully and provide a detailed, actionable posting strategy.
 
 ## Creator Identity
 - Name: {identity.name or 'not set'}
@@ -595,51 +619,87 @@ def generate_ai_strategy(
 ## This Post
 - Target platforms: {platform_list}
 - Scheduled: {post.scheduled_time or 'not yet scheduled'}
-- Asset tags: {', '.join(a.tags for a in assets) if assets else 'none'}
+- Asset tags: {', '.join(t for a in assets for t in a.tags) if assets else 'none'}
 
 ## Local Data Analysis
 {local_briefing}
 
-## Recent Post History (for cross-reference — avoid repetition)
+## Recent Post History
 {recent_block}
 
-## What I Need From You
+## What I Need
 
 Look at the image(s) and provide:
 
-1. **Image Analysis** — What's in the art? Style, mood, characters, composition, appeal. What makes it stand out?
-2. **Caption Suggestions** — 2-3 caption options per platform. Match the creator's voice. Include relevant hashtags.
-3. **Best Posting Time** — When to post for maximum engagement on each platform. Consider the day of week and time zones.
-4. **Platform-Specific Strategy** — What works on each target platform for this type of content. Carousel? Thread? Reel?
-5. **Engagement Hooks** — Questions, CTAs, or conversation starters to drive interaction.
-6. **Cross-Promotion** — How this post connects to the broader posting calendar. Any series potential?
-7. **Content Warnings** — If applicable, flag any content that needs age-gating or platform-specific handling.
-8. **Monetization Angle** — If there's a natural tie-in to Gumroad/Patreon/merch, suggest it.
+1. **Image Analysis** — What's in the art? Style, mood, characters, composition. What makes it stand out?
+2. **Caption Suggestions** — 2-3 caption options per platform. Match the creator's voice. Include hashtags.
+3. **Best Posting Time** — When to post for max engagement per platform. Day of week + time zones.
+4. **Platform-Specific Strategy** — Carousel? Thread? Reel? What works for this content on each platform.
+5. **Engagement Hooks** — Questions, CTAs, conversation starters.
+6. **Cross-Promotion** — How this connects to the posting calendar. Series potential?
+7. **Content Warnings** — Flag anything needing age-gating or platform-specific handling.
+8. **Monetization** — Natural Gumroad/Patreon/merch tie-ins.
 
-Be specific to THIS image. Don't give generic advice. Reference what you actually see."""
+Be specific to THIS image. Reference what you actually see."""
 
-    # 4. Build claude CLI command
-    cmd = ["claude", "--print", "--no-input"]
-    for img_path in image_paths:
-        cmd.extend(["--file", img_path])
-    cmd.extend(["--prompt", prompt])
+    # 4. Call Anthropic API
+    try:
+        import anthropic
+    except ImportError:
+        return f"[anthropic SDK not installed — run: pip install anthropic]\n\nLocal analysis:\n\n{local_briefing}"
+
+    # Try to get API key from environment or claude CLI config
+    import os
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        # Try reading from claude CLI config
+        config_paths = [
+            Path.home() / ".claude" / "config.json",
+            Path.home() / ".config" / "claude" / "config.json",
+        ]
+        for cp in config_paths:
+            if cp.exists():
+                try:
+                    cfg = json.loads(cp.read_text())
+                    api_key = cfg.get("apiKey", cfg.get("api_key", ""))
+                    if api_key:
+                        break
+                except Exception:
+                    pass
+
+    if not api_key:
+        # Fall back to claude CLI pipe approach
+        return _generate_ai_strategy_cli(text_prompt, local_briefing)
 
     try:
+        client = anthropic.Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            messages=[{
+                "role": "user",
+                "content": image_content + [{"type": "text", "text": text_prompt}],
+            }],
+        )
+        return message.content[0].text
+    except Exception as e:
+        return f"[API error: {e}]\n\nLocal analysis:\n\n{local_briefing}"
+
+
+def _generate_ai_strategy_cli(prompt: str, fallback: str) -> str:
+    """Fallback: pipe prompt to claude CLI (no images, text only)."""
+    try:
         result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            cwd=str(Path(project.assets[0].source_path).parent) if project.assets else None,
+            ["claude", "-p", prompt],
+            capture_output=True, text=True, timeout=120,
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
-        else:
-            err = result.stderr.strip() if result.stderr else "Unknown error"
-            return f"[Claude CLI error: {err}]\n\nFallback local analysis:\n\n{local_briefing}"
+        err = result.stderr.strip() if result.stderr else "Unknown error"
+        return f"[Claude CLI error: {err}]\n\nLocal analysis:\n\n{fallback}"
     except FileNotFoundError:
-        return f"[Claude CLI not found — install claude-code]\n\nFallback local analysis:\n\n{local_briefing}"
+        return f"[No API key set and Claude CLI not found]\n\nLocal analysis:\n\n{fallback}"
     except subprocess.TimeoutExpired:
-        return f"[Claude CLI timed out after 120s]\n\nFallback local analysis:\n\n{local_briefing}"
+        return f"[Claude CLI timed out]\n\nLocal analysis:\n\n{fallback}"
     except Exception as e:
-        return f"[Error: {e}]\n\nFallback local analysis:\n\n{local_briefing}"
+        return f"[Error: {e}]\n\nLocal analysis:\n\n{fallback}"

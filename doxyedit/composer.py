@@ -159,6 +159,9 @@ class PostComposer(QDialog):
 
         self._platform_captions: dict[str, QTextEdit] = {}
         self._platform_checks: dict[str, QCheckBox] = {}
+        self._local_strategy_cache: str = ""
+        self._ai_strategy_cache: str = ""
+        self._strategy_view: str = ""  # "local" or "ai"
 
         self._build_ui(post)
         self._prefill(post)
@@ -597,24 +600,45 @@ class PostComposer(QDialog):
         )
 
     def _generate_local_strategy(self) -> None:
-        """Local data analysis — fast, no API call."""
+        """Local data analysis — show cached or generate fresh."""
+        # If we're viewing AI and local cache exists, just switch back
+        if self._strategy_view == "ai" and self._local_strategy_cache:
+            self._strategy_edit.setPlainText(self._local_strategy_cache)
+            self._strategy_view = "local"
+            self._update_strategy_btn_labels()
+            return
+
         from doxyedit.strategy import generate_strategy_briefing
         briefing = generate_strategy_briefing(self._project, self._build_temp_post())
+        self._local_strategy_cache = briefing
         self._strategy_edit.setPlainText(briefing)
+        self._strategy_view = "local"
+        self._update_strategy_btn_labels()
 
     def _generate_ai_strategy(self) -> None:
-        """Call Claude to analyze images + context and generate real strategy."""
+        """Show cached AI strategy or generate new one."""
+        # If we're viewing local and AI cache exists, just switch
+        if self._strategy_view != "ai" and self._ai_strategy_cache:
+            self._strategy_edit.setPlainText(self._ai_strategy_cache)
+            self._strategy_view = "ai"
+            self._update_strategy_btn_labels()
+            return
+
         from doxyedit.strategy import generate_ai_strategy
         from PySide6.QtCore import QThread, Signal as _Signal
+
+        # Save current text as local cache if we haven't yet
+        current = self._strategy_edit.toPlainText()
+        if current and not self._local_strategy_cache:
+            self._local_strategy_cache = current
 
         temp_post = self._build_temp_post()
 
         # Show loading state
-        self._strategy_edit.setPlainText("Claude is analyzing the image(s) and generating strategy...")
+        self._strategy_edit.setPlainText("Claude is analyzing the image(s)...\nThis may take 30-60 seconds.")
         self._ai_strategy_btn.setEnabled(False)
         self._ai_strategy_btn.setText("Generating...")
 
-        # Run in background thread so UI doesn't freeze
         class _Worker(QThread):
             finished = _Signal(str)
 
@@ -633,9 +657,27 @@ class PostComposer(QDialog):
 
     def _on_ai_strategy_done(self, result: str) -> None:
         """Handle completed AI strategy generation."""
+        self._ai_strategy_cache = result
         self._strategy_edit.setPlainText(result)
+        self._strategy_view = "ai"
         self._ai_strategy_btn.setEnabled(True)
-        self._ai_strategy_btn.setText("AI Strategy")
+        self._update_strategy_btn_labels()
+
+    def _update_strategy_btn_labels(self) -> None:
+        """Update button text to show which view is active."""
+        if self._strategy_view == "local":
+            self._strategy_generate_btn.setText("Local Strategy ●")
+            self._ai_strategy_btn.setText(
+                "View AI Strategy" if self._ai_strategy_cache else "AI Strategy"
+            )
+        elif self._strategy_view == "ai":
+            self._strategy_generate_btn.setText(
+                "View Local Strategy" if self._local_strategy_cache else "Generate Strategy"
+            )
+            self._ai_strategy_btn.setText("AI Strategy ●")
+        else:
+            self._strategy_generate_btn.setText("Generate Strategy")
+            self._ai_strategy_btn.setText("AI Strategy")
 
     # ------------------------------------------------------------------
     # Toggle per-platform captions
