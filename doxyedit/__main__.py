@@ -14,10 +14,20 @@ Commands:
     set-star <project.json> <asset_id> <0-5>  Set star rating
     export-json <project.json>                Full project as JSON
     notes <project.json>      List assets with notes
+    schedule <project.json>   Show upcoming post schedule
+    gaps <project.json>       Find days with no scheduled posts
+    suggest <project.json>    Suggest unposted assets to schedule
+    post create <project.json> [options]   Create a draft post
+    post update <project.json> <post-id> [options]  Update a post
+    post push <project.json> [post-id|--all-drafts]  Push to OneUp
+    post sync <project.json>  Sync post statuses from OneUp
+    post delete <project.json> <post-id>  Delete a post
 """
 import sys
 import os
 import json
+import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 
 
@@ -383,6 +393,412 @@ def cmd_status(path: str):
                 print(f"  {slot.label} ({slot.width}x{slot.height}): -- empty --{req}")
 
 
+def cmd_schedule(project_path: str, args: list):
+    """Show upcoming post schedule with optional filters."""
+    from doxyedit.models import Project, SocialPostStatus
+    proj = Project.load(project_path)
+
+    from_date = to_date = status_filter = fmt = None
+    i = 0
+    while i < len(args):
+        if args[i] == "--from" and i + 1 < len(args):
+            from_date = args[i + 1]; i += 2
+        elif args[i] == "--to" and i + 1 < len(args):
+            to_date = args[i + 1]; i += 2
+        elif args[i] == "--status" and i + 1 < len(args):
+            status_filter = args[i + 1]; i += 2
+        elif args[i] == "--format" and i + 1 < len(args):
+            fmt = args[i + 1]; i += 2
+        else:
+            i += 1
+
+    posts = sorted(proj.posts, key=lambda p: p.scheduled_time or "")
+    if from_date:
+        posts = [p for p in posts if p.scheduled_time and p.scheduled_time[:10] >= from_date]
+    if to_date:
+        posts = [p for p in posts if p.scheduled_time and p.scheduled_time[:10] <= to_date]
+    if status_filter:
+        posts = [p for p in posts if p.status == status_filter]
+
+    if fmt == "json":
+        print(json.dumps([p.to_dict() for p in posts], indent=2))
+        return
+
+    STATUS_ICONS = {
+        SocialPostStatus.DRAFT: "[ ]",
+        SocialPostStatus.QUEUED: "[~]",
+        SocialPostStatus.POSTED: "[x]",
+        SocialPostStatus.FAILED: "[!]",
+        SocialPostStatus.PARTIAL: "[/]",
+    }
+
+    asset_map = {a.id: a for a in proj.assets}
+
+    if not posts:
+        print("No posts found.")
+        return
+
+    for p in posts:
+        icon = STATUS_ICONS.get(p.status, "?")
+        dt = p.scheduled_time[:16] if p.scheduled_time else "(unscheduled)"
+        asset_names = ", ".join(
+            asset_map[aid].stem if aid in asset_map else aid
+            for aid in p.asset_ids
+        ) or "(no assets)"
+        platforms = ", ".join(p.platforms) or "(no platforms)"
+        caption_preview = (p.caption_default[:40] + "...") if len(p.caption_default) > 40 else p.caption_default
+        print(f"{icon} [{p.status:<7}] {dt}  |  {asset_names}  |  {platforms}  |  {caption_preview!r}  |  {p.id}")
+
+    print(f"\n--- {len(posts)} post(s) ---")
+
+
+def cmd_gaps(project_path: str, args: list):
+    """Find days with no scheduled posts."""
+    from doxyedit.models import Project
+    proj = Project.load(project_path)
+
+    from_date = None
+    days = 30
+    fmt = None
+    i = 0
+    while i < len(args):
+        if args[i] == "--from" and i + 1 < len(args):
+            from_date = args[i + 1]; i += 2
+        elif args[i] == "--days" and i + 1 < len(args):
+            days = int(args[i + 1]); i += 2
+        elif args[i] == "--format" and i + 1 < len(args):
+            fmt = args[i + 1]; i += 2
+        else:
+            i += 1
+
+    if from_date is None:
+        from_date = datetime.now().strftime("%Y-%m-%d")
+
+    scheduled_days = set()
+    for p in proj.posts:
+        if p.scheduled_time:
+            scheduled_days.add(p.scheduled_time[:10])
+
+    start = datetime.strptime(from_date, "%Y-%m-%d")
+    gaps = []
+    for offset in range(days):
+        day = (start + timedelta(days=offset)).strftime("%Y-%m-%d")
+        if day not in scheduled_days:
+            gaps.append(day)
+
+    if fmt == "json":
+        print(json.dumps(gaps))
+        return
+
+    if not gaps:
+        print(f"No gaps in the next {days} days from {from_date}.")
+        return
+
+    for day in gaps:
+        print(day)
+    print(f"\n--- {len(gaps)} gap day(s) in {days}-day window from {from_date} ---")
+
+
+def cmd_post_create(project_path: str, args: list):
+    """Create a draft post."""
+    from doxyedit.models import Project, SocialPost, SocialPostStatus
+
+    asset_ids = []
+    platforms = []
+    caption_default = ""
+    captions = {}
+    links = []
+    scheduled_time = ""
+    reply_templates = []
+    fmt = None
+
+    i = 0
+    while i < len(args):
+        if args[i] == "--assets" and i + 1 < len(args):
+            asset_ids = [x.strip() for x in args[i + 1].split(",")]; i += 2
+        elif args[i] == "--platforms" and i + 1 < len(args):
+            platforms = [x.strip() for x in args[i + 1].split(",")]; i += 2
+        elif args[i] == "--caption" and i + 1 < len(args):
+            caption_default = args[i + 1]; i += 2
+        elif args[i].startswith("--caption-") and i + 1 < len(args):
+            plat_key = args[i][len("--caption-"):]
+            captions[plat_key] = args[i + 1]; i += 2
+        elif args[i] == "--link" and i + 1 < len(args):
+            links.append(args[i + 1]); i += 2
+        elif args[i] == "--schedule" and i + 1 < len(args):
+            scheduled_time = args[i + 1]; i += 2
+        elif args[i] == "--reply-template" and i + 1 < len(args):
+            reply_templates.append(args[i + 1]); i += 2
+        elif args[i] == "--format" and i + 1 < len(args):
+            fmt = args[i + 1]; i += 2
+        else:
+            i += 1
+
+    proj = Project.load(project_path)
+    now = datetime.now().isoformat()
+    post = SocialPost(
+        id=str(uuid.uuid4()),
+        asset_ids=asset_ids,
+        platforms=platforms,
+        captions=captions,
+        caption_default=caption_default,
+        links=links,
+        scheduled_time=scheduled_time,
+        status=SocialPostStatus.DRAFT,
+        reply_templates=reply_templates,
+        created_at=now,
+        updated_at=now,
+    )
+    proj.posts.append(post)
+    proj.save(project_path)
+
+    if fmt == "json":
+        print(json.dumps(post.to_dict(), indent=2))
+    else:
+        print(f"Created post {post.id}")
+        print(f"  Assets:    {', '.join(asset_ids) or '(none)'}")
+        print(f"  Platforms: {', '.join(platforms) or '(none)'}")
+        print(f"  Caption:   {caption_default!r}")
+        print(f"  Schedule:  {scheduled_time or '(unscheduled)'}")
+
+
+def cmd_post_update(project_path: str, post_id: str, args: list):
+    """Update an existing post."""
+    from doxyedit.models import Project, SocialPostStatus
+
+    proj = Project.load(project_path)
+    post = proj.get_post(post_id)
+    if not post:
+        print(f"Post '{post_id}' not found")
+        sys.exit(1)
+
+    i = 0
+    while i < len(args):
+        if args[i] == "--caption" and i + 1 < len(args):
+            post.caption_default = args[i + 1]; i += 2
+        elif args[i].startswith("--caption-") and i + 1 < len(args):
+            plat_key = args[i][len("--caption-"):]
+            post.captions[plat_key] = args[i + 1]; i += 2
+        elif args[i] == "--schedule" and i + 1 < len(args):
+            post.scheduled_time = args[i + 1]; i += 2
+        elif args[i] == "--add-platform" and i + 1 < len(args):
+            p = args[i + 1]
+            if p not in post.platforms:
+                post.platforms.append(p)
+            i += 2
+        elif args[i] == "--remove-platform" and i + 1 < len(args):
+            p = args[i + 1]
+            if p in post.platforms:
+                post.platforms.remove(p)
+            i += 2
+        elif args[i] == "--link" and i + 1 < len(args):
+            if args[i + 1] not in post.links:
+                post.links.append(args[i + 1])
+            i += 2
+        elif args[i] == "--status" and i + 1 < len(args):
+            post.status = args[i + 1]; i += 2
+        elif args[i] == "--reply-template" and i + 1 < len(args):
+            post.reply_templates.append(args[i + 1]); i += 2
+        else:
+            i += 1
+
+    post.updated_at = datetime.now().isoformat()
+    proj.save(project_path)
+    print(f"Updated post {post.id}")
+
+
+def cmd_post_push(project_path: str, args: list):
+    """Push post(s) to OneUp."""
+    from doxyedit.models import Project, SocialPostStatus
+
+    all_drafts = "--all-drafts" in args
+    post_id = None
+    i = 0
+    while i < len(args):
+        if args[i] == "--all-drafts":
+            i += 1
+        elif not args[i].startswith("--"):
+            post_id = args[i]; i += 1
+        else:
+            i += 1
+
+    proj = Project.load(project_path)
+
+    if all_drafts:
+        targets = [p for p in proj.posts if p.status == SocialPostStatus.DRAFT]
+    elif post_id:
+        post = proj.get_post(post_id)
+        if not post:
+            print(f"Post '{post_id}' not found")
+            sys.exit(1)
+        targets = [post]
+    else:
+        print("Usage: python -m doxyedit post push <project.json> <post-id|--all-drafts>")
+        sys.exit(1)
+
+    if not targets:
+        print("No posts to push.")
+        return
+
+    try:
+        from doxyedit.oneup_client import OneUpClient
+        config = proj.oneup_config or {}
+        client = OneUpClient(config)
+    except Exception as e:
+        print(f"OneUp client unavailable: {e}")
+        print("Marking posts as queued (offline mode).")
+        for post in targets:
+            post.status = SocialPostStatus.QUEUED
+            post.updated_at = datetime.now().isoformat()
+        proj.save(project_path)
+        return
+
+    pushed = failed = 0
+    for post in targets:
+        try:
+            result = client.create_post(post)
+            post.oneup_post_id = result.get("id", "")
+            post.status = SocialPostStatus.QUEUED
+            post.updated_at = datetime.now().isoformat()
+            pushed += 1
+            print(f"  Pushed {post.id} → oneup:{post.oneup_post_id}")
+        except Exception as e:
+            post.status = SocialPostStatus.FAILED
+            post.updated_at = datetime.now().isoformat()
+            failed += 1
+            print(f"  Failed {post.id}: {e}")
+
+    proj.save(project_path)
+    print(f"\nPushed {pushed}, failed {failed}")
+
+
+def cmd_post_sync(project_path: str, args: list):
+    """Sync post statuses from OneUp."""
+    from doxyedit.models import Project, SocialPostStatus
+
+    proj = Project.load(project_path)
+    queued = [p for p in proj.posts if p.status == SocialPostStatus.QUEUED and p.oneup_post_id]
+
+    if not queued:
+        print("No queued posts with OneUp IDs to sync.")
+        return
+
+    try:
+        from doxyedit.oneup_client import OneUpClient
+        config = proj.oneup_config or {}
+        client = OneUpClient(config)
+    except Exception as e:
+        print(f"OneUp client unavailable: {e}")
+        sys.exit(1)
+
+    updated = 0
+    for post in queued:
+        try:
+            result = client.get_post(post.oneup_post_id)
+            remote_status = result.get("status", "")
+            if remote_status in ("published", "posted"):
+                post.status = SocialPostStatus.POSTED
+            elif remote_status in ("failed", "error"):
+                post.status = SocialPostStatus.FAILED
+            post.updated_at = datetime.now().isoformat()
+            updated += 1
+            print(f"  {post.id}: {remote_status} → {post.status}")
+        except Exception as e:
+            print(f"  Failed to sync {post.id}: {e}")
+
+    proj.save(project_path)
+    print(f"\nSynced {updated} post(s)")
+
+
+def cmd_post_delete(project_path: str, post_id: str):
+    """Delete a post (cancels on OneUp if queued)."""
+    from doxyedit.models import Project, SocialPostStatus
+
+    proj = Project.load(project_path)
+    post = proj.get_post(post_id)
+    if not post:
+        print(f"Post '{post_id}' not found")
+        sys.exit(1)
+
+    if post.status == SocialPostStatus.QUEUED and post.oneup_post_id:
+        try:
+            from doxyedit.oneup_client import OneUpClient
+            config = proj.oneup_config or {}
+            client = OneUpClient(config)
+            client.delete_post(post.oneup_post_id)
+            print(f"  Cancelled OneUp post {post.oneup_post_id}")
+        except Exception as e:
+            print(f"  Could not cancel on OneUp: {e}")
+
+    proj.posts = [p for p in proj.posts if p.id != post_id]
+    proj.save(project_path)
+    print(f"Deleted post {post_id}")
+
+
+def cmd_suggest(project_path: str, args: list):
+    """Suggest unposted assets scored by stars + tag rarity."""
+    from doxyedit.models import Project
+
+    count = 10
+    exclude_tags = set()
+    fmt = None
+    i = 0
+    while i < len(args):
+        if args[i] == "--count" and i + 1 < len(args):
+            count = int(args[i + 1]); i += 2
+        elif args[i] == "--exclude-tags" and i + 1 < len(args):
+            exclude_tags = set(t.strip() for t in args[i + 1].split(",")); i += 2
+        elif args[i] == "--format" and i + 1 < len(args):
+            fmt = args[i + 1]; i += 2
+        else:
+            i += 1
+
+    proj = Project.load(project_path)
+
+    # Build set of already-scheduled asset IDs
+    scheduled_ids = set()
+    for p in proj.posts:
+        scheduled_ids.update(p.asset_ids)
+
+    # Build tag frequency map for rarity scoring
+    tag_counts: dict[str, int] = {}
+    for a in proj.assets:
+        for t in a.tags:
+            tag_counts[t] = tag_counts.get(t, 0) + 1
+
+    candidates = []
+    for a in proj.assets:
+        if a.id in scheduled_ids:
+            continue
+        if exclude_tags and exclude_tags.intersection(a.tags):
+            continue
+        rarity = sum(1.0 / tag_counts[t] for t in a.tags if t in tag_counts)
+        score = a.starred * 10 + rarity
+        candidates.append((score, a))
+
+    candidates.sort(key=lambda x: -x[0])
+    top = candidates[:count]
+
+    if fmt == "json":
+        result = [
+            {"id": a.id, "tags": a.tags, "starred": a.starred, "path": a.source_path, "score": round(score, 3)}
+            for score, a in top
+        ]
+        print(json.dumps(result, indent=2))
+        return
+
+    if not top:
+        print("No unscheduled assets found.")
+        return
+
+    for score, a in top:
+        star = f"[{a.starred}*] " if a.starred else "     "
+        tags = ", ".join(a.tags) if a.tags else "(no tags)"
+        print(f"{star}{a.id:<30} score={score:.2f}  tags: {tags}")
+
+    print(f"\n--- {len(top)} suggestion(s) from {len(candidates)} unscheduled assets ---")
+
+
 def main():
     args = sys.argv[1:]
 
@@ -482,6 +898,46 @@ def main():
             else:
                 i += 1
         cmd_search_advanced(args[1], tag, min_w or 0, aspect)
+    elif cmd == "schedule":
+        if len(args) < 2:
+            print("Usage: python -m doxyedit schedule <project.json> [--from DATE] [--to DATE] [--status S] [--format json|table]")
+            sys.exit(1)
+        cmd_schedule(args[1], args[2:])
+    elif cmd == "gaps":
+        if len(args) < 2:
+            print("Usage: python -m doxyedit gaps <project.json> [--from DATE] [--days N] [--format json|table]")
+            sys.exit(1)
+        cmd_gaps(args[1], args[2:])
+    elif cmd == "post":
+        if len(args) < 3:
+            print("Usage: python -m doxyedit post <create|update|push|sync|delete> <project.json> [options]")
+            sys.exit(1)
+        subcmd = args[1]
+        proj_path = args[2]
+        if subcmd == "create":
+            cmd_post_create(proj_path, args[3:])
+        elif subcmd == "update":
+            if len(args) < 4:
+                print("Usage: python -m doxyedit post update <project.json> <post-id> [options]")
+                sys.exit(1)
+            cmd_post_update(proj_path, args[3], args[4:])
+        elif subcmd == "push":
+            cmd_post_push(proj_path, args[3:])
+        elif subcmd == "sync":
+            cmd_post_sync(proj_path, args[3:])
+        elif subcmd == "delete":
+            if len(args) < 4:
+                print("Usage: python -m doxyedit post delete <project.json> <post-id>")
+                sys.exit(1)
+            cmd_post_delete(proj_path, args[3])
+        else:
+            print(f"Unknown post subcommand: {subcmd}")
+            sys.exit(1)
+    elif cmd == "suggest":
+        if len(args) < 2:
+            print("Usage: python -m doxyedit suggest <project.json> [--count N] [--exclude-tags wip]")
+            sys.exit(1)
+        cmd_suggest(args[1], args[2:])
     else:
         print(__doc__)
         sys.exit(1)
