@@ -538,6 +538,34 @@ def cmd_post_create(project_path: str, args: list):
             i += 1
 
     proj = Project.load(project_path)
+
+    # Duplicate / similarity check
+    new_ids = set(asset_ids)
+    new_plats = set(platforms)
+    warnings = []
+    for existing in proj.posts:
+        overlap_ids = new_ids & set(existing.asset_ids)
+        overlap_plats = new_plats & set(existing.platforms)
+        if not overlap_ids:
+            continue
+        if overlap_plats:
+            status_str = existing.status.value if hasattr(existing.status, 'value') else existing.status
+            warnings.append(
+                f"  ⚠ DUPLICATE: {', '.join(overlap_ids)} already {status_str} "
+                f"on {', '.join(overlap_plats)} (post {existing.id[:8]}... "
+                f"scheduled {existing.scheduled_time[:10] if existing.scheduled_time else 'unscheduled'})")
+        else:
+            warnings.append(
+                f"  ℹ SIMILAR: {', '.join(overlap_ids)} already in post {existing.id[:8]}... "
+                f"on different platforms")
+    if warnings:
+        print("Duplicate check:")
+        for w in warnings:
+            print(w)
+        if any("DUPLICATE" in w for w in warnings):
+            print("  Proceeding anyway — review the timeline to avoid double-posting.")
+        print()
+
     now = datetime.now().isoformat()
     post = SocialPost(
         id=str(uuid.uuid4()),
@@ -762,6 +790,50 @@ def cmd_post_delete(project_path: str, post_id: str):
     print(f"Deleted post {post_id}")
 
 
+def cmd_post_history(project_path: str, args: list):
+    """Show what's been posted — full history for reference."""
+    from doxyedit.models import Project
+    proj = Project.load(project_path)
+    fmt = "table"
+    i = 0
+    while i < len(args):
+        if args[i] == "--format" and i + 1 < len(args):
+            fmt = args[i + 1]; i += 2
+        else:
+            i += 1
+
+    posted = [p for p in proj.posts if (p.status.value if hasattr(p.status, 'value') else p.status) == "posted"]
+    posted.sort(key=lambda p: p.scheduled_time or "")
+
+    if fmt == "json":
+        print(json.dumps([p.to_dict() for p in posted], indent=2))
+        return
+
+    if not posted:
+        print("No posts have been posted yet.")
+        return
+
+    print(f"Post history ({len(posted)} posted):")
+    asset_post_count: dict[str, int] = {}
+    for p in posted:
+        dt = p.scheduled_time[:10] if p.scheduled_time else "?"
+        plats = ", ".join(p.platforms)
+        names = ", ".join(p.asset_ids[:2])
+        cap = (p.caption_default[:40] + "...") if len(p.caption_default) > 40 else p.caption_default
+        print(f"  ✓ {dt}  {names}  →  {plats}")
+        if cap:
+            print(f"    \"{cap}\"")
+        for aid in p.asset_ids:
+            asset_post_count[aid] = asset_post_count.get(aid, 0) + 1
+
+    # Flag assets posted multiple times
+    dupes = {k: v for k, v in asset_post_count.items() if v > 1}
+    if dupes:
+        print(f"\nAssets posted multiple times:")
+        for aid, count in sorted(dupes.items(), key=lambda x: -x[1]):
+            print(f"  ⚠ {aid}: {count} times")
+
+
 def cmd_suggest(project_path: str, args: list):
     """Suggest unposted assets scored by stars + tag rarity."""
     from doxyedit.models import Project
@@ -965,6 +1037,11 @@ def main():
             print("Usage: python -m doxyedit suggest <project.json> [--count N] [--exclude-tags wip]")
             sys.exit(1)
         cmd_suggest(args[1], args[2:])
+    elif cmd == "post-history":
+        if len(args) < 2:
+            print("Usage: python -m doxyedit post-history <project.json> [--format json|table]")
+            sys.exit(1)
+        cmd_post_history(args[1], args[2:])
     else:
         print(__doc__)
         sys.exit(1)
