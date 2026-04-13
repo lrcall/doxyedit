@@ -686,8 +686,8 @@ Be specific to THIS image. Reference what you actually see."""
                     pass
 
     if not api_key:
-        # Fall back to claude CLI pipe approach
-        return _generate_ai_strategy_cli(text_prompt, local_briefing)
+        # Use claude CLI (already authenticated) — no vision but full context
+        return _generate_ai_strategy_cli(text_prompt, local_briefing, image_content)
 
     try:
         client = anthropic.Anthropic(api_key=api_key)
@@ -704,20 +704,28 @@ Be specific to THIS image. Reference what you actually see."""
         return f"[API error: {e}]\n\nLocal analysis:\n\n{local_briefing}"
 
 
-def _generate_ai_strategy_cli(prompt: str, fallback: str) -> str:
-    """Fallback: pipe prompt to claude CLI (no images, text only)."""
+def _generate_ai_strategy_cli(prompt: str, fallback: str, image_content: list | None = None) -> str:
+    """Pipe prompt to claude CLI (already authenticated). Text-only — no vision.
+    If images were available, adds a note that they couldn't be analyzed."""
+    if image_content:
+        prompt = (
+            "[NOTE: Images are attached to this post but cannot be sent via CLI. "
+            "Analyze based on the tags, context, and posting history below. "
+            "If an Anthropic API key is added to config.yaml, future runs will "
+            "use vision to analyze the actual art.]\n\n" + prompt
+        )
     try:
         result = subprocess.run(
-            ["claude", "-p", prompt],
-            capture_output=True, text=True, timeout=120,
+            ["claude", "-p", "--no-input", prompt],
+            capture_output=True, text=True, timeout=180,
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
         err = result.stderr.strip() if result.stderr else "Unknown error"
         return f"[Claude CLI error: {err}]\n\nLocal analysis:\n\n{fallback}"
     except FileNotFoundError:
-        return f"[No API key set and Claude CLI not found]\n\nLocal analysis:\n\n{fallback}"
+        return f"[Claude CLI not found — is claude-code installed?]\n\nLocal analysis:\n\n{fallback}"
     except subprocess.TimeoutExpired:
-        return f"[Claude CLI timed out]\n\nLocal analysis:\n\n{fallback}"
+        return f"[Claude CLI timed out after 180s]\n\nLocal analysis:\n\n{fallback}"
     except Exception as e:
         return f"[Error: {e}]\n\nLocal analysis:\n\n{fallback}"
