@@ -119,7 +119,7 @@ class PostComposer(QDialog):
         tomorrow = datetime.now() + timedelta(days=1)
         self._schedule_edit.setDateTime(
             QDateTime(tomorrow.year, tomorrow.month, tomorrow.day,
-                      tomorrow.hour, tomorrow.minute)
+                      tomorrow.hour, tomorrow.minute, 0)
         )
         schedule_layout.addWidget(self._schedule_edit)
         layout.addWidget(schedule_box)
@@ -191,7 +191,7 @@ class PostComposer(QDialog):
             try:
                 dt = datetime.fromisoformat(post.scheduled_time)
                 self._schedule_edit.setDateTime(
-                    QDateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute)
+                    QDateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute, 0)
                 )
             except (ValueError, TypeError):
                 pass
