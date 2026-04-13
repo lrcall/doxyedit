@@ -283,18 +283,18 @@ class MainWindow(QMainWindow):
 
         self.checklist_panel = ChecklistPanel(self.project)
 
-        # Right side: timeline + checklist stacked vertically
-        _right_split = QSplitter(Qt.Orientation.Vertical)
-        _right_split.addWidget(self._timeline)
-        _right_split.addWidget(self.checklist_panel)
-        _right_split.setSizes([500, 150])
-        _right_split.setStretchFactor(0, 4)
-        _right_split.setStretchFactor(1, 1)
+        # Left side: calendar + checklist stacked vertically
+        _left_split = QSplitter(Qt.Orientation.Vertical)
+        _left_split.addWidget(self._calendar_pane)
+        _left_split.addWidget(self.checklist_panel)
+        _left_split.setSizes([350, 200])
+        _left_split.setStretchFactor(0, 1)
+        _left_split.setStretchFactor(1, 1)
 
-        # Horizontal: calendar left, timeline+checklist right
+        # Horizontal: calendar+checklist left, timeline right
         _social_split = QSplitter(Qt.Orientation.Horizontal)
-        _social_split.addWidget(self._calendar_pane)
-        _social_split.addWidget(_right_split)
+        _social_split.addWidget(_left_split)
+        _social_split.addWidget(self._timeline)
         _social_split.setSizes([250, 600])
         _social_split.setStretchFactor(0, 0)
         _social_split.setStretchFactor(1, 1)
