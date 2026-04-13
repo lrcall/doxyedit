@@ -234,9 +234,16 @@ class PostComposer(QDialog):
         self._strategy_generate_btn = QPushButton("Generate Strategy")
         self._strategy_generate_btn.setObjectName("strategy_generate_btn")
         self._strategy_generate_btn.setToolTip(
-            "Analyze asset tags, posting history, calendar gaps, and brand identity")
-        self._strategy_generate_btn.clicked.connect(self._generate_strategy)
+            "Local analysis — tags, posting history, calendar gaps, brand identity")
+        self._strategy_generate_btn.clicked.connect(self._generate_local_strategy)
         strategy_btn_row.addWidget(self._strategy_generate_btn)
+
+        self._ai_strategy_btn = QPushButton("AI Strategy")
+        self._ai_strategy_btn.setObjectName("strategy_generate_btn")
+        self._ai_strategy_btn.setToolTip(
+            "Claude analyzes the actual image + full context — real strategic insight")
+        self._ai_strategy_btn.clicked.connect(self._generate_ai_strategy)
+        strategy_btn_row.addWidget(self._ai_strategy_btn)
         strategy_btn_row.addStretch()
         strategy_layout.addLayout(strategy_btn_row)
         self._strategy_edit = QTextEdit()
@@ -575,26 +582,60 @@ class PostComposer(QDialog):
     # Strategy generation
     # ------------------------------------------------------------------
 
-    def _generate_strategy(self) -> None:
-        """Build a strategy briefing from project data and fill the notes field."""
-        from doxyedit.strategy import generate_strategy_briefing
-
-        # Build a temporary SocialPost from current form state
+    def _build_temp_post(self) -> SocialPost:
+        """Build a temporary SocialPost from current form state."""
         asset_ids = [s.strip() for s in self._images_edit.text().split(",") if s.strip()]
         platforms = [p for p, cb in self._platform_checks.items() if cb.isChecked()]
         qt_dt = self._schedule_edit.dateTime()
         py_dt = qt_dt.toPython()
         scheduled_time = py_dt.isoformat() if py_dt else ""
-
-        temp_post = SocialPost(
+        return SocialPost(
             id=self._editing.id if self._editing else "",
             asset_ids=asset_ids,
             platforms=platforms,
             scheduled_time=scheduled_time,
         )
 
-        briefing = generate_strategy_briefing(self._project, temp_post)
+    def _generate_local_strategy(self) -> None:
+        """Local data analysis — fast, no API call."""
+        from doxyedit.strategy import generate_strategy_briefing
+        briefing = generate_strategy_briefing(self._project, self._build_temp_post())
         self._strategy_edit.setPlainText(briefing)
+
+    def _generate_ai_strategy(self) -> None:
+        """Call Claude to analyze images + context and generate real strategy."""
+        from doxyedit.strategy import generate_ai_strategy
+        from PySide6.QtCore import QThread, Signal as _Signal
+
+        temp_post = self._build_temp_post()
+
+        # Show loading state
+        self._strategy_edit.setPlainText("Claude is analyzing the image(s) and generating strategy...")
+        self._ai_strategy_btn.setEnabled(False)
+        self._ai_strategy_btn.setText("Generating...")
+
+        # Run in background thread so UI doesn't freeze
+        class _Worker(QThread):
+            finished = _Signal(str)
+
+            def __init__(self, project, post):
+                super().__init__()
+                self._project = project
+                self._post = post
+
+            def run(self):
+                result = generate_ai_strategy(self._project, self._post)
+                self.finished.emit(result)
+
+        self._strategy_worker = _Worker(self._project, temp_post)
+        self._strategy_worker.finished.connect(self._on_ai_strategy_done)
+        self._strategy_worker.start()
+
+    def _on_ai_strategy_done(self, result: str) -> None:
+        """Handle completed AI strategy generation."""
+        self._strategy_edit.setPlainText(result)
+        self._ai_strategy_btn.setEnabled(True)
+        self._ai_strategy_btn.setText("AI Strategy")
 
     # ------------------------------------------------------------------
     # Toggle per-platform captions

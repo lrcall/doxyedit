@@ -3,11 +3,19 @@
 Analyzes asset tags, posting history, identity/brand, calendar context,
 tag frequency, platform fit, and past strategy notes to produce a structured
 markdown briefing for a given SocialPost.
+
+Two modes:
+  - generate_strategy_briefing(): local data analysis (fast, no API call)
+  - generate_ai_strategy(): sends images + context to Claude for real insight
 """
 from __future__ import annotations
 
+import base64
+import json
+import subprocess
 from collections import Counter
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional
 
 from doxyedit.models import Asset, CollectionIdentity, Project, SocialPost, SocialPostStatus
@@ -499,3 +507,139 @@ def generate_strategy_briefing(project: Project, post: SocialPost) -> str:
     ]
 
     return "\n".join(sections).rstrip() + "\n"
+
+
+# ---------------------------------------------------------------------------
+# AI-powered strategy (calls Claude via CLI)
+# ---------------------------------------------------------------------------
+
+def _load_image_for_prompt(src: Path, max_size: int = 1024) -> str | None:
+    """Load an image as a file path string for passing to claude CLI.
+    For PSD files, export a temp JPEG first."""
+    if not src.exists():
+        return None
+    ext = src.suffix.lower()
+    if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+        return str(src)
+    if ext in (".psd", ".psb"):
+        try:
+            from doxyedit.imaging import load_psd
+            from PIL import Image
+            import tempfile
+            img, _, _ = load_psd(str(src))
+            img.thumbnail((max_size, max_size), Image.LANCZOS)
+            tmp = Path(tempfile.gettempdir()) / f"doxyedit_strategy_{src.stem}.jpg"
+            img.save(str(tmp), "JPEG", quality=85)
+            return str(tmp)
+        except Exception:
+            return None
+    return None
+
+
+def generate_ai_strategy(
+    project: Project,
+    post: SocialPost,
+    callback: "callable | None" = None,
+) -> str:
+    """Call Claude via CLI with images + project context for real strategy.
+
+    Args:
+        project: The loaded Project.
+        post: The SocialPost being planned.
+        callback: Optional callable(str) for streaming partial output.
+
+    Returns:
+        AI-generated strategy string, or error message on failure.
+    """
+    # 1. Gather local context briefing
+    local_briefing = generate_strategy_briefing(project, post)
+
+    # 2. Resolve image paths
+    image_paths: list[str] = []
+    assets: list[Asset] = []
+    for aid in post.asset_ids:
+        a = project.get_asset(aid)
+        if a:
+            assets.append(a)
+            img = _load_image_for_prompt(Path(a.source_path))
+            if img:
+                image_paths.append(img)
+
+    # 3. Build the prompt
+    identity = project.get_identity()
+    platform_list = ", ".join(post.platforms) if post.platforms else "not yet selected"
+
+    # Existing posts summary for cross-post awareness
+    recent_posts = []
+    for p in sorted(project.posts, key=lambda x: x.scheduled_time or "")[-15:]:
+        if p.id == post.id:
+            continue
+        status = p.status if isinstance(p.status, str) else p.status
+        caption_preview = (p.caption_default or "")[:60]
+        plats = ", ".join(p.platforms) if p.platforms else "?"
+        dt = p.scheduled_time[:10] if p.scheduled_time else "unscheduled"
+        recent_posts.append(f"  - {dt} [{status}] {plats}: {caption_preview}")
+    recent_block = "\n".join(recent_posts) if recent_posts else "  (no other posts)"
+
+    prompt = f"""You are a social media strategist for an art/illustration creator. Study the attached image(s) carefully and provide a detailed, actionable posting strategy.
+
+## Creator Identity
+- Name: {identity.name or 'not set'}
+- Voice/tone: {identity.voice or 'not set'}
+- Bio: {identity.bio_blurb or 'not set'}
+- Content notes: {identity.content_notes or 'none'}
+- Default hashtags: {' '.join(identity.hashtags) if identity.hashtags else 'none'}
+- Gumroad: {identity.gumroad_url or 'none'}
+- Patreon: {identity.patreon_url or 'none'}
+
+## This Post
+- Target platforms: {platform_list}
+- Scheduled: {post.scheduled_time or 'not yet scheduled'}
+- Asset tags: {', '.join(a.tags for a in assets) if assets else 'none'}
+
+## Local Data Analysis
+{local_briefing}
+
+## Recent Post History (for cross-reference — avoid repetition)
+{recent_block}
+
+## What I Need From You
+
+Look at the image(s) and provide:
+
+1. **Image Analysis** — What's in the art? Style, mood, characters, composition, appeal. What makes it stand out?
+2. **Caption Suggestions** — 2-3 caption options per platform. Match the creator's voice. Include relevant hashtags.
+3. **Best Posting Time** — When to post for maximum engagement on each platform. Consider the day of week and time zones.
+4. **Platform-Specific Strategy** — What works on each target platform for this type of content. Carousel? Thread? Reel?
+5. **Engagement Hooks** — Questions, CTAs, or conversation starters to drive interaction.
+6. **Cross-Promotion** — How this post connects to the broader posting calendar. Any series potential?
+7. **Content Warnings** — If applicable, flag any content that needs age-gating or platform-specific handling.
+8. **Monetization Angle** — If there's a natural tie-in to Gumroad/Patreon/merch, suggest it.
+
+Be specific to THIS image. Don't give generic advice. Reference what you actually see."""
+
+    # 4. Build claude CLI command
+    cmd = ["claude", "--print", "--no-input"]
+    for img_path in image_paths:
+        cmd.extend(["--file", img_path])
+    cmd.extend(["--prompt", prompt])
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=str(Path(project.assets[0].source_path).parent) if project.assets else None,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+        else:
+            err = result.stderr.strip() if result.stderr else "Unknown error"
+            return f"[Claude CLI error: {err}]\n\nFallback local analysis:\n\n{local_briefing}"
+    except FileNotFoundError:
+        return f"[Claude CLI not found — install claude-code]\n\nFallback local analysis:\n\n{local_briefing}"
+    except subprocess.TimeoutExpired:
+        return f"[Claude CLI timed out after 120s]\n\nFallback local analysis:\n\n{local_briefing}"
+    except Exception as e:
+        return f"[Error: {e}]\n\nFallback local analysis:\n\n{local_briefing}"
