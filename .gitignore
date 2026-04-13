@@ -1,5 +1,7 @@
 dist/
 build/
+config.yaml
+.superpowers/
 __pycache__/
 *.pyc
 *.pyo
