@@ -57,6 +57,8 @@ class PostCard(QFrame):
         self.setObjectName("timeline_post_card")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._post_id = post.id
+        self._asset_ids = post.asset_ids
+        self._project = project
 
         outer = QHBoxLayout(self)
         outer.setContentsMargins(6, 4, 6, 4)
@@ -184,7 +186,28 @@ class PostCard(QFrame):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit(self._post_id)
+        elif event.button() == Qt.MouseButton.MiddleButton:
+            self._show_hover_preview()
         super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.MiddleButton:
+            from doxyedit.preview import HoverPreview
+            HoverPreview.instance().hide_preview()
+        super().mouseReleaseEvent(event)
+
+    def _show_hover_preview(self):
+        """Show hover preview of the first asset on middle-click."""
+        if not self._asset_ids:
+            return
+        from doxyedit.preview import HoverPreview
+        from PySide6.QtGui import QCursor
+        for aid in self._asset_ids:
+            asset = self._project.get_asset(aid) if self._project else None
+            if asset and asset.source_path:
+                hp = HoverPreview.instance()
+                hp.show_for(asset.source_path, QCursor.pos())
+                return
 
 
 class GapMarker(QFrame):

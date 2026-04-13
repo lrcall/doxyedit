@@ -1514,6 +1514,17 @@ def generate_stylesheet(theme: Theme) -> str:
             font-size: {fxs}px;
         }}
 
+        /* ── Composer thumb cells ────────────────────────────────────── */
+        QFrame#composer_thumb_cell {{
+            background: transparent;
+            border: none;
+        }}
+        QLabel#composer_thumb_order {{
+            color: {theme.text_secondary};
+            font-size: {fxs}px;
+            font-weight: bold;
+        }}
+
         /* ── Strategy generate button ────────────────────────────────── */
         QPushButton#strategy_generate_btn {{
             background: {theme.accent_dim};

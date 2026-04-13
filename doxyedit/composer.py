@@ -349,7 +349,7 @@ class PostComposer(QDialog):
     # Image preview
     # ------------------------------------------------------------------
 
-    PREVIEW_THUMB_SIZE = 96
+    PREVIEW_THUMB_SIZE = 180
 
     def _update_thumb_preview(self) -> None:
         """Refresh the thumbnail strip when the asset ID list changes."""
@@ -364,8 +364,20 @@ class PostComposer(QDialog):
             self._thumb_strip_container.setVisible(False)
             return
 
+        multi = len(ids) > 1
         any_visible = False
-        for aid in ids[:6]:  # max 6 previews
+        for i, aid in enumerate(ids[:6]):  # max 6 previews
+            # Wrap each thumb in a frame with optional order number
+            cell = QFrame()
+            cell.setObjectName("composer_thumb_cell")
+            cell_layout = QVBoxLayout(cell)
+            cell_layout.setContentsMargins(0, 0, 0, 0)
+            cell_layout.setSpacing(2)
+
+            # Resolve source path for middle-click preview
+            asset = self._project.get_asset(aid)
+            src_path = asset.source_path if asset else None
+
             pm = self._load_asset_thumb(aid)
             if pm and not pm.isNull():
                 scaled = pm.scaled(
@@ -377,15 +389,28 @@ class PostComposer(QDialog):
                 lbl.setPixmap(scaled)
                 lbl.setFixedSize(self.PREVIEW_THUMB_SIZE, self.PREVIEW_THUMB_SIZE)
                 lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                self._thumb_strip.addWidget(lbl)
-                any_visible = True
+                cell_layout.addWidget(lbl)
             else:
                 lbl = QLabel("?")
                 lbl.setFixedSize(self.PREVIEW_THUMB_SIZE, self.PREVIEW_THUMB_SIZE)
                 lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 lbl.setObjectName("timeline_thumb_placeholder")
-                self._thumb_strip.addWidget(lbl)
-                any_visible = True
+                cell_layout.addWidget(lbl)
+
+            # Middle-click hover preview on thumb
+            if src_path:
+                lbl._src_path = src_path
+                lbl.installEventFilter(self)
+
+            # Order label for multi-image posts
+            if multi:
+                order_lbl = QLabel(f"#{i + 1}" + (" — hero" if i == 0 else ""))
+                order_lbl.setObjectName("composer_thumb_order")
+                order_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                cell_layout.addWidget(order_lbl)
+
+            self._thumb_strip.addWidget(cell)
+            any_visible = True
 
         self._thumb_strip.addStretch()
         self._thumb_strip_container.setVisible(any_visible)
@@ -434,6 +459,27 @@ class PostComposer(QDialog):
                 self._images_edit.setPlaceholderText(", ".join(names))
             else:
                 self._images_edit.setPlaceholderText("No assets selected — select in Assets tab first")
+
+    # ------------------------------------------------------------------
+    # Middle-click hover preview on thumb labels
+    # ------------------------------------------------------------------
+
+    def eventFilter(self, obj, event):
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.Type.MouseButtonPress:
+            if event.button() == Qt.MouseButton.MiddleButton:
+                path = getattr(obj, '_src_path', None)
+                if path:
+                    from doxyedit.preview import HoverPreview
+                    from PySide6.QtGui import QCursor
+                    HoverPreview.instance().show_for(path, QCursor.pos())
+                return True
+        if event.type() == QEvent.Type.MouseButtonRelease:
+            if event.button() == Qt.MouseButton.MiddleButton:
+                from doxyedit.preview import HoverPreview
+                HoverPreview.instance().hide_preview()
+                return True
+        return super().eventFilter(obj, event)
 
     # ------------------------------------------------------------------
     # Strategy generation

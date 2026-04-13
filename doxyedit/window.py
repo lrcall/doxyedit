@@ -2088,6 +2088,7 @@ class MainWindow(QMainWindow):
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         dlg.finished.connect(lambda result: self._on_composer_done(dlg, is_new=False))
         dlg.show()
+        self._theme_dialog_titlebar(dlg)
 
     def _on_new_post(self):
         """Open composer to create a new post."""
@@ -2095,6 +2096,7 @@ class MainWindow(QMainWindow):
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         dlg.finished.connect(lambda result: self._on_composer_done(dlg, is_new=True))
         dlg.show()
+        self._theme_dialog_titlebar(dlg)
 
     def _on_composer_done(self, dlg, is_new: bool):
         """Handle composer close — add or update post."""
