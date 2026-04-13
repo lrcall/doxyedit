@@ -2578,9 +2578,8 @@ class AssetBrowser(QWidget):
 
     # --- Drag fix (F8 cycles methods) ---
 
-    # --- Drag fix (F8 cycles methods) ---
-
     _drag_fix = 1  # default: method 1
+    _last_press_pos = QPointF(0, 0)
     _DRAG_FIXES = [
         "pass press (blocked) + re-select",
         "pass press (blocked) + setState + re-select",
@@ -2592,9 +2591,9 @@ class AssetBrowser(QWidget):
 
     def cycle_drag_fix(self):
         self._drag_fix = (self._drag_fix + 1) % len(self._DRAG_FIXES)
-        print(f"[F8] Drag fix: {self._DRAG_FIXES[self._drag_fix]} (method {self._drag_fix})")
         try:
-            self.window().status.showMessage(f"Drag fix: {self._DRAG_FIXES[self._drag_fix]} ({self._drag_fix})", 3000)
+            self.window().status.showMessage(
+                f"Drag fix: {self._DRAG_FIXES[self._drag_fix]} ({self._drag_fix})", 3000)
         except Exception:
             pass
 
@@ -2609,50 +2608,56 @@ class AssetBrowser(QWidget):
         if self._drag_fix < 3:
             view.selectionModel().blockSignals(False)
 
-    def _post_drag_cleanup(self, view, model, saved_sel):
-        m = self._drag_fix
-        print(f"[drag] Fix {m}: {self._DRAG_FIXES[m]}")
+    @staticmethod
+    def _fake_release(pos=QPointF(0, 0)):
+        return QMouseEvent(QEvent.Type.MouseButtonRelease, pos,
+            Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
 
-        def _reselect():
-            if not saved_sel:
-                return
-            sm = view.selectionModel()
-            sm.blockSignals(True)
+    def _reselect_items(self, view, model, saved_sel):
+        """Restore selection from saved IDs using model's id→index map."""
+        if not saved_sel:
+            return
+        sm = view.selectionModel()
+        sm.blockSignals(True)
+        # Use asset index if model has one, else linear scan
+        id_map = getattr(model, '_id_to_row', None)
+        if id_map:
+            for aid in saved_sel:
+                row = id_map.get(aid)
+                if row is not None:
+                    sm.select(model.index(row), QItemSelectionModel.SelectionFlag.Select)
+        else:
             for i in range(model.rowCount()):
                 idx = model.index(i)
                 a = model.get_asset(idx)
                 if a and a.id in saved_sel:
                     sm.select(idx, QItemSelectionModel.SelectionFlag.Select)
-            sm.blockSignals(False)
-            view.viewport().update()
+        sm.blockSignals(False)
+        view.viewport().update()
 
+    def _post_drag_cleanup(self, view, model, saved_sel):
+        m = self._drag_fix
         if m == 0:
-            _reselect()
+            self._reselect_items(view, model, saved_sel)
         elif m == 1:
             view.setState(QListView.State.NoState)
-            _reselect()
+            self._reselect_items(view, model, saved_sel)
         elif m == 2:
-            fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
-                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
-            QApplication.sendEvent(view.viewport(), fake)
-            _reselect()
+            QApplication.sendEvent(view.viewport(), self._fake_release())
+            self._reselect_items(view, model, saved_sel)
         elif m == 3:
-            fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
-                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
-            QApplication.sendEvent(view.viewport(), fake)
+            QApplication.sendEvent(view.viewport(), self._fake_release())
         elif m == 4:
             view.setState(QListView.State.NoState)
         elif m == 5:
-            click_pos = getattr(self, '_last_press_pos', QPointF(0, 0))
-            fake_press = QMouseEvent(QEvent.Type.MouseButtonPress, click_pos,
+            sm = view.selectionModel()
+            sm.blockSignals(True)
+            fake_p = QMouseEvent(QEvent.Type.MouseButtonPress, self._last_press_pos,
                 Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
-            view.selectionModel().blockSignals(True)
-            QApplication.sendEvent(view.viewport(), fake_press)
-            fake_rel = QMouseEvent(QEvent.Type.MouseButtonRelease, click_pos,
-                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
-            QApplication.sendEvent(view.viewport(), fake_rel)
-            view.selectionModel().blockSignals(False)
-            _reselect()
+            QApplication.sendEvent(view.viewport(), fake_p)
+            QApplication.sendEvent(view.viewport(), self._fake_release(self._last_press_pos))
+            sm.blockSignals(False)
+            self._reselect_items(view, model, saved_sel)
 
     # --- Context menu ---
 
