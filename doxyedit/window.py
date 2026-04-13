@@ -283,14 +283,21 @@ class MainWindow(QMainWindow):
 
         self.checklist_panel = ChecklistPanel(self.project)
 
-        _social_split = QSplitter(Qt.Orientation.Vertical)
+        # Right side: timeline + checklist stacked vertically
+        _right_split = QSplitter(Qt.Orientation.Vertical)
+        _right_split.addWidget(self._timeline)
+        _right_split.addWidget(self.checklist_panel)
+        _right_split.setSizes([500, 150])
+        _right_split.setStretchFactor(0, 4)
+        _right_split.setStretchFactor(1, 1)
+
+        # Horizontal: calendar left, timeline+checklist right
+        _social_split = QSplitter(Qt.Orientation.Horizontal)
         _social_split.addWidget(self._calendar_pane)
-        _social_split.addWidget(self._timeline)
-        _social_split.addWidget(self.checklist_panel)
-        _social_split.setSizes([200, 500, 150])
+        _social_split.addWidget(_right_split)
+        _social_split.setSizes([250, 600])
         _social_split.setStretchFactor(0, 0)
-        _social_split.setStretchFactor(1, 4)
-        _social_split.setStretchFactor(2, 1)
+        _social_split.setStretchFactor(1, 1)
         self.tabs.addTab(_social_split, "Social")
 
         # Tab 5: Platforms — slot assignments + kanban (legacy)
