@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QPushButton, QCheckBox, QDateTimeEdit, QFrame,
     QScrollArea, QWidget, QSizePolicy, QGroupBox,
 )
-from PySide6.QtCore import Qt, QDateTime, QSettings, QSize
+from PySide6.QtCore import Qt, QDateTime, QSettings, QSize, QRect
 from PySide6.QtGui import QPixmap
 from doxyedit.models import Project, SocialPost, SocialPostStatus
 
@@ -62,6 +62,76 @@ SOCIAL_PLATFORMS = [
     "twitter", "instagram", "bluesky", "reddit",
     "patreon", "discord", "tiktok", "pinterest",
 ]
+
+
+class _FlowLayout(QVBoxLayout.__class__.__bases__[0]):  # QLayout
+    """Simple flow layout that wraps widgets like text."""
+
+    def __init__(self, parent=None, hspacing=6, vspacing=4):
+        super().__init__(parent)
+        self._hspacing = hspacing
+        self._vspacing = vspacing
+        self._items: list = []
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, index):
+        if 0 <= index < len(self._items):
+            return self._items[index]
+        return None
+
+    def takeAt(self, index):
+        if 0 <= index < len(self._items):
+            return self._items.pop(index)
+        return None
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._do_layout(QRect(0, 0, width, 0), test_only=True)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._do_layout(rect)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        s = QSize(0, 0)
+        for item in self._items:
+            s = s.expandedTo(item.minimumSize())
+        m = self.contentsMargins()
+        s += QSize(m.left() + m.right(), m.top() + m.bottom())
+        return s
+
+    def _do_layout(self, rect, test_only=False):
+        from PySide6.QtCore import QRect as _QRect
+        m = self.contentsMargins()
+        effective = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
+        x = effective.x()
+        y = effective.y()
+        row_height = 0
+
+        for item in self._items:
+            sz = item.sizeHint()
+            next_x = x + sz.width() + self._hspacing
+            if next_x - self._hspacing > effective.right() and row_height > 0:
+                x = effective.x()
+                y += row_height + self._vspacing
+                next_x = x + sz.width() + self._hspacing
+                row_height = 0
+            if not test_only:
+                item.setGeometry(_QRect(x, y, sz.width(), sz.height()))
+            x = next_x
+            row_height = max(row_height, sz.height())
+
+        return y + row_height - rect.y() + m.bottom()
 
 
 class PostComposer(QDialog):
@@ -150,13 +220,11 @@ class PostComposer(QDialog):
 
         # --- Platforms (flow layout — wraps when narrow) ---
         platforms_box = QGroupBox("Platforms")
-        from PySide6.QtWidgets import QGridLayout
-        platforms_grid = QGridLayout(platforms_box)
-        platforms_grid.setSpacing(6)
-        for i, plat in enumerate(SOCIAL_PLATFORMS):
+        platforms_flow = _FlowLayout(platforms_box, hspacing=8, vspacing=4)
+        for plat in SOCIAL_PLATFORMS:
             cb = QCheckBox(plat)
             self._platform_checks[plat] = cb
-            platforms_grid.addWidget(cb, i // 4, i % 4)
+            platforms_flow.addWidget(cb)
         layout.addWidget(platforms_box)
 
         # --- AI Strategy Notes (right after platforms for context) ---
