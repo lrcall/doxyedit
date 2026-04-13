@@ -24,6 +24,8 @@ from doxyedit.browser import AssetBrowser, IMAGE_EXTS, THUMB_GEN_SIZE
 from doxyedit.themes import THEMES, DEFAULT_THEME, generate_stylesheet, Theme
 from doxyedit.censor import CensorEditor
 from doxyedit.platforms import PlatformPanel
+from doxyedit.timeline import TimelineStream
+from doxyedit.composer import PostComposer
 from doxyedit.tagpanel import TagPanel
 from doxyedit.exporter import export_project
 from doxyedit.preview import ImagePreviewDialog, PreviewPane
@@ -265,27 +267,43 @@ class MainWindow(QMainWindow):
         self.censor_editor = CensorEditor()
         self.tabs.addTab(self.censor_editor, "Censor")
 
-        # Tab 4: Platforms — top: [PlatformPanel | KanbanPanel], bottom: ChecklistPanel
+        # Tab 4: Platforms — left: PlatformPanel, right: Timeline/Kanban + Checklist
         self.platform_panel = PlatformPanel(self.project)
         self.platform_panel.set_thumb_cache(self.browser._thumb_cache)
+
+        # Timeline (new primary) + Kanban (legacy toggle)
+        self._timeline = TimelineStream()
+        self._timeline.set_project(self.project)
+        self._timeline.post_selected.connect(self._on_post_selected)
+        self._timeline.new_post_requested.connect(self._on_new_post)
+        self._timeline.sync_requested.connect(self._on_sync_oneup)
+
         self._kanban_panel = KanbanPanel()
         self._kanban_panel.status_changed.connect(self._on_data_changed)
         self._kanban_panel.status_changed.connect(lambda: self.platform_panel.refresh())
+        self._kanban_panel.status_changed.connect(lambda: self._timeline.refresh())
+
+        from PySide6.QtWidgets import QStackedWidget
+        self._plat_stack = QStackedWidget()
+        self._plat_stack.addWidget(self._timeline)       # page 0
+        self._plat_stack.addWidget(self._kanban_panel)    # page 1
+
         self.checklist_panel = ChecklistPanel(self.project)
-        # Right column: kanban (top) + checklist (bottom)
+
+        # Right column: timeline/kanban (top) + checklist (bottom)
         _right_col = QSplitter(Qt.Orientation.Vertical)
-        _right_col.addWidget(self._kanban_panel)
+        _right_col.addWidget(self._plat_stack)
         _right_col.addWidget(self.checklist_panel)
-        _right_col.setSizes([400, 200])
+        _right_col.setSizes([500, 150])
         _right_col.setStretchFactor(0, 3)
         _right_col.setStretchFactor(1, 1)
-        # Platforms (left) + kanban+checklist (right)
+        # Platforms (left) + timeline+checklist (right)
         _plat_top = QSplitter(Qt.Orientation.Horizontal)
         _plat_top.addWidget(self.platform_panel)
         _plat_top.addWidget(_right_col)
-        _plat_top.setSizes([600, 400])
-        _plat_top.setStretchFactor(0, 3)
-        _plat_top.setStretchFactor(1, 2)
+        _plat_top.setSizes([400, 600])
+        _plat_top.setStretchFactor(0, 2)
+        _plat_top.setStretchFactor(1, 3)
         # Assigned art hive at bottom — full width
         _plat_full = QSplitter(Qt.Orientation.Vertical)
         _plat_full.addWidget(_plat_top)
@@ -1254,6 +1272,11 @@ class MainWindow(QMainWindow):
         self._cache_all_action.setChecked(self.browser.cache_all_check.isChecked())
         self._cache_all_action.toggled.connect(self.browser.cache_all_check.setChecked)
         self.browser.cache_all_check.toggled.connect(self._cache_all_action.setChecked)
+        self._kanban_toggle_action = view_menu.addAction("Show Kanban (legacy)")
+        self._kanban_toggle_action.setCheckable(True)
+        self._kanban_toggle_action.setChecked(False)
+        self._kanban_toggle_action.toggled.connect(
+            lambda show_kanban: self._plat_stack.setCurrentIndex(1 if show_kanban else 0))
         view_menu.addSeparator()
         self._smart_folder_menu = view_menu.addMenu("Smart Folders")
         self._rebuild_smart_folder_menu()
@@ -2033,6 +2056,60 @@ class MainWindow(QMainWindow):
     def _on_data_changed(self):
         self._dirty = True
         self._update_progress()
+
+    # ---- Social media timeline handlers ----
+
+    def _on_post_selected(self, post_id: str):
+        """Open composer to edit an existing post."""
+        post = self.project.get_post(post_id)
+        if not post:
+            return
+        dlg = PostComposer(self.project, post=post, parent=self)
+        if dlg.exec() and dlg.result_post:
+            self._dirty = True
+            self._timeline.refresh()
+            self.platform_panel.refresh()
+
+    def _on_new_post(self):
+        """Open composer to create a new post."""
+        dlg = PostComposer(self.project, parent=self)
+        if dlg.exec() and dlg.result_post:
+            self.project.posts.append(dlg.result_post)
+            self._dirty = True
+            self._timeline.refresh()
+
+    def _on_sync_oneup(self):
+        """Sync post statuses from OneUp API."""
+        from doxyedit.oneup import get_client_from_config, OneUpClient
+        from doxyedit.models import SocialPostStatus
+        project_dir = str(Path(self._project_path).parent) if hasattr(self, '_project_path') else "."
+
+        client = get_client_from_config(project_dir)
+        if not client:
+            key = (self.project.oneup_config or {}).get("api_key", "")
+            if key:
+                client = OneUpClient(key)
+        if not client:
+            self.statusBar().showMessage("No OneUp API key configured", 5000)
+            return
+
+        updated = 0
+        for post in self.project.posts:
+            if post.status == SocialPostStatus.QUEUED and post.oneup_post_id:
+                result = client.get_post(post.oneup_post_id)
+                if result.success:
+                    rs = result.data.get("status", "")
+                    if rs == "published":
+                        post.status = SocialPostStatus.POSTED
+                        updated += 1
+                    elif rs == "failed":
+                        post.status = SocialPostStatus.FAILED
+                        updated += 1
+
+        if updated:
+            self._dirty = True
+            self._timeline.refresh()
+        self.statusBar().showMessage(f"Synced: {updated} post(s) updated", 3000)
 
     def _on_asset_selected(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
@@ -3556,6 +3633,8 @@ Ctrl+Click tag — Search by tag
         self._file_browser.set_project(self.project)
         if hasattr(self, '_kanban_panel'):
             self._kanban_panel.set_project(self.project)
+        if hasattr(self, '_timeline'):
+            self._timeline.set_project(self.project)
         if hasattr(self, '_smart_folder_menu'):
             self._rebuild_smart_folder_menu()
         if hasattr(self, '_info_panel'):
