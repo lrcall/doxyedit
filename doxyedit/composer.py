@@ -189,6 +189,7 @@ class PostComposer(QDialog):
         # --- Schedule ---
         schedule_box = QGroupBox("Schedule")
         schedule_layout = QVBoxLayout(schedule_box)
+        sched_row = QHBoxLayout()
         self._schedule_edit = QDateTimeEdit()
         self._schedule_edit.setCalendarPopup(True)
         self._schedule_edit.setDisplayFormat("yyyy-MM-dd hh:mm AP")
@@ -197,7 +198,14 @@ class PostComposer(QDialog):
             QDateTime(tomorrow.year, tomorrow.month, tomorrow.day,
                       tomorrow.hour, tomorrow.minute, 0)
         )
-        schedule_layout.addWidget(self._schedule_edit)
+        sched_row.addWidget(self._schedule_edit, 1)
+        # World clock — show other timezones
+        self._tz_label = QLabel()
+        self._tz_label.setObjectName("timeline_caption")
+        self._update_tz_display()
+        self._schedule_edit.dateTimeChanged.connect(lambda _: self._update_tz_display())
+        sched_row.addWidget(self._tz_label)
+        schedule_layout.addLayout(sched_row)
         layout.addWidget(schedule_box)
 
         # --- Reply Templates ---
@@ -234,6 +242,31 @@ class PostComposer(QDialog):
         btn_layout.addStretch()
         btn_layout.addWidget(btn_cancel)
         root.addLayout(btn_layout)
+
+    # ------------------------------------------------------------------
+    # Timezone display
+    # ------------------------------------------------------------------
+
+    def _update_tz_display(self):
+        """Show the scheduled time in key Western timezones."""
+        try:
+            from zoneinfo import ZoneInfo
+        except ImportError:
+            self._tz_label.setText("")
+            return
+        qt_dt = self._schedule_edit.dateTime()
+        py_dt = qt_dt.toPython()
+        # Assume the local time is what the user entered (their system TZ)
+        local_tz = datetime.now().astimezone().tzinfo
+        aware = py_dt.replace(tzinfo=local_tz)
+        lines = []
+        for tz_name, label in [("US/Eastern", "EST"), ("US/Pacific", "PST"), ("Europe/London", "GMT")]:
+            try:
+                converted = aware.astimezone(ZoneInfo(tz_name))
+                lines.append(f"{label}: {converted.strftime('%I:%M%p %a').lstrip('0')}")
+            except Exception:
+                pass
+        self._tz_label.setText("\n".join(lines))
 
     # ------------------------------------------------------------------
     # Pre-fill from existing post or project defaults
