@@ -333,51 +333,20 @@ class TimelineStream(QWidget):
         n_queued = sum(1 for p in all_posts if p.status == SocialPostStatus.QUEUED)
         n_posted = sum(1 for p in all_posts if p.status == SocialPostStatus.POSTED)
 
-        # Count gaps in the 14-day window
         today = datetime.now().date()
         idx = 0  # insertion index (before trailing stretch)
-        gap_count = 0
 
-        for i in range(14):
-            day = today + timedelta(days=i)
-            day_str = day.isoformat()
-
-            if day_str in by_day:
-                # Day header
-                header = self._make_day_header(day, today)
-                self._content_layout.insertWidget(idx, header)
+        # Show posts grouped by day — no gap markers for empty days
+        for day_str in sorted(by_day):
+            day = datetime.fromisoformat(day_str).date()
+            header = self._make_day_header(day, today)
+            self._content_layout.insertWidget(idx, header)
+            idx += 1
+            for post in by_day[day_str]:
+                card = PostCard(post, self._project, self._thumb_cache)
+                card.clicked.connect(self.post_selected)
+                self._content_layout.insertWidget(idx, card)
                 idx += 1
-                for post in by_day[day_str]:
-                    card = PostCard(post, self._project, self._thumb_cache)
-                    card.clicked.connect(self.post_selected)
-                    self._content_layout.insertWidget(idx, card)
-                    idx += 1
-            else:
-                # Gap marker
-                gap = GapMarker(day_str)
-                gap.fill_requested.connect(lambda d: self.fill_gaps_requested.emit())
-                self._content_layout.insertWidget(idx, gap)
-                idx += 1
-                gap_count += 1
-
-        # Posts scheduled beyond the 14-day window
-        cutoff = (today + timedelta(days=14)).isoformat()
-        future_posts = [p for p in scheduled if p.scheduled_time[:10] >= cutoff]
-        if future_posts:
-            future_by_day: dict[str, list[SocialPost]] = {}
-            for p in future_posts:
-                d = p.scheduled_time[:10]
-                future_by_day.setdefault(d, []).append(p)
-            for day_str in sorted(future_by_day):
-                day = datetime.fromisoformat(day_str).date()
-                header = self._make_day_header(day, today)
-                self._content_layout.insertWidget(idx, header)
-                idx += 1
-                for post in future_by_day[day_str]:
-                    card = PostCard(post, self._project, self._thumb_cache)
-                    card.clicked.connect(self.post_selected)
-                    self._content_layout.insertWidget(idx, card)
-                    idx += 1
 
         # Unscheduled posts at end
         if unscheduled:
@@ -393,7 +362,7 @@ class TimelineStream(QWidget):
 
         total = len(posts)
         self._summary_label.setText(
-            f"{total} posts · {n_queued} queued · {n_posted} posted · {gap_count} gaps"
+            f"{total} posts · {n_queued} queued · {n_posted} posted"
         )
 
     # ------------------------------------------------------------------
