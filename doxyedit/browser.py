@@ -2576,88 +2576,81 @@ class AssetBrowser(QWidget):
         if files:
             self.import_files(files)
 
-    # --- Selection restore after drag (F8 cycles methods) ---
+    # --- Drag cleanup (F8 cycles methods) ---
 
-    _sel_fix_method = 0
-    _SEL_FIX_NAMES = [
-        "immediate re-select",
-        "deferred re-select (10ms)",
-        "deferred re-select (50ms)",
-        "blockSignals + re-select + repaint",
-        "re-select all views",
-        "re-select + forced dataChanged",
+    _drag_fix_method = 0
+    _DRAG_FIX_NAMES = [
+        "fake release + re-select",
+        "setState(NoState) only",
+        "setState(NoState) + re-select",
+        "setState(NoState) + deferred re-select 50ms",
+        "fake release + re-select all views",
+        "setState(NoState) + re-select all views",
     ]
 
-    def cycle_sel_fix(self):
-        """F8 — cycle through selection restore methods after drag."""
-        self._sel_fix_method = (self._sel_fix_method + 1) % len(self._SEL_FIX_NAMES)
-        name = self._SEL_FIX_NAMES[self._sel_fix_method]
-        print(f"[F8] Selection fix: {name} (method {self._sel_fix_method})")
+    def cycle_drag_fix(self):
+        """F8 — cycle through drag cleanup methods."""
+        self._drag_fix_method = (self._drag_fix_method + 1) % len(self._DRAG_FIX_NAMES)
+        name = self._DRAG_FIX_NAMES[self._drag_fix_method]
+        print(f"[F8] Drag fix: {name} (method {self._drag_fix_method})")
         try:
-            self.window().status.showMessage(f"Sel fix: {name} (method {self._sel_fix_method})", 3000)
+            self.window().status.showMessage(f"Drag fix: {name} (method {self._drag_fix_method})", 3000)
         except Exception:
             pass
 
-    def _clear_rubber_band(self, view):
-        """Send fake release to viewport to clear stuck rubber band."""
-        fake = QMouseEvent(
-            QEvent.Type.MouseButtonRelease, QPointF(0, 0),
-            Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
-            Qt.KeyboardModifier.NoModifier)
-        QApplication.sendEvent(view.viewport(), fake)
+    def _post_drag_cleanup(self, view, model, saved_sel: set):
+        """Clean up rubber band and restore selection after drag. Method set by F8."""
+        m = self._drag_fix_method
+        print(f"[drag] Fix {m}: {self._DRAG_FIX_NAMES[m]}")
 
-    def _restore_selection(self, view, model, saved_sel: set):
-        """Restore visual selection after drag clears it. Method set by F8."""
-        if not saved_sel:
-            return
-        m = self._sel_fix_method
-        print(f"[drag] Sel fix {m}: {self._SEL_FIX_NAMES[m]}")
-
-        def _do_reselect(v=view, mdl=model, sel=saved_sel):
+        def _reselect(v, mdl, sel):
             sm = v.selectionModel()
             sm.blockSignals(True)
-            sm.clearSelection()
             for i in range(mdl.rowCount()):
                 idx = mdl.index(i)
                 a = mdl.get_asset(idx)
                 if a and a.id in sel:
                     sm.select(idx, QItemSelectionModel.SelectionFlag.Select)
             sm.blockSignals(False)
+            v.viewport().update()
+
+        def _reselect_all(sel):
+            _reselect(view, model, sel)
+            for section in self._folder_sections:
+                _reselect(section.view, section.folder_model, sel)
 
         if m == 0:
-            # Immediate re-select
-            _do_reselect()
+            # Fake release (clears rubber band) + re-select
+            fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
+                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+            QApplication.sendEvent(view.viewport(), fake)
+            if saved_sel:
+                _reselect(view, model, saved_sel)
         elif m == 1:
-            # Deferred 10ms
-            QTimer.singleShot(10, _do_reselect)
+            # Qt's own approach: setState(NoState)
+            view.setState(QListView.State.NoState)
         elif m == 2:
-            # Deferred 50ms
-            QTimer.singleShot(50, _do_reselect)
+            # setState + re-select
+            view.setState(QListView.State.NoState)
+            if saved_sel:
+                _reselect(view, model, saved_sel)
         elif m == 3:
-            # Re-select + forced repaint
-            _do_reselect()
-            view.viewport().repaint()
+            # setState + deferred re-select
+            view.setState(QListView.State.NoState)
+            if saved_sel:
+                QTimer.singleShot(50, lambda: _reselect(view, model, saved_sel))
         elif m == 4:
-            # Re-select on this view AND all folder section views
-            _do_reselect()
-            for section in self._folder_sections:
-                sv = section.view
-                sm = sv.selectionModel()
-                sm.blockSignals(True)
-                for i in range(section.folder_model.rowCount()):
-                    idx = section.folder_model.index(i)
-                    a = section.folder_model.get_asset(idx)
-                    if a and a.id in saved_sel:
-                        sm.select(idx, QItemSelectionModel.SelectionFlag.Select)
-                sm.blockSignals(False)
+            # Fake release + re-select ALL views
+            fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
+                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+            QApplication.sendEvent(view.viewport(), fake)
+            if saved_sel:
+                _reselect_all(saved_sel)
         elif m == 5:
-            # Re-select + emit dataChanged on selected items to force repaint
-            _do_reselect()
-            for i in range(model.rowCount()):
-                idx = model.index(i)
-                a = model.get_asset(idx)
-                if a and a.id in saved_sel:
-                    model.dataChanged.emit(idx, idx)
+            # setState + re-select ALL views
+            view.setState(QListView.State.NoState)
+            if saved_sel:
+                _reselect_all(saved_sel)
 
     # --- Context menu ---
 
@@ -3148,8 +3141,7 @@ class AssetBrowser(QWidget):
                         drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
                         self._drag_start_pos = None
                         self._drag_snapshot_ids = set()
-                        self._clear_rubber_band(view)
-                        self._restore_selection(view, model, saved_sel)
+                        self._post_drag_cleanup(view, model, saved_sel)
                         return True
 
             if (event.type() == event.Type.MouseButtonRelease
