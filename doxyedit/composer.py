@@ -209,6 +209,16 @@ class PostComposer(QDialog):
         reply_layout.addWidget(self._reply_edit)
         layout.addWidget(reply_box)
 
+        # --- AI Strategy Notes ---
+        strategy_box = QGroupBox("Strategy Notes")
+        strategy_layout = QVBoxLayout(strategy_box)
+        self._strategy_edit = QTextEdit()
+        self._strategy_edit.setPlaceholderText(
+            "Claude fills this in — posting strategy, best times, hashtags, "
+            "platform-specific advice, engagement tips, long-term vision notes")
+        strategy_layout.addWidget(self._strategy_edit)
+        layout.addWidget(strategy_box)
+
         layout.addStretch()
 
         # --- Buttons ---
@@ -276,6 +286,10 @@ class PostComposer(QDialog):
         if post.reply_templates:
             self._reply_edit.setPlainText("\n".join(post.reply_templates))
 
+        # Strategy notes
+        if post.strategy_notes:
+            self._strategy_edit.setPlainText(post.strategy_notes)
+
     # ------------------------------------------------------------------
     # Image picker
     # ------------------------------------------------------------------
@@ -337,6 +351,7 @@ class PostComposer(QDialog):
 
         reply_text = self._reply_edit.toPlainText()
         reply_templates = [line for line in reply_text.splitlines() if line.strip()]
+        strategy_notes = self._strategy_edit.toPlainText()
 
         if self._editing is not None:
             # Update in place
@@ -349,6 +364,7 @@ class PostComposer(QDialog):
             p.scheduled_time = scheduled_time
             p.status = status
             p.reply_templates = reply_templates
+            p.strategy_notes = strategy_notes
             p.updated_at = now
             self.result_post = p
         else:
@@ -362,6 +378,7 @@ class PostComposer(QDialog):
                 scheduled_time=scheduled_time,
                 status=status,
                 reply_templates=reply_templates,
+                strategy_notes=strategy_notes,
                 created_at=now,
                 updated_at=now,
             )

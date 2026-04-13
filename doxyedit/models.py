@@ -214,6 +214,7 @@ class SocialPost:
     updated_at: str = ""
     notes: str = ""
     collection: str = ""
+    strategy_notes: str = ""  # AI-generated posting strategy, advice, long-term vision
 
     def to_dict(self) -> dict:
         return {
@@ -224,6 +225,7 @@ class SocialPost:
             "oneup_post_id": self.oneup_post_id, "reply_templates": self.reply_templates,
             "created_at": self.created_at, "updated_at": self.updated_at,
             "notes": self.notes, "collection": self.collection,
+            "strategy_notes": self.strategy_notes,
         }
 
     @classmethod
@@ -239,6 +241,7 @@ class SocialPost:
             reply_templates=d.get("reply_templates", []),
             created_at=d.get("created_at", ""), updated_at=d.get("updated_at", ""),
             notes=d.get("notes", ""), collection=d.get("collection", ""),
+            strategy_notes=d.get("strategy_notes", ""),
         )
 
 

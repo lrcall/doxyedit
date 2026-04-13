@@ -510,6 +510,7 @@ def cmd_post_create(project_path: str, args: list):
     links = []
     scheduled_time = ""
     reply_templates = []
+    strategy_notes = ""
     fmt = None
 
     i = 0
@@ -529,6 +530,8 @@ def cmd_post_create(project_path: str, args: list):
             scheduled_time = args[i + 1]; i += 2
         elif args[i] == "--reply-template" and i + 1 < len(args):
             reply_templates.append(args[i + 1]); i += 2
+        elif args[i] == "--strategy-notes" and i + 1 < len(args):
+            strategy_notes = args[i + 1]; i += 2
         elif args[i] == "--format" and i + 1 < len(args):
             fmt = args[i + 1]; i += 2
         else:
@@ -546,6 +549,7 @@ def cmd_post_create(project_path: str, args: list):
         scheduled_time=scheduled_time,
         status=SocialPostStatus.DRAFT,
         reply_templates=reply_templates,
+        strategy_notes=strategy_notes,
         created_at=now,
         updated_at=now,
     )
@@ -599,6 +603,8 @@ def cmd_post_update(project_path: str, post_id: str, args: list):
             post.status = args[i + 1]; i += 2
         elif args[i] == "--reply-template" and i + 1 < len(args):
             post.reply_templates.append(args[i + 1]); i += 2
+        elif args[i] == "--strategy-notes" and i + 1 < len(args):
+            post.strategy_notes = args[i + 1]; i += 2
         else:
             i += 1
 
