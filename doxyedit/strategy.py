@@ -590,7 +590,7 @@ def _generate_ai_strategy_cli(prompt: str, fallback: str) -> str:
         proc = subprocess.Popen(
             ["claude", "-p", prompt],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
         )
         print("[AI Strategy] Process started, waiting for response...", file=sys.stderr, flush=True)
 
