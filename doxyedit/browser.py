@@ -2580,12 +2580,12 @@ class AssetBrowser(QWidget):
 
     _drag_fix = 0
     _DRAG_FIXES = [
-        "consume press + fake release",
+        "pass press + blockSignals + re-select after",
+        "pass press + blockSignals + setState(NoState)",
+        "pass press + blockSignals + fake release + re-select",
+        "consume press + fake release at click pos",
         "consume press + setState(NoState)",
-        "consume press + viewport repaint only",
-        "consume press + fake release + re-select",
-        "consume press + deferred viewport update 50ms",
-        "don't consume press + fake release + re-select",
+        "consume press + fake press+release at click pos",
     ]
 
     def cycle_drag_fix(self):
@@ -2598,49 +2598,71 @@ class AssetBrowser(QWidget):
             pass
 
     def _should_consume_press(self):
-        return self._drag_fix != 5  # method 5 doesn't consume
+        # Methods 0-2: let Qt process the press (resets rubber band anchor)
+        # but block selection signals so it can't deselect
+        return self._drag_fix >= 3
+
+    def _pre_drag_setup(self, view):
+        """Called before letting Qt process the press on a selected item."""
+        if self._drag_fix < 3:
+            # Block selection model signals so Qt can't deselect
+            view.selectionModel().blockSignals(True)
+
+    def _post_press_restore(self, view):
+        """Called after Qt processes the press (for methods that pass it through)."""
+        if self._drag_fix < 3:
+            view.selectionModel().blockSignals(False)
 
     def _post_drag_cleanup(self, view, model, saved_sel):
         m = self._drag_fix
         print(f"[drag] Fix {m}: {self._DRAG_FIXES[m]}")
+
+        def _reselect():
+            if not saved_sel:
+                return
+            sm = view.selectionModel()
+            sm.blockSignals(True)
+            for i in range(model.rowCount()):
+                idx = model.index(i)
+                a = model.get_asset(idx)
+                if a and a.id in saved_sel:
+                    sm.select(idx, QItemSelectionModel.SelectionFlag.Select)
+            sm.blockSignals(False)
+            view.viewport().update()
+
         if m == 0:
-            fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
-                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
-            QApplication.sendEvent(view.viewport(), fake)
+            # Passed press to Qt (anchor reset), now re-select
+            _reselect()
         elif m == 1:
+            # Passed press + setState
             view.setState(QListView.State.NoState)
+            _reselect()
         elif m == 2:
-            view.viewport().repaint()
+            # Passed press + fake release + re-select
+            fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
+                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+            QApplication.sendEvent(view.viewport(), fake)
+            _reselect()
         elif m == 3:
+            # Consumed press + fake release at (0,0)
             fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
                 Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
             QApplication.sendEvent(view.viewport(), fake)
-            if saved_sel:
-                sm = view.selectionModel()
-                sm.blockSignals(True)
-                for i in range(model.rowCount()):
-                    idx = model.index(i)
-                    a = model.get_asset(idx)
-                    if a and a.id in saved_sel:
-                        sm.select(idx, QItemSelectionModel.SelectionFlag.Select)
-                sm.blockSignals(False)
-                view.viewport().update()
         elif m == 4:
-            QTimer.singleShot(50, view.viewport().repaint)
+            # Consumed press + setState
+            view.setState(QListView.State.NoState)
         elif m == 5:
-            fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
+            # Consumed press + fake press+release at the click position to reset anchor
+            click_pos = getattr(self, '_last_press_pos', QPointF(0, 0))
+            fake_press = QMouseEvent(QEvent.Type.MouseButtonPress, click_pos,
+                Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+            view.selectionModel().blockSignals(True)
+            QApplication.sendEvent(view.viewport(), fake_press)
+            fake_rel = QMouseEvent(QEvent.Type.MouseButtonRelease, click_pos,
                 Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
-            QApplication.sendEvent(view.viewport(), fake)
-            if saved_sel:
-                sm = view.selectionModel()
-                sm.blockSignals(True)
-                for i in range(model.rowCount()):
-                    idx = model.index(i)
-                    a = model.get_asset(idx)
-                    if a and a.id in saved_sel:
-                        sm.select(idx, QItemSelectionModel.SelectionFlag.Select)
-                sm.blockSignals(False)
-                view.viewport().update()
+            QApplication.sendEvent(view.viewport(), fake_rel)
+            view.selectionModel().blockSignals(False)
+            _reselect()
 
     # --- Context menu ---
 
@@ -3097,8 +3119,12 @@ class AssetBrowser(QWidget):
                     self._drag_start_pos = view.mapToGlobal(pos)
                     if asset.id in self._selected_ids:
                         self._drag_snapshot_ids = set(self._selected_ids)
+                        self._last_press_pos = QPointF(pos)
                         if self._should_consume_press():
                             return True
+                        else:
+                            # Let Qt process press (resets anchor) but block deselect
+                            self._pre_drag_setup(view)
                     else:
                         self._drag_snapshot_ids = set()
                 else:
@@ -3114,6 +3140,7 @@ class AssetBrowser(QWidget):
                     event.position().toPoint() if hasattr(event, 'position') else event.pos())
                 if (cur_global - self._drag_start_pos).manhattanLength() >= QApplication.startDragDistance():
                     self._drag_start_pos = None
+                    self._post_press_restore(view)
                     snap_ids = getattr(self, '_drag_snapshot_ids', set())
                     assets = [a for a in self.project.assets if a.id in snap_ids] if snap_ids else self.get_selected_assets()
                     urls = [QUrl.fromLocalFile(a.source_path) for a in assets
@@ -3137,8 +3164,9 @@ class AssetBrowser(QWidget):
 
             if (event.type() == event.Type.MouseButtonRelease
                     and event.button() == Qt.MouseButton.LeftButton):
-                # If we consumed the press (multi-select drag arm) but no drag
-                # happened, treat as normal click — deselect to just this item
+                self._post_press_restore(view)
+                # If we armed for drag but no drag happened,
+                # treat as normal click — deselect to just this item
                 if self._drag_snapshot_ids and self._drag_start_pos is not None:
                     pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
                     index = view.indexAt(pos)
