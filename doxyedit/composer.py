@@ -162,6 +162,8 @@ class PostComposer(QDialog):
 
     def _save_geometry(self):
         self._settings.setValue("composer_geometry", self.saveGeometry())
+        if hasattr(self, '_composer_split'):
+            self._settings.setValue("composer_split", self._composer_split.sizes())
 
     def closeEvent(self, event):
         self._save_geometry()
@@ -180,19 +182,10 @@ class PostComposer(QDialog):
     # ------------------------------------------------------------------
 
     def _build_ui(self, post: SocialPost | None) -> None:
+        from PySide6.QtWidgets import QSplitter
         root = QVBoxLayout(self)
-        root.setSpacing(8)
-        root.setContentsMargins(12, 12, 12, 12)
-
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setSpacing(10)
-        layout.setContentsMargins(0, 0, 0, 0)
-        scroll_area.setWidget(container)
-        root.addWidget(scroll_area)
+        root.setSpacing(4)
+        root.setContentsMargins(8, 8, 8, 8)
 
         # --- Images ---
         images_box = QGroupBox("Images")
@@ -216,7 +209,7 @@ class PostComposer(QDialog):
         images_outer.addWidget(self._thumb_strip_container)
 
         self._images_edit.textChanged.connect(self._update_thumb_preview)
-        layout.addWidget(images_box)
+        root.addWidget(images_box)
 
         # --- Platforms (flow layout — wraps when narrow) ---
         platforms_box = QGroupBox("Platforms")
@@ -225,9 +218,13 @@ class PostComposer(QDialog):
             cb = QCheckBox(plat)
             self._platform_checks[plat] = cb
             platforms_flow.addWidget(cb)
-        layout.addWidget(platforms_box)
+        root.addWidget(platforms_box)
 
-        # --- AI Strategy Notes (right after platforms for context) ---
+        # --- Splitter: strategy (top, draggable) / rest (bottom, scrollable) ---
+        self._composer_split = QSplitter(Qt.Orientation.Vertical)
+        self._composer_split.setObjectName("post_composer")
+
+        # -- Strategy Notes (resizable via splitter drag) --
         strategy_box = QGroupBox("Strategy Notes")
         strategy_layout = QVBoxLayout(strategy_box)
         strategy_btn_row = QHBoxLayout()
@@ -243,10 +240,30 @@ class PostComposer(QDialog):
         self._strategy_edit.setPlaceholderText(
             "Click 'Generate Strategy' to auto-analyze this post — "
             "tags, history, calendar context, platform fit, brand voice")
-        self._strategy_edit.setMinimumHeight(120)
-        self._strategy_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         strategy_layout.addWidget(self._strategy_edit, 1)
-        layout.addWidget(strategy_box, 1)
+        self._composer_split.addWidget(strategy_box)
+
+        # -- Scrollable bottom: caption, links, schedule, replies --
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
+        scroll_area.setWidget(container)
+        self._composer_split.addWidget(scroll_area)
+
+        # Restore splitter sizes
+        saved = self._settings.value("composer_split", None)
+        if saved:
+            self._composer_split.setSizes([int(s) for s in saved])
+        else:
+            self._composer_split.setSizes([250, 350])
+        self._composer_split.setStretchFactor(0, 1)
+        self._composer_split.setStretchFactor(1, 1)
+
+        root.addWidget(self._composer_split, 1)
 
         # --- Caption ---
         caption_box = QGroupBox("Caption")
