@@ -1266,6 +1266,27 @@ def generate_stylesheet(theme: Theme) -> str:
         /* ── Timeline stream ──────────────────────────────────────────── */
         QWidget#timeline_stream {{
             background: {theme.bg_deep};
+            color: {theme.text_primary};
+        }}
+        QWidget#timeline_stream QLabel {{
+            color: {theme.text_primary};
+        }}
+        QWidget#timeline_stream QScrollArea,
+        QWidget#timeline_stream QScrollArea > QWidget,
+        QWidget#timeline_stream QScrollArea QWidget {{
+            background: {theme.bg_deep};
+            color: {theme.text_primary};
+        }}
+        QLabel#timeline_summary {{
+            color: {theme.text_secondary};
+            padding: 2px {pad}px;
+        }}
+        QLabel#timeline_caption {{
+            color: {theme.text_muted};
+        }}
+        QLabel#timeline_links {{
+            color: {theme.text_muted};
+            font-size: {fs}px;
         }}
         QLabel#timeline_day_header {{
             color: {theme.timeline_day_header or theme.text_secondary};
@@ -1320,5 +1341,55 @@ def generate_stylesheet(theme: Theme) -> str:
             border-radius: {max(rad - 1, 2)}px;
             padding: 1px {pad}px;
             font-size: {fxs}px;
+        }}
+
+        /* ── Post composer dialog ─────────────────────────────────────── */
+        PostComposer {{
+            background: {theme.bg_main};
+            color: {theme.text_primary};
+        }}
+        PostComposer QGroupBox {{
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            margin-top: {f}px;
+            padding-top: {f}px;
+        }}
+        PostComposer QGroupBox::title {{
+            color: {theme.text_secondary};
+            subcontrol-origin: margin;
+            padding: 0 {pad}px;
+        }}
+        PostComposer QLineEdit {{
+            background: {theme.bg_input};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            padding: {pad}px;
+        }}
+        PostComposer QTextEdit {{
+            background: {theme.bg_input};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            padding: {pad}px;
+        }}
+        PostComposer QCheckBox {{
+            color: {theme.text_primary};
+            spacing: {pad}px;
+        }}
+        PostComposer QLabel {{
+            color: {theme.text_primary};
+        }}
+        PostComposer QPushButton {{
+            background: {theme.bg_raised};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            padding: {pad}px {pad_lg}px;
+        }}
+        PostComposer QPushButton:hover {{
+            background: {theme.bg_hover};
+            border-color: {theme.accent_dim};
         }}
     """
