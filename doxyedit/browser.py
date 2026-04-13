@@ -2578,38 +2578,34 @@ class AssetBrowser(QWidget):
 
     # --- Drag fix (F8 cycles methods) ---
 
-    _drag_fix = 0
+    # --- Drag fix (F8 cycles methods) ---
+
+    _drag_fix = 1  # default: method 1
     _DRAG_FIXES = [
-        "pass press + blockSignals + re-select after",
-        "pass press + blockSignals + setState(NoState)",
-        "pass press + blockSignals + fake release + re-select",
-        "consume press + fake release at click pos",
-        "consume press + setState(NoState)",
-        "consume press + fake press+release at click pos",
+        "pass press (blocked) + re-select",
+        "pass press (blocked) + setState + re-select",
+        "pass press (blocked) + fake release + re-select",
+        "consume press + fake release",
+        "consume press + setState",
+        "consume press + fake press+release at pos + re-select",
     ]
 
     def cycle_drag_fix(self):
         self._drag_fix = (self._drag_fix + 1) % len(self._DRAG_FIXES)
-        name = self._DRAG_FIXES[self._drag_fix]
-        print(f"[F8] Drag fix: {name} (method {self._drag_fix})")
+        print(f"[F8] Drag fix: {self._DRAG_FIXES[self._drag_fix]} (method {self._drag_fix})")
         try:
-            self.window().status.showMessage(f"Drag fix: {name} ({self._drag_fix})", 3000)
+            self.window().status.showMessage(f"Drag fix: {self._DRAG_FIXES[self._drag_fix]} ({self._drag_fix})", 3000)
         except Exception:
             pass
 
     def _should_consume_press(self):
-        # Methods 0-2: let Qt process the press (resets rubber band anchor)
-        # but block selection signals so it can't deselect
         return self._drag_fix >= 3
 
     def _pre_drag_setup(self, view):
-        """Called before letting Qt process the press on a selected item."""
         if self._drag_fix < 3:
-            # Block selection model signals so Qt can't deselect
             view.selectionModel().blockSignals(True)
 
     def _post_press_restore(self, view):
-        """Called after Qt processes the press (for methods that pass it through)."""
         if self._drag_fix < 3:
             view.selectionModel().blockSignals(False)
 
@@ -2631,28 +2627,22 @@ class AssetBrowser(QWidget):
             view.viewport().update()
 
         if m == 0:
-            # Passed press to Qt (anchor reset), now re-select
             _reselect()
         elif m == 1:
-            # Passed press + setState
             view.setState(QListView.State.NoState)
             _reselect()
         elif m == 2:
-            # Passed press + fake release + re-select
             fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
                 Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
             QApplication.sendEvent(view.viewport(), fake)
             _reselect()
         elif m == 3:
-            # Consumed press + fake release at (0,0)
             fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
                 Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
             QApplication.sendEvent(view.viewport(), fake)
         elif m == 4:
-            # Consumed press + setState
             view.setState(QListView.State.NoState)
         elif m == 5:
-            # Consumed press + fake press+release at the click position to reset anchor
             click_pos = getattr(self, '_last_press_pos', QPointF(0, 0))
             fake_press = QMouseEvent(QEvent.Type.MouseButtonPress, click_pos,
                 Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
