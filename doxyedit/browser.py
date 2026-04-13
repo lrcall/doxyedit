@@ -2576,14 +2576,68 @@ class AssetBrowser(QWidget):
         if files:
             self.import_files(files)
 
+    # --- Rubber band fix (F8 cycles methods) ---
+
+    _rb_fix_method = 2  # default: fake release (known working)
+    _RB_FIX_NAMES = [
+        "none",
+        "viewport repaint",
+        "fake release to viewport",
+        "fake release to view",
+        "hide QRubberBand children",
+        "toggle selection mode",
+        "schedule deferred repaint",
+    ]
+
+    def cycle_rubberband_fix(self):
+        """F8 — cycle through rubber band fix methods."""
+        self._rb_fix_method = (self._rb_fix_method + 1) % len(self._RB_FIX_NAMES)
+        name = self._RB_FIX_NAMES[self._rb_fix_method]
+        print(f"[F8] Rubber band fix: {name} (method {self._rb_fix_method})")
+        try:
+            self.window().status.showMessage(f"RB fix: {name} (method {self._rb_fix_method})", 3000)
+        except Exception:
+            pass
+
     def _clear_rubber_band(self, view):
-        """Send fake release to viewport to clear stuck rubber band after drag."""
-        fake = QMouseEvent(
-            QEvent.Type.MouseButtonRelease,
-            QPointF(0, 0),
-            Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
-            Qt.KeyboardModifier.NoModifier)
-        QApplication.sendEvent(view.viewport(), fake)
+        m = self._rb_fix_method
+        print(f"[drag] RB fix {m}: {self._RB_FIX_NAMES[m]}")
+        if m == 0:
+            pass
+        elif m == 1:
+            # Just repaint viewport
+            view.viewport().repaint()
+        elif m == 2:
+            # Fake release to viewport (current default)
+            fake = QMouseEvent(
+                QEvent.Type.MouseButtonRelease, QPointF(0, 0),
+                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
+                Qt.KeyboardModifier.NoModifier)
+            QApplication.sendEvent(view.viewport(), fake)
+        elif m == 3:
+            # Fake release to the view itself (not viewport)
+            fake = QMouseEvent(
+                QEvent.Type.MouseButtonRelease, QPointF(0, 0),
+                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
+                Qt.KeyboardModifier.NoModifier)
+            QApplication.sendEvent(view, fake)
+        elif m == 4:
+            # Find and hide any QRubberBand children on view + viewport
+            from PySide6.QtWidgets import QRubberBand
+            for w in view.findChildren(QRubberBand):
+                w.hide()
+            for w in view.viewport().findChildren(QRubberBand):
+                w.hide()
+            view.viewport().repaint()
+        elif m == 5:
+            # Toggle selection mode off and back on
+            old = view.selectionMode()
+            view.setSelectionMode(QListView.SelectionMode.NoSelection)
+            view.setSelectionMode(old)
+            view.viewport().repaint()
+        elif m == 6:
+            # Schedule a deferred repaint after Qt processes pending events
+            QTimer.singleShot(0, view.viewport().repaint)
 
     # --- Context menu ---
 
