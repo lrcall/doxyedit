@@ -648,11 +648,29 @@ Be specific to THIS image. Reference what you actually see."""
     except ImportError:
         return f"[anthropic SDK not installed — run: pip install anthropic]\n\nLocal analysis:\n\n{local_briefing}"
 
-    # Try to get API key from environment or claude CLI config
+    # Try to get API key: config.yaml → env var → claude CLI config
     import os
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    import yaml
+    api_key = ""
+
+    # 1. config.yaml in project directory
+    for cfg_path in [Path("config.yaml"), Path(__file__).parent.parent / "config.yaml"]:
+        if cfg_path.exists():
+            try:
+                with open(cfg_path) as f:
+                    cfg = yaml.safe_load(f) or {}
+                api_key = (cfg.get("anthropic") or {}).get("api_key", "")
+                if api_key:
+                    break
+            except Exception:
+                pass
+
+    # 2. Environment variable
     if not api_key:
-        # Try reading from claude CLI config
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+
+    # 3. Claude CLI config
+    if not api_key:
         config_paths = [
             Path.home() / ".claude" / "config.json",
             Path.home() / ".config" / "claude" / "config.json",
