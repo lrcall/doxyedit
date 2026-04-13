@@ -2576,81 +2576,12 @@ class AssetBrowser(QWidget):
         if files:
             self.import_files(files)
 
-    # --- Drag cleanup (F8 cycles methods) ---
-
-    _drag_fix_method = 0
-    _DRAG_FIX_NAMES = [
-        "fake release + re-select",
-        "setState(NoState) only",
-        "setState(NoState) + re-select",
-        "setState(NoState) + deferred re-select 50ms",
-        "fake release + re-select all views",
-        "setState(NoState) + re-select all views",
-    ]
-
-    def cycle_drag_fix(self):
-        """F8 — cycle through drag cleanup methods."""
-        self._drag_fix_method = (self._drag_fix_method + 1) % len(self._DRAG_FIX_NAMES)
-        name = self._DRAG_FIX_NAMES[self._drag_fix_method]
-        print(f"[F8] Drag fix: {name} (method {self._drag_fix_method})")
-        try:
-            self.window().status.showMessage(f"Drag fix: {name} (method {self._drag_fix_method})", 3000)
-        except Exception:
-            pass
-
-    def _post_drag_cleanup(self, view, model, saved_sel: set):
-        """Clean up rubber band and restore selection after drag. Method set by F8."""
-        m = self._drag_fix_method
-        print(f"[drag] Fix {m}: {self._DRAG_FIX_NAMES[m]}")
-
-        def _reselect(v, mdl, sel):
-            sm = v.selectionModel()
-            sm.blockSignals(True)
-            for i in range(mdl.rowCount()):
-                idx = mdl.index(i)
-                a = mdl.get_asset(idx)
-                if a and a.id in sel:
-                    sm.select(idx, QItemSelectionModel.SelectionFlag.Select)
-            sm.blockSignals(False)
-            v.viewport().update()
-
-        def _reselect_all(sel):
-            _reselect(view, model, sel)
-            for section in self._folder_sections:
-                _reselect(section.view, section.folder_model, sel)
-
-        if m == 0:
-            # Fake release (clears rubber band) + re-select
-            fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
-                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
-            QApplication.sendEvent(view.viewport(), fake)
-            if saved_sel:
-                _reselect(view, model, saved_sel)
-        elif m == 1:
-            # Qt's own approach: setState(NoState)
-            view.setState(QListView.State.NoState)
-        elif m == 2:
-            # setState + re-select
-            view.setState(QListView.State.NoState)
-            if saved_sel:
-                _reselect(view, model, saved_sel)
-        elif m == 3:
-            # setState + deferred re-select
-            view.setState(QListView.State.NoState)
-            if saved_sel:
-                QTimer.singleShot(50, lambda: _reselect(view, model, saved_sel))
-        elif m == 4:
-            # Fake release + re-select ALL views
-            fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
-                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
-            QApplication.sendEvent(view.viewport(), fake)
-            if saved_sel:
-                _reselect_all(saved_sel)
-        elif m == 5:
-            # setState + re-select ALL views
-            view.setState(QListView.State.NoState)
-            if saved_sel:
-                _reselect_all(saved_sel)
+    def _clear_rubber_band(self, view):
+        """Clear stuck rubber band after drag by sending fake release to viewport."""
+        fake = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 0),
+            Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(view.viewport(), fake)
 
     # --- Context menu ---
 
@@ -3107,6 +3038,9 @@ class AssetBrowser(QWidget):
                     self._drag_start_pos = view.mapToGlobal(pos)
                     if asset.id in self._selected_ids:
                         self._drag_snapshot_ids = set(self._selected_ids)
+                        # Consume press on already-selected item to prevent
+                        # Qt from arming deselect-on-release during multi-select drag
+                        return True
                     else:
                         self._drag_snapshot_ids = set()
                 else:
@@ -3136,16 +3070,22 @@ class AssetBrowser(QWidget):
                             drag.setPixmap(icon_px.scaled(64, 64,
                                 Qt.AspectRatioMode.KeepAspectRatio,
                                 Qt.TransformationMode.SmoothTransformation))
-                        # Save selection before drag (drag may clear it)
-                        saved_sel = set(self._selected_ids)
                         drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
                         self._drag_start_pos = None
                         self._drag_snapshot_ids = set()
-                        self._post_drag_cleanup(view, model, saved_sel)
+                        self._clear_rubber_band(view)
                         return True
 
             if (event.type() == event.Type.MouseButtonRelease
                     and event.button() == Qt.MouseButton.LeftButton):
+                # If we consumed the press (multi-select drag arm) but no drag
+                # happened, treat as normal click — deselect to just this item
+                if self._drag_snapshot_ids and self._drag_start_pos is not None:
+                    pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
+                    index = view.indexAt(pos)
+                    if index.isValid():
+                        sm = view.selectionModel()
+                        sm.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
                 self._drag_start_pos = None
                 self._drag_snapshot_ids = set()
 
