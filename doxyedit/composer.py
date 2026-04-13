@@ -467,9 +467,12 @@ class PostComposer(QDialog):
         if post.reply_templates:
             self._reply_edit.setPlainText("\n".join(post.reply_templates))
 
-        # Strategy notes
+        # Strategy notes — seed both caches so toggle works on reload
         if post.strategy_notes:
             self._set_strategy_text(post.strategy_notes)
+            self._ai_strategy_cache = post.strategy_notes
+            self._strategy_view = "ai"
+            self._update_strategy_btn_labels()
 
     # ------------------------------------------------------------------
     # Image preview
@@ -627,11 +630,12 @@ class PostComposer(QDialog):
         self._strategy_edit_btn.setChecked(False)
 
     def _get_strategy_text(self) -> str:
-        """Get the current strategy text (raw markdown)."""
+        """Get the current strategy text (raw markdown).
+        Returns whichever view is active (local or AI), including edits."""
         if self._strategy_stack.currentIndex() == 1:
-            # Currently editing — grab from editor
+            # Currently editing raw — grab from editor
             self._strategy_raw = self._strategy_edit.toPlainText()
-        return self._strategy_raw
+        return self._strategy_raw or self._ai_strategy_cache or self._local_strategy_cache
 
     def _toggle_strategy_edit(self, checked: bool) -> None:
         """Toggle between rendered HTML and raw markdown edit."""
