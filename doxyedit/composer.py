@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QPushButton, QCheckBox, QDateTimeEdit, QFrame,
     QScrollArea, QWidget, QSizePolicy, QGroupBox,
 )
-from PySide6.QtCore import Qt, QDateTime
+from PySide6.QtCore import Qt, QDateTime, QSettings
 from doxyedit.models import Project, SocialPost, SocialPostStatus
 
 SOCIAL_PLATFORMS = [
@@ -18,9 +18,17 @@ SOCIAL_PLATFORMS = [
 class PostComposer(QDialog):
     def __init__(self, project: Project, post: SocialPost | None = None, parent=None):
         super().__init__(parent)
+        self.setObjectName("post_composer")
         self.setWindowTitle("Edit Post" if post else "New Post")
         self.setMinimumSize(500, 600)
-        self.resize(600, 700)
+
+        # Restore saved geometry
+        self._settings = QSettings("DoxyEdit", "DoxyEdit")
+        geo = self._settings.value("composer_geometry")
+        if geo:
+            self.restoreGeometry(geo)
+        else:
+            self.resize(600, 700)
 
         self._project = project
         self._editing = post
@@ -31,6 +39,10 @@ class PostComposer(QDialog):
 
         self._build_ui(post)
         self._prefill(post)
+
+    def closeEvent(self, event):
+        self._settings.setValue("composer_geometry", self.saveGeometry())
+        super().closeEvent(event)
 
     # ------------------------------------------------------------------
     # UI construction

@@ -1344,51 +1344,51 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
 
         /* ── Post composer dialog ─────────────────────────────────────── */
-        PostComposer {{
+        QDialog#post_composer {{
             background: {theme.bg_main};
             color: {theme.text_primary};
         }}
-        PostComposer QGroupBox {{
+        QDialog#post_composer QGroupBox {{
             color: {theme.text_primary};
             border: 1px solid {theme.border};
             border-radius: {rad}px;
             margin-top: {f}px;
             padding-top: {f}px;
         }}
-        PostComposer QGroupBox::title {{
+        QDialog#post_composer QGroupBox::title {{
             color: {theme.text_secondary};
             subcontrol-origin: margin;
             padding: 0 {pad}px;
         }}
-        PostComposer QLineEdit {{
+        QDialog#post_composer QLineEdit {{
             background: {theme.bg_input};
             color: {theme.text_primary};
             border: 1px solid {theme.border};
             border-radius: {rad}px;
             padding: {pad}px;
         }}
-        PostComposer QTextEdit {{
+        QDialog#post_composer QTextEdit {{
             background: {theme.bg_input};
             color: {theme.text_primary};
             border: 1px solid {theme.border};
             border-radius: {rad}px;
             padding: {pad}px;
         }}
-        PostComposer QCheckBox {{
+        QDialog#post_composer QCheckBox {{
             color: {theme.text_primary};
             spacing: {pad}px;
         }}
-        PostComposer QLabel {{
+        QDialog#post_composer QLabel {{
             color: {theme.text_primary};
         }}
-        PostComposer QPushButton {{
+        QDialog#post_composer QPushButton {{
             background: {theme.bg_raised};
             color: {theme.text_primary};
             border: 1px solid {theme.border};
             border-radius: {rad}px;
             padding: {pad}px {pad_lg}px;
         }}
-        PostComposer QPushButton:hover {{
+        QDialog#post_composer QPushButton:hover {{
             background: {theme.bg_hover};
             border-color: {theme.accent_dim};
         }}
