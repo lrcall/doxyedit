@@ -217,12 +217,21 @@ class PostComposer(QDialog):
         self._images_edit.textChanged.connect(self._update_thumb_preview)
         root.addWidget(images_box)
 
-        # --- Platforms (flow layout — wraps when narrow) ---
-        platforms_box = QGroupBox("Platforms")
+        # --- Platforms (from OneUp connected accounts) ---
+        from doxyedit.oneup import get_connected_platforms, get_active_account_label
+        project_dir = str(Path(self._project.assets[0].source_path).parent) if self._project.assets else "."
+        connected = get_connected_platforms(project_dir)
+        acct_label = get_active_account_label(project_dir)
+
+        platforms_title = f"Platforms ({acct_label})" if acct_label else "Platforms"
+        platforms_box = QGroupBox(platforms_title)
         platforms_flow = _FlowLayout(platforms_box, hspacing=8, vspacing=4)
-        for plat in SOCIAL_PLATFORMS:
-            cb = QCheckBox(plat)
-            self._platform_checks[plat] = cb
+        for plat_info in connected:
+            pid = plat_info["id"]
+            name = plat_info.get("name", pid)
+            cb = QCheckBox(name)
+            cb.setProperty("platform_id", pid)
+            self._platform_checks[pid] = cb
             platforms_flow.addWidget(cb)
         root.addWidget(platforms_box)
 
@@ -322,8 +331,9 @@ class PostComposer(QDialog):
         pp_layout = QVBoxLayout(self._per_platform_container)
         pp_layout.setSpacing(4)
         pp_layout.setContentsMargins(0, 0, 0, 0)
-        for plat in SOCIAL_PLATFORMS:
-            lbl = QLabel(plat)
+        for plat_info in connected:
+            plat = plat_info["id"]
+            lbl = QLabel(plat_info.get("name", plat))
             lbl.setStyleSheet("font-weight: bold;")
             te = QTextEdit()
             te.setMaximumHeight(100)

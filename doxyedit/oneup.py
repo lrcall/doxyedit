@@ -198,6 +198,32 @@ def get_active_account_label(project_dir: str) -> str:
         return ""
 
 
+def get_connected_platforms(project_dir: str) -> list[dict]:
+    """Return connected platforms for the active OneUp account.
+    Each entry: {"id": "twitter", "name": "Twitter/X"}
+    Falls back to default list if not configured."""
+    config_path = Path(project_dir) / "config.yaml"
+    if config_path.exists():
+        try:
+            import yaml
+            config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+            oneup = config.get("oneup") or {}
+            accounts = oneup.get("accounts")
+            if accounts and isinstance(accounts, dict):
+                active = oneup.get("active_account", "")
+                acct = accounts.get(active) or next(iter(accounts.values()), {})
+                connected = acct.get("connected", [])
+                if connected:
+                    return connected
+        except Exception:
+            pass
+    # Default fallback
+    return [
+        {"id": p, "name": p} for p in
+        ["twitter", "instagram", "bluesky", "reddit", "patreon", "discord", "tiktok", "pinterest"]
+    ]
+
+
 def list_account_names(project_dir: str) -> list[tuple[str, str]]:
     """Return [(id, label), ...] of all configured OneUp accounts."""
     config_path = Path(project_dir) / "config.yaml"
