@@ -52,6 +52,15 @@ class Theme:
     warning: str = "#be955c"
     error: str = "#9a4f50"
     star: str = "#be955c"
+    # Social post status
+    post_draft: str = "#888888"
+    post_queued: str = "#e8a87c"
+    post_posted: str = "#6eaa78"
+    post_failed: str = "#cc4444"
+    post_partial: str = "#ccaa55"
+    # Timeline
+    timeline_gap: str = "#664444"
+    timeline_day_header: str = ""  # defaults to text_secondary
 
     def btn_style(self) -> str:
         """Shared button stylesheet — scales with font_size."""
@@ -1252,5 +1261,64 @@ def generate_stylesheet(theme: Theme) -> str:
         QPushButton#add_tag_btn:hover {{
             color: {theme.text_primary};
             border-color: {theme.text_primary};
+        }}
+
+        /* ── Timeline stream ──────────────────────────────────────────── */
+        QWidget#timeline_stream {{
+            background: {theme.bg_deep};
+        }}
+        QLabel#timeline_day_header {{
+            color: {theme.timeline_day_header or theme.text_secondary};
+            font-size: {fl}px;
+            font-weight: bold;
+            padding: {pad}px 0;
+        }}
+        QFrame#timeline_post_card {{
+            background: {theme.bg_raised};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            padding: {pad}px;
+        }}
+        QFrame#timeline_post_card:hover {{
+            border-color: {theme.accent_dim};
+        }}
+        QLabel#post_status_badge {{
+            border-radius: {rad}px;
+            padding: 2px {pad}px;
+            font-size: {fs}px;
+            font-weight: bold;
+        }}
+        QLabel#post_status_badge[status="draft"] {{
+            background: {theme.post_draft}40;
+            color: {theme.post_draft};
+        }}
+        QLabel#post_status_badge[status="queued"] {{
+            background: {theme.post_queued}40;
+            color: {theme.post_queued};
+        }}
+        QLabel#post_status_badge[status="posted"] {{
+            background: {theme.post_posted}40;
+            color: {theme.post_posted};
+        }}
+        QLabel#post_status_badge[status="failed"] {{
+            background: {theme.post_failed}40;
+            color: {theme.post_failed};
+        }}
+        QLabel#post_status_badge[status="partial"] {{
+            background: {theme.post_partial}40;
+            color: {theme.post_partial};
+        }}
+        QFrame#timeline_gap {{
+            border: 1px dashed {theme.timeline_gap};
+            border-radius: {rad}px;
+            padding: {pad}px;
+            background: {theme.timeline_gap}15;
+        }}
+        QLabel#platform_badge {{
+            background: {theme.accent_dim};
+            color: {theme.text_on_accent};
+            border-radius: {max(rad - 1, 2)}px;
+            padding: 1px {pad}px;
+            font-size: {fxs}px;
         }}
     """
