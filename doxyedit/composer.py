@@ -68,6 +68,7 @@ class PostComposer(QDialog):
         super().__init__(parent)
         self.setObjectName("post_composer")
         self.setWindowTitle("Edit Post" if post else "New Post")
+        self.setWindowModality(Qt.WindowModality.NonModal)
         self.setMinimumSize(500, 600)
 
         # Restore saved geometry

@@ -2065,18 +2065,25 @@ class MainWindow(QMainWindow):
         if not post:
             return
         dlg = PostComposer(self.project, post=post, parent=self)
-        if dlg.exec() and dlg.result_post:
-            self._dirty = True
-            self._timeline.refresh()
-            self.platform_panel.refresh()
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        dlg.finished.connect(lambda result: self._on_composer_done(dlg, is_new=False))
+        dlg.show()
 
     def _on_new_post(self):
         """Open composer to create a new post."""
         dlg = PostComposer(self.project, parent=self)
-        if dlg.exec() and dlg.result_post:
-            self.project.posts.append(dlg.result_post)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        dlg.finished.connect(lambda result: self._on_composer_done(dlg, is_new=True))
+        dlg.show()
+
+    def _on_composer_done(self, dlg, is_new: bool):
+        """Handle composer close — add or update post."""
+        if dlg.result_post:
+            if is_new:
+                self.project.posts.append(dlg.result_post)
             self._dirty = True
             self._timeline.refresh()
+            self.platform_panel.refresh()
 
     def _on_sync_oneup(self):
         """Sync post statuses from OneUp API."""
