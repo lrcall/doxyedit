@@ -63,13 +63,17 @@ class PostCard(QFrame):
         outer.setSpacing(8)
 
         # Thumbnails (left side)
-        if post.asset_ids and (project or thumb_cache):
+        if post.asset_ids and project:
             thumb_col = QHBoxLayout()
             thumb_col.setSpacing(4)
             for aid in post.asset_ids[:4]:  # max 4 thumbs
                 pm = None
+                # Try thumb cache first
                 if thumb_cache:
                     pm = thumb_cache.get(aid)
+                # Fallback: load directly from source file
+                if (not pm or pm.isNull()) and project:
+                    pm = self._load_thumb_direct(aid, project)
                 if pm and not pm.isNull():
                     scaled = pm.scaled(QSize(THUMB_SIZE, THUMB_SIZE),
                                        Qt.AspectRatioMode.KeepAspectRatio,
@@ -138,6 +142,31 @@ class PostCard(QFrame):
             info.addWidget(links_label)
 
         outer.addLayout(info, 1)
+
+    @staticmethod
+    def _load_thumb_direct(asset_id: str, project) -> "QPixmap | None":
+        """Load a thumbnail directly from the asset's source file."""
+        asset = project.get_asset(asset_id)
+        if not asset or not asset.source_path:
+            return None
+        src = Path(asset.source_path)
+        if not src.exists():
+            return None
+        try:
+            ext = src.suffix.lower()
+            if ext in (".psd", ".psb"):
+                from doxyedit.imaging import load_psd_thumb
+                result = load_psd_thumb(str(src), min_size=0)
+                if result:
+                    from doxyedit.imaging import pil_to_qpixmap
+                    return pil_to_qpixmap(result[0])
+                return None
+            pm = QPixmap(str(src))
+            if pm.isNull():
+                return None
+            return pm
+        except Exception:
+            return None
 
     @staticmethod
     def _resolve_names(post: SocialPost, project: "Project | None") -> list[str]:
