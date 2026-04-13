@@ -64,7 +64,10 @@ SOCIAL_PLATFORMS = [
 ]
 
 
-class _FlowLayout(QVBoxLayout.__class__.__bases__[0]):  # QLayout
+from PySide6.QtWidgets import QLayout
+
+
+class _FlowLayout(QLayout):
     """Simple flow layout that wraps widgets like text."""
 
     def __init__(self, parent=None, hspacing=6, vspacing=4):
