@@ -173,6 +173,11 @@ class PostComposer(QDialog):
 
     def closeEvent(self, event):
         self._save_geometry()
+        # Disconnect background workers to prevent crash on deleted dialog
+        for attr in ('_strategy_worker', '_apply_worker'):
+            worker = getattr(self, attr, None)
+            if worker and worker.isRunning():
+                worker.finished.disconnect()
         super().closeEvent(event)
 
     def accept(self):
@@ -219,7 +224,11 @@ class PostComposer(QDialog):
 
         # --- Platforms (from OneUp connected accounts) ---
         from doxyedit.oneup import get_connected_platforms, get_active_account_label
-        project_dir = str(Path(self._project.assets[0].source_path).parent) if self._project.assets else "."
+        project_dir = "."
+        for a in self._project.assets:
+            if a.source_path:
+                project_dir = str(Path(a.source_path).parent)
+                break
         connected = get_connected_platforms(project_dir)
         acct_label = get_active_account_label(project_dir)
 
@@ -334,7 +343,7 @@ class PostComposer(QDialog):
         for plat_info in connected:
             plat = plat_info["id"]
             lbl = QLabel(plat_info.get("name", plat))
-            lbl.setStyleSheet("font-weight: bold;")
+            lbl.setObjectName("composer_platform_label")
             te = QTextEdit()
             te.setMaximumHeight(100)
             te.setPlaceholderText(f"Caption for {plat} (leave blank to use default)")
@@ -612,7 +621,7 @@ class PostComposer(QDialog):
                     from doxyedit.preview import HoverPreview
                     from PySide6.QtGui import QCursor
                     HoverPreview.instance().show_for(path, QCursor.pos())
-                return True
+                    return True
         if event.type() == QEvent.Type.MouseButtonRelease:
             if event.button() == Qt.MouseButton.MiddleButton:
                 from doxyedit.preview import HoverPreview

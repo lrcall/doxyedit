@@ -1513,6 +1513,28 @@ def generate_stylesheet(theme: Theme) -> str:
             color: {theme.text_muted};
             font-size: {fxs}px;
         }}
+        QLabel#calendar_dot[dot_status="posted"] {{
+            background: {theme.post_posted};
+        }}
+        QLabel#calendar_dot[dot_status="queued"] {{
+            background: {theme.post_queued};
+        }}
+        QLabel#calendar_dot[dot_status="draft"] {{
+            background: {theme.post_draft};
+        }}
+        QLabel#calendar_dot[dot_status="gap"] {{
+            background: {theme.error};
+        }}
+
+        /* ── Timeline asset name ─────────────────────────────────────── */
+        QLabel#timeline_asset_name {{
+            font-weight: bold;
+        }}
+
+        /* ── Composer platform label ────────────────────────────────── */
+        QLabel#composer_platform_label {{
+            font-weight: bold;
+        }}
 
         /* ── Composer thumb cells ────────────────────────────────────── */
         QFrame#composer_thumb_cell {{

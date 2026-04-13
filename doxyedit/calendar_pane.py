@@ -14,7 +14,7 @@ from PySide6.QtCore import Signal, Qt
 from doxyedit.models import Project, SocialPostStatus
 
 
-_DOT_COLORS = {
+_DOT_FALLBACK_COLORS = {
     "posted": "#4caf50",
     "queued": "#42a5f5",
     "draft": "#ffa726",
@@ -104,11 +104,9 @@ class _DayCell(QFrame):
                 dot.setObjectName("calendar_dot")
                 dot.setProperty("dot_status", status)
                 dot.setFixedSize(6, 6)
-                # Inline color for dots — allowed per spec (overlay exception)
-                color = _DOT_COLORS.get(status, "#888")
-                dot.setStyleSheet(
-                    f"background: {color}; border-radius: 3px; border: none;"
-                )
+                # Color comes from QSS property selector on dot_status
+                # Fallback inline style only for border-radius (geometry, not color)
+                dot.setStyleSheet("border-radius: 3px; border: none;")
                 self._dot_row.addWidget(dot)
                 shown += 1
 

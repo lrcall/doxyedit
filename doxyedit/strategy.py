@@ -84,8 +84,11 @@ def _parse_dt(s: str) -> Optional[datetime]:
     """Try several datetime formats, return None on failure."""
     if not s:
         return None
-    # Strip trailing Z / timezone suffix for simplicity
+    # Strip timezone suffix for simplicity
     s = s.rstrip("Z")
+    # Remove +HH:MM or -HH:MM timezone offset
+    if len(s) > 6 and s[-6] in ('+', '-') and s[-3] == ':':
+        s = s[:-6]
     for fmt in _TIME_FORMATS:
         try:
             return datetime.strptime(s, fmt)
@@ -317,19 +320,22 @@ def _section_calendar_context(
     window_start = sched_dt - timedelta(days=3)
     window_end = sched_dt + timedelta(days=3)
 
-    day_posts: dict[str, list[SocialPost]] = {}
+    day_posts: dict[str, tuple[str, list[SocialPost]]] = {}  # iso → (display_label, posts)
     for p in project.posts:
         if p.id == post.id:
             continue
         pdt = _parse_dt(p.scheduled_time)
         if pdt and window_start <= pdt <= window_end:
-            day_key = pdt.strftime("%a %b %d")
-            day_posts.setdefault(day_key, []).append(p)
+            iso_key = pdt.strftime("%Y-%m-%d")
+            display = pdt.strftime("%a %b %d")
+            if iso_key not in day_posts:
+                day_posts[iso_key] = (display, [])
+            day_posts[iso_key][1].append(p)
 
     if day_posts:
         nearby_lines = []
-        for day_str in sorted(day_posts.keys()):
-            posts_on_day = day_posts[day_str]
+        for iso_key in sorted(day_posts.keys()):
+            day_str, posts_on_day = day_posts[iso_key]
             plats = set()
             for p in posts_on_day:
                 plats.update(p.platforms)
@@ -606,11 +612,13 @@ def _generate_ai_strategy_cli(prompt: str, fallback: str) -> str:
     print("[AI Strategy] Starting claude CLI subprocess...", file=sys.stderr, flush=True)
     print(f"[AI Strategy] Prompt length: {len(prompt)} chars", file=sys.stderr, flush=True)
     try:
-        proc = subprocess.Popen(
-            ["claude", "-p", prompt],
+        kwargs = dict(
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding="utf-8", errors="replace",
         )
+        if sys.platform == "win32":
+            kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW
+        proc = subprocess.Popen(["claude", "-p", prompt], **kwargs)
         print("[AI Strategy] Process started, waiting for response...", file=sys.stderr, flush=True)
 
         try:

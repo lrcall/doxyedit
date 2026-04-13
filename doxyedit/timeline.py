@@ -104,7 +104,7 @@ class PostCard(QFrame):
 
         asset_names = self._resolve_names(post, project)
         name_label = QLabel(", ".join(asset_names) if asset_names else "(no assets)")
-        name_label.setStyleSheet("font-weight: bold;")
+        name_label.setObjectName("timeline_asset_name")
         row1.addWidget(name_label, 1)
 
         status_badge = StatusBadge(post.status)
