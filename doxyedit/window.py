@@ -775,6 +775,7 @@ class MainWindow(QMainWindow):
         self._theme = replace(base, **overrides)
         self.setStyleSheet(generate_stylesheet(self._theme))
         self._settings.setValue("theme", theme_id)
+        self._settings.sync()
         self._tint_titlebar(proj_accent)
         # Panels with deeply nested widgets that need explicit theme
         if hasattr(self, '_kanban_panel'):
