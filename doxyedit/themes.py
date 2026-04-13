@@ -849,18 +849,50 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
         QCalendarWidget {{
             background: {theme.bg_main};
+            color: {theme.text_primary};
+        }}
+        QCalendarWidget QWidget {{
+            background: {theme.bg_main};
+            color: {theme.text_primary};
+        }}
+        QCalendarWidget QWidget#qt_calendar_navigationbar {{
+            background: {theme.bg_raised};
         }}
         QCalendarWidget QAbstractItemView {{
             background: {theme.bg_deep}; color: {theme.text_primary};
             selection-background-color: {theme.selection_bg};
             selection-color: {theme.text_on_accent};
+            alternate-background-color: {theme.bg_main};
+            gridline-color: {theme.border};
+        }}
+        QCalendarWidget QAbstractItemView:enabled {{
+            color: {theme.text_primary};
+        }}
+        QCalendarWidget QAbstractItemView:disabled {{
+            color: {theme.text_muted};
         }}
         QCalendarWidget QToolButton {{
             color: {theme.text_primary}; background: {theme.bg_raised};
             border: none; padding: 4px 8px;
+            icon-size: 16px;
         }}
         QCalendarWidget QToolButton:hover {{
             background: {theme.bg_hover};
+        }}
+        QCalendarWidget QToolButton#qt_calendar_prevmonth,
+        QCalendarWidget QToolButton#qt_calendar_nextmonth {{
+            color: {theme.text_primary};
+            background: {theme.bg_raised};
+            qproperty-icon: none;
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            min-width: 24px;
+        }}
+        QCalendarWidget QToolButton#qt_calendar_prevmonth {{
+            qproperty-text: "<";
+        }}
+        QCalendarWidget QToolButton#qt_calendar_nextmonth {{
+            qproperty-text: ">";
         }}
         QCalendarWidget QMenu {{
             background: {theme.bg_raised}; color: {theme.text_primary};
