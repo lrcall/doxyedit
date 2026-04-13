@@ -247,6 +247,13 @@ class PostComposer(QDialog):
             "Claude analyzes the actual image + full context — real strategic insight")
         self._ai_strategy_btn.clicked.connect(self._generate_ai_strategy)
         strategy_btn_row.addWidget(self._ai_strategy_btn)
+        self._apply_strategy_btn = QPushButton("Apply")
+        self._apply_strategy_btn.setObjectName("strategy_generate_btn")
+        self._apply_strategy_btn.setToolTip(
+            "Extract captions, links, schedule, reply templates from strategy into post fields")
+        self._apply_strategy_btn.clicked.connect(self._apply_strategy)
+        strategy_btn_row.addWidget(self._apply_strategy_btn)
+
         self._strategy_edit_btn = QPushButton("Edit")
         self._strategy_edit_btn.setObjectName("strategy_generate_btn")
         self._strategy_edit_btn.setCheckable(True)
@@ -746,6 +753,158 @@ class PostComposer(QDialog):
         else:
             self._strategy_generate_btn.setText("Generate Strategy")
             self._ai_strategy_btn.setText("AI Strategy")
+
+    # ------------------------------------------------------------------
+    # Apply strategy suggestions to post fields
+    # ------------------------------------------------------------------
+
+    def _apply_strategy(self) -> None:
+        """Extract actionable fields from strategy and apply to post."""
+        strategy = self._get_strategy_text()
+        if not strategy or strategy.startswith("*Analyzing"):
+            return
+
+        from PySide6.QtCore import QThread, Signal as _Signal
+
+        platforms = [p for p, cb in self._platform_checks.items() if cb.isChecked()]
+
+        prompt = f"""Extract actionable post data from this strategy briefing. Return ONLY valid JSON, no markdown fences, no explanation.
+
+Strategy text:
+{strategy}
+
+Current platforms selected: {', '.join(platforms) if platforms else 'none'}
+
+Return this exact JSON structure. Only include fields that the strategy explicitly suggests. Omit fields with no clear suggestion:
+
+{{
+  "caption_default": "the best general caption from the strategy, ready to copy-paste",
+  "captions": {{
+    "twitter": "twitter-specific caption if suggested",
+    "instagram": "instagram-specific caption if suggested"
+  }},
+  "links": ["any URLs mentioned"],
+  "schedule_suggestion": "YYYY-MM-DD HH:MM if a different time was recommended, or empty",
+  "reply_templates": ["suggested replies or CTAs, one per line"],
+  "platforms_add": ["platforms the strategy recommends adding"],
+  "platforms_remove": ["platforms the strategy recommends removing"]
+}}
+
+RULES:
+- Only extract what's actually in the strategy. Don't invent.
+- Captions must be exact copy-paste ready text, not summaries.
+- If the strategy says the current schedule is fine, leave schedule_suggestion empty.
+- No em dashes in any text."""
+
+        self._apply_strategy_btn.setEnabled(False)
+        self._apply_strategy_btn.setText("Applying...")
+
+        class _Worker(QThread):
+            finished = _Signal(str)
+            def __init__(self, p):
+                super().__init__()
+                self._prompt = p
+            def run(self):
+                import subprocess, sys
+                try:
+                    print("[Apply Strategy] Calling Claude to extract fields...", file=sys.stderr, flush=True)
+                    result = subprocess.run(
+                        ["claude", "-p", self._prompt],
+                        capture_output=True, text=True, encoding="utf-8",
+                        errors="replace", timeout=60,
+                    )
+                    self.finished.emit(result.stdout.strip() if result.returncode == 0 else "")
+                except Exception as e:
+                    print(f"[Apply Strategy] Error: {e}", file=sys.stderr, flush=True)
+                    self.finished.emit("")
+
+        self._apply_worker = _Worker(prompt)
+        self._apply_worker.finished.connect(self._on_apply_done)
+        self._apply_worker.start()
+
+    def _on_apply_done(self, raw: str) -> None:
+        """Parse extracted JSON and fill post fields."""
+        import sys
+        self._apply_strategy_btn.setEnabled(True)
+        self._apply_strategy_btn.setText("Apply")
+
+        if not raw:
+            print("[Apply Strategy] No response from Claude", file=sys.stderr, flush=True)
+            return
+
+        # Strip markdown fences if present
+        text = raw.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+
+        try:
+            import json
+            data = json.loads(text)
+        except Exception as e:
+            print(f"[Apply Strategy] JSON parse error: {e}", file=sys.stderr, flush=True)
+            print(f"[Apply Strategy] Raw: {text[:200]}", file=sys.stderr, flush=True)
+            return
+
+        print(f"[Apply Strategy] Extracted: {list(data.keys())}", file=sys.stderr, flush=True)
+
+        # Apply caption
+        cap = data.get("caption_default", "")
+        if cap and not self._caption_edit.toPlainText().strip():
+            self._caption_edit.setPlainText(cap)
+        elif cap:
+            # Don't overwrite existing caption, append as suggestion
+            existing = self._caption_edit.toPlainText()
+            self._caption_edit.setPlainText(existing + "\n\n--- AI suggestion ---\n" + cap)
+
+        # Apply per-platform captions
+        captions = data.get("captions", {})
+        for plat, text in captions.items():
+            if plat in self._platform_captions and text:
+                te = self._platform_captions[plat]
+                if not te.toPlainText().strip():
+                    te.setPlainText(text)
+                # Show per-platform section
+                if not self._per_platform_toggle.isChecked():
+                    self._per_platform_toggle.setChecked(True)
+                    self._toggle_per_platform(True)
+
+        # Apply links
+        links = data.get("links", [])
+        if links and not self._links_edit.text().strip():
+            self._links_edit.setText(links[0])
+
+        # Apply schedule suggestion
+        sched = data.get("schedule_suggestion", "")
+        if sched:
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(sched)
+                self._schedule_edit.setDateTime(
+                    QDateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute, 0)
+                )
+            except Exception:
+                pass
+
+        # Apply reply templates
+        replies = data.get("reply_templates", [])
+        if replies:
+            existing = self._reply_edit.toPlainText()
+            new_replies = "\n".join(replies)
+            if existing.strip():
+                self._reply_edit.setPlainText(existing + "\n" + new_replies)
+            else:
+                self._reply_edit.setPlainText(new_replies)
+
+        # Apply platform changes
+        for plat in data.get("platforms_add", []):
+            if plat in self._platform_checks:
+                self._platform_checks[plat].setChecked(True)
+        for plat in data.get("platforms_remove", []):
+            if plat in self._platform_checks:
+                self._platform_checks[plat].setChecked(False)
 
     # ------------------------------------------------------------------
     # Toggle per-platform captions
