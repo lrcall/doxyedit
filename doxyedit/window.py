@@ -3638,7 +3638,9 @@ Ctrl+Click tag — Search by tag
             self._project_slots[self._current_slot]["project"] = self.project
 
         # Re-apply theme so project accent color takes effect
-        self._apply_theme(getattr(self, '_current_theme_id', DEFAULT_THEME))
+        # Always read from settings in case it was changed externally
+        self._current_theme_id = self._settings.value("theme", DEFAULT_THEME)
+        self._apply_theme(self._current_theme_id)
         shared = self._settings.value("shared_cache", "true") == "true"
         cache_name = "shared" if shared else self.project.name
         self.browser._thumb_cache.set_project(cache_name)
