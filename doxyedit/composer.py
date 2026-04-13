@@ -88,9 +88,20 @@ class PostComposer(QDialog):
         self._build_ui(post)
         self._prefill(post)
 
-    def closeEvent(self, event):
+    def _save_geometry(self):
         self._settings.setValue("composer_geometry", self.saveGeometry())
+
+    def closeEvent(self, event):
+        self._save_geometry()
         super().closeEvent(event)
+
+    def accept(self):
+        self._save_geometry()
+        super().accept()
+
+    def reject(self):
+        self._save_geometry()
+        super().reject()
 
     # ------------------------------------------------------------------
     # UI construction
