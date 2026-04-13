@@ -2576,68 +2576,88 @@ class AssetBrowser(QWidget):
         if files:
             self.import_files(files)
 
-    # --- Rubber band fix (F8 cycles methods) ---
+    # --- Selection restore after drag (F8 cycles methods) ---
 
-    _rb_fix_method = 2  # default: fake release (known working)
-    _RB_FIX_NAMES = [
-        "none",
-        "viewport repaint",
-        "fake release to viewport",
-        "fake release to view",
-        "hide QRubberBand children",
-        "toggle selection mode",
-        "schedule deferred repaint",
+    _sel_fix_method = 0
+    _SEL_FIX_NAMES = [
+        "immediate re-select",
+        "deferred re-select (10ms)",
+        "deferred re-select (50ms)",
+        "blockSignals + re-select + repaint",
+        "re-select all views",
+        "re-select + forced dataChanged",
     ]
 
-    def cycle_rubberband_fix(self):
-        """F8 — cycle through rubber band fix methods."""
-        self._rb_fix_method = (self._rb_fix_method + 1) % len(self._RB_FIX_NAMES)
-        name = self._RB_FIX_NAMES[self._rb_fix_method]
-        print(f"[F8] Rubber band fix: {name} (method {self._rb_fix_method})")
+    def cycle_sel_fix(self):
+        """F8 — cycle through selection restore methods after drag."""
+        self._sel_fix_method = (self._sel_fix_method + 1) % len(self._SEL_FIX_NAMES)
+        name = self._SEL_FIX_NAMES[self._sel_fix_method]
+        print(f"[F8] Selection fix: {name} (method {self._sel_fix_method})")
         try:
-            self.window().status.showMessage(f"RB fix: {name} (method {self._rb_fix_method})", 3000)
+            self.window().status.showMessage(f"Sel fix: {name} (method {self._sel_fix_method})", 3000)
         except Exception:
             pass
 
     def _clear_rubber_band(self, view):
-        m = self._rb_fix_method
-        print(f"[drag] RB fix {m}: {self._RB_FIX_NAMES[m]}")
+        """Send fake release to viewport to clear stuck rubber band."""
+        fake = QMouseEvent(
+            QEvent.Type.MouseButtonRelease, QPointF(0, 0),
+            Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(view.viewport(), fake)
+
+    def _restore_selection(self, view, model, saved_sel: set):
+        """Restore visual selection after drag clears it. Method set by F8."""
+        if not saved_sel:
+            return
+        m = self._sel_fix_method
+        print(f"[drag] Sel fix {m}: {self._SEL_FIX_NAMES[m]}")
+
+        def _do_reselect(v=view, mdl=model, sel=saved_sel):
+            sm = v.selectionModel()
+            sm.blockSignals(True)
+            sm.clearSelection()
+            for i in range(mdl.rowCount()):
+                idx = mdl.index(i)
+                a = mdl.get_asset(idx)
+                if a and a.id in sel:
+                    sm.select(idx, QItemSelectionModel.SelectionFlag.Select)
+            sm.blockSignals(False)
+
         if m == 0:
-            pass
+            # Immediate re-select
+            _do_reselect()
         elif m == 1:
-            # Just repaint viewport
-            view.viewport().repaint()
+            # Deferred 10ms
+            QTimer.singleShot(10, _do_reselect)
         elif m == 2:
-            # Fake release to viewport (current default)
-            fake = QMouseEvent(
-                QEvent.Type.MouseButtonRelease, QPointF(0, 0),
-                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
-                Qt.KeyboardModifier.NoModifier)
-            QApplication.sendEvent(view.viewport(), fake)
+            # Deferred 50ms
+            QTimer.singleShot(50, _do_reselect)
         elif m == 3:
-            # Fake release to the view itself (not viewport)
-            fake = QMouseEvent(
-                QEvent.Type.MouseButtonRelease, QPointF(0, 0),
-                Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
-                Qt.KeyboardModifier.NoModifier)
-            QApplication.sendEvent(view, fake)
+            # Re-select + forced repaint
+            _do_reselect()
+            view.viewport().repaint()
         elif m == 4:
-            # Find and hide any QRubberBand children on view + viewport
-            from PySide6.QtWidgets import QRubberBand
-            for w in view.findChildren(QRubberBand):
-                w.hide()
-            for w in view.viewport().findChildren(QRubberBand):
-                w.hide()
-            view.viewport().repaint()
+            # Re-select on this view AND all folder section views
+            _do_reselect()
+            for section in self._folder_sections:
+                sv = section.view
+                sm = sv.selectionModel()
+                sm.blockSignals(True)
+                for i in range(section.folder_model.rowCount()):
+                    idx = section.folder_model.index(i)
+                    a = section.folder_model.get_asset(idx)
+                    if a and a.id in saved_sel:
+                        sm.select(idx, QItemSelectionModel.SelectionFlag.Select)
+                sm.blockSignals(False)
         elif m == 5:
-            # Toggle selection mode off and back on
-            old = view.selectionMode()
-            view.setSelectionMode(QListView.SelectionMode.NoSelection)
-            view.setSelectionMode(old)
-            view.viewport().repaint()
-        elif m == 6:
-            # Schedule a deferred repaint after Qt processes pending events
-            QTimer.singleShot(0, view.viewport().repaint)
+            # Re-select + emit dataChanged on selected items to force repaint
+            _do_reselect()
+            for i in range(model.rowCount()):
+                idx = model.index(i)
+                a = model.get_asset(idx)
+                if a and a.id in saved_sel:
+                    model.dataChanged.emit(idx, idx)
 
     # --- Context menu ---
 
@@ -3129,16 +3149,7 @@ class AssetBrowser(QWidget):
                         self._drag_start_pos = None
                         self._drag_snapshot_ids = set()
                         self._clear_rubber_band(view)
-                        # Re-apply visual selection after rubber band fix clears it
-                        if saved_sel:
-                            sel_model = view.selectionModel()
-                            sel_model.blockSignals(True)
-                            for i in range(model.rowCount()):
-                                idx = model.index(i)
-                                a = model.get_asset(idx)
-                                if a and a.id in saved_sel:
-                                    sel_model.select(idx, QItemSelectionModel.SelectionFlag.Select)
-                            sel_model.blockSignals(False)
+                        self._restore_selection(view, model, saved_sel)
                         return True
 
             if (event.type() == event.Type.MouseButtonRelease

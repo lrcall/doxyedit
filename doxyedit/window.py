@@ -1089,7 +1089,7 @@ class MainWindow(QMainWindow):
         # — Top-level most-used —
         tools_menu.addAction("&Reload Project from Disk", self._reload_project, QKeySequence("F5"))
         tools_menu.addAction("Refresh Thumbnails", self._refresh_thumbs, QKeySequence("Shift+F5"))
-        tools_menu.addAction("Cycle Rubber Band Fix", lambda: self.browser.cycle_rubberband_fix(), QKeySequence("F8"))
+        tools_menu.addAction("Cycle Selection Fix (debug)", lambda: self.browser.cycle_sel_fix(), QKeySequence("F8"))
         tools_menu.addAction("Remove Missing Files", self._remove_missing_files)
         tools_menu.addAction("Find Duplicate Files...", self._find_duplicates)
         tools_menu.addAction("Find Similar Images (Perceptual)...", self._find_similar)
