@@ -790,6 +790,217 @@ def cmd_post_delete(project_path: str, post_id: str):
     print(f"Deleted post {post_id}")
 
 
+def cmd_watermark(project_path: str, args: list):
+    """Apply a watermark overlay to an image. Watermark config from config.yaml."""
+    from doxyedit.models import Project
+    from pathlib import Path as _Path
+    from PIL import Image, ImageDraw, ImageFont
+
+    proj = Project.load(project_path)
+    project_dir = _Path(project_path).parent
+
+    asset_id = None
+    output_dir = "export/"
+    watermark_path = None
+    text = None
+    opacity = 0.3
+    position = "bottom-right"  # bottom-right, bottom-left, center, tile
+    i = 0
+    while i < len(args):
+        if args[i] == "--asset" and i + 1 < len(args):
+            asset_id = args[i + 1]; i += 2
+        elif args[i] == "--output" and i + 1 < len(args):
+            output_dir = args[i + 1]; i += 2
+        elif args[i] == "--watermark" and i + 1 < len(args):
+            watermark_path = args[i + 1]; i += 2
+        elif args[i] == "--text" and i + 1 < len(args):
+            text = args[i + 1]; i += 2
+        elif args[i] == "--opacity" and i + 1 < len(args):
+            opacity = float(args[i + 1]); i += 2
+        elif args[i] == "--position" and i + 1 < len(args):
+            position = args[i + 1]; i += 2
+        else:
+            i += 1
+
+    if not asset_id:
+        print("Usage: python -m doxyedit watermark <project.json> --asset <id> [--watermark image.png] [--text 'text'] [--opacity 0.3] [--position bottom-right|center|tile] [--output dir]")
+        sys.exit(1)
+
+    asset = proj.get_asset(asset_id)
+    if not asset:
+        print(f"Asset not found: {asset_id}")
+        sys.exit(1)
+
+    src = _Path(asset.source_path)
+    if not src.exists():
+        print(f"Source not found: {src}")
+        sys.exit(1)
+
+    # Load config.yaml watermark defaults if no flags given
+    if not watermark_path and not text:
+        try:
+            import yaml
+            config_path = project_dir / "config.yaml"
+            if config_path.exists():
+                config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+                wm = config.get("watermark", {})
+                watermark_path = wm.get("image", "")
+                text = wm.get("text", "")
+                opacity = float(wm.get("opacity", opacity))
+                position = wm.get("position", position)
+        except Exception:
+            pass
+
+    if not watermark_path and not text:
+        print("No watermark specified. Use --watermark image.png or --text 'text', or set in config.yaml under watermark:")
+        sys.exit(1)
+
+    # Load source image
+    ext = src.suffix.lower()
+    if ext in (".psd", ".psb"):
+        from doxyedit.imaging import load_psd
+        img, _, _ = load_psd(str(src))
+    else:
+        img = Image.open(str(src)).convert("RGBA")
+
+    # Create watermark layer
+    wm_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+
+    if watermark_path and _Path(watermark_path).exists():
+        wm_img = Image.open(watermark_path).convert("RGBA")
+        # Scale watermark to ~20% of image width
+        scale = (img.width * 0.2) / max(wm_img.width, 1)
+        wm_img = wm_img.resize((int(wm_img.width * scale), int(wm_img.height * scale)), Image.LANCZOS)
+        # Apply opacity
+        alpha = wm_img.split()[3]
+        alpha = alpha.point(lambda p: int(p * opacity))
+        wm_img.putalpha(alpha)
+        # Position
+        if position == "bottom-right":
+            x = img.width - wm_img.width - 20
+            y = img.height - wm_img.height - 20
+        elif position == "bottom-left":
+            x, y = 20, img.height - wm_img.height - 20
+        elif position == "center":
+            x = (img.width - wm_img.width) // 2
+            y = (img.height - wm_img.height) // 2
+        else:
+            x = img.width - wm_img.width - 20
+            y = img.height - wm_img.height - 20
+        wm_layer.paste(wm_img, (x, y))
+    elif text:
+        draw = ImageDraw.Draw(wm_layer)
+        try:
+            font = ImageFont.truetype("arial.ttf", max(20, img.width // 30))
+        except Exception:
+            font = ImageFont.load_default()
+        alpha_val = int(255 * opacity)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        if position == "bottom-right":
+            x, y = img.width - tw - 20, img.height - th - 20
+        elif position == "bottom-left":
+            x, y = 20, img.height - th - 20
+        elif position == "center":
+            x, y = (img.width - tw) // 2, (img.height - th) // 2
+        else:
+            x, y = img.width - tw - 20, img.height - th - 20
+        draw.text((x, y), text, fill=(255, 255, 255, alpha_val), font=font)
+
+    # Composite
+    result = Image.alpha_composite(img, wm_layer)
+
+    # Save
+    out_dir = _Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{asset_id}_watermarked.png"
+    result.save(str(out_path), "PNG")
+    print(f"  Saved: {out_path} ({result.width}x{result.height})")
+
+
+def cmd_flatten(project_path: str, args: list):
+    """Flatten PSD/PSB files to PNG/JPG for posting. Also handles crop regions."""
+    from doxyedit.models import Project
+    from pathlib import Path as _Path
+
+    proj = Project.load(project_path)
+
+    asset_id = None
+    output_dir = "export/"
+    crop_label = None
+    fmt_out = "png"
+    size = 0  # 0 = original size
+    i = 0
+    while i < len(args):
+        if args[i] == "--asset" and i + 1 < len(args):
+            asset_id = args[i + 1]; i += 2
+        elif args[i] == "--output" and i + 1 < len(args):
+            output_dir = args[i + 1]; i += 2
+        elif args[i] == "--crop" and i + 1 < len(args):
+            crop_label = args[i + 1]; i += 2
+        elif args[i] == "--format" and i + 1 < len(args):
+            fmt_out = args[i + 1]; i += 2
+        elif args[i] == "--size" and i + 1 < len(args):
+            size = int(args[i + 1]); i += 2
+        else:
+            i += 1
+
+    if not asset_id:
+        print("Usage: python -m doxyedit flatten <project.json> --asset <id> [--output dir] [--crop label] [--format png|jpg] [--size max_px]")
+        sys.exit(1)
+
+    asset = proj.get_asset(asset_id)
+    if not asset:
+        print(f"Asset not found: {asset_id}")
+        sys.exit(1)
+
+    src = _Path(asset.source_path)
+    if not src.exists():
+        print(f"Source file not found: {src}")
+        sys.exit(1)
+
+    from PIL import Image
+    ext = src.suffix.lower()
+    if ext in (".psd", ".psb"):
+        from doxyedit.imaging import load_psd
+        img, _, _ = load_psd(str(src))
+    else:
+        img = Image.open(str(src)).convert("RGBA")
+
+    # Apply crop if requested
+    if crop_label:
+        crop = next((c for c in asset.crops if c.label == crop_label), None)
+        if crop:
+            img = img.crop((crop.x, crop.y, crop.x + crop.w, crop.y + crop.h))
+            print(f"  Cropped to '{crop_label}': {crop.w}x{crop.h}")
+        else:
+            labels = [c.label for c in asset.crops]
+            print(f"  Crop '{crop_label}' not found. Available: {labels}")
+            sys.exit(1)
+
+    # Resize if requested
+    if size > 0 and max(img.size) > size:
+        img.thumbnail((size, size), Image.LANCZOS)
+        print(f"  Resized to {img.width}x{img.height}")
+
+    # Save
+    out_dir = _Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_name = f"{asset_id}.{fmt_out}"
+    out_path = out_dir / out_name
+
+    if fmt_out == "jpg":
+        if img.mode == "RGBA":
+            bg = Image.new("RGB", img.size, (255, 255, 255))
+            bg.paste(img, mask=img.split()[3])
+            img = bg
+        img.save(str(out_path), "JPEG", quality=90)
+    else:
+        img.save(str(out_path), "PNG")
+
+    print(f"  Saved: {out_path} ({img.width}x{img.height})")
+
+
 def cmd_plan_posts(project_path: str, args: list):
     """Generate a posting plan briefing — asset inventory, post history, gaps, identity.
     Outputs everything Claude needs to plan months of posts."""
@@ -1251,6 +1462,16 @@ def main():
             print("Usage: python -m doxyedit plan-posts <project.json> [--tag TAG] [--folder PATH] [--days N] [--export-previews DIR] [--format json|table]")
             sys.exit(1)
         cmd_plan_posts(args[1], args[2:])
+    elif cmd == "flatten":
+        if len(args) < 2:
+            print("Usage: python -m doxyedit flatten <project.json> --asset <id> [--output dir] [--crop label] [--format png|jpg] [--size max_px]")
+            sys.exit(1)
+        cmd_flatten(args[1], args[2:])
+    elif cmd == "watermark":
+        if len(args) < 2:
+            print("Usage: python -m doxyedit watermark <project.json> --asset <id> [--watermark img.png] [--text 'text'] [--opacity 0.3] [--position bottom-right] [--output dir]")
+            sys.exit(1)
+        cmd_watermark(args[1], args[2:])
     else:
         print(__doc__)
         sys.exit(1)
