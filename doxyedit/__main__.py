@@ -790,6 +790,210 @@ def cmd_post_delete(project_path: str, post_id: str):
     print(f"Deleted post {post_id}")
 
 
+def cmd_plan_posts(project_path: str, args: list):
+    """Generate a posting plan briefing — asset inventory, post history, gaps, identity.
+    Outputs everything Claude needs to plan months of posts."""
+    from doxyedit.models import Project, SocialPost, SocialPostStatus
+    import json as _json
+
+    proj = Project.load(project_path)
+
+    # Parse args
+    tag_filter = None
+    folder_filter = None
+    days = 90
+    export_previews = False
+    preview_dir = ""
+    fmt = "table"
+    i = 0
+    while i < len(args):
+        if args[i] == "--tag" and i + 1 < len(args):
+            tag_filter = args[i + 1]; i += 2
+        elif args[i] == "--folder" and i + 1 < len(args):
+            folder_filter = args[i + 1]; i += 2
+        elif args[i] == "--days" and i + 1 < len(args):
+            days = int(args[i + 1]); i += 2
+        elif args[i] == "--export-previews" and i + 1 < len(args):
+            export_previews = True
+            preview_dir = args[i + 1]; i += 2
+        elif args[i] == "--format" and i + 1 < len(args):
+            fmt = args[i + 1]; i += 2
+        else:
+            i += 1
+
+    # Filter assets
+    candidates = list(proj.assets)
+    if tag_filter:
+        candidates = [a for a in candidates if tag_filter in a.tags]
+    if folder_filter:
+        folder_filter_lower = folder_filter.lower().replace("\\", "/")
+        candidates = [a for a in candidates
+                      if folder_filter_lower in (a.source_folder or "").lower().replace("\\", "/")]
+
+    # Build posted history
+    posted_ids = set()
+    scheduled_ids = set()
+    for p in proj.posts:
+        status = p.status.value if hasattr(p.status, 'value') else p.status
+        if status == "posted":
+            posted_ids.update(p.asset_ids)
+        if status in ("draft", "queued"):
+            scheduled_ids.update(p.asset_ids)
+
+    # Categorize
+    unposted = [a for a in candidates if a.id not in posted_ids and a.id not in scheduled_ids]
+    already_posted = [a for a in candidates if a.id in posted_ids]
+    already_scheduled = [a for a in candidates if a.id in scheduled_ids]
+
+    # Identity
+    identity = proj.get_identity()
+
+    # Export previews if requested
+    if export_previews and preview_dir:
+        from pathlib import Path as _Path
+        from PIL import Image
+        out = _Path(preview_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        exported = 0
+        for a in unposted[:50]:  # cap at 50
+            try:
+                src = _Path(a.source_path)
+                if not src.exists():
+                    continue
+                ext = src.suffix.lower()
+                if ext in (".psd", ".psb"):
+                    from doxyedit.imaging import load_psd
+                    img, _, _ = load_psd(str(src))
+                else:
+                    img = Image.open(str(src))
+                img.thumbnail((512, 512), Image.LANCZOS)
+                img.save(str(out / f"{a.id}.jpg"), "JPEG", quality=85)
+                exported += 1
+            except Exception:
+                pass
+        if fmt != "json":
+            print(f"Exported {exported} preview images to {preview_dir}/")
+
+    # Gaps
+    today = datetime.now()
+    posted_days = set()
+    for p in proj.posts:
+        if p.scheduled_time:
+            posted_days.add(p.scheduled_time[:10])
+    gap_days = []
+    for d in range(days):
+        day = (today + timedelta(days=d)).strftime("%Y-%m-%d")
+        if day not in posted_days:
+            gap_days.append(day)
+
+    # Past strategy notes (for continuity)
+    past_strategies = []
+    for p in sorted(proj.posts, key=lambda x: x.scheduled_time or ""):
+        if p.strategy_notes:
+            past_strategies.append({
+                "date": p.scheduled_time[:10] if p.scheduled_time else "?",
+                "assets": p.asset_ids,
+                "platforms": p.platforms,
+                "notes": p.strategy_notes[:200],
+            })
+
+    if fmt == "json":
+        data = {
+            "identity": {
+                "name": identity.name,
+                "voice": identity.voice,
+                "bio": identity.bio_blurb,
+                "default_platforms": identity.default_platforms,
+                "content_notes": identity.content_notes,
+                "hashtags": identity.hashtags,
+                "gumroad_url": identity.gumroad_url,
+                "patreon_url": identity.patreon_url,
+            },
+            "stats": {
+                "total_assets": len(candidates),
+                "unposted": len(unposted),
+                "already_posted": len(already_posted),
+                "already_scheduled": len(already_scheduled),
+                "gap_days_in_window": len(gap_days),
+                "planning_window_days": days,
+            },
+            "unposted_assets": [
+                {
+                    "id": a.id,
+                    "tags": a.tags,
+                    "starred": a.starred,
+                    "path": a.source_path,
+                    "folder": a.source_folder,
+                    "notes": a.notes,
+                }
+                for a in unposted[:100]
+            ],
+            "already_posted": [
+                {"id": a.id, "tags": a.tags}
+                for a in already_posted[:50]
+            ],
+            "gap_days": gap_days[:30],
+            "past_strategy_notes": past_strategies[-10:],
+            "existing_posts": [
+                {
+                    "id": p.id,
+                    "date": p.scheduled_time[:10] if p.scheduled_time else "?",
+                    "status": p.status.value if hasattr(p.status, 'value') else p.status,
+                    "assets": p.asset_ids,
+                    "platforms": p.platforms,
+                    "caption": p.caption_default[:80],
+                }
+                for p in sorted(proj.posts, key=lambda x: x.scheduled_time or "")
+            ],
+        }
+        print(_json.dumps(data, indent=2, ensure_ascii=False))
+        return
+
+    # Table format
+    print(f"=== POSTING PLAN BRIEFING ===")
+    print(f"Project: {proj.name}")
+    if identity.name:
+        print(f"Identity: {identity.name}")
+        if identity.voice:
+            print(f"Voice: {identity.voice}")
+        if identity.content_notes:
+            print(f"Content notes: {identity.content_notes}")
+    print()
+
+    print(f"Planning window: {days} days")
+    print(f"Total matching assets: {len(candidates)}")
+    print(f"  Unposted: {len(unposted)}")
+    print(f"  Already posted: {len(already_posted)}")
+    print(f"  Already scheduled: {len(already_scheduled)}")
+    print(f"  Gap days (no posts): {len(gap_days)}")
+    print()
+
+    if unposted:
+        print(f"-- Unposted assets ({min(len(unposted), 30)} shown) --")
+        for a in unposted[:30]:
+            star = "*" if a.starred else " "
+            tags = ", ".join(a.tags[:5]) if a.tags else "untagged"
+            print(f"  {star} {a.id:30s}  [{tags}]")
+        if len(unposted) > 30:
+            print(f"  ... and {len(unposted) - 30} more")
+        print()
+
+    if gap_days:
+        print(f"-- Gap days (next 14 shown) --")
+        for day in gap_days[:14]:
+            print(f"  ! {day}")
+        print()
+
+    if past_strategies:
+        print(f"-- Past strategy notes --")
+        for s in past_strategies[-5:]:
+            print(f"  {s['date']}: {s['notes'][:100]}")
+        print()
+
+    print("To create posts from this briefing:")
+    print("  python -m doxyedit post create <project.json> --assets ID --platforms twitter,instagram --caption '...' --schedule '2026-04-20T10:00:00' --strategy-notes '...'")
+
+
 def cmd_post_history(project_path: str, args: list):
     """Show what's been posted — full history for reference."""
     from doxyedit.models import Project
@@ -1042,6 +1246,11 @@ def main():
             print("Usage: python -m doxyedit post-history <project.json> [--format json|table]")
             sys.exit(1)
         cmd_post_history(args[1], args[2:])
+    elif cmd == "plan-posts":
+        if len(args) < 2:
+            print("Usage: python -m doxyedit plan-posts <project.json> [--tag TAG] [--folder PATH] [--days N] [--export-previews DIR] [--format json|table]")
+            sys.exit(1)
+        cmd_plan_posts(args[1], args[2:])
     else:
         print(__doc__)
         sys.exit(1)
