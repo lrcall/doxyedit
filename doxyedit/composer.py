@@ -114,7 +114,7 @@ class PostComposer(QDialog):
         # --- Images ---
         images_box = QGroupBox("Images")
         images_layout = QHBoxLayout(images_box)
-        self._images_edit = AssetDropLineEdit(project)
+        self._images_edit = AssetDropLineEdit(self._project)
         self._images_edit.setPlaceholderText("Drag from Work Tray or select in Assets tab → 'Use Selected'")
         images_layout.addWidget(self._images_edit, 1)
         self._use_selected_btn = QPushButton("Use Selected")
