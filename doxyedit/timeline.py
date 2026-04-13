@@ -222,6 +222,7 @@ class TimelineStream(QWidget):
         self.setObjectName("timeline_stream")
         self._project: "Project | None" = None
         self._thumb_cache = None
+        self._day_filter: str | None = None
 
         # ---- Outer layout ----
         outer = QVBoxLayout(self)
@@ -289,6 +290,11 @@ class TimelineStream(QWidget):
         self._project = project
         self.refresh()
 
+    def set_day_filter(self, iso_date: str | None) -> None:
+        """Filter timeline to a single day, or clear filter (None)."""
+        self._day_filter = iso_date
+        self.refresh()
+
     def refresh(self) -> None:
         self._clear_content()
 
@@ -304,6 +310,10 @@ class TimelineStream(QWidget):
             # "Drafts" → "draft", "Queued" → "queued", etc.
             target_status = filter_text.rstrip("s").lower()
             posts = [p for p in posts if p.status == target_status]
+
+        # Apply calendar day filter
+        if self._day_filter:
+            posts = [p for p in posts if p.scheduled_time and p.scheduled_time[:10] == self._day_filter]
 
         # Sort by scheduled_time (empty times sort to end)
         posts.sort(key=lambda p: p.scheduled_time or "9999")

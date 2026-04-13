@@ -1441,4 +1441,86 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.bg_hover};
             border-color: {theme.accent_dim};
         }}
+
+        /* ── Calendar pane ───────────────────────────────────────────── */
+        QWidget#calendar_pane {{
+            background: {theme.bg_main};
+        }}
+        QLabel#calendar_header {{
+            color: {theme.text_primary};
+            font-size: {fl}px;
+            font-weight: bold;
+        }}
+        QPushButton#calendar_nav_btn {{
+            background: {theme.bg_raised};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+        }}
+        QPushButton#calendar_nav_btn:hover {{
+            background: {theme.bg_hover};
+            border-color: {theme.accent_dim};
+        }}
+        QPushButton#calendar_today_btn {{
+            background: {theme.bg_raised};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            padding: 2px {pad}px;
+            font-size: {fs}px;
+        }}
+        QPushButton#calendar_today_btn:hover {{
+            background: {theme.bg_hover};
+            border-color: {theme.accent_dim};
+        }}
+        QLabel#calendar_dow_header {{
+            color: {theme.text_muted};
+            font-size: {fxs}px;
+            font-weight: bold;
+        }}
+        QFrame#calendar_day_cell {{
+            background: {theme.bg_raised};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+        }}
+        QFrame#calendar_day_cell:hover {{
+            border-color: {theme.accent_dim};
+        }}
+        QFrame#calendar_day_cell[day_type="today"] {{
+            border-color: {theme.accent};
+            border-width: 2px;
+        }}
+        QFrame#calendar_day_cell[day_type="selected"] {{
+            background: {theme.accent_dim};
+            border-color: {theme.accent_bright};
+            border-width: 2px;
+        }}
+        QFrame#calendar_day_cell[day_type="other_month"] {{
+            background: {theme.bg_deep};
+            border-color: transparent;
+        }}
+        QLabel#calendar_day_number {{
+            color: {theme.text_primary};
+            font-size: {fs}px;
+        }}
+        QFrame#calendar_day_cell[day_type="other_month"] QLabel#calendar_day_number {{
+            color: {theme.text_muted};
+        }}
+        QLabel#calendar_day_count {{
+            color: {theme.text_muted};
+            font-size: {fxs}px;
+        }}
+
+        /* ── Strategy generate button ────────────────────────────────── */
+        QPushButton#strategy_generate_btn {{
+            background: {theme.accent_dim};
+            color: {theme.text_on_accent};
+            border: 1px solid {theme.accent};
+            border-radius: {rad}px;
+            padding: {pad}px {pad_lg}px;
+            font-weight: bold;
+        }}
+        QPushButton#strategy_generate_btn:hover {{
+            background: {theme.accent};
+        }}
     """

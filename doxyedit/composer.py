@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
     QTextEdit, QPushButton, QCheckBox, QDateTimeEdit, QFrame,
     QScrollArea, QWidget, QSizePolicy, QGroupBox,
 )
-from PySide6.QtCore import Qt, QDateTime, QSettings
+from PySide6.QtCore import Qt, QDateTime, QSettings, QSize
+from PySide6.QtGui import QPixmap
 from doxyedit.models import Project, SocialPost, SocialPostStatus
 
 class AssetDropLineEdit(QLineEdit):
@@ -125,14 +126,26 @@ class PostComposer(QDialog):
 
         # --- Images ---
         images_box = QGroupBox("Images")
-        images_layout = QHBoxLayout(images_box)
+        images_outer = QVBoxLayout(images_box)
+        images_row = QHBoxLayout()
         self._images_edit = AssetDropLineEdit(self._project)
         self._images_edit.setPlaceholderText("Drag from Work Tray or select in Assets tab → 'Use Selected'")
-        images_layout.addWidget(self._images_edit, 1)
+        images_row.addWidget(self._images_edit, 1)
         self._use_selected_btn = QPushButton("Use Selected")
         self._use_selected_btn.setToolTip("Grab currently selected assets from the browser")
         self._use_selected_btn.clicked.connect(self._use_selected_assets)
-        images_layout.addWidget(self._use_selected_btn)
+        images_row.addWidget(self._use_selected_btn)
+        images_outer.addLayout(images_row)
+
+        # Image preview strip
+        self._thumb_strip = QHBoxLayout()
+        self._thumb_strip.setSpacing(6)
+        self._thumb_strip_container = QWidget()
+        self._thumb_strip_container.setLayout(self._thumb_strip)
+        self._thumb_strip_container.setVisible(False)
+        images_outer.addWidget(self._thumb_strip_container)
+
+        self._images_edit.textChanged.connect(self._update_thumb_preview)
         layout.addWidget(images_box)
 
         # --- Platforms ---
@@ -145,6 +158,25 @@ class PostComposer(QDialog):
             platforms_layout.addWidget(cb)
         platforms_layout.addStretch()
         layout.addWidget(platforms_box)
+
+        # --- AI Strategy Notes (right after platforms for context) ---
+        strategy_box = QGroupBox("Strategy Notes")
+        strategy_layout = QVBoxLayout(strategy_box)
+        strategy_btn_row = QHBoxLayout()
+        self._strategy_generate_btn = QPushButton("Generate Strategy")
+        self._strategy_generate_btn.setObjectName("strategy_generate_btn")
+        self._strategy_generate_btn.setToolTip(
+            "Analyze asset tags, posting history, calendar gaps, and brand identity")
+        self._strategy_generate_btn.clicked.connect(self._generate_strategy)
+        strategy_btn_row.addWidget(self._strategy_generate_btn)
+        strategy_btn_row.addStretch()
+        strategy_layout.addLayout(strategy_btn_row)
+        self._strategy_edit = QTextEdit()
+        self._strategy_edit.setPlaceholderText(
+            "Click 'Generate Strategy' to auto-analyze this post — "
+            "tags, history, calendar context, platform fit, brand voice")
+        strategy_layout.addWidget(self._strategy_edit)
+        layout.addWidget(strategy_box)
 
         # --- Caption ---
         caption_box = QGroupBox("Caption")
@@ -216,16 +248,6 @@ class PostComposer(QDialog):
         self._reply_edit.setPlaceholderText("One reply per line")
         reply_layout.addWidget(self._reply_edit)
         layout.addWidget(reply_box)
-
-        # --- AI Strategy Notes ---
-        strategy_box = QGroupBox("Strategy Notes")
-        strategy_layout = QVBoxLayout(strategy_box)
-        self._strategy_edit = QTextEdit()
-        self._strategy_edit.setPlaceholderText(
-            "Claude fills this in — posting strategy, best times, hashtags, "
-            "platform-specific advice, engagement tips, long-term vision notes")
-        strategy_layout.addWidget(self._strategy_edit)
-        layout.addWidget(strategy_box)
 
         layout.addStretch()
 
@@ -324,6 +346,72 @@ class PostComposer(QDialog):
             self._strategy_edit.setPlainText(post.strategy_notes)
 
     # ------------------------------------------------------------------
+    # Image preview
+    # ------------------------------------------------------------------
+
+    PREVIEW_THUMB_SIZE = 96
+
+    def _update_thumb_preview(self) -> None:
+        """Refresh the thumbnail strip when the asset ID list changes."""
+        # Clear existing thumbnails
+        while self._thumb_strip.count():
+            item = self._thumb_strip.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        ids = [s.strip() for s in self._images_edit.text().split(",") if s.strip()]
+        if not ids:
+            self._thumb_strip_container.setVisible(False)
+            return
+
+        any_visible = False
+        for aid in ids[:6]:  # max 6 previews
+            pm = self._load_asset_thumb(aid)
+            if pm and not pm.isNull():
+                scaled = pm.scaled(
+                    QSize(self.PREVIEW_THUMB_SIZE, self.PREVIEW_THUMB_SIZE),
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                lbl = QLabel()
+                lbl.setPixmap(scaled)
+                lbl.setFixedSize(self.PREVIEW_THUMB_SIZE, self.PREVIEW_THUMB_SIZE)
+                lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self._thumb_strip.addWidget(lbl)
+                any_visible = True
+            else:
+                lbl = QLabel("?")
+                lbl.setFixedSize(self.PREVIEW_THUMB_SIZE, self.PREVIEW_THUMB_SIZE)
+                lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                lbl.setObjectName("timeline_thumb_placeholder")
+                self._thumb_strip.addWidget(lbl)
+                any_visible = True
+
+        self._thumb_strip.addStretch()
+        self._thumb_strip_container.setVisible(any_visible)
+
+    def _load_asset_thumb(self, asset_id: str) -> "QPixmap | None":
+        """Load a thumbnail from the asset's source file."""
+        asset = self._project.get_asset(asset_id)
+        if not asset or not asset.source_path:
+            return None
+        src = Path(asset.source_path)
+        if not src.exists():
+            return None
+        try:
+            ext = src.suffix.lower()
+            if ext in (".psd", ".psb"):
+                from doxyedit.imaging import load_psd_thumb, pil_to_qpixmap
+                result = load_psd_thumb(str(src), min_size=0)
+                if result:
+                    return pil_to_qpixmap(result[0])
+                return None
+            pm = QPixmap(str(src))
+            return pm if not pm.isNull() else None
+        except Exception:
+            return None
+
+    # ------------------------------------------------------------------
     # Image picker
     # ------------------------------------------------------------------
 
@@ -346,6 +434,31 @@ class PostComposer(QDialog):
                 self._images_edit.setPlaceholderText(", ".join(names))
             else:
                 self._images_edit.setPlaceholderText("No assets selected — select in Assets tab first")
+
+    # ------------------------------------------------------------------
+    # Strategy generation
+    # ------------------------------------------------------------------
+
+    def _generate_strategy(self) -> None:
+        """Build a strategy briefing from project data and fill the notes field."""
+        from doxyedit.strategy import generate_strategy_briefing
+
+        # Build a temporary SocialPost from current form state
+        asset_ids = [s.strip() for s in self._images_edit.text().split(",") if s.strip()]
+        platforms = [p for p, cb in self._platform_checks.items() if cb.isChecked()]
+        qt_dt = self._schedule_edit.dateTime()
+        py_dt = qt_dt.toPython()
+        scheduled_time = py_dt.isoformat() if py_dt else ""
+
+        temp_post = SocialPost(
+            id=self._editing.id if self._editing else "",
+            asset_ids=asset_ids,
+            platforms=platforms,
+            scheduled_time=scheduled_time,
+        )
+
+        briefing = generate_strategy_briefing(self._project, temp_post)
+        self._strategy_edit.setPlainText(briefing)
 
     # ------------------------------------------------------------------
     # Toggle per-platform captions

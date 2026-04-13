@@ -25,6 +25,7 @@ from doxyedit.themes import THEMES, DEFAULT_THEME, generate_stylesheet, Theme
 from doxyedit.censor import CensorEditor
 from doxyedit.platforms import PlatformPanel
 from doxyedit.timeline import TimelineStream
+from doxyedit.calendar_pane import CalendarPane
 from doxyedit.composer import PostComposer
 from doxyedit.tagpanel import TagPanel
 from doxyedit.exporter import export_project
@@ -267,7 +268,7 @@ class MainWindow(QMainWindow):
         self.censor_editor = CensorEditor()
         self.tabs.addTab(self.censor_editor, "Censor")
 
-        # Tab 4: Social — Timeline + Checklist (posting pipeline)
+        # Tab 4: Social — Calendar + Timeline + Checklist (posting pipeline)
         self._timeline = TimelineStream()
         self._timeline.set_thumb_cache(self.browser._thumb_cache)
         self._timeline.set_project(self.project)
@@ -275,14 +276,21 @@ class MainWindow(QMainWindow):
         self._timeline.new_post_requested.connect(self._on_new_post)
         self._timeline.sync_requested.connect(self._on_sync_oneup)
 
+        self._calendar_pane = CalendarPane()
+        self._calendar_pane.set_project(self.project)
+        self._calendar_pane.day_selected.connect(self._on_calendar_day_selected)
+        self._calendar_pane.day_cleared.connect(self._on_calendar_day_cleared)
+
         self.checklist_panel = ChecklistPanel(self.project)
 
         _social_split = QSplitter(Qt.Orientation.Vertical)
+        _social_split.addWidget(self._calendar_pane)
         _social_split.addWidget(self._timeline)
         _social_split.addWidget(self.checklist_panel)
-        _social_split.setSizes([600, 150])
-        _social_split.setStretchFactor(0, 4)
-        _social_split.setStretchFactor(1, 1)
+        _social_split.setSizes([200, 500, 150])
+        _social_split.setStretchFactor(0, 0)
+        _social_split.setStretchFactor(1, 4)
+        _social_split.setStretchFactor(2, 1)
         self.tabs.addTab(_social_split, "Social")
 
         # Tab 5: Platforms — slot assignments + kanban (legacy)
@@ -2079,6 +2087,7 @@ class MainWindow(QMainWindow):
                 self.project.posts.append(dlg.result_post)
             self._dirty = True
             self._timeline.refresh()
+            self._calendar_pane.refresh()
             self.platform_panel.refresh()
 
     def _on_sync_oneup(self):
@@ -2112,7 +2121,16 @@ class MainWindow(QMainWindow):
         if updated:
             self._dirty = True
             self._timeline.refresh()
+            self._calendar_pane.refresh()
         self.statusBar().showMessage(f"Synced: {updated} post(s) updated", 3000)
+
+    def _on_calendar_day_selected(self, iso_date: str):
+        """Filter timeline to show only posts for the selected day."""
+        self._timeline.set_day_filter(iso_date)
+
+    def _on_calendar_day_cleared(self):
+        """Clear timeline day filter — show all posts."""
+        self._timeline.set_day_filter(None)
 
     def _on_asset_selected(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
@@ -3661,6 +3679,8 @@ Ctrl+Click tag — Search by tag
             self._kanban_panel.set_project(self.project)
         if hasattr(self, '_timeline'):
             self._timeline.set_project(self.project)
+        if hasattr(self, '_calendar_pane'):
+            self._calendar_pane.set_project(self.project)
         if hasattr(self, '_smart_folder_menu'):
             self._rebuild_smart_folder_menu()
         if hasattr(self, '_info_panel'):
