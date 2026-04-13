@@ -640,13 +640,16 @@ def cmd_post_push(project_path: str, args: list):
         print("No posts to push.")
         return
 
-    try:
-        from doxyedit.oneup_client import OneUpClient
-        config = proj.oneup_config or {}
-        client = OneUpClient(config)
-    except Exception as e:
-        print(f"OneUp client unavailable: {e}")
-        print("Marking posts as queued (offline mode).")
+    from doxyedit.oneup import get_client_from_config, OneUpClient
+    project_dir = str(Path(project_path).parent)
+    client = get_client_from_config(project_dir)
+    if not client:
+        key = (proj.oneup_config or {}).get("api_key", "")
+        if key:
+            cat = str((proj.oneup_config or {}).get("category_id", ""))
+            client = OneUpClient(key, cat)
+    if not client:
+        print("No OneUp API key. Marking posts as queued (offline mode).")
         for post in targets:
             post.status = SocialPostStatus.QUEUED
             post.updated_at = datetime.now().isoformat()
@@ -655,18 +658,27 @@ def cmd_post_push(project_path: str, args: list):
 
     pushed = failed = 0
     for post in targets:
-        try:
-            result = client.create_post(post)
-            post.oneup_post_id = result.get("id", "")
+        # Format scheduled time for OneUp: "YYYY-MM-DD HH:MM"
+        sched = ""
+        if post.scheduled_time:
+            sched = post.scheduled_time[:16].replace("T", " ")
+        result = client.schedule_post(
+            content=post.caption_default,
+            image_urls=None,  # TODO: need public image URLs
+            social_network_id="ALL",
+            scheduled_date_time=sched,
+        )
+        if result.success:
+            post.oneup_post_id = result.data.get("id", "")
             post.status = SocialPostStatus.QUEUED
             post.updated_at = datetime.now().isoformat()
             pushed += 1
-            print(f"  Pushed {post.id} → oneup:{post.oneup_post_id}")
-        except Exception as e:
+            print(f"  ✓ Pushed {post.id[:8]}... → OneUp")
+        else:
             post.status = SocialPostStatus.FAILED
             post.updated_at = datetime.now().isoformat()
             failed += 1
-            print(f"  Failed {post.id}: {e}")
+            print(f"  ✗ Failed {post.id[:8]}...: {result.error}")
 
     proj.save(project_path)
     print(f"\nPushed {pushed}, failed {failed}")
@@ -683,28 +695,32 @@ def cmd_post_sync(project_path: str, args: list):
         print("No queued posts with OneUp IDs to sync.")
         return
 
-    try:
-        from doxyedit.oneup_client import OneUpClient
-        config = proj.oneup_config or {}
-        client = OneUpClient(config)
-    except Exception as e:
-        print(f"OneUp client unavailable: {e}")
+    from doxyedit.oneup import get_client_from_config, OneUpClient
+    project_dir = str(Path(project_path).parent)
+    client = get_client_from_config(project_dir)
+    if not client:
+        key = (proj.oneup_config or {}).get("api_key", "")
+        if key:
+            client = OneUpClient(key)
+    if not client:
+        print("No OneUp API key configured.")
         sys.exit(1)
 
     updated = 0
     for post in queued:
-        try:
-            result = client.get_post(post.oneup_post_id)
-            remote_status = result.get("status", "")
+        result = client.get_post(post.oneup_post_id)
+        if result.success:
+            remote_status = result.data.get("status", "")
             if remote_status in ("published", "posted"):
                 post.status = SocialPostStatus.POSTED
+                updated += 1
             elif remote_status in ("failed", "error"):
                 post.status = SocialPostStatus.FAILED
+                updated += 1
             post.updated_at = datetime.now().isoformat()
-            updated += 1
-            print(f"  {post.id}: {remote_status} → {post.status}")
-        except Exception as e:
-            print(f"  Failed to sync {post.id}: {e}")
+            print(f"  {post.id[:8]}...: {remote_status} → {post.status}")
+        else:
+            print(f"  {post.id[:8]}...: sync error — {result.error}")
 
     proj.save(project_path)
     print(f"\nSynced {updated} post(s)")
@@ -721,14 +737,19 @@ def cmd_post_delete(project_path: str, post_id: str):
         sys.exit(1)
 
     if post.status == SocialPostStatus.QUEUED and post.oneup_post_id:
-        try:
-            from doxyedit.oneup_client import OneUpClient
-            config = proj.oneup_config or {}
-            client = OneUpClient(config)
-            client.delete_post(post.oneup_post_id)
-            print(f"  Cancelled OneUp post {post.oneup_post_id}")
-        except Exception as e:
-            print(f"  Could not cancel on OneUp: {e}")
+        from doxyedit.oneup import get_client_from_config, OneUpClient
+        project_dir = str(Path(project_path).parent)
+        client = get_client_from_config(project_dir)
+        if not client:
+            key = (proj.oneup_config or {}).get("api_key", "")
+            if key:
+                client = OneUpClient(key)
+        if client:
+            result = client.delete_post(post.oneup_post_id)
+            if result.success:
+                print(f"  Cancelled OneUp post {post.oneup_post_id}")
+            else:
+                print(f"  Could not cancel on OneUp: {result.error}")
 
     proj.posts = [p for p in proj.posts if p.id != post_id]
     proj.save(project_path)
