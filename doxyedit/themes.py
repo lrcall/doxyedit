@@ -1342,8 +1342,9 @@ def generate_stylesheet(theme: Theme) -> str:
             font-weight: bold;
         }}
         QLabel#post_status_badge[status="draft"] {{
-            background: {theme.post_draft}40;
-            color: {theme.post_draft};
+            background: {theme.bg_input};
+            border: 1px solid {theme.border};
+            color: {theme.text_secondary};
         }}
         QLabel#post_status_badge[status="queued"] {{
             background: {theme.post_queued}40;
