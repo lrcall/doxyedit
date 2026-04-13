@@ -1,6 +1,7 @@
 dist/
 build/
 config.yaml
+.mcp.json
 .superpowers/
 __pycache__/
 *.pyc
