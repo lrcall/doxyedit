@@ -273,6 +273,7 @@ class MainWindow(QMainWindow):
 
         # Timeline (new primary) + Kanban (legacy toggle)
         self._timeline = TimelineStream()
+        self._timeline.set_thumb_cache(self.browser._thumb_cache)
         self._timeline.set_project(self.project)
         self._timeline.post_selected.connect(self._on_post_selected)
         self._timeline.new_post_requested.connect(self._on_new_post)

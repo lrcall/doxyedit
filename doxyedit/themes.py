@@ -1367,6 +1367,12 @@ def generate_stylesheet(theme: Theme) -> str:
             padding: {pad}px;
             background: {theme.timeline_gap}15;
         }}
+        QLabel#timeline_thumb_placeholder {{
+            background: {theme.bg_input};
+            border: 1px dashed {theme.border};
+            border-radius: {rad}px;
+            color: {theme.text_muted};
+        }}
         QLabel#platform_badge {{
             background: {theme.accent_dim};
             color: {theme.text_on_accent};

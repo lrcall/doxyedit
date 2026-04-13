@@ -7,7 +7,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
     QScrollArea, QPushButton, QSizePolicy, QComboBox,
 )
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal, Qt, QSize
+from PySide6.QtGui import QPixmap
 
 from doxyedit.models import Project, SocialPost, SocialPostStatus
 
@@ -42,20 +43,54 @@ class StatusBadge(QLabel):
         self.setProperty("status", status_str)
 
 
+THUMB_SIZE = 64
+
+
 class PostCard(QFrame):
     """Single post card in the timeline feed."""
 
     clicked = Signal(str)  # emits post_id
 
-    def __init__(self, post: SocialPost, project: "Project | None" = None, parent=None):
+    def __init__(self, post: SocialPost, project: "Project | None" = None,
+                 thumb_cache=None, parent=None):
         super().__init__(parent)
         self.setObjectName("timeline_post_card")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._post_id = post.id
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 6, 8, 6)
-        layout.setSpacing(3)
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(6, 4, 6, 4)
+        outer.setSpacing(8)
+
+        # Thumbnails (left side)
+        if post.asset_ids and (project or thumb_cache):
+            thumb_col = QHBoxLayout()
+            thumb_col.setSpacing(4)
+            for aid in post.asset_ids[:4]:  # max 4 thumbs
+                pm = None
+                if thumb_cache:
+                    pm = thumb_cache.get(aid)
+                if pm and not pm.isNull():
+                    scaled = pm.scaled(QSize(THUMB_SIZE, THUMB_SIZE),
+                                       Qt.AspectRatioMode.KeepAspectRatio,
+                                       Qt.TransformationMode.SmoothTransformation)
+                    lbl = QLabel()
+                    lbl.setPixmap(scaled)
+                    lbl.setFixedSize(THUMB_SIZE, THUMB_SIZE)
+                    lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    thumb_col.addWidget(lbl)
+                else:
+                    # Placeholder
+                    lbl = QLabel("?")
+                    lbl.setFixedSize(THUMB_SIZE, THUMB_SIZE)
+                    lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    lbl.setObjectName("timeline_thumb_placeholder")
+                    thumb_col.addWidget(lbl)
+            outer.addLayout(thumb_col)
+
+        # Right side: text info
+        info = QVBoxLayout()
+        info.setSpacing(2)
 
         # Row 1: asset names (bold) + status badge + time
         row1 = QHBoxLayout()
@@ -74,7 +109,7 @@ class PostCard(QFrame):
             time_label = QLabel(time_str)
             row1.addWidget(time_label)
 
-        layout.addLayout(row1)
+        info.addLayout(row1)
 
         # Row 2: platform badges
         if post.platforms:
@@ -83,24 +118,26 @@ class PostCard(QFrame):
             for plat in post.platforms:
                 row2.addWidget(PlatformBadge(plat))
             row2.addStretch()
-            layout.addLayout(row2)
+            info.addLayout(row2)
 
         # Row 3: caption preview (italic, max 80 chars)
         caption = post.caption_default or next(iter(post.captions.values()), "")
         if caption:
-            preview = caption[:80] + ("…" if len(caption) > 80 else "")
+            preview = caption[:80] + ("..." if len(caption) > 80 else "")
             cap_label = QLabel(preview)
             cap_label.setObjectName("timeline_caption")
             font = cap_label.font()
             font.setItalic(True)
             cap_label.setFont(font)
-            layout.addWidget(cap_label)
+            info.addWidget(cap_label)
 
         # Row 4: links
         if post.links:
             links_label = QLabel("  ".join(post.links))
             links_label.setObjectName("timeline_links")
-            layout.addWidget(links_label)
+            info.addWidget(links_label)
+
+        outer.addLayout(info, 1)
 
     @staticmethod
     def _resolve_names(post: SocialPost, project: "Project | None") -> list[str]:
@@ -155,6 +192,7 @@ class TimelineStream(QWidget):
         super().__init__(parent)
         self.setObjectName("timeline_stream")
         self._project: "Project | None" = None
+        self._thumb_cache = None
 
         # ---- Outer layout ----
         outer = QVBoxLayout(self)
@@ -215,6 +253,9 @@ class TimelineStream(QWidget):
     # Public API
     # ------------------------------------------------------------------
 
+    def set_thumb_cache(self, cache):
+        self._thumb_cache = cache
+
     def set_project(self, project: "Project") -> None:
         self._project = project
         self.refresh()
@@ -268,7 +309,7 @@ class TimelineStream(QWidget):
                 self._content_layout.insertWidget(idx, header)
                 idx += 1
                 for post in by_day[day_str]:
-                    card = PostCard(post, self._project)
+                    card = PostCard(post, self._project, self._thumb_cache)
                     card.clicked.connect(self.post_selected)
                     self._content_layout.insertWidget(idx, card)
                     idx += 1
@@ -294,7 +335,7 @@ class TimelineStream(QWidget):
                 self._content_layout.insertWidget(idx, header)
                 idx += 1
                 for post in future_by_day[day_str]:
-                    card = PostCard(post, self._project)
+                    card = PostCard(post, self._project, self._thumb_cache)
                     card.clicked.connect(self.post_selected)
                     self._content_layout.insertWidget(idx, card)
                     idx += 1
@@ -306,7 +347,7 @@ class TimelineStream(QWidget):
             self._content_layout.insertWidget(idx, unsched_header)
             idx += 1
             for post in unscheduled:
-                card = PostCard(post, self._project)
+                card = PostCard(post, self._project, self._thumb_cache)
                 card.clicked.connect(self.post_selected)
                 self._content_layout.insertWidget(idx, card)
                 idx += 1
