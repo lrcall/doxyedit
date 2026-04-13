@@ -10,8 +10,6 @@ Two modes:
 """
 from __future__ import annotations
 
-import base64
-import json
 import subprocess
 from collections import Counter
 from datetime import datetime, timedelta
@@ -513,53 +511,6 @@ def generate_strategy_briefing(project: Project, post: SocialPost) -> str:
 # AI-powered strategy (calls Claude via CLI)
 # ---------------------------------------------------------------------------
 
-def _load_image_base64(src: Path, max_size: int = 1200) -> tuple[str, str] | None:
-    """Load an image as base64 + media type for the Anthropic API.
-    Returns (base64_data, media_type) or None."""
-    if not src.exists():
-        return None
-    ext = src.suffix.lower()
-
-    # For PSD/PSB, export a temp JPEG
-    if ext in (".psd", ".psb"):
-        try:
-            from doxyedit.imaging import load_psd
-            from PIL import Image
-            import io
-            img, _, _ = load_psd(str(src))
-            img.thumbnail((max_size, max_size), Image.LANCZOS)
-            buf = io.BytesIO()
-            img.save(buf, "JPEG", quality=85)
-            return base64.b64encode(buf.getvalue()).decode(), "image/jpeg"
-        except Exception:
-            return None
-
-    media_map = {
-        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-        ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp",
-    }
-    media_type = media_map.get(ext)
-    if not media_type:
-        return None
-
-    try:
-        data = src.read_bytes()
-        # Resize if too large (>5MB)
-        if len(data) > 5_000_000:
-            from PIL import Image
-            import io
-            img = Image.open(io.BytesIO(data))
-            img.thumbnail((max_size, max_size), Image.LANCZOS)
-            buf = io.BytesIO()
-            fmt = "JPEG" if ext in (".jpg", ".jpeg") else "PNG"
-            img.save(buf, fmt, quality=85)
-            data = buf.getvalue()
-            media_type = "image/jpeg" if fmt == "JPEG" else "image/png"
-        return base64.b64encode(data).decode(), media_type
-    except Exception:
-        return None
-
-
 def generate_ai_strategy(
     project: Project,
     post: SocialPost,
@@ -572,23 +523,12 @@ def generate_ai_strategy(
     # 1. Gather local context briefing
     local_briefing = generate_strategy_briefing(project, post)
 
-    # 2. Load images as base64
-    image_content: list[dict] = []
+    # 2. Resolve assets for context
     assets: list[Asset] = []
     for aid in post.asset_ids:
         a = project.get_asset(aid)
         if a:
             assets.append(a)
-            result = _load_image_base64(Path(a.source_path))
-            if result:
-                b64, media = result
-                image_content.append({
-                    "type": "image",
-                    "source": {"type": "base64", "media_type": media, "data": b64},
-                })
-
-    if not image_content:
-        return f"[No images could be loaded for AI analysis]\n\nLocal analysis:\n\n{local_briefing}"
 
     # 3. Build the prompt
     identity = project.get_identity()
@@ -642,78 +582,13 @@ Look at the image(s) and provide:
 
 Be specific to THIS image. Reference what you actually see."""
 
-    # 4. Call Anthropic API
-    try:
-        import anthropic
-    except ImportError:
-        return f"[anthropic SDK not installed — run: pip install anthropic]\n\nLocal analysis:\n\n{local_briefing}"
-
-    # Try to get API key: config.yaml → env var → claude CLI config
-    import os
-    import yaml
-    api_key = ""
-
-    # 1. config.yaml in project directory
-    for cfg_path in [Path("config.yaml"), Path(__file__).parent.parent / "config.yaml"]:
-        if cfg_path.exists():
-            try:
-                with open(cfg_path) as f:
-                    cfg = yaml.safe_load(f) or {}
-                api_key = (cfg.get("anthropic") or {}).get("api_key", "")
-                if api_key:
-                    break
-            except Exception:
-                pass
-
-    # 2. Environment variable
-    if not api_key:
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-
-    # 3. Claude CLI config
-    if not api_key:
-        config_paths = [
-            Path.home() / ".claude" / "config.json",
-            Path.home() / ".config" / "claude" / "config.json",
-        ]
-        for cp in config_paths:
-            if cp.exists():
-                try:
-                    cfg = json.loads(cp.read_text())
-                    api_key = cfg.get("apiKey", cfg.get("api_key", ""))
-                    if api_key:
-                        break
-                except Exception:
-                    pass
-
-    if not api_key:
-        # Use claude CLI (already authenticated) — no vision but full context
-        return _generate_ai_strategy_cli(text_prompt, local_briefing, image_content)
-
-    try:
-        client = anthropic.Anthropic(api_key=api_key)
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4096,
-            messages=[{
-                "role": "user",
-                "content": image_content + [{"type": "text", "text": text_prompt}],
-            }],
-        )
-        return message.content[0].text
-    except Exception as e:
-        return f"[API error: {e}]\n\nLocal analysis:\n\n{local_briefing}"
+    # 4. Use claude CLI — uses the same subscription/auth as Claude Code
+    return _generate_ai_strategy_cli(text_prompt, local_briefing)
 
 
-def _generate_ai_strategy_cli(prompt: str, fallback: str, image_content: list | None = None) -> str:
-    """Pipe prompt to claude CLI (already authenticated). Text-only — no vision.
-    If images were available, adds a note that they couldn't be analyzed."""
-    if image_content:
-        prompt = (
-            "[NOTE: Images are attached to this post but cannot be sent via CLI. "
-            "Analyze based on the tags, context, and posting history below. "
-            "If an Anthropic API key is added to config.yaml, future runs will "
-            "use vision to analyze the actual art.]\n\n" + prompt
-        )
+def _generate_ai_strategy_cli(prompt: str, fallback: str) -> str:
+    """Pipe prompt to claude CLI — uses the same auth/subscription as Claude Code.
+    No extra API key or billing needed."""
     try:
         result = subprocess.run(
             ["claude", "-p", "--no-input", prompt],
