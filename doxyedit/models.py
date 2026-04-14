@@ -173,6 +173,8 @@ class CensorRegion:
     w: int = 0
     h: int = 0
     style: str = "black"  # "black", "blur", "pixelate"
+    blur_radius: int = 20     # Gaussian blur radius (blur style)
+    pixelate_ratio: int = 10  # downscale factor (pixelate style)
 
 
 @dataclass
@@ -196,16 +198,15 @@ class CanvasOverlay:
     italic: bool = False
     text_width: int = 0       # 0 = no wrapping
     letter_spacing: float = 0.0  # kerning
+    line_height: float = 1.2  # line spacing multiplier (1.0 = tight, 1.5 = loose)
+    stroke_color: str = ""    # text outline color (empty = no outline)
+    stroke_width: int = 0     # text outline width in px
+    shadow_color: str = ""    # drop shadow color (empty = no shadow)
+    shadow_offset: int = 0    # shadow offset in px (both x and y)
+    shadow_blur: int = 0      # shadow blur radius
 
     def to_dict(self) -> dict:
-        return {
-            "type": self.type, "label": self.label, "image_path": self.image_path,
-            "text": self.text, "font_family": self.font_family, "font_size": self.font_size,
-            "color": self.color, "opacity": self.opacity, "position": self.position,
-            "x": self.x, "y": self.y, "scale": self.scale, "enabled": self.enabled,
-            "rotation": self.rotation, "bold": self.bold, "italic": self.italic,
-            "text_width": self.text_width, "letter_spacing": self.letter_spacing,
-        }
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict) -> "CanvasOverlay":
