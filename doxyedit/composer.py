@@ -12,11 +12,10 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QFrame, QSplitter, QWidget, QSizePolicy, QGroupBox,
+    QDialog, QVBoxLayout, QHBoxLayout, QLineEdit,
+    QPushButton, QSplitter, QWidget,
 )
-from PySide6.QtCore import Qt, QSettings, QSize
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Qt, QSettings
 
 from doxyedit.models import Project, SocialPost, SocialPostStatus
 from doxyedit.composer_left import ImagePreviewPanel
@@ -79,8 +78,6 @@ class AssetDropLineEdit(QLineEdit):
 class PostComposer(QDialog):
     """Two-column post composer dialog."""
 
-    PREVIEW_THUMB_SIZE = 180
-
     def __init__(self, project: Project, post: SocialPost | None = None, parent=None):
         super().__init__(parent)
         self.setObjectName("post_composer")
@@ -137,38 +134,32 @@ class PostComposer(QDialog):
         root.setSpacing(4)
         root.setContentsMargins(8, 8, 8, 8)
 
-        # --- Images row (full width, top) ---
-        images_box = QGroupBox("Images")
-        images_outer = QVBoxLayout(images_box)
+        # --- Two-column splitter ---
+        self._composer_split = QSplitter(Qt.Orientation.Horizontal)
+        self._composer_split.setObjectName("composer_hsplit")
+
+        # Left panel — asset input + image preview + SFW/NSFW + crops
+        left_wrapper = QWidget()
+        left_layout = QVBoxLayout(left_wrapper)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(4)
+
+        # Asset ID input + Use Selected
         images_row = QHBoxLayout()
         self._images_edit = AssetDropLineEdit(self._project)
-        self._images_edit.setPlaceholderText(
-            "Drag from Work Tray or select in Assets tab \u2192 'Use Selected'")
+        self._images_edit.setPlaceholderText("Asset ID or drag from tray")
         images_row.addWidget(self._images_edit, 1)
         self._use_selected_btn = QPushButton("Use Selected")
         self._use_selected_btn.setToolTip("Grab currently selected assets from the browser")
         self._use_selected_btn.clicked.connect(self._use_selected_assets)
         images_row.addWidget(self._use_selected_btn)
-        images_outer.addLayout(images_row)
+        left_layout.addLayout(images_row)
 
-        # Thumbnail strip
-        self._thumb_strip = QHBoxLayout()
-        self._thumb_strip.setSpacing(6)
-        self._thumb_strip_container = QWidget()
-        self._thumb_strip_container.setLayout(self._thumb_strip)
-        self._thumb_strip_container.setVisible(False)
-        images_outer.addWidget(self._thumb_strip_container)
-
-        self._images_edit.textChanged.connect(self._update_thumb_preview)
-        root.addWidget(images_box)
-
-        # --- Two-column splitter ---
-        self._composer_split = QSplitter(Qt.Orientation.Horizontal)
-        self._composer_split.setObjectName("composer_hsplit")
-
-        # Left panel — image preview
+        # Image preview panel
         self._left_panel = ImagePreviewPanel(self._project)
-        self._composer_split.addWidget(self._left_panel)
+        left_layout.addWidget(self._left_panel, 1)
+
+        self._composer_split.addWidget(left_wrapper)
 
         # Right panel — content
         self._right_panel = ContentPanel(self._project)
@@ -251,91 +242,6 @@ class PostComposer(QDialog):
             self._left_panel.set_nsfw_platforms(post.nsfw_platforms)
 
     # ------------------------------------------------------------------
-    # Image preview (thumbs in top row)
-    # ------------------------------------------------------------------
-
-    def _update_thumb_preview(self) -> None:
-        """Refresh the thumbnail strip when the asset ID list changes."""
-        while self._thumb_strip.count():
-            item = self._thumb_strip.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        ids = [s.strip() for s in self._images_edit.text().split(",") if s.strip()]
-        if not ids:
-            self._thumb_strip_container.setVisible(False)
-            return
-
-        multi = len(ids) > 1
-        any_visible = False
-        for i, aid in enumerate(ids[:6]):
-            cell = QFrame()
-            cell.setObjectName("composer_thumb_cell")
-            cell_layout = QVBoxLayout(cell)
-            cell_layout.setContentsMargins(0, 0, 0, 0)
-            cell_layout.setSpacing(2)
-
-            asset = self._project.get_asset(aid)
-            src_path = asset.source_path if asset else None
-
-            pm = self._load_asset_thumb(aid)
-            if pm and not pm.isNull():
-                scaled = pm.scaled(
-                    QSize(self.PREVIEW_THUMB_SIZE, self.PREVIEW_THUMB_SIZE),
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                lbl = QLabel()
-                lbl.setPixmap(scaled)
-                lbl.setFixedSize(self.PREVIEW_THUMB_SIZE, self.PREVIEW_THUMB_SIZE)
-                lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                cell_layout.addWidget(lbl)
-            else:
-                lbl = QLabel("?")
-                lbl.setFixedSize(self.PREVIEW_THUMB_SIZE, self.PREVIEW_THUMB_SIZE)
-                lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                lbl.setObjectName("timeline_thumb_placeholder")
-                cell_layout.addWidget(lbl)
-
-            # Middle-click hover preview
-            if src_path:
-                lbl._src_path = src_path
-                lbl.installEventFilter(self)
-
-            if multi:
-                order_lbl = QLabel(f"#{i + 1}" + (" \u2014 hero" if i == 0 else ""))
-                order_lbl.setObjectName("composer_thumb_order")
-                order_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                cell_layout.addWidget(order_lbl)
-
-            self._thumb_strip.addWidget(cell)
-            any_visible = True
-
-        self._thumb_strip.addStretch()
-        self._thumb_strip_container.setVisible(any_visible)
-
-    def _load_asset_thumb(self, asset_id: str) -> QPixmap | None:
-        """Load a thumbnail from the asset's source file."""
-        asset = self._project.get_asset(asset_id)
-        if not asset or not asset.source_path:
-            return None
-        src = Path(asset.source_path)
-        if not src.exists():
-            return None
-        try:
-            ext = src.suffix.lower()
-            if ext in (".psd", ".psb"):
-                from doxyedit.imaging import load_psd_thumb, pil_to_qpixmap
-                result = load_psd_thumb(str(src), min_size=0)
-                if result:
-                    return pil_to_qpixmap(result[0])
-                return None
-            pm = QPixmap(str(src))
-            return pm if not pm.isNull() else None
-        except Exception:
-            return None
-
-    # ------------------------------------------------------------------
     # Image picker
     # ------------------------------------------------------------------
 
@@ -354,31 +260,9 @@ class PostComposer(QDialog):
                         names.append(aid)
                 self._images_edit.setText(", ".join(selected))
                 self._images_edit.setToolTip("Selected: " + ", ".join(names))
-                self._images_edit.setPlaceholderText(", ".join(names))
             else:
                 self._images_edit.setPlaceholderText(
-                    "No assets selected \u2014 select in Assets tab first")
-
-    # ------------------------------------------------------------------
-    # Middle-click hover preview
-    # ------------------------------------------------------------------
-
-    def eventFilter(self, obj, event):
-        from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.MouseButtonPress:
-            if event.button() == Qt.MouseButton.MiddleButton:
-                path = getattr(obj, '_src_path', None)
-                if path:
-                    from doxyedit.preview import HoverPreview
-                    from PySide6.QtGui import QCursor
-                    HoverPreview.instance().show_for(path, QCursor.pos())
-                    return True
-        if event.type() == QEvent.Type.MouseButtonRelease:
-            if event.button() == Qt.MouseButton.MiddleButton:
-                from doxyedit.preview import HoverPreview
-                HoverPreview.instance().hide_preview()
-                return True
-        return super().eventFilter(obj, event)
+                    "No assets selected, select in Assets tab first")
 
     # ------------------------------------------------------------------
     # Save
