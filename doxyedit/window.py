@@ -1218,22 +1218,26 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self.status.showMessage("Claude returned empty response", 3000)
             return
 
-        # Replace the selected text in the editor
-        current = editor.toPlainText()
-        original_normalized = original.replace("\u2029", "\n")
-        if original_normalized in current:
-            new_text = current.replace(original_normalized, replacement, 1)
-            editor.blockSignals(True)
-            editor.setPlainText(new_text)
-            editor.blockSignals(False)
-            self._on_sub_note_changed(tab_name)
-            self.status.showMessage("Text refined by Claude", 3000)
-        else:
-            # Fallback: append at cursor position
-            cursor = editor.textCursor()
+        # Replace via cursor so Ctrl+Z undo works
+        cursor = editor.textCursor()
+        if cursor.hasSelection():
+            # Selection still active — replace it directly
             cursor.insertText(replacement)
-            self._on_sub_note_changed(tab_name)
-            self.status.showMessage("Refined text inserted at cursor", 3000)
+        else:
+            # Selection lost (dialog stole focus) — find and replace in text
+            current = editor.toPlainText()
+            original_normalized = original.replace("\u2029", "\n")
+            start = current.find(original_normalized)
+            if start >= 0:
+                cursor.setPosition(start)
+                cursor.setPosition(start + len(original_normalized),
+                                   cursor.MoveMode.KeepAnchor)
+                cursor.insertText(replacement)
+            else:
+                # Can't find original — insert at end
+                cursor.movePosition(cursor.MoveOperation.End)
+                cursor.insertText("\n" + replacement)
+        self.status.showMessage("Text refined by Claude", 3000)
 
     def _on_project_notes_tab_changed(self):
         """Legacy handler — redirects to sub-note system."""
