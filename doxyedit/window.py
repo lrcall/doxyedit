@@ -1664,6 +1664,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _paste_from_clipboard(self):
         clipboard = QApplication.clipboard()
         mime = clipboard.mimeData()
+        print(f"[Paste] hasImage={mime.hasImage()} hasUrls={mime.hasUrls()} hasText={mime.hasText()}")
+        if mime.hasUrls():
+            print(f"[Paste] URLs: {[u.toLocalFile() for u in mime.urls()[:5]]}")
+        if mime.hasText():
+            print(f"[Paste] Text: {mime.text()[:200]!r}")
 
         # Try image data first
         if mime.hasImage():
