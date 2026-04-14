@@ -59,9 +59,9 @@ class Theme:
     post_failed: str = "#cc4444"
     post_partial: str = "#ccaa55"
     # Scrollbar
-    scrollbar_track: str = "transparent"   # track background (nearly invisible)
-    scrollbar_handle: str = ""             # the draggable part (set per theme)
-    scrollbar_handle_hover: str = ""       # handle on hover (set per theme)
+    scrollbar_track: str = ""              # track background (very low contrast with bg)
+    scrollbar_handle: str = ""             # the draggable part (defaults to accent_dim)
+    scrollbar_handle_hover: str = ""       # handle on hover (defaults to accent)
     # Timeline
     timeline_gap: str = "#664444"
     timeline_day_header: str = ""  # defaults to text_secondary
@@ -486,7 +486,7 @@ def generate_stylesheet(theme: Theme) -> str:
     pad_lg = max(6, f // 2)      # large padding
     rad = max(3, f // 4)         # border radius
     # Scrollbar tokens
-    _sb_track = theme.scrollbar_track
+    _sb_track = theme.scrollbar_track or theme.bg_hover
     _sb_handle = theme.scrollbar_handle or theme.accent_dim
     _sb_hover = theme.scrollbar_handle_hover or theme.accent
 
