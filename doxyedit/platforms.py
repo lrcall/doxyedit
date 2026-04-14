@@ -1,14 +1,19 @@
 """Platform assignment panel — two-column card layout + visual dashboard."""
 from pathlib import Path
+import uuid
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QScrollArea, QFrame, QSizePolicy, QSplitter, QStackedWidget,
-    QProgressBar, QGridLayout,
+    QProgressBar, QGridLayout, QComboBox, QDialog, QLineEdit,
+    QDateEdit, QCheckBox, QDialogButtonBox, QInputDialog,
 )
-from PySide6.QtCore import Qt, Signal, QSize, QSettings
+from PySide6.QtCore import Qt, Signal, QSize, QSettings, QDate
 from PySide6.QtGui import QPixmap
 
-from doxyedit.models import Project, Asset, PlatformAssignment, PostStatus, PLATFORMS
+from doxyedit.models import (
+    Project, Asset, PlatformAssignment, PostStatus, PLATFORMS,
+    Campaign, CampaignMilestone,
+)
 
 
 STATUS_ICONS = {
@@ -18,6 +23,222 @@ STATUS_ICONS = {
     "skip":    "✕",
 }
 STATUS_CYCLE = ["pending", "ready", "posted", "skip"]
+
+
+class NewCampaignDialog(QDialog):
+    """Simple dialog to create a new Campaign."""
+
+    def __init__(self, platforms: list[str], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("New Campaign")
+        layout = QVBoxLayout(self)
+
+        self._name_edit = QLineEdit()
+        self._name_edit.setPlaceholderText("Campaign name")
+        layout.addWidget(QLabel("Name"))
+        layout.addWidget(self._name_edit)
+
+        self._platform_combo = QComboBox()
+        self._platform_combo.addItem("(none)", "")
+        for pid in platforms:
+            p = PLATFORMS.get(pid)
+            if p:
+                self._platform_combo.addItem(p.name, pid)
+        layout.addWidget(QLabel("Platform"))
+        layout.addWidget(self._platform_combo)
+
+        self._launch_edit = QDateEdit(QDate.currentDate().addMonths(1))
+        self._launch_edit.setCalendarPopup(True)
+        layout.addWidget(QLabel("Launch date"))
+        layout.addWidget(self._launch_edit)
+
+        self._status_combo = QComboBox()
+        for s in ("planning", "preparing", "live", "completed", "cancelled"):
+            self._status_combo.addItem(s)
+        layout.addWidget(QLabel("Status"))
+        layout.addWidget(self._status_combo)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+        layout.addWidget(btns)
+
+    def result_campaign(self) -> Campaign:
+        return Campaign(
+            id=uuid.uuid4().hex[:12],
+            name=self._name_edit.text().strip() or "Untitled",
+            platform_id=self._platform_combo.currentData(),
+            launch_date=self._launch_edit.date().toString("yyyy-MM-dd"),
+            status=self._status_combo.currentText(),
+        )
+
+
+class CampaignBar(QWidget):
+    """Campaign selector bar with milestone checklist."""
+
+    modified = Signal()  # emitted when campaign data changes
+
+    def __init__(self, project: Project, parent=None):
+        super().__init__(parent)
+        self.setObjectName("campaign_bar")
+        self.project = project
+        self._current_campaign_id: str = ""
+        self._build()
+
+    def _build(self):
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(4)
+
+        # ── Top row: combo + status + launch + milestones summary ──
+        row = QHBoxLayout()
+        row.setSpacing(8)
+
+        row.addWidget(QLabel("Campaign:"))
+        self._combo = QComboBox()
+        self._combo.setObjectName("campaign_combo")
+        self._combo.setMinimumWidth(140)
+        self._combo.currentIndexChanged.connect(self._on_campaign_changed)
+        row.addWidget(self._combo)
+
+        self._new_btn = QPushButton("+ New")
+        self._new_btn.setObjectName("campaign_new_btn")
+        self._new_btn.clicked.connect(self._on_new_campaign)
+        row.addWidget(self._new_btn)
+
+        sep = QLabel("|")
+        sep.setProperty("role", "muted")
+        row.addWidget(sep)
+
+        self._status_label = QLabel()
+        self._status_label.setObjectName("campaign_status_label")
+        row.addWidget(self._status_label)
+
+        sep2 = QLabel("|")
+        sep2.setProperty("role", "muted")
+        row.addWidget(sep2)
+
+        self._launch_label = QLabel()
+        self._launch_label.setObjectName("campaign_launch_label")
+        row.addWidget(self._launch_label)
+
+        sep3 = QLabel("|")
+        sep3.setProperty("role", "muted")
+        row.addWidget(sep3)
+
+        self._milestone_summary = QLabel()
+        row.addWidget(self._milestone_summary)
+
+        row.addStretch()
+        outer.addLayout(row)
+
+        # ── Milestone frame (collapsible) ──
+        self._milestone_frame = QFrame()
+        self._milestone_frame.setObjectName("campaign_milestones")
+        self._ms_layout = QVBoxLayout(self._milestone_frame)
+        self._ms_layout.setContentsMargins(20, 2, 4, 2)
+        self._ms_layout.setSpacing(2)
+        outer.addWidget(self._milestone_frame)
+
+        self._populate_combo()
+
+    # ── Combo helpers ──
+
+    def _populate_combo(self):
+        self._combo.blockSignals(True)
+        self._combo.clear()
+        self._combo.addItem("All", "")
+        for c in self.project.campaigns:
+            self._combo.addItem(c.name, c.id)
+        self._combo.blockSignals(False)
+        self._on_campaign_changed(0)
+
+    def _on_campaign_changed(self, idx: int):
+        cid = self._combo.currentData() or ""
+        self._current_campaign_id = cid
+        cam = self.project.get_campaign(cid) if cid else None
+        if cam:
+            self._status_label.setText(f"Status: {cam.status}")
+            self._launch_label.setText(f"Launch: {cam.launch_date or '—'}")
+            done = sum(1 for m in cam.milestones if m.completed)
+            self._milestone_summary.setText(f"Milestones: {done}/{len(cam.milestones)}")
+            self._milestone_frame.show()
+        else:
+            self._status_label.setText("")
+            self._launch_label.setText("")
+            self._milestone_summary.setText("")
+            self._milestone_frame.hide()
+        self._rebuild_milestones(cam)
+
+    def _rebuild_milestones(self, cam: "Campaign | None"):
+        while self._ms_layout.count():
+            item = self._ms_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        if not cam:
+            return
+        for ms in cam.milestones:
+            row = QHBoxLayout()
+            cb = QCheckBox(ms.label)
+            cb.setObjectName("campaign_milestone_check")
+            cb.setChecked(ms.completed)
+            cb.toggled.connect(lambda checked, m=ms: self._toggle_milestone(m, checked))
+            row.addWidget(cb)
+            date_lbl = QLabel(ms.due_date or "")
+            date_lbl.setProperty("role", "muted")
+            row.addWidget(date_lbl)
+            row.addStretch()
+            w = QWidget()
+            w.setLayout(row)
+            self._ms_layout.addWidget(w)
+        add_btn = QPushButton("+ Add Milestone")
+        add_btn.setObjectName("campaign_add_milestone_btn")
+        add_btn.clicked.connect(lambda: self._add_milestone(cam))
+        self._ms_layout.addWidget(add_btn)
+
+    def _toggle_milestone(self, ms: CampaignMilestone, checked: bool):
+        ms.completed = checked
+        # Update summary
+        cam = self.project.get_campaign(self._current_campaign_id)
+        if cam:
+            done = sum(1 for m in cam.milestones if m.completed)
+            self._milestone_summary.setText(f"Milestones: {done}/{len(cam.milestones)}")
+        self.modified.emit()
+
+    def _add_milestone(self, cam: Campaign):
+        label, ok = QInputDialog.getText(self, "Milestone", "Label:")
+        if not ok or not label.strip():
+            return
+        date_str, ok2 = QInputDialog.getText(self, "Due Date", "Date (YYYY-MM-DD):",
+                                              text=QDate.currentDate().toString("yyyy-MM-dd"))
+        if not ok2:
+            return
+        ms = CampaignMilestone(
+            id=uuid.uuid4().hex[:8],
+            label=label.strip(),
+            due_date=date_str.strip(),
+        )
+        cam.milestones.append(ms)
+        self._on_campaign_changed(self._combo.currentIndex())
+        self.modified.emit()
+
+    def _on_new_campaign(self):
+        dlg = NewCampaignDialog(self.project.platforms, self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        cam = dlg.result_campaign()
+        self.project.campaigns.append(cam)
+        self._populate_combo()
+        self._combo.setCurrentIndex(self._combo.count() - 1)
+        self.modified.emit()
+
+    @property
+    def current_campaign_id(self) -> str:
+        return self._current_campaign_id
+
+    def set_project(self, project: Project):
+        self.project = project
+        self._populate_combo()
 
 
 class PlatformPanel(QWidget):
@@ -44,6 +265,11 @@ class PlatformPanel(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(12, 8, 12, 8)
         outer.setSpacing(_pad_lg)
+
+        # Campaign bar
+        self._campaign_bar = CampaignBar(self.project, self)
+        self._campaign_bar.modified.connect(self._on_campaign_modified)
+        outer.addWidget(self._campaign_bar)
 
         # Top bar: summary + view toggle
         top_bar = QHBoxLayout()
@@ -142,6 +368,10 @@ class PlatformPanel(QWidget):
         if checked:
             self._rebuild_dashboard()
 
+    def _on_campaign_modified(self):
+        """Called when CampaignBar changes data — refresh cards and propagate."""
+        self.refresh()
+
     def refresh(self):
         # Clear both columns
         for col in (self._col0, self._col1):
@@ -151,9 +381,12 @@ class PlatformPanel(QWidget):
                     item.widget().deleteLater()
 
         # Build lookup: (platform_id, slot_name) → list of (asset, PlatformAssignment)
+        cid = self._campaign_bar.current_campaign_id
         self._assign_map: dict[tuple, list] = {}
         for asset in self.project.assets:
             for pa in asset.assignments:
+                if cid and pa.campaign_id != cid:
+                    continue
                 self._assign_map.setdefault((pa.platform, pa.slot), []).append((asset, pa))
         assign_map = self._assign_map
 
