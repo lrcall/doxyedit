@@ -26,6 +26,7 @@ from doxyedit.censor import CensorEditor
 from doxyedit.platforms import PlatformPanel
 from doxyedit.timeline import TimelineStream
 from doxyedit.calendar_pane import CalendarPane
+from doxyedit.gantt import GanttPanel
 from doxyedit.composer import PostComposer
 from doxyedit.tagpanel import TagPanel
 from doxyedit.exporter import export_project
@@ -313,7 +314,13 @@ class MainWindow(QMainWindow):
 
         self.tabs.addTab(self._social_split, "Social")
 
-        # Tab 5: Platforms — slot assignments + kanban (legacy)
+        # Tab 5: Gantt — visual timeline for all scheduled posts
+        self._gantt_panel = GanttPanel()
+        self._gantt_panel.set_project(self.project)
+        self._gantt_panel.post_selected.connect(self._on_post_selected)
+        self.tabs.addTab(self._gantt_panel, "Gantt")
+
+        # Tab 6: Platforms — slot assignments + kanban (legacy)
         self.platform_panel = PlatformPanel(self.project)
         self.platform_panel.set_thumb_cache(self.browser._thumb_cache)
 
@@ -537,6 +544,11 @@ class MainWindow(QMainWindow):
         self.status.addPermanentWidget(self.browser.count_label)
         self._update_progress()
         self.status.showMessage("Ready — open a folder or drag images in")
+
+        # --- Reminder timer (scans every 5 minutes) ---
+        self._reminder_timer = QTimer(self)
+        self._reminder_timer.timeout.connect(self._check_reminders)
+        self._reminder_timer.start(300_000)  # 5 minutes
 
         # --- File watcher for external changes (Claude CLI) ---
         from PySide6.QtCore import QFileSystemWatcher
@@ -2442,7 +2454,20 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._dirty = True
             self._timeline.refresh()
             self._calendar_pane.refresh()
+            if hasattr(self, '_gantt_panel'):
+                self._gantt_panel.refresh()
             self.platform_panel.refresh()
+
+    def _check_reminders(self):
+        """Scan for pending release chain steps and Patreon cadence reminders."""
+        try:
+            from doxyedit.reminders import scan_pending_reminders
+            reminders = scan_pending_reminders(self.project)
+            if reminders:
+                msgs = [r.message for r in reminders[:3]]
+                self.status.showMessage(" | ".join(msgs), 10000)
+        except Exception:
+            pass
 
     def _on_sync_oneup(self):
         """Sync post statuses from OneUp API."""
@@ -2476,6 +2501,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._dirty = True
             self._timeline.refresh()
             self._calendar_pane.refresh()
+            if hasattr(self, '_gantt_panel'):
+                self._gantt_panel.refresh()
         self.statusBar().showMessage(f"Synced: {updated} post(s) updated", 3000)
 
     def _on_calendar_day_selected(self, iso_date: str):
@@ -4050,6 +4077,8 @@ Ctrl+Click tag — Search by tag
             self._timeline.set_project(self.project)
         if hasattr(self, '_calendar_pane'):
             self._calendar_pane.set_project(self.project)
+        if hasattr(self, '_gantt_panel'):
+            self._gantt_panel.set_project(self.project)
         if hasattr(self, '_smart_folder_menu'):
             self._rebuild_smart_folder_menu()
         if hasattr(self, '_info_panel'):

@@ -62,6 +62,11 @@ class Theme:
     scrollbar_track: str = ""              # track background (very low contrast with bg)
     scrollbar_handle: str = ""             # the draggable part (defaults to accent_dim)
     scrollbar_handle_hover: str = ""       # handle on hover (defaults to accent)
+    # Gantt
+    gantt_grid: str = ""          # defaults to border
+    gantt_today: str = ""         # defaults to accent
+    gantt_gap: str = ""           # defaults to error
+    gantt_stagger: str = ""       # defaults to accent_dim
     # Timeline
     timeline_gap: str = "#664444"
     timeline_day_header: str = ""  # defaults to text_secondary

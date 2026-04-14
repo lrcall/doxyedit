@@ -862,6 +862,64 @@ RULES:
                 self._platform_checks[plat].setChecked(False)
 
     # ------------------------------------------------------------------
+    # Patreon quick-post
+    # ------------------------------------------------------------------
+
+    def patreon_quick_post(self, post: "SocialPost", project: "Project", project_dir: str = "."):
+        """Copy caption, export image, open Patreon in browser."""
+        import webbrowser
+        from PySide6.QtWidgets import QApplication
+
+        # Get caption for Patreon (per-platform or default)
+        caption = post.captions.get("patreon", post.caption_default)
+
+        # Copy to clipboard
+        clipboard = QApplication.clipboard()
+        clipboard.setText(caption)
+
+        # Export image with overlays
+        exported_path = ""
+        if post.asset_ids:
+            asset = project.get_asset(post.asset_ids[0])
+            if asset and asset.source_path:
+                try:
+                    from PIL import Image
+                    from doxyedit.exporter import apply_censors, apply_overlays
+                    from pathlib import Path
+                    import tempfile
+
+                    src = Path(asset.source_path)
+                    if src.exists():
+                        ext = src.suffix.lower()
+                        if ext in (".psd", ".psb"):
+                            from doxyedit.imaging import load_psd
+                            img, _, _ = load_psd(str(src))
+                        else:
+                            img = Image.open(str(src)).convert("RGBA")
+
+                        if asset.censors:
+                            img = apply_censors(img, asset.censors)
+                        if asset.overlays:
+                            img = apply_overlays(img, asset.overlays, project_dir)
+
+                        tmp = Path(tempfile.gettempdir()) / f"doxyedit_patreon_{asset.id}.png"
+                        img.save(str(tmp), "PNG")
+                        exported_path = str(tmp)
+                except Exception:
+                    pass
+
+        # Open Patreon post page
+        identity = project.get_identity()
+        patreon_url = identity.patreon_url if identity else ""
+        if patreon_url and "/posts" not in patreon_url:
+            post_url = patreon_url.rstrip("/") + "/posts/new"
+        else:
+            post_url = "https://www.patreon.com/posts/new"
+        webbrowser.open(post_url)
+
+        return caption, exported_path
+
+    # ------------------------------------------------------------------
     # Release chain
     # ------------------------------------------------------------------
 
