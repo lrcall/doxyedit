@@ -956,6 +956,11 @@ class MainWindow(QMainWindow):
         editor.setPlainText(content)
         editor.textChanged.connect(lambda: self._on_sub_note_changed(name))
 
+        # Right-click context menu with Claude actions
+        editor.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        editor.customContextMenuRequested.connect(
+            lambda pos, e=editor, n=name: self._show_notes_context_menu(pos, e, n))
+
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(preview)
         splitter.addWidget(editor)
@@ -1046,6 +1051,101 @@ class MainWindow(QMainWindow):
     def _on_notes_tab_switched(self, index: int):
         """Handle tab switch — no-op for now, future: lazy render."""
         pass
+
+    def _show_notes_context_menu(self, pos, editor, tab_name: str):
+        """Show right-click menu with Claude actions for notes editors."""
+        menu = editor.createStandardContextMenu()
+        selected = editor.textCursor().selectedText()
+
+        if selected.strip():
+            menu.addSeparator()
+            refine_action = menu.addAction("Refine with Claude")
+            refine_action.triggered.connect(
+                lambda: self._refine_with_claude(editor, tab_name, selected, "refine"))
+            expand_action = menu.addAction("Expand with Claude")
+            expand_action.triggered.connect(
+                lambda: self._refine_with_claude(editor, tab_name, selected, "expand"))
+            simplify_action = menu.addAction("Simplify with Claude")
+            simplify_action.triggered.connect(
+                lambda: self._refine_with_claude(editor, tab_name, selected, "simplify"))
+
+        menu.exec(editor.mapToGlobal(pos))
+
+    def _refine_with_claude(self, editor, tab_name: str, selected: str, mode: str):
+        """Send selected text to Claude for refinement, replace in editor."""
+        import subprocess, sys
+
+        full_text = editor.toPlainText()
+
+        mode_instructions = {
+            "refine": "Improve this text. Fix any issues, clarify wording, make it more actionable. Keep the same length and format.",
+            "expand": "Expand this into more detail. Add examples, edge cases, or specifics. Keep the same style.",
+            "simplify": "Make this shorter and more direct. Remove fluff. Keep only what matters.",
+        }
+
+        prompt = f"""You are editing an Agent Primer document that guides AI strategy generation for a social media art posting pipeline.
+
+The user selected this text and asked you to {mode} it:
+
+SELECTED TEXT:
+{selected}
+
+FULL DOCUMENT CONTEXT (for reference, don't rewrite the whole thing):
+{full_text[:2000]}
+
+INSTRUCTION: {mode_instructions[mode]}
+
+Return ONLY the replacement text. No explanation, no markdown fences, no preamble. Just the improved text that will replace the selection."""
+
+        self.status.showMessage(f"Claude is {mode}ing selected text...", 10000)
+
+        from PySide6.QtCore import QThread, Signal as _Signal
+
+        class _Worker(QThread):
+            finished = _Signal(str)
+            def __init__(self, p):
+                super().__init__()
+                self._prompt = p
+            def run(self):
+                try:
+                    kwargs = dict(capture_output=True, text=True,
+                                  encoding="utf-8", errors="replace", timeout=60)
+                    if sys.platform == "win32":
+                        kwargs["creationflags"] = 0x08000000
+                    result = subprocess.run(
+                        ["claude", "-p", self._prompt], **kwargs)
+                    self.finished.emit(result.stdout.strip() if result.returncode == 0 else "")
+                except Exception:
+                    self.finished.emit("")
+
+        self._refine_worker = _Worker(prompt)
+        self._refine_worker.finished.connect(
+            lambda result: self._on_refine_done(editor, tab_name, selected, result))
+        self._refine_worker.start()
+
+    def _on_refine_done(self, editor, tab_name: str, original: str, replacement: str):
+        """Replace selected text with Claude's refinement."""
+        if not replacement:
+            self.status.showMessage("Claude returned empty response", 3000)
+            return
+
+        # Replace the selected text in the editor
+        current = editor.toPlainText()
+        # Use paragraph separator that Qt uses for selected multi-line text
+        original_normalized = original.replace("\u2029", "\n")
+        if original_normalized in current:
+            new_text = current.replace(original_normalized, replacement, 1)
+            editor.blockSignals(True)
+            editor.setPlainText(new_text)
+            editor.blockSignals(False)
+            self._on_sub_note_changed(tab_name)
+            self.status.showMessage("Text refined by Claude", 3000)
+        else:
+            # Fallback: append at cursor position
+            cursor = editor.textCursor()
+            cursor.insertText(replacement)
+            self._on_sub_note_changed(tab_name)
+            self.status.showMessage("Refined text inserted at cursor", 3000)
 
     def _on_project_notes_tab_changed(self):
         """Legacy handler — redirects to sub-note system."""
