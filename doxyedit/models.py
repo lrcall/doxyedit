@@ -429,6 +429,8 @@ class SocialPost:
     release_chain: list[ReleaseStep] = field(default_factory=list)
     published_urls: dict = field(default_factory=dict)           # platform_id -> post URL
     engagement_checks: list[dict] = field(default_factory=list)  # list of EngagementWindow dicts
+    censor_mode: str = "auto"  # "auto" | "uncensored" | "custom"
+    platform_censor: dict[str, bool] = field(default_factory=dict)  # platform_id -> should_censor
 
     def to_dict(self) -> dict:
         return {
@@ -449,6 +451,8 @@ class SocialPost:
             "release_chain": [s.to_dict() for s in self.release_chain],
             "published_urls": self.published_urls,
             "engagement_checks": self.engagement_checks,
+            "censor_mode": self.censor_mode,
+            "platform_censor": self.platform_censor,
         }
 
     @classmethod
@@ -474,6 +478,8 @@ class SocialPost:
             release_chain=[ReleaseStep.from_dict(s) for s in d.get("release_chain", [])],
             published_urls=d.get("published_urls", {}),
             engagement_checks=d.get("engagement_checks", []),
+            censor_mode=d.get("censor_mode", "auto"),
+            platform_censor=d.get("platform_censor", {}),
         )
 
 
