@@ -945,14 +945,30 @@ class MainWindow(QMainWindow):
 
     def _build_notes_tab(self, name: str, content: str, closable: bool = True):
         """Create a notes sub-tab with preview + editor splitter."""
-        from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser
+        from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser, QStackedWidget
 
-        preview = QTextBrowser()
-        preview.setObjectName("project_notes_preview")
-        preview.setOpenExternalLinks(True)
+        # Container with toggle button + stacked editor/preview
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(4)
+
+        # Toggle button row
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        toggle_btn = QPushButton("Preview")
+        toggle_btn.setObjectName("notes_toggle_btn")
+        toggle_btn.setCheckable(True)
+        btn_row.addWidget(toggle_btn)
+        btn_row.addStretch()
+        container_layout.addLayout(btn_row)
+
+        # Stacked: editor (default, index 0) / preview (index 1)
+        stack = QStackedWidget()
 
         editor = QPlainTextEdit()
         editor.setObjectName("project_notes_tab")
+        editor.setMaximumWidth(900)
         editor.setPlainText(content)
         editor.textChanged.connect(lambda: self._on_sub_note_changed(name))
 
@@ -961,27 +977,45 @@ class MainWindow(QMainWindow):
         editor.customContextMenuRequested.connect(
             lambda pos, e=editor, n=name: self._show_notes_context_menu(pos, e, n))
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(preview)
-        splitter.addWidget(editor)
-        splitter.setSizes([600, 400])
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
+        preview = QTextBrowser()
+        preview.setObjectName("project_notes_preview")
+        preview.setOpenExternalLinks(True)
+        preview.setMaximumWidth(900)
 
-        idx = self._notes_tabs.addTab(splitter, name)
-        self._notes_tab_widgets[name] = (preview, editor, splitter)
+        # Center the editor/preview
+        for w in (editor, preview):
+            wrapper = QWidget()
+            wl = QHBoxLayout(wrapper)
+            wl.setContentsMargins(0, 0, 0, 0)
+            wl.addStretch()
+            wl.addWidget(w)
+            wl.addStretch()
+            stack.addWidget(wrapper)
+
+        container_layout.addWidget(stack, 1)
+
+        # Toggle logic
+        def _toggle(checked):
+            if checked:
+                # Show preview
+                text = editor.toPlainText()
+                self._render_notes_preview_to(preview, text)
+                stack.setCurrentIndex(1)
+                toggle_btn.setText("Edit")
+            else:
+                stack.setCurrentIndex(0)
+                toggle_btn.setText("Preview")
+        toggle_btn.clicked.connect(_toggle)
+
+        idx = self._notes_tabs.addTab(container, name)
+        self._notes_tab_widgets[name] = (preview, editor, container)
 
         # Make permanent tabs non-closable
         if not closable:
             self._notes_tabs.tabBar().setTabButton(
                 idx, QTabBar.ButtonPosition.RightSide, None)
 
-        # Render initial content
-        if content:
-            self._render_sub_note_preview(name, content)
-
-        # Backward compat — keep _project_notes_edit and _project_notes_preview
-        # pointing to the General tab widgets
+        # Render initial content (show editor by default)
         if name == "General":
             self._project_notes_edit = editor
             self._project_notes_preview = preview
