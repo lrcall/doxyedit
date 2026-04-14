@@ -122,6 +122,15 @@ class ImagePreviewPanel(QWidget):
         self._nsfw_body.setVisible(False)
         layout.addWidget(self._nsfw_body)
 
+        # -- Platform Prep Strip --
+        self._prep_strip = QWidget()
+        self._prep_strip.setObjectName("composer_prep_strip")
+        self._prep_strip_layout = QVBoxLayout(self._prep_strip)
+        self._prep_strip_layout.setContentsMargins(4, 4, 4, 4)
+        self._prep_strip_layout.setSpacing(2)
+        self._prep_strip.setVisible(False)
+        layout.addWidget(self._prep_strip)
+
         # -- Platform crop status (collapsed by default) --
         self._crop_header_btn = QPushButton("Platform Crops \u25bc")
         self._crop_header_btn.setObjectName("composer_section_header")
@@ -142,6 +151,67 @@ class ImagePreviewPanel(QWidget):
 
         self._crop_body.setVisible(False)
         layout.addWidget(self._crop_body)
+
+    def rebuild_prep_strip(self, asset_ids: list[str], platform_ids: list[str],
+                            project) -> None:
+        """Rebuild the prep strip showing readiness per platform."""
+        while self._prep_strip_layout.count():
+            item = self._prep_strip_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not asset_ids or not platform_ids:
+            self._prep_strip.setVisible(False)
+            return
+
+        from doxyedit.pipeline import check_readiness
+        from doxyedit.models import PLATFORMS
+
+        asset = project.get_asset(asset_ids[0]) if asset_ids else None
+        if not asset:
+            self._prep_strip.setVisible(False)
+            return
+
+        header = QLabel("Platform Prep")
+        header.setObjectName("composer_prep_header")
+        header.setStyleSheet("font-weight: bold;")
+        self._prep_strip_layout.addWidget(header)
+
+        for pid in platform_ids:
+            platform = PLATFORMS.get(pid)
+            if not platform:
+                continue
+
+            readiness = check_readiness(asset, pid, project)
+            status = readiness["status"]
+
+            row_w = QWidget()
+            row = QHBoxLayout(row_w)
+            row.setContentsMargins(2, 1, 2, 1)
+            row.setSpacing(6)
+
+            dot_colors = {"green": "#6eaa78", "yellow": "#be955c", "red": "#9a4f50"}
+            dot = QLabel("●")
+            dot.setStyleSheet(f"color: {dot_colors.get(status, '#888')};")
+            dot.setFixedWidth(14)
+            row.addWidget(dot)
+
+            lbl = QLabel(platform.name)
+            row.addWidget(lbl, 1)
+
+            issues = readiness.get("issues", [])
+            if issues:
+                issue_lbl = QLabel(issues[0])
+                issue_lbl.setStyleSheet("color: #9a4f50; font-size: 11px;")
+                row.addWidget(issue_lbl)
+            else:
+                ok_lbl = QLabel("Ready")
+                ok_lbl.setStyleSheet("color: #6eaa78; font-size: 11px;")
+                row.addWidget(ok_lbl)
+
+            self._prep_strip_layout.addWidget(row_w)
+
+        self._prep_strip.setVisible(True)
 
     # -- Public API --
 

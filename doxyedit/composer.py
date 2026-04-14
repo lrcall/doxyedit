@@ -193,6 +193,7 @@ class PostComposerWidget(QWidget):
         # --- Signal wiring ---
         self._images_edit.textChanged.connect(self._on_images_changed)
         self._right_panel.platforms_changed.connect(self._on_platforms_changed)
+        self._right_panel.platforms_changed.connect(self._update_prep_strip)
 
         # --- Button bar ---
         btn_layout = QHBoxLayout()
@@ -285,6 +286,10 @@ class PostComposerWidget(QWidget):
     def _on_platforms_changed(self, platforms: list[str]) -> None:
         """Update left panel when platform selection changes."""
         self._left_panel.set_platforms(platforms)
+
+    def _update_prep_strip(self, platforms: list[str]) -> None:
+        ids = [s.strip() for s in self._images_edit.text().split(",") if s.strip()]
+        self._left_panel.rebuild_prep_strip(ids, platforms, self._project)
 
     # ------------------------------------------------------------------
     # Pre-fill
@@ -403,6 +408,31 @@ class PostComposerWidget(QWidget):
                 created_at=now,
                 updated_at=now,
             )
+
+        # Advisory readiness check
+        if status == SocialPostStatus.QUEUED and asset_ids:
+            from doxyedit.pipeline import check_readiness
+            from doxyedit.models import PLATFORMS
+            issues = []
+            for aid in asset_ids[:1]:
+                asset = self._project.get_asset(aid)
+                if not asset:
+                    continue
+                for pid in data["platforms"]:
+                    if pid not in PLATFORMS:
+                        continue
+                    r = check_readiness(asset, pid, self._project)
+                    if r["status"] == "red":
+                        issues.extend(r["issues"])
+            if issues:
+                from PySide6.QtWidgets import QMessageBox
+                msg = "Some platforms need prep:\n\n" + "\n".join(f"• {i}" for i in issues[:5])
+                msg += "\n\nPost anyway?"
+                reply = QMessageBox.question(
+                    self, "Platform Prep", msg,
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
 
         self.save_requested.emit(result_post)
 
