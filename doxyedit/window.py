@@ -984,7 +984,6 @@ class MainWindow(QMainWindow):
         preview.setObjectName("project_notes_preview")
         preview.setOpenExternalLinks(True)
 
-        # Full width, scrollbar at window edge. Padding handled by CSS/margins.
         stack.addWidget(editor)
         stack.addWidget(preview)
 
