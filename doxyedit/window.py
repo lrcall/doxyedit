@@ -326,21 +326,30 @@ class MainWindow(QMainWindow):
         _plat_right.addWidget(self._kanban_panel)
         _plat_right.setSizes([500])
         # Platforms (left) + kanban (right)
-        _plat_top = QSplitter(Qt.Orientation.Horizontal)
-        _plat_top.addWidget(self.platform_panel)
-        _plat_top.addWidget(_plat_right)
-        _plat_top.setSizes([600, 400])
-        _plat_top.setStretchFactor(0, 3)
-        _plat_top.setStretchFactor(1, 2)
+        self._plat_top = QSplitter(Qt.Orientation.Horizontal)
+        self._plat_top.addWidget(self.platform_panel)
+        self._plat_top.addWidget(_plat_right)
+        self._plat_top.setStretchFactor(0, 3)
+        self._plat_top.setStretchFactor(1, 2)
         # Assigned art hive at bottom — full width
-        _plat_full = QSplitter(Qt.Orientation.Vertical)
-        _plat_full.addWidget(_plat_top)
+        self._plat_full = QSplitter(Qt.Orientation.Vertical)
+        self._plat_full.addWidget(self._plat_top)
         if hasattr(self.platform_panel, '_hive_container'):
-            _plat_full.addWidget(self.platform_panel._hive_container)
-        _plat_full.setSizes([500, 180])
-        _plat_full.setStretchFactor(0, 4)
-        _plat_full.setStretchFactor(1, 0)
-        self.tabs.addTab(_plat_full, "Platforms")
+            self._plat_full.addWidget(self.platform_panel._hive_container)
+        self._plat_full.setStretchFactor(0, 4)
+        self._plat_full.setStretchFactor(1, 0)
+        # Restore saved sizes
+        saved_pt = self._settings_early.value("plat_top_splitter", None)
+        if saved_pt:
+            self._plat_top.setSizes([int(s) for s in saved_pt])
+        else:
+            self._plat_top.setSizes([600, 400])
+        saved_pf = self._settings_early.value("plat_full_splitter", None)
+        if saved_pf:
+            self._plat_full.setSizes([int(s) for s in saved_pf])
+        else:
+            self._plat_full.setSizes([500, 180])
+        self.tabs.addTab(self._plat_full, "Platforms")
 
         # Tab 5: Project Notes — tabbed sub-notes with preview + editor
         from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser, QInputDialog
@@ -1061,15 +1070,15 @@ class MainWindow(QMainWindow):
         bg_raised = self._theme.bg_raised
         html = f"""<html><head><style>
             body {{ background:{bg}; color:{fg}; font-family:'Segoe UI',sans-serif;
-                   padding:32px 48px; max-width:820px; margin:0 auto;
-                   line-height:1.6; }}
+                   padding:24px 36px; max-width:820px; margin:0 auto;
+                   line-height:1.35; }}
             h1,h2,h3 {{ color:{accent}; border-bottom:1px solid {border};
-                        padding-bottom:4px; }}
-            h4,h5,h6 {{ color:{accent}; }}
+                        padding-bottom:2px; margin:10px 0 4px 0; }}
+            h4,h5,h6 {{ color:{accent}; margin:8px 0 2px 0; }}
             a {{ color:{accent}; }}
-            p {{ margin:8px 0; }}
-            ul, ol {{ padding-left:24px; }}
-            li {{ margin-bottom:4px; }}
+            p {{ margin:4px 0; }}
+            ul, ol {{ padding-left:20px; margin:2px 0; }}
+            li {{ margin:0; padding:0; line-height:1.25; }}
             img {{ max-width:100%; border-radius:4px; }}
             code {{ background:{bg_raised}; padding:1px 5px;
                     border-radius:3px; font-family:Consolas,monospace; }}
@@ -4397,6 +4406,8 @@ Ctrl+Click tag — Search by tag
         self._settings.setValue("splitter_sizes", self._browse_split.sizes())
         self._settings.setValue("social_splitter", self._social_split.sizes())
         self._settings.setValue("social_left_splitter", self._social_left_split.sizes())
+        self._settings.setValue("plat_top_splitter", self._plat_top.sizes())
+        self._settings.setValue("plat_full_splitter", self._plat_full.sizes())
         self._settings.setValue("tag_notes_splitter", self.tag_panel._tag_notes_split.sizes())
         self._settings.setValue("collapsed_folders", sorted(self.browser._collapsed_folders))
         self._settings.setValue("hidden_folders", sorted(self.browser._hidden_folders))
