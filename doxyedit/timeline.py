@@ -534,9 +534,10 @@ class TimelineStream(QWidget):
         self._summary_label.setObjectName("timeline_summary")
         outer.addWidget(self._summary_label)
 
-        # Engagement checks now inline on each PostCard (no top-level panel)
-        self._engagement_panel = EngagementPanel()
+        # Engagement panel (above the post feed)
+        self._engagement_panel = EngagementPanel(self)
         self._engagement_panel.changed.connect(self._on_engagement_changed)
+        outer.addWidget(self._engagement_panel)
 
         # ---- Scroll area ----
         self._scroll = QScrollArea()
