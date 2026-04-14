@@ -183,6 +183,19 @@ class CalendarPane(QWidget):
 
         root.addLayout(header)
 
+        # -- JST clock --
+        self._jst_label = QLabel()
+        self._jst_label.setObjectName("calendar_jst_clock")
+        self._jst_label.setAlignment(Qt.AlignCenter)
+        root.addWidget(self._jst_label)
+        self._update_jst_clock()
+
+        # Timer to update clock every minute
+        from PySide6.QtCore import QTimer
+        self._clock_timer = QTimer(self)
+        self._clock_timer.timeout.connect(self._update_jst_clock)
+        self._clock_timer.start(60_000)  # every 60 seconds
+
         # -- day-of-week headers --
         dow_row = QHBoxLayout()
         dow_row.setContentsMargins(4, 0, 4, 0)
@@ -332,6 +345,19 @@ class CalendarPane(QWidget):
         else:
             self._current_month = date(y, m + 1, 1)
         self._populate_grid()
+
+    def _update_jst_clock(self) -> None:
+        """Update the JST clock display."""
+        try:
+            from zoneinfo import ZoneInfo
+            from datetime import datetime
+            now_jst = datetime.now(ZoneInfo("Asia/Tokyo"))
+            now_local = datetime.now().astimezone()
+            local_str = now_local.strftime("%I:%M%p").lstrip("0")
+            jst_str = now_jst.strftime("%I:%M%p %a").lstrip("0")
+            self._jst_label.setText(f"Local: {local_str}  |  JST: {jst_str}")
+        except Exception:
+            self._jst_label.setText("")
 
     def _go_today(self) -> None:
         self._current_month = date.today().replace(day=1)

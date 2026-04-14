@@ -1474,6 +1474,11 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.bg_hover};
             border-color: {theme.accent_dim};
         }}
+        QLabel#calendar_jst_clock {{
+            color: {theme.text_secondary};
+            font-size: {fxs}px;
+            padding: 2px 0;
+        }}
         QLabel#calendar_dow_header {{
             color: {theme.text_muted};
             font-size: {fxs}px;

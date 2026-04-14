@@ -412,7 +412,7 @@ class ContentPanel(QWidget):
         local_tz = datetime.now().astimezone().tzinfo
         aware = py_dt.replace(tzinfo=local_tz)
         lines = []
-        for tz_name, label in [("US/Eastern", "EST"), ("US/Pacific", "PST"), ("Europe/London", "GMT")]:
+        for tz_name, label in [("US/Eastern", "EST"), ("US/Pacific", "PST"), ("Europe/London", "GMT"), ("Asia/Tokyo", "JST")]:
             try:
                 converted = aware.astimezone(ZoneInfo(tz_name))
                 lines.append(f"{label}: {converted.strftime('%I:%M%p %a').lstrip('0')}")
