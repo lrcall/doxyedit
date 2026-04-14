@@ -31,6 +31,8 @@ class ImagePreviewPanel(QWidget):
         self._project = project
         self._assets: list[Asset] = []
         self._censored_pm: QPixmap | None = None
+        self._raw_pm: QPixmap | None = None  # unscaled source pixmap
+        self._showing_censored = False
 
         self._build_ui()
 
@@ -155,20 +157,39 @@ class ImagePreviewPanel(QWidget):
         """Show the first asset as a large preview."""
         if not self._assets:
             self._preview_label.setText("No image selected")
+            self._raw_pm = None
             return
 
         asset = self._assets[0]
         pm = self._load_pixmap(asset)
         if pm and not pm.isNull():
-            scaled = pm.scaled(
-                self._preview_label.size(),
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            self._preview_label.setPixmap(scaled)
+            self._raw_pm = pm
             self._censored_pm = None  # invalidate censored cache
+            self._showing_censored = False
+            self._apply_scaled_pixmap()
         else:
+            self._raw_pm = None
             self._preview_label.setText("Cannot load image")
+
+    def _apply_scaled_pixmap(self) -> None:
+        """Scale the current pixmap (raw or censored) to fill the preview label."""
+        pm = self._censored_pm if self._showing_censored else self._raw_pm
+        if not pm or pm.isNull():
+            return
+        size = self._preview_label.size()
+        if size.width() < 10 or size.height() < 10:
+            size = QSize(PREVIEW_SIZE, PREVIEW_SIZE)
+        scaled = pm.scaled(
+            size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self._preview_label.setPixmap(scaled)
+
+    def resizeEvent(self, event):
+        """Re-scale preview when panel is resized."""
+        super().resizeEvent(event)
+        self._apply_scaled_pixmap()
 
     def _update_order_strip(self) -> None:
         """Show small numbered thumbnails for multi-image posts."""
@@ -273,16 +294,14 @@ class ImagePreviewPanel(QWidget):
                 if not self._censored_pm:
                     self._censored_pm = self._generate_censored_preview(asset)
                 if self._censored_pm:
-                    scaled = self._censored_pm.scaled(
-                        self._preview_label.size(),
-                        Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation)
-                    self._preview_label.setPixmap(scaled)
+                    self._showing_censored = True
+                    self._apply_scaled_pixmap()
                     return
             self._preview_label.setText("No censor regions to preview")
         else:
             self._nsfw_toggle.setText("Show Censored")
-            self._update_preview()
+            self._showing_censored = False
+            self._apply_scaled_pixmap()
 
     def _generate_censored_preview(self, asset: Asset) -> QPixmap | None:
         """Apply censors to asset image and return as QPixmap."""
