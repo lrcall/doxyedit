@@ -262,12 +262,20 @@ class ContentPanel(QWidget):
             self._sub_platform_checks[sub.id] = cb
             sub_flow.addWidget(cb)
 
-        sub_label = QLabel("Subscription:")
-        sub_label.setObjectName("composer_sub_platform_label")
-        platforms_layout.addWidget(sub_label)
+        # Subscription (collapsible)
+        sub_toggle = QPushButton("Subscription \u25bc")
+        sub_toggle.setObjectName("composer_section_toggle")
+        sub_toggle.setCheckable(True)
+        sub_toggle.setChecked(False)
+        sub_container.setVisible(False)
+        sub_toggle.clicked.connect(lambda c: (
+            sub_container.setVisible(c),
+            sub_toggle.setText("Subscription \u25b2" if c else "Subscription \u25bc"),
+        ))
+        platforms_layout.addWidget(sub_toggle)
         platforms_layout.addWidget(sub_container)
 
-        # --- Manual social platforms (not on OneUp, not subscription) ---
+        # --- Manual social platforms (collapsible) ---
         _MANUAL_PLATFORMS = [
             ("bluesky", "Bluesky"),
             ("pixiv", "Pixiv"),
@@ -292,16 +300,34 @@ class ContentPanel(QWidget):
             self._manual_platform_checks[pid] = cb
             manual_flow.addWidget(cb)
 
-        manual_label = QLabel("Social (manual):")
-        manual_label.setObjectName("composer_sub_platform_label")
-        platforms_layout.addWidget(manual_label)
+        manual_toggle = QPushButton("Social (manual) \u25bc")
+        manual_toggle.setObjectName("composer_section_toggle")
+        manual_toggle.setCheckable(True)
+        manual_toggle.setChecked(False)
+        manual_container.setVisible(False)
+        manual_toggle.clicked.connect(lambda c: (
+            manual_container.setVisible(c),
+            manual_toggle.setText("Social (manual) \u25b2" if c else "Social (manual) \u25bc"),
+        ))
+        platforms_layout.addWidget(manual_toggle)
         platforms_layout.addWidget(manual_container)
 
-        # Censor mode
+        # Censor mode (collapsible)
         from PySide6.QtWidgets import QRadioButton, QButtonGroup
-        censor_label = QLabel("Censor Mode:")
-        censor_label.setObjectName("composer_censor_mode_label")
-        platforms_layout.addWidget(censor_label)
+        censor_toggle = QPushButton("Censor Mode \u25bc")
+        censor_toggle.setObjectName("composer_section_toggle")
+        censor_toggle.setCheckable(True)
+        censor_toggle.setChecked(False)
+        self._censor_container = QWidget()
+        censor_lay = QVBoxLayout(self._censor_container)
+        censor_lay.setContentsMargins(0, 0, 0, 0)
+        censor_lay.setSpacing(2)
+        self._censor_container.setVisible(False)
+        censor_toggle.clicked.connect(lambda c: (
+            self._censor_container.setVisible(c),
+            censor_toggle.setText("Censor Mode \u25b2" if c else "Censor Mode \u25bc"),
+        ))
+        platforms_layout.addWidget(censor_toggle)
 
         self._censor_group = QButtonGroup(self)
         self._censor_auto = QRadioButton("Auto (platform default)")
@@ -311,9 +337,10 @@ class ContentPanel(QWidget):
         self._censor_group.addButton(self._censor_auto, 0)
         self._censor_group.addButton(self._censor_uncensored, 1)
         self._censor_group.addButton(self._censor_custom, 2)
-        platforms_layout.addWidget(self._censor_auto)
-        platforms_layout.addWidget(self._censor_uncensored)
-        platforms_layout.addWidget(self._censor_custom)
+        censor_lay.addWidget(self._censor_auto)
+        censor_lay.addWidget(self._censor_uncensored)
+        censor_lay.addWidget(self._censor_custom)
+        platforms_layout.addWidget(self._censor_container)
 
         root.addWidget(platforms_box)
 
