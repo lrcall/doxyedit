@@ -597,6 +597,8 @@ class Project:
     default_overlays: list[dict] = field(default_factory=list)  # project-wide overlay presets
     release_templates: list[dict] = field(default_factory=list)  # reusable release chain templates
     identities: dict = field(default_factory=dict)  # name -> CollectionIdentity dict + patreon_schedule
+    blackout_periods: list[dict] = field(default_factory=list)
+    # Each: {"start": "2026-05-01", "end": "2026-05-07", "label": "KS launch", "scope": "all"}
 
     def get_tags(self) -> dict[str, TagPreset]:
         """Get merged tag presets — defaults + tag_definitions + legacy custom_tags."""
@@ -685,6 +687,7 @@ class Project:
             "default_overlays": self.default_overlays,
             "release_templates": self.release_templates,
             "identities": self.identities,
+            "blackout_periods": self.blackout_periods,
             "assets": [_asset_dict(a) for a in self.assets],
         }
         Path(path).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
@@ -724,6 +727,7 @@ class Project:
         proj.default_overlays = raw.get("default_overlays", [])
         proj.release_templates = raw.get("release_templates", [])
         proj.identities = raw.get("identities", {})
+        proj.blackout_periods = raw.get("blackout_periods", [])
         for p in raw.get("posts", []):
             proj.posts.append(SocialPost.from_dict(p))
 
