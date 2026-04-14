@@ -214,12 +214,15 @@ class ReleaseStep:
     caption_key: str = ""       # key into SocialPost.captions for this step
     status: str = "pending"     # pending, posted, skipped
     posted_at: str = ""         # ISO timestamp when actually posted
+    tier_level: str = ""        # "free", "basic", "premium"
+    locale: str = ""            # "en" or "ja"
 
     def to_dict(self) -> dict:
         return {
             "platform": self.platform, "delay_hours": self.delay_hours,
             "account_id": self.account_id, "caption_key": self.caption_key,
             "status": self.status, "posted_at": self.posted_at,
+            "tier_level": self.tier_level, "locale": self.locale,
         }
 
     @classmethod
@@ -245,8 +248,37 @@ class CollectionIdentity:
     default_platforms: list[str] = field(default_factory=list)
     gumroad_url: str = ""
     patreon_url: str = ""
+    fanbox_url: str = ""        # Pixiv Fanbox creator page
+    fantia_url: str = ""        # Fantia creator page
+    cien_url: str = ""          # Ci-en/DLsite creator page
+    kofi_url: str = ""          # Ko-fi page
+    voice_ja: str = ""          # Japanese brand voice
+    hashtags_ja: list[str] = field(default_factory=list)  # Japanese hashtags
     bio_blurb: str = ""
     content_notes: str = ""
+
+
+@dataclass
+class SubPlatform:
+    """A subscription/monetization platform for semi-automated posting."""
+    id: str = ""
+    name: str = ""
+    locale: str = "en"           # "en" or "ja"
+    post_url_template: str = ""  # "{base_url}/posts/new"
+    needs_censor: bool = False   # Japanese platforms need mosaic
+    monetization_type: str = ""  # "subscription", "product", "tips"
+    tier_support: bool = False
+    url_field: str = ""          # which CollectionIdentity field holds the URL
+
+
+SUB_PLATFORMS: dict[str, SubPlatform] = {
+    "patreon": SubPlatform("patreon", "Patreon", "en", "{base_url}/posts/new", False, "subscription", True, "patreon_url"),
+    "fanbox": SubPlatform("fanbox", "Pixiv Fanbox", "ja", "{base_url}/manage/posts/new", True, "subscription", True, "fanbox_url"),
+    "fantia": SubPlatform("fantia", "Fantia", "ja", "{base_url}/posts/new", True, "subscription", True, "fantia_url"),
+    "cien": SubPlatform("cien", "Ci-en", "ja", "{base_url}/creator/posting", True, "subscription", True, "cien_url"),
+    "gumroad": SubPlatform("gumroad", "Gumroad", "en", "https://gumroad.com/products/new", False, "product", False, "gumroad_url"),
+    "kofi": SubPlatform("kofi", "Ko-fi", "en", "https://ko-fi.com/post/create", False, "tips", True, "kofi_url"),
+}
 
 
 @dataclass
@@ -269,6 +301,8 @@ class SocialPost:
     strategy_notes: str = ""  # AI-generated posting strategy, advice, long-term vision
     nsfw_platforms: list[str] = field(default_factory=list)  # platforms that get NSFW/uncensored version
     sfw_asset_ids: list[str] = field(default_factory=list)   # alternate censored asset IDs (empty = auto-censor)
+    tier_assets: dict = field(default_factory=dict)  # tier_name -> [asset_ids]
+    sub_platform_status: dict = field(default_factory=dict)  # platform_id -> {status, posted_at}
     release_chain: list[ReleaseStep] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -283,6 +317,8 @@ class SocialPost:
             "strategy_notes": self.strategy_notes,
             "nsfw_platforms": self.nsfw_platforms,
             "sfw_asset_ids": self.sfw_asset_ids,
+            "tier_assets": self.tier_assets,
+            "sub_platform_status": self.sub_platform_status,
             "release_chain": [s.to_dict() for s in self.release_chain],
         }
 
@@ -302,6 +338,8 @@ class SocialPost:
             strategy_notes=d.get("strategy_notes", ""),
             nsfw_platforms=d.get("nsfw_platforms", []),
             sfw_asset_ids=d.get("sfw_asset_ids", []),
+            tier_assets=d.get("tier_assets", {}),
+            sub_platform_status=d.get("sub_platform_status", {}),
             release_chain=[ReleaseStep.from_dict(s) for s in d.get("release_chain", [])],
         )
 
