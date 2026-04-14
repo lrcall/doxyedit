@@ -510,12 +510,29 @@ def generate_strategy_briefing(project: Project, post: SocialPost) -> str:
         _section_past_strategy(post, project),
     ]
 
+    # Include project-level notes if they exist
+    notes = getattr(project, 'notes', '') or ''
+    if notes.strip():
+        sections.append(f"## Project Notes\n{notes.strip()}\n")
+
     return "\n".join(sections).rstrip() + "\n"
 
 
 # ---------------------------------------------------------------------------
 # AI-powered strategy (calls Claude via CLI)
 # ---------------------------------------------------------------------------
+
+def _project_notes_block(project: Project) -> str:
+    """Format project notes for inclusion in the AI prompt.
+    These contain the creator's marketing plan, account context, and strategy notes."""
+    notes = getattr(project, 'notes', '') or ''
+    if not notes.strip():
+        return ""
+    return f"""
+## Creator's Marketing Notes (READ THIS — contains account context, strategy, and plans)
+{notes.strip()}
+"""
+
 
 def generate_ai_strategy(
     project: Project,
@@ -565,7 +582,7 @@ STRICT WRITING RULES (violations will be rejected):
 **Tags:** {', '.join(t for a in assets for t in a.tags) if assets else 'none'}
 **Hashtags:** {' '.join(identity.hashtags) if identity.hashtags else 'none'}
 {f"**Gumroad:** {identity.gumroad_url}" if identity.gumroad_url else ""}{f"  **Patreon:** {identity.patreon_url}" if identity.patreon_url else ""}
-
+{_project_notes_block(project)}
 ## Data
 {local_briefing}
 
