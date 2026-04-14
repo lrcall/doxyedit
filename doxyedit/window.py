@@ -483,7 +483,7 @@ class MainWindow(QMainWindow):
         self.tabs.tabBar().setVisible(False)
 
         # Tab toolbar — styled identical to the menu bar so both rows look like one bar
-        _TAB_NAMES = ["Assets", "Canvas", "Censor", "Social", "Platforms", "Overview", "Notes"]
+        _TAB_NAMES = ["Assets", "Studio", "Social", "Platforms", "Overview", "Notes"]
         self._tab_toolbar = QToolBar("Tabs")
         self._tab_toolbar.setObjectName("tab_toolbar")
         self._tab_toolbar.setMovable(False)
@@ -2469,11 +2469,35 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         dlg.show()
         self._theme_dialog_titlebar(dlg)
 
+    def _cancel_oneup_if_demoted(self, post):
+        """If a post was queued on OneUp but is now draft, cancel it."""
+        if post.status != "draft" or not post.oneup_post_id:
+            return
+        from doxyedit.oneup import get_client_from_config
+        project_dir = str(Path(self._project_path).parent) if self._project_path else "."
+        client = get_client_from_config(project_dir)
+        if not client:
+            return
+        ids = [i.strip() for i in post.oneup_post_id.split(",") if i.strip()]
+        cancelled = 0
+        for oid in ids:
+            result = client.delete_post(oid)
+            if result.success:
+                cancelled += 1
+                print(f"[OneUp] Cancelled post {oid}")
+            else:
+                print(f"[OneUp] Failed to cancel {oid}: {result.error}")
+        if cancelled:
+            post.oneup_post_id = ""
+            self.status.showMessage(f"Cancelled {cancelled} post(s) on OneUp", 4000)
+
     def _on_composer_done(self, dlg, is_new: bool):
         """Handle composer close — add or update post."""
         if dlg.result_post:
             if is_new:
                 self.project.posts.append(dlg.result_post)
+            else:
+                self._cancel_oneup_if_demoted(dlg.result_post)
             self._dirty = True
             self._refresh_social_panels()
             if dlg.result_post.status == "queued":
@@ -2484,6 +2508,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         from doxyedit.oneup import get_client_from_config
         from doxyedit.models import SocialPostStatus
         project_dir = str(Path(self._project_path).parent) if self._project_path else "."
+
+        # Skip if already pushed (has oneup_post_id)
+        if post.oneup_post_id:
+            print(f"[OneUp Push] SKIP — already pushed (id={post.oneup_post_id[:20]})")
+            return
+
         print(f"[OneUp Push] post={post.id[:8]} platforms={post.platforms} time={post.scheduled_time}")
         print(f"[OneUp Push] caption={post.caption_default[:60]!r}")
         print(f"[OneUp Push] project_dir={project_dir}")
@@ -2599,6 +2629,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         """Handle save from docked composer. Keep dock open at same position."""
         if self._docked_is_new:
             self.project.posts.append(post)
+        else:
+            self._cancel_oneup_if_demoted(post)
         self._dirty = True
         self._refresh_social_panels()
         if post.status == "queued":
@@ -2690,9 +2722,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             all_queued = [p for p in self.project.posts if p.status == SocialPostStatus.QUEUED]
             for post in all_queued:
                 # Skip posts already posted to all direct platforms
-                tg_done = post.sub_platform_status.get("telegram", {}).get("status") == "posted"
-                dc_done = post.sub_platform_status.get("discord", {}).get("status") == "posted"
-                if tg_done and dc_done:
+                sp = post.sub_platform_status
+                all_direct_done = all(
+                    sp.get(p, {}).get("status") == "posted"
+                    for p in ("telegram", "discord", "bluesky")
+                    if sp.get(p)  # only check platforms that have been attempted
+                )
+                if sp and all_direct_done:
                     continue
                 results = push_to_direct(post, self.project, project_dir)
                 now_str = _dt.now().isoformat()
@@ -4956,7 +4992,7 @@ Ctrl+Click tag — Search by tag
             self._notes_edit.blockSignals(True)
             self._notes_edit.setPlainText(self.project.notes)
             self._notes_edit.blockSignals(False)
-        # Refresh all notes tabs
+        # Refresh existing notes tabs + create new ones from sub_notes
         for tab_name, (preview, editor, _) in self._notes_tab_widgets.items():
             if tab_name == "General":
                 text = self.project.notes
@@ -4966,6 +5002,10 @@ Ctrl+Click tag — Search by tag
             editor.setPlainText(text)
             editor.blockSignals(False)
             self._render_notes_preview_to(preview, text)
+        # Create tabs for sub_notes that don't have widgets yet
+        for tab_name, content in self.project.sub_notes.items():
+            if tab_name not in self._notes_tab_widgets:
+                self._build_notes_tab(tab_name, content, closable=(tab_name != "Agent Primer"))
         self._update_progress()
         self._watch_asset_files()
         self._watch_import_folders()
