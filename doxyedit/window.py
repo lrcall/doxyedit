@@ -27,7 +27,7 @@ from doxyedit.platforms import PlatformPanel
 from doxyedit.timeline import TimelineStream
 from doxyedit.calendar_pane import CalendarPane
 from doxyedit.gantt import GanttPanel
-from doxyedit.composer import PostComposer
+from doxyedit.composer import PostComposer, PostComposerWidget
 from doxyedit.tagpanel import TagPanel
 from doxyedit.exporter import export_project
 from doxyedit.preview import ImagePreviewDialog, PreviewPane
@@ -324,18 +324,33 @@ class MainWindow(QMainWindow):
         self._social_right_split.setStretchFactor(0, 3)
         self._social_right_split.setStretchFactor(1, 1)
 
-        # Horizontal: calendar+checklist left, timeline+gantt right
+        # Dock container for composer (initially hidden)
+        self._composer_dock = QWidget()
+        self._composer_dock.setObjectName("composer_dock")
+        self._composer_dock.setVisible(False)
+        _dock_layout = QVBoxLayout(self._composer_dock)
+        _dock_layout.setContentsMargins(0, 0, 0, 0)
+        self._docked_composer = None
+        self._docked_is_new = False
+
+        # Horizontal: calendar+checklist left, timeline+gantt right, composer dock
         self._social_split = QSplitter(Qt.Orientation.Horizontal)
         self._social_split.addWidget(self._social_left_split)
         self._social_split.addWidget(self._social_right_split)
-        self._social_split.setSizes([250, 600])
+        self._social_split.addWidget(self._composer_dock)
+        self._social_split.setSizes([250, 600, 0])
         self._social_split.setStretchFactor(0, 0)
         self._social_split.setStretchFactor(1, 1)
+        self._social_split.setStretchFactor(2, 1)
 
         # Restore saved social splitter sizes
         saved_social = self._settings_early.value("social_splitter", None)
         if saved_social:
-            self._social_split.setSizes([int(s) for s in saved_social])
+            sizes = [int(s) for s in saved_social]
+            # Pad to 3 elements if saved before dock pane existed
+            while len(sizes) < 3:
+                sizes.append(0)
+            self._social_split.setSizes(sizes)
         saved_social_left = self._settings_early.value("social_left_splitter", None)
         if saved_social_left:
             self._social_left_split.setSizes([int(s) for s in saved_social_left])
@@ -2454,17 +2469,33 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         post = self.project.get_post(post_id)
         if not post:
             return
-        dlg = PostComposer(self.project, post=post, parent=self)
-        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        dlg.finished.connect(lambda result: self._on_composer_done(dlg, is_new=False))
-        dlg.show()
-        self._theme_dialog_titlebar(dlg)
+        prefer_docked = self._settings.value("composer_docked", False, type=bool)
+        if prefer_docked:
+            self._dock_composer(self.project, post, is_new=False)
+        else:
+            self._float_composer_dialog(post=post, is_new=False)
 
     def _on_new_post(self):
         """Open composer to create a new post."""
-        dlg = PostComposer(self.project, parent=self)
+        prefer_docked = self._settings.value("composer_docked", False, type=bool)
+        if prefer_docked:
+            self._dock_composer(self.project, None, is_new=True)
+        else:
+            self._float_composer_dialog(post=None, is_new=True)
+
+    def _float_composer_dialog(self, post=None, is_new=True):
+        """Open composer as a floating QDialog."""
+        dlg = PostComposer(self.project, post=post, parent=self)
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        dlg.finished.connect(lambda result: self._on_composer_done(dlg, is_new=True))
+        # Capture post/is_new for potential dock toggle
+        _post = post
+        _is_new = is_new
+        def _on_finished(result):
+            self._on_composer_done(dlg, is_new=_is_new)
+            # If dock was toggled from the dialog, re-open docked
+            if getattr(dlg, '_dock_requested', False):
+                self._dock_composer(self.project, _post, is_new=_is_new)
+        dlg.finished.connect(_on_finished)
         dlg.show()
         self._theme_dialog_titlebar(dlg)
 
@@ -2474,13 +2505,68 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             if is_new:
                 self.project.posts.append(dlg.result_post)
             self._dirty = True
-            self._timeline.refresh()
-            self._calendar_pane.refresh()
-            if hasattr(self, '_gantt_panel'):
-                self._gantt_panel.refresh()
-            self.browser._model.update_post_status(self.project.posts)
-            self.browser.active_view.viewport().update()
-            self.platform_panel.refresh()
+            self._refresh_social_panels()
+
+    # ---- Dockable composer ----
+
+    def _dock_composer(self, project, post, is_new):
+        """Embed the composer widget into the Social tab dock pane."""
+        widget = PostComposerWidget(project, post, parent=self._composer_dock)
+        widget.set_compact(True)
+        # Clear old docked widget if any
+        layout = self._composer_dock.layout()
+        while layout.count():
+            old = layout.takeAt(0).widget()
+            if old:
+                old.deleteLater()
+        layout.addWidget(widget)
+        self._composer_dock.setVisible(True)
+        self._docked_composer = widget
+        self._docked_is_new = is_new
+        # Ensure the dock pane has reasonable width in the splitter
+        sizes = self._social_split.sizes()
+        if len(sizes) >= 3 and sizes[2] < 50:
+            # Give dock pane ~400px from the middle pane
+            mid = sizes[1]
+            dock_w = min(400, mid // 2) if mid > 100 else 400
+            sizes[1] = max(200, mid - dock_w)
+            sizes[2] = dock_w
+            self._social_split.setSizes(sizes)
+        widget.save_requested.connect(lambda p: self._on_docked_save(p))
+        widget.cancel_requested.connect(self._undock_composer)
+        widget.dock_toggled.connect(lambda checked: self._float_from_dock(post, is_new))
+
+    def _undock_composer(self):
+        """Hide the dock pane and clean up the docked widget."""
+        self._composer_dock.setVisible(False)
+        if self._docked_composer is not None:
+            self._docked_composer.disconnect_workers()
+            self._docked_composer.deleteLater()
+            self._docked_composer = None
+
+    def _on_docked_save(self, post):
+        """Handle save from docked composer."""
+        if self._docked_is_new:
+            self.project.posts.append(post)
+        self._dirty = True
+        self._refresh_social_panels()
+        self._undock_composer()
+
+    def _float_from_dock(self, post, is_new):
+        """Undock and re-open as floating dialog."""
+        self._settings.setValue("composer_docked", False)
+        self._undock_composer()
+        self._float_composer_dialog(post=post, is_new=is_new)
+
+    def _refresh_social_panels(self):
+        """Refresh all social-related panels after a post change."""
+        self._timeline.refresh()
+        self._calendar_pane.refresh()
+        if hasattr(self, '_gantt_panel'):
+            self._gantt_panel.refresh()
+        self.browser._model.update_post_status(self.project.posts)
+        self.browser.active_view.viewport().update()
+        self.platform_panel.refresh()
 
     def _check_reminders(self):
         """Scan for pending release chain steps and Patreon cadence reminders."""
