@@ -568,20 +568,21 @@ def generate_stylesheet(theme: Theme) -> str:
 
         QScrollArea {{ border: none; background: {theme.bg_deep}; }}
         QScrollBar:vertical {{
-            background: {_sb_track}; width: 8px; border: none;
+            background: {_sb_track}; width: 14px; border: none;
         }}
         QScrollBar::handle:vertical {{
-            background: {_sb_handle}; border-radius: 3px; min-height: 30px; margin: 1px;
+            background: {_sb_handle}; border-radius: 4px; min-height: 30px; margin: 2px;
         }}
         QScrollBar::handle:vertical:hover {{ background: {_sb_hover}; }}
         QScrollBar:horizontal {{
-            background: {_sb_track}; height: 8px; border: none;
+            background: {_sb_track}; height: 14px; border: none;
         }}
         QScrollBar::handle:horizontal {{
-            background: {_sb_handle}; border-radius: 3px; min-width: 30px; margin: 1px;
+            background: {_sb_handle}; border-radius: 4px; min-width: 30px; margin: 2px;
         }}
         QScrollBar::handle:horizontal:hover {{ background: {_sb_hover}; }}
         QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
+        QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}
 
         QLineEdit {{
             background: {theme.bg_input}; color: {theme.text_primary};
