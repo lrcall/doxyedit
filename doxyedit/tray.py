@@ -206,6 +206,7 @@ class WorkTray(QWidget):
 
         # List widget — shows thumbnails vertically
         self._list = DragOutListWidget()
+        self._list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._list.setIconSize(QSize(80, 80))
         self._list.setSpacing(max(2, _pad // 2))
         self._list.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
@@ -284,12 +285,24 @@ class WorkTray(QWidget):
         if asset_id:
             self.asset_preview.emit(asset_id)
 
+    def _get_selected_ids(self) -> list[str]:
+        """Return asset IDs of all selected tray items."""
+        return [item.data(Qt.ItemDataRole.UserRole)
+                for item in self._list.selectedItems()
+                if item.data(Qt.ItemDataRole.UserRole)]
+
     def _on_context_menu(self, pos):
         item = self._list.itemAt(pos)
         if not item:
             return
         asset_id = item.data(Qt.ItemDataRole.UserRole)
+        selected = self._get_selected_ids()
+        if asset_id not in selected:
+            selected = [asset_id]
+        n_sel = len(selected)
+        multi = n_sel > 1
         asset = self._project.get_asset(asset_id) if self._project else None
+
         menu = QMenu(self)
 
         menu.addAction("Preview", lambda: self.asset_preview.emit(asset_id))
@@ -305,21 +318,28 @@ class WorkTray(QWidget):
                 menu.addAction("Star", lambda: self._set_star(asset_id, 1))
 
         menu.addSeparator()
-        menu.addAction("Copy Path", lambda: self._copy_path(asset_id))
-        menu.addAction("Copy Filename", lambda: self._copy_filename(asset_id))
-        menu.addAction("Copy Name (no ext)", lambda: self._copy_stem(asset_id))
+
+        # Copy
+        if multi:
+            menu.addAction(f"Copy All Paths ({n_sel})", lambda: QApplication.clipboard().setText(
+                "\n".join(self._paths.get(aid, aid) for aid in selected)))
+        else:
+            menu.addAction("Copy Path", lambda: self._copy_path(asset_id))
+            menu.addAction("Copy Filename", lambda: self._copy_filename(asset_id))
+            menu.addAction("Copy Name (no ext)", lambda: self._copy_stem(asset_id))
         menu.addAction("Open in Explorer", lambda: self._open_explorer(asset_id))
 
-        # Open in native editor
         if asset and asset.source_path:
-            import subprocess, os
+            import os
             menu.addAction("Open in Native Editor", lambda: os.startfile(asset.source_path))
 
         menu.addSeparator()
-        menu.addAction("Move to Top", lambda: self._move_to_top(asset_id))
-        menu.addAction("Move to Bottom", lambda: self._move_to_bottom(asset_id))
 
-        # Quick Tag — user-defined tags only (not presets)
+        if not multi:
+            menu.addAction("Move to Top", lambda: self._move_to_top(asset_id))
+            menu.addAction("Move to Bottom", lambda: self._move_to_bottom(asset_id))
+
+        # Quick Tag — user-defined tags only
         if self._project and asset:
             custom_ids = set(self._project.tag_definitions.keys())
             custom_tags = [t for t in self._project.get_tags().values() if t.id in custom_ids]
@@ -328,7 +348,11 @@ class WorkTray(QWidget):
                 for tag in custom_tags:
                     checked = tag.id in asset.tags
                     a = qt_menu.addAction(f"{'✓ ' if checked else '   '}{tag.label}")
-                    a.triggered.connect(lambda _, aid=asset_id, tid=tag.id: self._toggle_tray_tag(aid, tid))
+                    if multi:
+                        a.triggered.connect(lambda _, sids=list(selected), tid=tag.id: [
+                            self._toggle_tray_tag(aid, tid) for aid in sids])
+                    else:
+                        a.triggered.connect(lambda _, aid=asset_id, tid=tag.id: self._toggle_tray_tag(aid, tid))
 
             # Current tags (click to remove)
             if asset.tags:
@@ -340,16 +364,24 @@ class WorkTray(QWidget):
                         lambda _, aid=asset_id, tid=t: self._remove_tray_tag(aid, tid))
 
         menu.addSeparator()
+
         # Send to other tray
         other_trays = [name for name in self._trays if name != self._current_tray]
         if other_trays:
             send_menu = menu.addMenu("Send to Tray")
             for tray_name in other_trays:
-                send_menu.addAction(tray_name,
-                    lambda _, aid=asset_id, tn=tray_name: self._send_to_other_tray(aid, tn))
+                if multi:
+                    send_menu.addAction(f"{tray_name} ({n_sel})",
+                        lambda _, sids=list(selected), tn=tray_name: [self._send_to_other_tray(aid, tn) for aid in sids])
+                else:
+                    send_menu.addAction(tray_name,
+                        lambda _, aid=asset_id, tn=tray_name: self._send_to_other_tray(aid, tn))
 
         menu.addSeparator()
-        menu.addAction("Remove from Tray", lambda: self.remove_asset(asset_id))
+        if multi:
+            menu.addAction(f"Remove {n_sel} from Tray", lambda: [self.remove_asset(aid) for aid in list(selected)])
+        else:
+            menu.addAction("Remove from Tray", lambda: self.remove_asset(asset_id))
         n = self._list.count()
         if n > 1:
             menu.addAction(f"Clear All ({n})", self.clear)
