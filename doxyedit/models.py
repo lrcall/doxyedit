@@ -915,7 +915,7 @@ class Project:
             for c in a.get("crops", []):
                 asset.crops.append(CropRegion(**c))
             for c in a.get("censors", []):
-                asset.censors.append(CensorRegion(**c))
+                asset.censors.append(CensorRegion(**{k: v for k, v in c.items() if k in CensorRegion.__dataclass_fields__}))
             for ov in a.get("overlays", []):
                 asset.overlays.append(CanvasOverlay.from_dict(ov))
             for p in a.get("assignments", []):
