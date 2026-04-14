@@ -3,8 +3,8 @@
 ## v2.3.0 (2026-04-14) — Social Media Suite Expansion
 
 ### New Tabs & Panels
+- **Studio Tab** — Canvas and Censor tabs merged into unified "Studio" tab. Layered scene: base image (Z=0), censors (Z=100+), overlays (Z=200+), annotations (Z=300+). Single toolbar with censor draw, overlay watermark/text/template, and annotation tools. Annotations are ephemeral (not saved); censors and overlays persist.
 - **Gantt Chart** — Visual timeline in Social tab showing all posts as colored bars, stagger connection lines, gap detection, today marker. Zoom slider + date range picker. Click bar to edit post.
-- **Overlay Editor** — Asset-bound watermark, text, and logo placement. Drag positioning, opacity/scale sliders, logo template presets. Export preview button.
 - **Tabbed Notes** — General + Agent Primer (permanent) + custom tabs. Live markdown preview with Edit/Preview toggle. Right-click Claude actions (Refine, Expand, Research, Simplify, [Instruct]).
 
 ### Social Media Pipeline
@@ -17,7 +17,7 @@
 - **Patreon Quick-Post** — Copies caption, exports image with overlays/censors, opens Patreon post URL in browser.
 
 ### Subscription Platform Automation
-- **6 platforms**: Patreon, Pixiv Fanbox, Fantia, Ci-en, Gumroad, Ko-fi
+- **7 platforms**: Patreon, Pixiv Fanbox, Fantia, Ci-en, Gumroad, Ko-fi, SubscribeStar
 - **Quick-post module** — Generalized clipboard + export + browser launch for all platforms
 - **Tier-based content** — Free preview vs paid full version per platform
 - **Dual-language** — Japanese + English captions for Fanbox/Fantia/Ci-en
@@ -33,6 +33,9 @@
 - **Campaign + CampaignMilestone** data models for Kickstarter, Steam, merch launches
 - **campaign_id** on PlatformAssignment and SocialPost for linking
 - Launch dates, end dates, status tracking (planning/preparing/live/completed)
+- **Campaign UI in Platforms tab** — selector, CRUD dialog, milestone checklist
+- Filter platform cards by campaign_id
+- Campaign spans and milestone markers on Gantt chart (planned)
 
 ### Composer Redesign
 - **Two-column layout** — Left: image preview + SFW/NSFW toggle + crop status. Right: strategy + captions + schedule.
@@ -51,6 +54,20 @@
 - **Category ID fix** — Was using wrong ID (49839), now uses correct (86698=Doxy, 176197=Onta, etc.)
 - **Account sync from MCP** — Fetches connected accounts directly from OneUp MCP server
 - **Category-based accounts** — Config supports categories with per-category account lists
+- **Push posts via MCP** — REST API was broken; switched to MCP for post pushing
+- **Sync by content fingerprint** — Matches by 40-char content fingerprint, not post ID
+- **5-minute protection** — Recently-pushed posts protected from duplicate pushes
+- **Queue to OneUp button** — Now pushes directly from GUI
+- **Subscription platforms filtered** — Subscription platforms use quick-post, filtered from OneUp push
+
+### Bug Fixes
+- **campaign_id preserved on composer save** — was silently dropped
+- **Notes custom tabs persist** across restarts
+- **Identity manager dialog restored** — duplicate stub removed
+- **Per-platform captions** only show for checked platforms
+- **PST added to timeline** time display
+- **Context menu text** explicitly colored for readability
+- **Overlay editor tab removed** — absorbed into Studio
 
 ### UI & Theming
 - **Tokenized scrollbars** — Single global rule with track/handle/hover tokens
@@ -80,7 +97,7 @@
 - `doxyedit/reminders.py` — Release chain + Patreon cadence reminders
 - `doxyedit/quickpost.py` — Generalized quick-post for subscription platforms
 - `doxyedit/crossproject.py` — Cross-project registry + conflict detection
-- `doxyedit/overlay_editor.py` — Asset-bound overlay placement editor
+- `doxyedit/overlay_editor.py` — Overlay tools (absorbed into Studio tab)
 
 ## v2.2.0 — 2026-04-09
 

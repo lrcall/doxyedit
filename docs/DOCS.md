@@ -29,7 +29,7 @@ Produces `dist/DoxyEdit.exe` (requires Nuitka).
 
 ## Interface Overview
 
-DoxyEdit has 8 tabs: **Assets**, **Canvas**, **Censor**, **Platforms**, **Social**, **Overview**, **Notes**, **Overlay Editor**.
+DoxyEdit has 6 tabs: **Assets**, **Studio**, **Social**, **Platforms**, **Overview**, **Notes**.
 
 ### Assets Tab (Main View)
 
@@ -61,7 +61,7 @@ The primary workspace. Left sidebar has the tag panel, main area shows the thumb
 - **Click** — select one image
 - **Ctrl+Click** — toggle multi-select
 - **Shift+Click** — select range
-- **Alt+Click** — send to Censor tab
+- **Alt+Click** — send to Studio tab
 
 **Search & Filter:**
 - Type in search box to filter by filename (supports glob patterns like `*.png`, `hero_*`)
@@ -180,23 +180,32 @@ Filter with the **Starred** button. Stars are saved with the project.
 
 ---
 
-## Canvas Tab
+## Studio Tab
 
-Free-form annotation surface for composing layouts.
+Unified editor combining canvas, censor, and overlay tools in a single layered scene.
 
-**Tools (left toolbar):**
-| Tool | Description |
-|------|-------------|
-| Select (V) | Move and select items |
-| Text (T) | Click to place text, double-click to edit |
-| Line (L) | Click and drag to draw a line |
-| Box (B) | Click and drag to draw a rectangle |
-| Marker (G) | Click to place a colored tag marker |
+### Layer System
+| Z-Range | Layer | Persistence |
+|---------|-------|-------------|
+| Z=0 | Base image | Source file |
+| Z=100+ | Censors | Saved to project |
+| Z=200+ | Overlays (watermark, text, logo) | Saved to project |
+| Z=300+ | Annotations | Ephemeral (not saved) |
 
+### Toolbar
+A single toolbar provides access to all editing modes:
+- **Censor draw** — black/blur/pixelate overlays for platform-specific versions
+- **Overlay tools** — watermark, text, and logo placement with drag positioning, opacity/scale sliders, and template presets
+- **Annotation tools** — free-form text, lines, boxes, markers for temporary notes
+
+### Controls
 - **Scroll** to zoom
 - **Middle-click + drag** to pan
 - **Delete** to remove selected items
 - **Color** button to change selected item's color
+
+### Export
+Censors and overlays are composited during export only — the source file is never modified. The `apply_overlays()` function is shared between the GUI export and the CLI `watermark` command.
 
 ---
 
@@ -247,19 +256,6 @@ Notes are stored as text coordinates in the asset's notes field and persist with
 
 ---
 
-## Censor Tab
-
-Non-destructive censoring for platform-specific versions (e.g., Japan releases).
-
-1. Select an image in Assets tab (or Alt+click to jump here)
-2. Choose style: **black**, **blur**, or **pixelate**
-3. Click **Draw Censor Region** and drag to draw
-4. Regions are movable and selectable
-5. Click **Export Censored** to save a copy with censoring applied
-6. Original file is never modified
-
----
-
 ## Platforms Tab
 
 Shows target platforms with their required image slots and sizes.
@@ -269,8 +265,8 @@ Shows target platforms with their required image slots and sizes.
 
 Each slot shows: name, target size, assigned asset, and status (pending/ready/posted/skip).
 
-**Campaign Linking:**
-Platform assignments can be linked to a Campaign (see [Campaign System](#campaign-system) below). This ties assets to specific launches (Kickstarter, Steam, merch) with milestone tracking and blackout period enforcement.
+**Campaign UI:**
+The Platforms tab includes a campaign management panel with a campaign selector, CRUD dialog for creating/editing campaigns, and a milestone checklist. Platform cards can be filtered by campaign_id to focus on a specific launch. Platform assignments are linked to campaigns for coordinated milestone tracking and blackout period enforcement. See [Campaign System](#campaign-system) below.
 
 **Kanban Board:**
 The Platforms tab includes a kanban-style board view for tracking publish status across platforms. Each platform column shows cards for its image slots, which can be dragged between status columns (Backlog, Ready, Posted, Skip). The board and the slot list stay in sync — updating one updates the other.
@@ -442,30 +438,9 @@ Right-click selected text to invoke Claude actions:
 
 ---
 
-## Overlay Editor
-
-Asset-bound overlay placement for watermarks, text, and logos.
-
-### Overlay Types
-- **Watermark** — semi-transparent image overlay (e.g., signature or copyright)
-- **Text** — custom text with font, size, and color
-- **Logo** — pre-defined logo image with template presets
-
-### Controls
-- **Drag positioning** — place overlays anywhere on the canvas
-- **Opacity slider** — adjust overlay transparency
-- **Scale slider** — resize overlays relative to the asset
-- **Logo template presets** — quick-load common logo configurations
-- **Export preview** — see the final composited result before exporting
-
-### Export Pipeline
-Overlays are composited during export only — the source file is never modified. The `apply_overlays()` function is shared between the GUI export and the CLI `watermark` command, ensuring identical output.
-
----
-
 ## Subscription Platforms
 
-Generalized quick-post workflow for 6 subscription/monetization platforms:
+Generalized quick-post workflow for 7 subscription/monetization platforms:
 
 | Platform | Locale | Censor | Monetization |
 |----------|--------|--------|--------------|
@@ -475,6 +450,7 @@ Generalized quick-post workflow for 6 subscription/monetization platforms:
 | Ci-en | ja | Yes | Subscription |
 | Gumroad | en | No | Per-item |
 | Ko-fi | en | No | Tips/Shop |
+| SubscribeStar | en | No | Subscription |
 
 ### Quick-Post Flow
 1. Select an asset and open the quick-post dialog

@@ -14,12 +14,12 @@ Art asset manager for artists and creators. Browse, tag, organize, and export ar
 - **Tagging System** — keyboard shortcuts, custom tags, auto visual property tags (warm/cool/dark/portrait etc.)
 - **4-Section Tag Panel** — Content, Platform/Size, Custom/Project, Visual/Mood with eye toggles and pin-to-top
 - **Smart Folders** — save/load filter presets (View > Smart Folders)
+- **Studio Tab** — unified editor combining censor, overlay, and annotation tools in a layered scene (base Z=0, censors Z=100+, overlays Z=200+, annotations Z=300+)
 - **Non-Destructive Censor** — black/blur/pixelate overlays, export censored copies
-- **Canvas Annotation** — free-form text, lines, boxes, markers
+- **Overlay Editor** — asset-bound watermark, text, and logo placement with drag positioning, opacity/scale sliders
 - **Preview Annotations** — draw note boxes on images, persist with project
 - **Work Tray** — collapsible quickslot panel, persists across all tabs
 - **Crop Handles** — 8 drag handles on crop regions with persistent overlays
-- **Overlay Editor** — asset-bound watermark, text, and logo placement with drag positioning, opacity/scale sliders
 
 ### Social Media Pipeline
 - **Post Composer** — two-column layout with image preview, SFW/NSFW toggle, strategy notes, captions, scheduling
@@ -31,7 +31,7 @@ Art asset manager for artists and creators. Browse, tag, organize, and export ar
 - **Reminder Engine** — scans release chains + Patreon cadence for due actions, status bar alerts
 
 ### Subscription Platform Automation
-- **6 platforms** — Patreon, Pixiv Fanbox, Fantia, Ci-en, Gumroad, Ko-fi
+- **7 platforms** — Patreon, Pixiv Fanbox, Fantia, Ci-en, Gumroad, Ko-fi, SubscribeStar
 - **Quick-Post** — clipboard + export + browser launch workflow for all platforms
 - **Tier-based content** — free preview vs paid full version per platform
 - **Dual-language** — Japanese + English captions for Fanbox/Fantia/Ci-en
