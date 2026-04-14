@@ -305,6 +305,7 @@ class ThumbnailModel(QAbstractListModel):
     AssignmentsRole = Qt.ItemDataRole.UserRole + 6  # list of (platform, status) tuples
     PostStatusRole = Qt.ItemDataRole.UserRole + 7   # social post status: "draft"|"queued"|"posted"|None
     StudioEditedRole = Qt.ItemDataRole.UserRole + 8  # bool: has censors or overlays
+    ReadinessRole = Qt.ItemDataRole.UserRole + 9  # dict[str, str] platform_id -> status
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -312,6 +313,7 @@ class ThumbnailModel(QAbstractListModel):
         self._pixmaps: dict[str, QPixmap] = {}
         self._id_to_row: dict[str, int] = {}  # O(1) lookup for update_pixmap
         self._post_status_map: dict[str, str] = {}  # asset_id -> best social post status
+        self._readiness_cache: dict[str, dict] = {}
 
     def rowCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self._assets)
@@ -339,6 +341,8 @@ class ThumbnailModel(QAbstractListModel):
             return self._post_status_map.get(asset.id)
         elif role == self.StudioEditedRole:
             return bool(asset.censors or asset.overlays)
+        elif role == self.ReadinessRole:
+            return self._readiness_cache.get(asset.id)
         return None
 
     def update_post_status(self, posts):
@@ -351,6 +355,27 @@ class ThumbnailModel(QAbstractListModel):
                 existing = self._post_status_map.get(aid)
                 if not existing or priority.get(status, 0) > priority.get(existing, 0):
                     self._post_status_map[aid] = status
+
+    def update_readiness(self, project, default_platforms: list[str]):
+        """Compute readiness for all assets. Call after project changes."""
+        from doxyedit.pipeline import check_readiness
+        from doxyedit.models import PLATFORMS
+        for asset in self._assets:
+            if asset.id in self._readiness_cache:
+                continue
+            readiness = {}
+            for pid in default_platforms:
+                if pid in PLATFORMS:
+                    r = check_readiness(asset, pid, project)
+                    readiness[pid] = r["status"]
+            if readiness:
+                self._readiness_cache[asset.id] = readiness
+
+    def invalidate_readiness(self, asset_id: str = ""):
+        if asset_id:
+            self._readiness_cache.pop(asset_id, None)
+        else:
+            self._readiness_cache.clear()
 
     def set_assets(self, assets: list[Asset]):
         self.beginResetModel()
@@ -574,6 +599,19 @@ class ThumbnailDelegate(QStyledItemDelegate):
                 self._fonts[(_se_sz, "bold")] = QFont(t.font_family, _se_sz, QFont.Weight.Bold)
             painter.setFont(self._fonts[(_se_sz, "bold")])
             painter.drawText(QRect(se_x, se_y, _bdg_size, _bdg_size), Qt.AlignmentFlag.AlignCenter, "S")
+
+        # Readiness dots (tiny colored dots below studio badge area)
+        readiness = index.data(ThumbnailModel.ReadinessRole)
+        if readiness and self._theme:
+            _r_colors = {"green": "#6eaa78", "yellow": "#be955c", "red": "#9a4f50"}
+            r_y = rect.y() + self.PADDING + ts - 8
+            r_x = rect.x() + self.PADDING + 2
+            for pid, status in list(readiness.items())[:6]:
+                c = QColor(_r_colors.get(status, "#888"))
+                painter.setBrush(c)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawEllipse(QPoint(r_x + 3, r_y + 3), 3, 3)
+                r_x += 9
 
         # Dimensions text
         fs = self.font_size
