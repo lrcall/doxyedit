@@ -101,6 +101,8 @@ class WorkTray(QWidget):
     """Collapsible right panel — drag images here as a work area / quickslot."""
     asset_selected = Signal(str)
     asset_preview = Signal(str)
+    asset_to_studio = Signal(str)   # send asset to Studio tab
+    star_modified = Signal()
     tags_modified = Signal()
     toggle_requested = Signal()    # handle clicked — parent toggles visibility
     pixmaps_needed = Signal(list)  # list of asset_ids that need thumbnails
@@ -287,27 +289,55 @@ class WorkTray(QWidget):
         if not item:
             return
         asset_id = item.data(Qt.ItemDataRole.UserRole)
+        asset = self._project.get_asset(asset_id) if self._project else None
         menu = QMenu(self)
+
         menu.addAction("Preview", lambda: self.asset_preview.emit(asset_id))
+        menu.addAction("Open in Studio", lambda: self.asset_to_studio.emit(asset_id))
+        menu.addSeparator()
+
+        # Star actions
+        if asset:
+            if asset.starred > 0:
+                menu.addAction("Unstar", lambda: self._set_star(asset_id, 0))
+                menu.addAction("Cycle Star Color", lambda: self._set_star(asset_id, (asset.starred % 5) + 1))
+            else:
+                menu.addAction("Star", lambda: self._set_star(asset_id, 1))
+
         menu.addSeparator()
         menu.addAction("Copy Path", lambda: self._copy_path(asset_id))
         menu.addAction("Copy Filename", lambda: self._copy_filename(asset_id))
         menu.addAction("Copy Name (no ext)", lambda: self._copy_stem(asset_id))
         menu.addAction("Open in Explorer", lambda: self._open_explorer(asset_id))
+
+        # Open in native editor
+        if asset and asset.source_path:
+            import subprocess, os
+            menu.addAction("Open in Native Editor", lambda: os.startfile(asset.source_path))
+
         menu.addSeparator()
         menu.addAction("Move to Top", lambda: self._move_to_top(asset_id))
         menu.addAction("Move to Bottom", lambda: self._move_to_bottom(asset_id))
+
         # Quick Tag
-        if self._project:
-            asset = self._project.get_asset(asset_id)
-            if asset:
-                all_tags = list(self._project.get_tags().values())
-                if all_tags:
-                    qt_menu = menu.addMenu("Quick Tag")
-                    for tag in all_tags:
-                        checked = tag.id in asset.tags
-                        a = qt_menu.addAction(f"{'✓ ' if checked else '   '}{tag.label}")
-                        a.triggered.connect(lambda _, aid=asset_id, tid=tag.id: self._toggle_tray_tag(aid, tid))
+        if self._project and asset:
+            all_tags = list(self._project.get_tags().values())
+            if all_tags:
+                qt_menu = menu.addMenu("Quick Tag")
+                for tag in all_tags:
+                    checked = tag.id in asset.tags
+                    a = qt_menu.addAction(f"{'✓ ' if checked else '   '}{tag.label}")
+                    a.triggered.connect(lambda _, aid=asset_id, tid=tag.id: self._toggle_tray_tag(aid, tid))
+
+            # Current tags (click to remove)
+            if asset.tags:
+                cur_menu = menu.addMenu(f"Tags ({len(asset.tags)})")
+                tag_defs = self._project.get_tags()
+                for t in asset.tags:
+                    label = tag_defs[t].label if t in tag_defs else t
+                    cur_menu.addAction(f"\u2212 {label}",
+                        lambda _, aid=asset_id, tid=t: self._remove_tray_tag(aid, tid))
+
         menu.addSeparator()
         # Send to other tray
         other_trays = [name for name in self._trays if name != self._current_tray]
@@ -316,6 +346,7 @@ class WorkTray(QWidget):
             for tray_name in other_trays:
                 send_menu.addAction(tray_name,
                     lambda _, aid=asset_id, tn=tray_name: self._send_to_other_tray(aid, tn))
+
         menu.addSeparator()
         menu.addAction("Remove from Tray", lambda: self.remove_asset(asset_id))
         n = self._list.count()
@@ -410,6 +441,24 @@ class WorkTray(QWidget):
         if asset:
             toggle_tags([asset], tag_id)
             self.tags_modified.emit()
+
+    def _remove_tray_tag(self, asset_id: str, tag_id: str):
+        """Remove a specific tag from an asset."""
+        if not self._project:
+            return
+        asset = self._project.get_asset(asset_id)
+        if asset and tag_id in asset.tags:
+            asset.tags.remove(tag_id)
+            self.tags_modified.emit()
+
+    def _set_star(self, asset_id: str, value: int):
+        """Set star rating for an asset."""
+        if not self._project:
+            return
+        asset = self._project.get_asset(asset_id)
+        if asset:
+            asset.starred = value
+            self.star_modified.emit()
 
     def _on_drop_received(self, paths: list):
         """Handle files dropped onto the tray — resolve to project assets and add."""

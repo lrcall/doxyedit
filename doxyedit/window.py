@@ -169,6 +169,8 @@ class MainWindow(QMainWindow):
 
         self.work_tray.asset_selected.connect(self._on_asset_selected)
         self.work_tray.asset_preview.connect(self._on_asset_preview)
+        self.work_tray.asset_to_studio.connect(self._send_to_studio)
+        self.work_tray.star_modified.connect(self._on_data_changed)
         self.work_tray.toggle_requested.connect(self._toggle_work_tray)
         self.work_tray.tags_modified.connect(self._on_tags_modified)
         self.work_tray.pixmaps_needed.connect(self._feed_tray_pixmaps)
@@ -3129,6 +3131,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.browser.refresh()
         self._dirty = True
         self.status.showMessage(f"Removed {count} missing asset record(s).", 4000)
+
+    def _send_to_studio(self, asset_id: str):
+        """Load an asset into the Studio tab and switch to it."""
+        asset = self.project.get_asset(asset_id)
+        if asset and hasattr(self, 'studio'):
+            self.studio.load_asset(asset)
+            self.tabs.setCurrentWidget(self.studio)
 
     def _on_asset_preview(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
