@@ -198,7 +198,7 @@ class OverlayTextItem(QGraphicsTextItem):
         else:
             self.setTextWidth(-1)
         # Line height via block format
-        lh = getattr(self.overlay, 'line_height', 1.2) or 1.2
+        lh = self.overlay.line_height or 1.2
         from PySide6.QtGui import QTextBlockFormat, QTextCursor
         fmt = QTextBlockFormat()
         fmt.setLineHeight(lh * 100, 1)  # 1 = ProportionalHeight (percentage)
@@ -206,7 +206,12 @@ class OverlayTextItem(QGraphicsTextItem):
         cursor.select(QTextCursor.SelectionType.Document)
         cursor.mergeBlockFormat(fmt)
         self.setTextCursor(cursor)
+        # Force document layout to recalculate size after line height change
+        doc = self.document()
+        doc.adjustSize()
+        doc.setTextWidth(doc.idealWidth() if self.overlay.text_width <= 0 else self.overlay.text_width)
         # Rotate from center of bounding rect
+        self.prepareGeometryChange()
         br = self.boundingRect()
         self.setTransformOriginPoint(br.center())
         self.setRotation(self.overlay.rotation)

@@ -314,12 +314,6 @@ class BlueskyClient:
 # Config loading
 # ---------------------------------------------------------------------------
 
-def _find_config(project_dir: str) -> Path:
-    """Find config.yaml — reuse the oneup.py implementation."""
-    from doxyedit.oneup import _find_config as _fc
-    return _fc(project_dir)
-
-
 def get_direct_clients(project_dir: str) -> dict[str, list]:
     """Load all direct-post clients from config.yaml.
 
@@ -334,6 +328,7 @@ def get_direct_clients(project_dir: str) -> dict[str, list]:
         discord_webhooks:
           art: { label: "Art Channel", webhook_url: "https://discord.com/api/webhooks/..." }
     """
+    from doxyedit.oneup import _find_config
     config_path = _find_config(project_dir)
     clients: dict[str, list] = {"telegram": [], "discord": [], "bluesky": []}
 
@@ -383,42 +378,18 @@ def get_direct_clients(project_dir: str) -> dict[str, list]:
 # ---------------------------------------------------------------------------
 
 def _export_first_asset(post, project) -> str:
-    """Export the first asset from a SocialPost with censors + overlays.
-
-    Reuses the same pattern as quickpost._export_for_platform.
-    Returns path to temp PNG or empty string on failure.
-    """
+    """Export first asset using quickpost's export pipeline (censors + overlays)."""
     if not post.asset_ids:
         return ""
-
     asset = project.get_asset(post.asset_ids[0])
     if not asset or not asset.source_path:
         return ""
-
     try:
-        from PIL import Image
-        from doxyedit.exporter import apply_censors, apply_overlays
-
-        src = Path(asset.source_path)
-        if not src.exists():
-            return ""
-
-        ext = src.suffix.lower()
-        if ext in (".psd", ".psb"):
-            from doxyedit.imaging import load_psd
-            img, _, _ = load_psd(str(src))
-        else:
-            img = Image.open(str(src)).convert("RGBA")
-
-        if asset.censors:
-            img = apply_censors(img, asset.censors)
-        if asset.overlays:
-            project_dir = str(Path(asset.source_path).parent)
-            img = apply_overlays(img, asset.overlays, project_dir)
-
-        tmp = Path(tempfile.gettempdir()) / f"doxyedit_dp_{asset.id}.png"
-        img.save(str(tmp), "PNG")
-        return str(tmp)
+        from doxyedit.quickpost import _export_for_platform
+        from doxyedit.models import SubPlatform
+        # Use a generic sub-platform with censors always on
+        stub = SubPlatform(id="direct", name="Direct", needs_censor=True)
+        return _export_for_platform(asset, stub, project)
     except Exception as e:
         print(f"[DirectPost] Export failed: {e}")
         return ""
@@ -440,6 +411,33 @@ def push_to_direct(
         List of DirectPostResult — one per channel/webhook attempted.
     """
     clients = get_direct_clients(project_dir)
+
+    # Check identity for per-identity API credentials (Bluesky, Discord, Telegram)
+    col = getattr(post, 'collection', '')
+    identity_data = {}
+    if col and project and hasattr(project, 'identities'):
+        identity_data = project.identities.get(col, {})
+
+    if not clients["bluesky"] and identity_data:
+        handle = identity_data.get("bluesky_handle", "")
+        app_pw = identity_data.get("bluesky_app_password", "")
+        if handle and app_pw:
+            clients["bluesky"].append(BlueskyClient(handle, app_pw))
+            print(f"[Bluesky] Using identity credentials: {handle}")
+
+    if not clients["discord"] and identity_data:
+        webhook = identity_data.get("discord_webhook_url", "")
+        if webhook:
+            clients["discord"].append(DiscordWebhookClient(webhook))
+            print(f"[Discord] Using identity webhook")
+
+    if not clients["telegram"] and identity_data:
+        bot_token = identity_data.get("telegram_bot_token", "")
+        chat_id = identity_data.get("telegram_chat_id", "")
+        if bot_token and chat_id:
+            clients["telegram"].append(TelegramBotClient(bot_token, chat_id))
+            print(f"[Telegram] Using identity credentials")
+
     results: list[DirectPostResult] = []
 
     # Skip platforms already posted

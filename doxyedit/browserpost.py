@@ -30,78 +30,33 @@ class BrowserPostResult:
 # Default CDP endpoint
 DEFAULT_CDP = "http://localhost:9222"
 
+# Shared step templates — most platforms use one of these two patterns
+_STEPS_CONTENTEDITABLE = [
+    {"action": "wait", "selector": "[contenteditable]", "timeout": 10000},
+    {"action": "fill_contenteditable", "selector": "[contenteditable]", "field": "caption"},
+    {"action": "upload", "selector": "input[type='file']", "field": "image"},
+]
+_STEPS_TEXTAREA = [
+    {"action": "wait", "selector": "textarea, [contenteditable]", "timeout": 10000},
+    {"action": "fill", "selector": "textarea", "field": "caption"},
+    {"action": "upload", "selector": "input[type='file']", "field": "image"},
+]
+
 # Default platform selectors (can be overridden in config.yaml)
 DEFAULT_SELECTORS: dict[str, dict] = {
-    "patreon": {
-        "url": "{base_url}/posts/new",
-        "steps": [
-            {"action": "wait", "selector": "[contenteditable]", "timeout": 10000},
-            {"action": "fill_contenteditable", "selector": "[contenteditable]", "field": "caption"},
-            {"action": "upload", "selector": "input[type='file']", "field": "image"},
-            {"action": "wait", "ms": 1000},
-        ],
-    },
-    "fanbox": {
-        "url": "{base_url}/manage/posts/new",
-        "steps": [
-            {"action": "wait", "selector": "[contenteditable]", "timeout": 10000},
-            {"action": "fill_contenteditable", "selector": "[contenteditable]", "field": "caption"},
-            {"action": "upload", "selector": "input[type='file']", "field": "image"},
-        ],
-    },
-    "fantia": {
-        "url": "{base_url}/posts/new",
-        "steps": [
-            {"action": "wait", "selector": "textarea, [contenteditable]", "timeout": 10000},
-            {"action": "fill", "selector": "textarea", "field": "caption"},
-            {"action": "upload", "selector": "input[type='file']", "field": "image"},
-        ],
-    },
-    "cien": {
-        "url": "{base_url}/creator/posting",
-        "steps": [
-            {"action": "wait", "selector": "textarea, [contenteditable]", "timeout": 10000},
-            {"action": "fill", "selector": "textarea", "field": "caption"},
-            {"action": "upload", "selector": "input[type='file']", "field": "image"},
-        ],
-    },
+    "patreon":      {"url": "{base_url}/posts/new",           "steps": _STEPS_CONTENTEDITABLE + [{"action": "wait", "ms": 1000}]},
+    "fanbox":       {"url": "{base_url}/manage/posts/new",    "steps": _STEPS_CONTENTEDITABLE},
+    "kofi":         {"url": "https://ko-fi.com/post/create",  "steps": _STEPS_CONTENTEDITABLE},
+    "subscribestar": {"url": "{base_url}/posts/new",          "steps": _STEPS_CONTENTEDITABLE},
+    "kickstarter":  {"url": "{base_url}/updates/new",         "steps": _STEPS_CONTENTEDITABLE},
+    "indiegogo":    {"url": "{base_url}/edit/updates/new",    "steps": _STEPS_CONTENTEDITABLE},
+    "fantia":       {"url": "{base_url}/posts/new",           "steps": _STEPS_TEXTAREA},
+    "cien":         {"url": "{base_url}/creator/posting",     "steps": _STEPS_TEXTAREA},
     "gumroad": {
         "url": "https://gumroad.com/products/new",
         "steps": [
             {"action": "wait", "selector": "textarea, input[name='name']", "timeout": 10000},
             {"action": "fill", "selector": "input[name='name']", "field": "caption"},
-            {"action": "upload", "selector": "input[type='file']", "field": "image"},
-        ],
-    },
-    "kofi": {
-        "url": "https://ko-fi.com/post/create",
-        "steps": [
-            {"action": "wait", "selector": "textarea, [contenteditable]", "timeout": 10000},
-            {"action": "fill_contenteditable", "selector": "[contenteditable]", "field": "caption"},
-            {"action": "upload", "selector": "input[type='file']", "field": "image"},
-        ],
-    },
-    "subscribestar": {
-        "url": "{base_url}/posts/new",
-        "steps": [
-            {"action": "wait", "selector": "textarea, [contenteditable]", "timeout": 10000},
-            {"action": "fill_contenteditable", "selector": "[contenteditable]", "field": "caption"},
-            {"action": "upload", "selector": "input[type='file']", "field": "image"},
-        ],
-    },
-    "kickstarter": {
-        "url": "{base_url}/updates/new",
-        "steps": [
-            {"action": "wait", "selector": "textarea, [contenteditable]", "timeout": 10000},
-            {"action": "fill_contenteditable", "selector": "[contenteditable]", "field": "caption"},
-            {"action": "upload", "selector": "input[type='file']", "field": "image"},
-        ],
-    },
-    "indiegogo": {
-        "url": "{base_url}/edit/updates/new",
-        "steps": [
-            {"action": "wait", "selector": "textarea, [contenteditable]", "timeout": 10000},
-            {"action": "fill_contenteditable", "selector": "[contenteditable]", "field": "caption"},
             {"action": "upload", "selector": "input[type='file']", "field": "image"},
         ],
     },

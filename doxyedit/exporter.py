@@ -20,11 +20,13 @@ def apply_censors(img: Image.Image, censors: list[CensorRegion]) -> Image.Image:
             region = Image.new("RGBA", (box[2] - box[0], box[3] - box[1]), (0, 0, 0, 255))
             img.paste(region, (box[0], box[1]))
         elif cr.style == "blur":
-            region = img.crop(box).filter(ImageFilter.GaussianBlur(radius=20))
+            radius = cr.blur_radius or 20
+            region = img.crop(box).filter(ImageFilter.GaussianBlur(radius=radius))
             img.paste(region, (box[0], box[1]))
         elif cr.style == "pixelate":
+            ratio = cr.pixelate_ratio or 10
             region = img.crop(box)
-            small = region.resize((max(1, region.width // 10), max(1, region.height // 10)), Image.NEAREST)
+            small = region.resize((max(1, region.width // ratio), max(1, region.height // ratio)), Image.NEAREST)
             img.paste(small.resize(region.size, Image.NEAREST), (box[0], box[1]))
     return img
 
@@ -89,20 +91,51 @@ def _composite_text_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
             except (OSError, IOError):
                 font = ImageFont.load_default()
 
-        # Parse color
-        color = ov.color.lstrip("#")
-        r, g, b = int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)
+        def _hex(s):
+            c = s.lstrip("#")
+            return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+
+        r, g, b = _hex(ov.color)
         a = int(255 * ov.opacity)
 
         layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(layer)
 
-        # Get text size
-        bbox = draw.textbbox((0, 0), ov.text, font=font)
+        spacing = int(ov.font_size * (ov.line_height - 1.0))
+        bbox = draw.textbbox((0, 0), ov.text, font=font, spacing=spacing)
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
 
         x, y = _resolve_position(img.size, (tw, th), ov.position, ov.x, ov.y)
-        draw.text((x, y), ov.text, font=font, fill=(r, g, b, a))
+
+        # Drop shadow (tight crop for performance)
+        if ov.shadow_color and ov.shadow_offset:
+            sr, sg, sb = _hex(ov.shadow_color)
+            sa = int(255 * ov.opacity * 0.6)
+            sx, sy = x + ov.shadow_offset, y + ov.shadow_offset
+            if ov.shadow_blur > 0:
+                margin = ov.shadow_blur * 3
+                crop_x = max(0, int(sx) - margin)
+                crop_y = max(0, int(sy) - margin)
+                crop_w = min(img.width, int(sx + tw) + margin) - crop_x
+                crop_h = min(img.height, int(sy + th) + margin) - crop_y
+                shadow_crop = Image.new("RGBA", (crop_w, crop_h), (0, 0, 0, 0))
+                shadow_draw = ImageDraw.Draw(shadow_crop)
+                shadow_draw.text((sx - crop_x, sy - crop_y), ov.text, font=font,
+                                 fill=(sr, sg, sb, sa), spacing=spacing)
+                shadow_crop = shadow_crop.filter(ImageFilter.GaussianBlur(ov.shadow_blur))
+                layer.paste(shadow_crop, (crop_x, crop_y))
+                draw = ImageDraw.Draw(layer)
+            else:
+                draw.text((sx, sy), ov.text, font=font, fill=(sr, sg, sb, sa), spacing=spacing)
+
+        # Text outline/stroke
+        if ov.stroke_color and ov.stroke_width > 0:
+            or_, og, ob = _hex(ov.stroke_color)
+            draw.text((x, y), ov.text, font=font,
+                       fill=(r, g, b, a), stroke_width=ov.stroke_width,
+                       stroke_fill=(or_, og, ob, a), spacing=spacing)
+        else:
+            draw.text((x, y), ov.text, font=font, fill=(r, g, b, a), spacing=spacing)
 
         return Image.alpha_composite(img, layer)
     except Exception:

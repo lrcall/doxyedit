@@ -287,6 +287,8 @@ class CalendarPane(QWidget):
                         day_type = "selected"
                     elif date(year, month, day_num) == today:
                         day_type = "today"
+                    elif date(year, month, day_num) < today:
+                        day_type = "past"
                     else:
                         day_type = "normal"
 
@@ -294,8 +296,7 @@ class CalendarPane(QWidget):
 
                     # Add gap indicator for days in the past with no posts
                     if (
-                        day_type == "normal"
-                        and date(year, month, day_num) < today
+                        day_type == "past"
                         and not statuses
                     ):
                         statuses = {"gap": 1}
