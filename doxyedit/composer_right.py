@@ -452,10 +452,7 @@ class ContentPanel(QWidget):
         links_layout.addWidget(self._links_edit)
         layout.addWidget(links_box)
 
-        # --- Schedule ---
-        schedule_box = QGroupBox("Schedule")
-        schedule_layout = QVBoxLayout(schedule_box)
-        sched_row = QHBoxLayout()
+        # Schedule (hidden — left panel is primary, this is the data source)
         self._schedule_edit = QDateTimeEdit()
         self._schedule_edit.setCalendarPopup(True)
         self._schedule_edit.setDisplayFormat("yyyy-MM-dd hh:mm AP")
@@ -464,15 +461,9 @@ class ContentPanel(QWidget):
             QDateTime(tomorrow.year, tomorrow.month, tomorrow.day,
                       tomorrow.hour, tomorrow.minute, 0)
         )
-        sched_row.addWidget(self._schedule_edit, 1)
-        schedule_layout.addLayout(sched_row)
-        # World clock — below date picker, horizontal
+        self._schedule_edit.setVisible(False)
         self._tz_label = QLabel()
-        self._tz_label.setObjectName("composer_tz_clock")
-        self._update_tz_display()
-        self._schedule_edit.dateTimeChanged.connect(lambda _: self._update_tz_display())
-        schedule_layout.addWidget(self._tz_label)
-        layout.addWidget(schedule_box)
+        self._tz_label.setVisible(False)
 
         # --- Release Chain ---
         chain_box = QGroupBox("Release Chain")
