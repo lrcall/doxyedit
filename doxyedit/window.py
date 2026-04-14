@@ -1169,11 +1169,14 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         self._refine_progress = QProgressDialog(
             f"Claude is working on: {mode}...", None, 0, 0, self)
+        self._refine_progress.setObjectName("claude_progress")
         self._refine_progress.setWindowTitle("Claude")
         self._refine_progress.setWindowModality(Qt.WindowModality.ApplicationModal)
-        self._refine_progress.setCancelButton(None)  # no cancel — let it finish
+        self._refine_progress.setCancelButton(None)
         self._refine_progress.setMinimumDuration(0)
+        self._refine_progress.setMinimumWidth(300)
         self._refine_progress.show()
+        self._theme_dialog_titlebar(self._refine_progress)
 
         class _Worker(QThread):
             finished = _Signal(str)

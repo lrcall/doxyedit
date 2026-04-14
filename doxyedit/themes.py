@@ -1549,6 +1549,26 @@ def generate_stylesheet(theme: Theme) -> str:
             font-weight: bold;
         }}
 
+        /* ── Claude progress dialog ──────────────────────────────────── */
+        QProgressDialog#claude_progress {{
+            background: {theme.bg_main};
+            color: {theme.text_primary};
+        }}
+        QProgressDialog#claude_progress QLabel {{
+            color: {theme.text_primary};
+            padding: {pad}px;
+        }}
+        QProgressDialog#claude_progress QProgressBar {{
+            background: {theme.bg_input};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            height: 8px;
+        }}
+        QProgressDialog#claude_progress QProgressBar::chunk {{
+            background: {theme.accent};
+            border-radius: {rad}px;
+        }}
+
         /* ── Composer disabled platform ──────────────────────────────── */
         QCheckBox#composer_platform_disabled {{
             color: {theme.text_muted};
