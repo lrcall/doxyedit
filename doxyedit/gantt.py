@@ -250,6 +250,7 @@ class GanttPanel(QWidget):
         self._label_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._label_area.setWidgetResizable(True)
         self._label_container = QWidget()
+        self._label_container.setObjectName("gantt_label_container")
         self._label_layout = QVBoxLayout(self._label_container)
         self._label_layout.setContentsMargins(4, _HEADER_HEIGHT, 4, 0)
         self._label_layout.setSpacing(0)

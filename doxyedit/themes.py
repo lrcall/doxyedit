@@ -1630,10 +1630,12 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.bg_main};
             border: none;
         }}
-        QScrollArea#gantt_label_area > QWidget {{
+        QScrollArea#gantt_label_area > QWidget,
+        QWidget#gantt_label_container {{
             background: {theme.bg_main};
         }}
         QLabel#gantt_row_label {{
+            background: {theme.bg_main};
             color: {theme.text_secondary};
             font-size: {fs}px;
             padding-right: {pad}px;

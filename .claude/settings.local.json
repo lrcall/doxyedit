@@ -65,9 +65,42 @@
       "Bash(\"C:\\\\Users\\\\dikud\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe\" test_drag.py)",
       "WebFetch(domain:github.com)",
       "Bash(\"C:\\\\Users\\\\dikud\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe\" test_state.py)",
-      "Bash(\"C:\\\\Users\\\\dikud\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe\" test_drag_sel.py)"
+      "Bash(\"C:\\\\Users\\\\dikud\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe\" test_drag_sel.py)",
+      "Bash(xargs basename:*)",
+      "WebFetch(domain:docs.oneupapp.io)",
+      "WebFetch(domain:developers.oneup.com)",
+      "WebFetch(domain:help.oneupapp.io)",
+      "Bash(curl -s \"https://feed.oneupapp.io/mcp/oneup?apiKey=b5e7bf20fd2d907a9f8a\")",
+      "Bash(curl -s -H \"Accept: text/event-stream\" \"https://feed.oneupapp.io/mcp/oneup?apiKey=b5e7bf20fd2d907a9f8a\")",
+      "Bash(curl -s \"https://feed.oneupapp.io/mcp/oneup\")",
+      "WebFetch(domain:support.claude.com)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(curl:*)",
+      "Bash(timeout 10 cat)",
+      "Bash(claude mcp:*)",
+      "Read(//g/B.D. INC Dropbox/Team Yacky/**)",
+      "Read(//g/B.D. INC Dropbox/**)",
+      "Read(//e/git/jenni-trilogy-final/doxyedit/**)",
+      "WebFetch(domain:feed.oneupapp.io)",
+      "mcp__oneup__list-social-accounts-tool",
+      "mcp__oneup__list-categories-tool",
+      "mcp__oneup__list-category-accounts-tool",
+      "mcp__oneup__get-scheduled-posts-tool",
+      "Bash(/c/Users/dikud/AppData/Local/Programs/Python/Python310/python:*)",
+      "Bash(py:*)",
+      "Bash(/c/Users/dikud/AppData/Local/Programs/Python/Python311/python.exe E:/git/doxyedit/_test_gantt.py)",
+      "Bash(cmd.exe:*)",
+      "Bash(cmd:*)",
+      "Bash(/c/Users/dikud/AppData/Local/Programs/Python/Python311/python.exe:*)",
+      "Bash(PYTHONPATH=E:/git/doxyedit C:/Users/dikud/AppData/Local/Programs/Python/Python311/python.exe:*)",
+      "Skill(claude-md-management:revise-claude-md)"
     ]
   },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "oneup"
+  ],
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/focus_status.sh '/e/git/doxyedit'"

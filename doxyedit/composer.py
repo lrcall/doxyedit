@@ -189,8 +189,7 @@ class PostComposerWidget(QWidget):
     # ------------------------------------------------------------------
 
     def set_compact(self, compact: bool) -> None:
-        """Hide or show the left panel for narrow docked layout."""
-        self._left_wrapper.setVisible(not compact)
+        """Mark as docked — same horizontal layout as floating."""
         self._dock_btn.setChecked(compact)
 
     # ------------------------------------------------------------------

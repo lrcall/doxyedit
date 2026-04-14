@@ -294,7 +294,7 @@ class MainWindow(QMainWindow):
         self._social_left_split.addWidget(self.checklist_panel)
         self._social_left_split.setSizes([350, 200])
         self._social_left_split.setStretchFactor(0, 1)
-        self._social_left_split.setStretchFactor(1, 0)
+        self._social_left_split.setStretchFactor(1, 1)
 
         # Dock container for composer (initially hidden, docks beside timeline)
         self._composer_dock = QWidget()
@@ -339,9 +339,9 @@ class MainWindow(QMainWindow):
             while len(sizes) < 3:
                 sizes.append(0)
             self._social_top_split.setSizes(sizes)
-        saved_social_left = self._settings_early.value("social_left_splitter", None)
-        if saved_social_left:
-            self._social_left_split.setSizes([int(s) for s in saved_social_left])
+        self._social_left_saved = self._settings_early.value("social_left_splitter", None)
+        if self._social_left_saved:
+            self._social_left_split.setSizes([int(s) for s in self._social_left_saved])
 
         self.tabs.addTab(self._social_split, "Social")
 
@@ -683,6 +683,8 @@ class MainWindow(QMainWindow):
         self._register_initial_slot(first, Path(first).stem)
         self._rebind_project(clear_folder_state=True)
         self.setWindowTitle(f"DoxyEdit — {Path(first).name}")
+        if self.project.theme_id and self.project.theme_id in THEMES:
+            self._apply_theme(self.project.theme_id)
         # Load remaining projects as additional tabs
         failed = []
         for path in paths[1:]:
@@ -761,6 +763,9 @@ class MainWindow(QMainWindow):
         self._rebind_project(clear_folder_state=True)
         self.setWindowTitle(f"DoxyEdit — {slot['label']}")
         self._proj_tab_bar.setTabText(idx, slot["label"])
+        # Apply per-project theme
+        if self.project.theme_id and self.project.theme_id in THEMES:
+            self._apply_theme(self.project.theme_id)
 
     def _close_proj_tab(self, idx: int):
         if len(self._project_slots) <= 1:
@@ -2491,18 +2496,25 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             post.status = SocialPostStatus.DRAFT
             return
 
-        if not post.platforms:
-            print("[OneUp Push] ERROR: No platforms selected")
-            self.status.showMessage("No accounts selected — check platforms first", 5000)
+        # Filter to only OneUp-connected accounts (not subscription platforms)
+        from doxyedit.models import SUB_PLATFORMS
+        from doxyedit.oneup import get_connected_platforms
+        sub_ids = set(SUB_PLATFORMS.keys())
+        connected_ids = {p["id"] for p in get_connected_platforms(project_dir)}
+        oneup_platforms = [p for p in post.platforms if p not in sub_ids and p in connected_ids]
+
+        if not oneup_platforms:
+            print(f"[OneUp Push] No OneUp accounts in platforms: {post.platforms}")
+            self.status.showMessage("No OneUp accounts selected — subscription platforms use quick-post", 5000)
             return
 
         pushed = 0
         failed = 0
         oneup_ids = []
-        for account_id in post.platforms:
+        for account_id in oneup_platforms:
             caption = post.captions.get(account_id, post.caption_default)
             print(f"[OneUp Push]   → {account_id}  sched={sched}  caption={caption[:40]!r}")
-            result = client.schedule_post(
+            result = client.schedule_via_mcp(
                 content=caption,
                 social_network_id=account_id,
                 scheduled_date_time=sched,
@@ -2733,6 +2745,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _on_inner_tab_changed(self, idx: int):
         widget = self.tabs.widget(idx)
+        # Deferred restore for Social tab splitters (Qt needs visible geometry)
+        if widget is self._social_split and getattr(self, '_social_left_saved', None):
+            from PySide6.QtCore import QTimer
+            saved = self._social_left_saved
+            self._social_left_saved = None  # one-shot
+            QTimer.singleShot(0, lambda: self._social_left_split.setSizes([int(s) for s in saved]))
         if widget is self._overview_split:
             self.stats_panel.folder_bar_color = self._theme.accent_bright
             self.stats_panel.refresh()
@@ -3415,6 +3433,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.project = Project.load(self._project_path)
         self._rebind_project()
         self.browser.set_filter_state(saved_filters)
+        if self.project.theme_id and self.project.theme_id in THEMES:
+            self._apply_theme(self.project.theme_id)
         self._dirty = False
         self.status.showMessage(f"Reloaded project from disk", 2000)
 
@@ -3509,7 +3529,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             return
         proj_dir = Path(self._project_path).parent
         assets_dir = proj_dir / "_assets"
-        # Confirm
         total = sum(1 for a in self.project.assets if a.source_path)
         reply = QMessageBox.question(
             self, "Package Project",
@@ -3520,15 +3539,15 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         )
         if reply != QMessageBox.StandardButton.Ok:
             return
-        # Run transport
-        import subprocess
-        result = subprocess.run(
-            ["py", "-m", "doxyedit", "transport", self._project_path],
-            capture_output=True, text=True, cwd=str(proj_dir),
-        )
-        output = (result.stdout + result.stderr).strip()
-        if result.returncode == 0:
-            # Reload project to pick up new paths
+        self.status.showMessage("Packaging project...", 0)
+        QApplication.processEvents()
+        try:
+            import io, contextlib
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                from doxyedit.__main__ import cmd_transport
+                cmd_transport(self._project_path, [])
+            output = buf.getvalue().strip()
             self.project = type(self.project).load(self._project_path)
             self._rebind_project(clear_folder_state=True)
             if hasattr(self, '_local_mode_action'):
@@ -3536,8 +3555,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 self._local_mode_action.setChecked(True)
                 self._local_mode_action.blockSignals(False)
             QMessageBox.information(self, "Package Complete", output)
-        else:
-            QMessageBox.warning(self, "Package Failed", output)
+        except Exception as e:
+            QMessageBox.warning(self, "Package Failed", str(e))
 
     def _untransport_project(self):
         """Restore original absolute paths from transport metadata."""
@@ -3553,14 +3572,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         )
         if reply != QMessageBox.StandardButton.Ok:
             return
-        import subprocess
-        proj_dir = Path(self._project_path).parent
-        result = subprocess.run(
-            ["py", "-m", "doxyedit", "untransport", self._project_path],
-            capture_output=True, text=True, cwd=str(proj_dir),
-        )
-        output = (result.stdout + result.stderr).strip()
-        if result.returncode == 0:
+        try:
+            import io, contextlib
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                from doxyedit.__main__ import cmd_untransport
+                cmd_untransport(self._project_path)
+            output = buf.getvalue().strip()
             self.project = type(self.project).load(self._project_path)
             self._rebind_project(clear_folder_state=True)
             if hasattr(self, '_local_mode_action'):
@@ -3568,8 +3586,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 self._local_mode_action.setChecked(False)
                 self._local_mode_action.blockSignals(False)
             QMessageBox.information(self, "Unpackage Complete", output)
-        else:
-            QMessageBox.warning(self, "Unpackage Failed", output)
+        except Exception as e:
+            QMessageBox.warning(self, "Unpackage Failed", str(e))
 
     def _on_shared_cache_toggled(self, shared: bool):
         self._settings.setValue("shared_cache", "true" if shared else "false")

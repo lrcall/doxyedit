@@ -56,6 +56,10 @@ class OneUpClient:
                     result = json.loads(raw)
                 except json.JSONDecodeError:
                     result = {"raw": raw}
+                # OneUp returns 200 OK even for errors — check the body
+                if result.get("error") is True:
+                    return OneUpResult(success=False, data=result,
+                                      error=result.get("message", "Unknown API error"))
                 return OneUpResult(success=True, data=result)
         except HTTPError as e:
             error_body = e.read().decode("utf-8", errors="replace")
@@ -120,6 +124,61 @@ class OneUpClient:
             scheduled_date_time=scheduled_date_time,
         )
 
+    def schedule_via_mcp(self, *, content: str, social_network_id: str = "ALL",
+                         scheduled_date_time: str = "",
+                         category_id: int = 0) -> OneUpResult:
+        """Schedule a post via the OneUp MCP server (more reliable than REST)."""
+        import json as _json
+        mcp_url = f"https://feed.oneupapp.io/mcp/oneup?apiKey={self.api_key}"
+        cat = category_id or (int(self.category_id) if self.category_id else 0)
+
+        try:
+            # Initialize MCP session
+            init = {
+                "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                           "clientInfo": {"name": "doxyedit", "version": "2.3"}},
+            }
+            req = Request(mcp_url, data=_json.dumps(init).encode(),
+                          headers={"Content-Type": "application/json"})
+            resp = urlopen(req, timeout=15)
+            resp.read()
+            sid = resp.headers.get("MCP-Session-Id", "")
+
+            # Schedule post
+            args = {
+                "content": content,
+                "social_network_id": social_network_id,
+                "scheduled_date_time": scheduled_date_time,
+            }
+            if cat:
+                args["category_id"] = cat
+
+            call = {
+                "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                "params": {"name": "schedule-text-post-tool", "arguments": args},
+            }
+            headers = {"Content-Type": "application/json"}
+            if sid:
+                headers["MCP-Session-Id"] = sid
+            req2 = Request(mcp_url, data=_json.dumps(call).encode(), headers=headers)
+            resp2 = urlopen(req2, timeout=15)
+            data = _json.loads(resp2.read().decode())
+
+            text = data.get("result", {}).get("content", [{}])[0].get("text", "")
+            try:
+                result = _json.loads(text)
+            except (_json.JSONDecodeError, TypeError):
+                result = {"message": text}
+
+            if result.get("success"):
+                return OneUpResult(success=True, data=result)
+            else:
+                return OneUpResult(success=False, data=result,
+                                  error=result.get("message", text))
+        except Exception as e:
+            return OneUpResult(success=False, data={}, error=str(e))
+
     # ---- Post management (these endpoints are guessed — adjust when confirmed) ----
 
     def get_post(self, post_id: str) -> OneUpResult:
@@ -139,6 +198,21 @@ class OneUpClient:
         return self._request("GET", "social-accounts")
 
 
+def _find_config(project_dir: str) -> Path:
+    """Find config.yaml — check project_dir, then repo root, then CWD."""
+    p = Path(project_dir) / "config.yaml"
+    if p.exists():
+        return p
+    # Repo root = parent of this package (doxyedit/ -> E:\git\doxyedit\)
+    repo = Path(__file__).resolve().parent.parent / "config.yaml"
+    if repo.exists():
+        return repo
+    cwd = Path.cwd() / "config.yaml"
+    if cwd.exists():
+        return cwd
+    return p
+
+
 def get_client_from_config(project_dir: str) -> Optional[OneUpClient]:
     """Load OneUp client from config.yaml or env var.
 
@@ -150,7 +224,7 @@ def get_client_from_config(project_dir: str) -> Optional[OneUpClient]:
 
     Falls back to flat format: oneup: { api_key: "...", category_id: "..." }
     """
-    config_path = Path(project_dir) / "config.yaml"
+    config_path = _find_config(project_dir)
     api_key = ""
     category_id = ""
     if config_path.exists():
@@ -181,7 +255,7 @@ def get_client_from_config(project_dir: str) -> Optional[OneUpClient]:
 
 def get_active_account_label(project_dir: str) -> str:
     """Return the label of the currently active OneUp account."""
-    config_path = Path(project_dir) / "config.yaml"
+    config_path = _find_config(project_dir)
     if not config_path.exists():
         return ""
     try:
@@ -198,11 +272,35 @@ def get_active_account_label(project_dir: str) -> str:
         return ""
 
 
+def get_categories(project_dir: str) -> list[dict]:
+    """Return categories with their accounts for the active OneUp account.
+
+    Each entry: {"id": 86698, "name": "Doxy", "accounts": [{"id": ..., "name": ..., "platform": ...}]}
+    Returns empty list if no categories configured.
+    """
+    config_path = _find_config(project_dir)
+    if config_path.exists():
+        try:
+            import yaml
+            config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+            oneup = config.get("oneup") or {}
+            accounts = oneup.get("accounts")
+            if accounts and isinstance(accounts, dict):
+                active = oneup.get("active_account", "")
+                acct = accounts.get(active) or next(iter(accounts.values()), {})
+                categories = acct.get("categories", [])
+                if categories:
+                    return categories
+        except Exception:
+            pass
+    return []
+
+
 def get_connected_platforms(project_dir: str) -> list[dict]:
     """Return connected platforms for the active OneUp account.
     Each entry: {"id": "twitter", "name": "Twitter/X"}
     Falls back to default list if not configured."""
-    config_path = Path(project_dir) / "config.yaml"
+    config_path = _find_config(project_dir)
     if config_path.exists():
         try:
             import yaml
@@ -226,7 +324,7 @@ def get_connected_platforms(project_dir: str) -> list[dict]:
 
 def list_account_names(project_dir: str) -> list[tuple[str, str]]:
     """Return [(id, label), ...] of all configured OneUp accounts."""
-    config_path = Path(project_dir) / "config.yaml"
+    config_path = _find_config(project_dir)
     if not config_path.exists():
         return []
     try:
@@ -247,7 +345,7 @@ def sync_accounts_from_mcp(project_dir: str) -> list[dict]:
     import json as _json
     from urllib.request import Request, urlopen
 
-    config_path = Path(project_dir) / "config.yaml"
+    config_path = _find_config(project_dir)
     if not config_path.exists():
         return []
 
@@ -306,9 +404,57 @@ def sync_accounts_from_mcp(project_dir: str) -> list[dict]:
                 "platform": a["social_network_type"],
             })
 
+        # Fetch categories and their accounts
+        categories = []
+        try:
+            cat_call = {
+                "jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                "params": {"name": "list-categories-tool", "arguments": {}},
+            }
+            req3 = Request(mcp_url, data=_json.dumps(cat_call).encode(), headers=headers)
+            resp3 = urlopen(req3, timeout=15)
+            cat_data = _json.loads(resp3.read().decode())
+            cat_text = cat_data.get("result", {}).get("content", [{}])[0].get("text", "")
+            raw_cats = _json.loads(cat_text).get("categories", [])
+
+            for cat in raw_cats:
+                cat_id = cat["id"]
+                cat_name = cat.get("category_name", str(cat_id))
+                # Fetch accounts for this category
+                ca_call = {
+                    "jsonrpc": "2.0", "id": 4, "method": "tools/call",
+                    "params": {"name": "list-category-accounts-tool",
+                               "arguments": {"category_id": cat_id}},
+                }
+                req4 = Request(mcp_url, data=_json.dumps(ca_call).encode(), headers=headers)
+                resp4 = urlopen(req4, timeout=15)
+                ca_data = _json.loads(resp4.read().decode())
+                ca_text = ca_data.get("result", {}).get("content", [{}])[0].get("text", "")
+                raw_ca = _json.loads(ca_text).get("accounts", [])
+
+                cat_accounts = []
+                for ca in raw_ca:
+                    ptype = ca.get("social_network_type", "")
+                    if isinstance(ptype, int):
+                        ptype = {13: "Reddit"}.get(ptype, str(ptype))
+                    cat_accounts.append({
+                        "id": ca["social_network_id"],
+                        "name": ca.get("social_network_name", ca["social_network_id"]),
+                        "platform": ptype,
+                    })
+                categories.append({
+                    "id": cat_id,
+                    "name": cat_name,
+                    "accounts": cat_accounts,
+                })
+        except Exception:
+            pass  # categories sync is best-effort
+
         # Save to config.yaml
         if active and active in accounts_cfg:
             accounts_cfg[active]["connected"] = connected
+            if categories:
+                accounts_cfg[active]["categories"] = categories
         config["oneup"] = oneup
         config["oneup"]["accounts"] = accounts_cfg
         config_path.write_text(

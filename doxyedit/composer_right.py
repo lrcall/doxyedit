@@ -519,9 +519,11 @@ class ContentPanel(QWidget):
         self.platforms_changed.emit(platforms)
 
     def _on_category_changed(self, _index: int) -> None:
-        """Rebuild account checkboxes and per-platform captions when category changes."""
+        """Rebuild account checkboxes, captions, and chain when category changes."""
         self._rebuild_account_checkboxes()
         self._rebuild_per_platform_captions()
+        if self._release_steps:
+            self._rebuild_chain_ui()
 
     def _rebuild_account_checkboxes(self) -> None:
         """Clear and rebuild the account checkboxes for the selected category."""
@@ -1107,6 +1109,27 @@ RULES:
             ]
             self._rebuild_chain_ui()
 
+    def _get_chain_platforms(self) -> list[dict]:
+        """Return platforms available for release chain steps —
+        current category accounts + checked subscription platforms."""
+        # Category accounts
+        accounts = self._connected
+        if self._categories and self._category_combo is not None:
+            cat_id = self._category_combo.currentData()
+            for cat in self._categories:
+                if cat["id"] == cat_id:
+                    accounts = cat.get("accounts", [])
+                    break
+
+        # Add subscription platforms
+        from doxyedit.models import SUB_PLATFORMS
+        result = list(accounts)
+        for sub_id, cb in self._sub_platform_checks.items():
+            sub = SUB_PLATFORMS.get(sub_id)
+            if sub:
+                result.append({"id": sub.id, "name": sub.name, "platform": "Sub"})
+        return result
+
     def _rebuild_chain_ui(self) -> None:
         """Clear and rebuild the step rows from self._release_steps."""
         # Clear existing widgets
@@ -1115,6 +1138,8 @@ RULES:
             w = item.widget()
             if w:
                 w.deleteLater()
+
+        chain_platforms = self._get_chain_platforms()
 
         for idx, step in enumerate(self._release_steps):
             row = QWidget()
@@ -1132,7 +1157,7 @@ RULES:
             # Platform combo
             plat_combo = QComboBox()
             plat_combo.setObjectName("composer_chain_platform")
-            for p in self._connected:
+            for p in chain_platforms:
                 plat_combo.addItem(p.get("name", p["id"]), p["id"])
             # Set current
             plat_idx = plat_combo.findData(step["platform"])

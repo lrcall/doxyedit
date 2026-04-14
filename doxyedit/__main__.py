@@ -698,27 +698,34 @@ def cmd_post_push(project_path: str, args: list):
 
     pushed = failed = 0
     for post in targets:
-        # Format scheduled time for OneUp: "YYYY-MM-DD HH:MM"
         sched = ""
         if post.scheduled_time:
             sched = post.scheduled_time[:16].replace("T", " ")
-        result = client.schedule_post(
-            content=post.caption_default,
-            image_urls=None,  # TODO: need public image URLs
-            social_network_id="ALL",
-            scheduled_date_time=sched,
-        )
-        if result.success:
-            post.oneup_post_id = result.data.get("id", "")
+
+        accounts = post.platforms if post.platforms else ["ALL"]
+        oneup_ids = []
+        for account_id in accounts:
+            caption = post.captions.get(account_id, post.caption_default)
+            result = client.schedule_post(
+                content=caption,
+                image_urls=None,
+                social_network_id=account_id,
+                scheduled_date_time=sched,
+            )
+            if result.success:
+                oneup_ids.append(str(result.data.get("id", "")))
+                pushed += 1
+                print(f"  ✓ Pushed {post.id[:8]}... → {account_id}")
+            else:
+                failed += 1
+                print(f"  ✗ Failed {post.id[:8]}... → {account_id}: {result.error[:60]}")
+
+        if oneup_ids:
+            post.oneup_post_id = ",".join(oneup_ids)
             post.status = SocialPostStatus.QUEUED
-            post.updated_at = datetime.now().isoformat()
-            pushed += 1
-            print(f"  ✓ Pushed {post.id[:8]}... → OneUp")
         else:
             post.status = SocialPostStatus.FAILED
-            post.updated_at = datetime.now().isoformat()
-            failed += 1
-            print(f"  ✗ Failed {post.id[:8]}...: {result.error}")
+        post.updated_at = datetime.now().isoformat()
 
     proj.save(project_path)
     print(f"\nPushed {pushed}, failed {failed}")
