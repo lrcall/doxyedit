@@ -22,6 +22,12 @@ Commands:
     post push <project.json> [post-id|--all-drafts]  Push to OneUp
     post sync <project.json>  Sync post statuses from OneUp
     post delete <project.json> <post-id>  Delete a post
+    plan-posts <project.json> [options]   Full briefing for Claude to plan posting strategy
+    flatten <project.json> --asset <id>   Flatten PSD layers + optional crop extraction
+    watermark <project.json> --asset <id> Apply watermark/text overlay to exported image
+    reminders <project.json>  Show pending release chain steps and cadence reminders
+    transport <project.json> [--dry-run]  Copy all assets next to project file + enable local mode
+    untransport <project.json>            Restore original paths from transport metadata
 """
 import sys
 import os
@@ -1313,6 +1319,164 @@ def cmd_suggest(project_path: str, args: list):
     print(f"\n--- {len(top)} suggestion(s) from {len(candidates)} unscheduled assets ---")
 
 
+def cmd_transport(project_path: str, args: list):
+    """Copy all referenced files into _assets/ next to the project file.
+
+    Preserves folder structure relative to detected common roots.
+    Stores original paths in each asset's specs.original_path / specs.original_folder.
+    Enables local_mode so the project becomes fully portable.
+    """
+    import shutil
+    from doxyedit.models import Project
+
+    dry_run = "--dry-run" in args
+    proj = Project.load(project_path)
+    proj_dir = Path(project_path).parent
+    assets_dir = proj_dir / "_assets"
+
+    if not dry_run:
+        assets_dir.mkdir(exist_ok=True)
+
+    # Known roots — strip these prefixes to get the meaningful relative path.
+    # Order matters: longer/more-specific roots first.
+    KNOWN_ROOTS = [
+        os.path.normpath(r"G:\B.D. INC Dropbox\Team TODO\-- COMPLETED --"),
+        os.path.normpath(r"G:\B.D. INC Dropbox\Team Yacky"),
+        os.path.normpath(r"G:\B.D. INC Dropbox"),
+    ]
+
+    def _relative_under_root(abs_path: str) -> str:
+        """Strip the longest matching known root to get the meaningful relative path."""
+        normed = os.path.normpath(abs_path)
+        for root in KNOWN_ROOTS:
+            if normed.lower().startswith(root.lower() + os.sep) or normed.lower() == root.lower():
+                remainder = normed[len(root):].lstrip(os.sep)
+                return remainder
+        # Fallback: use last 3 path segments (avoids collisions while staying readable)
+        parts = Path(normed).parts
+        return str(Path(*parts[-3:])) if len(parts) >= 3 else str(Path(*parts))
+
+    copied = 0
+    skipped = 0
+    missing = 0
+    errors = 0
+    already_local = 0
+
+    for asset in proj.assets:
+        if not asset.source_path:
+            skipped += 1
+            continue
+
+        src = Path(asset.source_path)
+
+        # Already under _assets (previously transported)
+        try:
+            src.relative_to(assets_dir)
+            already_local += 1
+            continue
+        except ValueError:
+            pass
+
+        if not src.exists():
+            missing += 1
+            if dry_run:
+                print(f"  MISSING: {asset.source_path}")
+            continue
+
+        # Compute destination
+        rel = _relative_under_root(asset.source_path)
+        dest = assets_dir / rel
+
+        # Handle filename collision (different source, same relative path)
+        if dest.exists() and not os.path.samefile(src, dest):
+            stem = dest.stem
+            suffix = dest.suffix
+            counter = 2
+            while dest.exists():
+                dest = dest.parent / f"{stem}_{counter}{suffix}"
+                rel = str(dest.relative_to(assets_dir))
+                counter += 1
+
+        if dry_run:
+            print(f"  {asset.source_path}")
+            print(f"    -> _assets/{rel}")
+            copied += 1
+            continue
+
+        # Copy file
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(src), str(dest))
+        except Exception as e:
+            print(f"  ERROR copying {asset.source_path}: {e}")
+            errors += 1
+            continue
+
+        # Store original paths in specs
+        asset.specs["original_path"] = asset.source_path
+        asset.specs["original_folder"] = asset.source_folder
+
+        # Update to local path
+        asset.source_path = str(dest)
+        asset.source_folder = str(dest.parent)
+        copied += 1
+
+    if not dry_run:
+        # Store transport metadata on the project
+        proj.local_mode = True
+        now = datetime.now().isoformat()
+        proj.oneup_config.setdefault("transport", {})
+        proj.oneup_config["transport"] = {
+            "transported_at": now,
+            "known_roots": [str(r) for r in KNOWN_ROOTS],
+            "assets_dir": "_assets",
+        }
+        proj.save(project_path)
+
+    label = "DRY RUN — " if dry_run else ""
+    print(f"\n{label}Transport complete:")
+    print(f"  Copied:        {copied}")
+    print(f"  Already local: {already_local}")
+    print(f"  Skipped:       {skipped} (no source_path)")
+    print(f"  Missing:       {missing} (file not found)")
+    if errors:
+        print(f"  Errors:        {errors}")
+    if not dry_run:
+        print(f"\nProject saved with local_mode=True.")
+        print(f"Assets stored in: {assets_dir}")
+
+
+def cmd_untransport(project_path: str):
+    """Restore original absolute paths from transport metadata in specs."""
+    from doxyedit.models import Project
+
+    proj = Project.load(project_path)
+    restored = 0
+    no_meta = 0
+
+    for asset in proj.assets:
+        original = asset.specs.get("original_path", "")
+        if original:
+            asset.source_path = original
+            asset.source_folder = asset.specs.get("original_folder", "")
+            del asset.specs["original_path"]
+            if "original_folder" in asset.specs:
+                del asset.specs["original_folder"]
+            restored += 1
+        else:
+            no_meta += 1
+
+    proj.local_mode = False
+    if "transport" in proj.oneup_config:
+        del proj.oneup_config["transport"]
+    proj.save(project_path)
+
+    print(f"Untransport complete:")
+    print(f"  Restored: {restored}")
+    print(f"  No metadata: {no_meta} (left unchanged)")
+    print(f"\nProject saved with local_mode=False.")
+
+
 def main():
     args = sys.argv[1:]
 
@@ -1472,6 +1636,16 @@ def main():
             print("Usage: python -m doxyedit watermark <project.json> --asset <id> [--watermark img.png] [--text 'text'] [--opacity 0.3] [--position bottom-right] [--output dir]")
             sys.exit(1)
         cmd_watermark(args[1], args[2:])
+    elif cmd == "transport":
+        if len(args) < 2:
+            print("Usage: python -m doxyedit transport <project.json> [--dry-run]")
+            sys.exit(1)
+        cmd_transport(args[1], args[2:])
+    elif cmd == "untransport":
+        if len(args) < 2:
+            print("Usage: python -m doxyedit untransport <project.json>")
+            sys.exit(1)
+        cmd_untransport(args[1])
     else:
         print(__doc__)
         sys.exit(1)

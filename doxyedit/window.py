@@ -667,6 +667,9 @@ class MainWindow(QMainWindow):
             self._rebind_project()
             self._restore_folder_state()
             self.setWindowTitle(f"DoxyEdit — {Path(last_project).name}")
+            # Apply project-saved theme if set
+            if self.project.theme_id and self.project.theme_id in THEMES:
+                self._apply_theme(self.project.theme_id)
             self.status.showMessage(f"Restored: {Path(last_project).name}")
             return
         self._register_initial_slot(None, "New Project")
@@ -890,6 +893,9 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(generate_stylesheet(self._theme))
         self._settings.setValue("theme", theme_id)
         self._settings.sync()
+        # Save theme to current project so it persists with the file
+        if hasattr(self, 'project') and self.project:
+            self.project.theme_id = theme_id
         self._tint_titlebar(proj_accent)
         # Panels with deeply nested widgets that need explicit theme
         if hasattr(self, '_kanban_panel'):
@@ -1689,7 +1695,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # Help menu
         help_menu = menu.addMenu("&Help")
         help_menu.addAction("Keyboard Shortcuts", self._show_shortcuts)
-        help_menu.addAction("What's New (v2.2)", self._show_whats_new)
+        help_menu.addAction("What's New (v2.3)", self._show_whats_new)
         help_menu.addAction("About DoxyEdit", self._show_about)
 
     def _setup_tag_shortcuts(self):
@@ -2149,6 +2155,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if 0 <= self._current_slot < len(self._project_slots):
             self._project_slots[self._current_slot]["project"] = self.project
             self._project_slots[self._current_slot]["path"] = path
+        # Apply project-saved theme if set
+        if self.project.theme_id and self.project.theme_id in THEMES:
+            self._apply_theme(self.project.theme_id)
         self.status.showMessage(f"Opened {Path(path).name}")
 
     def _open_recent_folder(self, folder: str):
@@ -2485,7 +2494,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _float_composer_dialog(self, post=None, is_new=True):
         """Open composer as a floating QDialog."""
-        dlg = PostComposer(self.project, post=post, parent=self)
+        proj_dir = str(Path(self._project_path).parent) if self._project_path else "."
+        dlg = PostComposer(self.project, post=post, project_dir=proj_dir, parent=self)
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         # Capture post/is_new for potential dock toggle
         _post = post
@@ -2511,7 +2521,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _dock_composer(self, project, post, is_new):
         """Embed the composer widget into the Social tab dock pane."""
-        widget = PostComposerWidget(project, post, parent=self._composer_dock)
+        proj_dir = str(Path(self._project_path).parent) if self._project_path else "."
+        widget = PostComposerWidget(project, post, project_dir=proj_dir, parent=self._composer_dock)
         widget.set_compact(True)
         # Clear old docked widget if any
         layout = self._composer_dock.layout()
@@ -3900,41 +3911,40 @@ Ctrl+Click tag — Search by tag
     def _show_whats_new(self):
         from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
         dlg = QDialog(self)
-        dlg.setWindowTitle("What's New in v2.2")
-        dlg.resize(520, 480)
+        dlg.setWindowTitle("What's New in v2.3")
+        dlg.resize(560, 540)
         layout = QVBoxLayout(dlg)
         text = QTextEdit()
         text.setReadOnly(True)
         text.setMarkdown(
-            "# What's New in v2.2\n\n"
-            "## New Panels & Views\n"
-            "- **File Browser** (Ctrl+B) — folder tree with asset counts, search, pinned folders, drag-to-import\n"
-            "- **Info Panel** (sidebar) — asset metadata with inline tag editing (pill widgets + autocomplete) and notes\n"
-            "- **Schedule tab** — Kanban board with drag-drop status columns (Pending/Ready/Posted/Skip)\n"
-            "- **Smart Folders** (View menu) — save and load filter presets\n\n"
-            "## Preview Enhancements\n"
-            "- **Pop-out button** — float docked preview into a full dialog\n"
-            "- **Resizable crop handles** — 8 drag handles on crop regions for post-drawing editing\n"
-            "- **Grouped crop presets** — dropdown organized by platform with section headers\n"
-            "- **Multi-monitor fix** — preview remembers position correctly across monitors\n\n"
-            "## Tools\n"
-            "- **Find Similar Images** (Tools menu) — perceptual hash grouping for variant detection\n"
-            "- **Edit Project Config** (Tools menu) — YAML config for custom platform definitions\n"
-            "- **Reload Collection** (File menu) — reload last saved collection with missing-file warnings\n\n"
-            "## Visual & Performance\n"
-            "- **Color palette swatches** — dominant colors extracted during thumbnail generation, shown in Info Panel\n"
-            "- **Toolbar declutter** — Recursive, Hover Preview, Cache All, Folder Scan moved to View/Tools menus\n"
-            "- **Folder view fix** — no more overlapping folder sections in By Folder sort\n"
-            "- **Tray performance** — O(1) asset lookup replaces linear scans\n"
-            "- **Nuitka build** — 11 new exclusions for smaller executable\n"
-            "- **Theme audit** — all new panels respect theme colors\n\n"
-            "## Keyboard Shortcuts\n"
-            "| Shortcut | Action |\n"
-            "|----------|--------|\n"
-            "| Ctrl+B | File Browser |\n"
-            "| | (Info Panel now in sidebar) |\n"
-            "| Ctrl+D | Docked Preview |\n"
-            "| C | Crop tool (in preview) |\n"
+            "# What's New in v2.3\n\n"
+            "## Social Media Suite\n"
+            "- **Gantt chart** in Social tab — visual timeline of all posts\n"
+            "- **AI Strategy** — Claude analyzes your art + context for posting advice\n"
+            "- **Release chains** — stagger posts across platforms (Twitter -> 48h -> Patreon)\n"
+            "- **Calendar** with JST clock + day filtering\n"
+            "- **Reminders** for due release steps\n\n"
+            "## Subscription Platforms\n"
+            "- **Quick-post** for Patreon, Fanbox, Fantia, Ci-en, Gumroad, Ko-fi\n"
+            "- **Tiered content** (free/basic/premium)\n"
+            "- **Japanese + English** dual captions\n\n"
+            "## Campaign Planning\n"
+            "- **Campaign + milestone tracking** for Kickstarter/Steam/merch\n"
+            "- **Cross-project schedule** awareness + conflict detection\n\n"
+            "## Composer\n"
+            "- **Two-column layout** with image preview + SFW/NSFW toggle\n"
+            "- **Dock/float toggle** — dock into Social tab or float as dialog\n"
+            "- **Connected OneUp accounts** with category support\n\n"
+            "## Notes\n"
+            "- **Tabbed notes** (General + Agent Primer + custom)\n"
+            "- **Right-click Claude actions** (Refine, Expand, Research, [Instruct])\n"
+            "- **Centered 1200px** reading column\n\n"
+            "## Canvas\n"
+            "- **Overlay Editor** — watermark, text, logo placement\n"
+            "- **Non-destructive overlays** applied on export\n\n"
+            "## Shortcuts\n"
+            "- All existing shortcuts still work\n"
+            "- **Middle-click** preview on timeline post cards\n"
         )
         layout.addWidget(text)
         close = QPushButton("Close")
