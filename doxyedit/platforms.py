@@ -806,6 +806,11 @@ class PlatformPanel(QWidget):
             status_btn.setEnabled(False)
         v.addWidget(status_btn)
 
+        # Context menu (same as card view)
+        cell.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        cell.customContextMenuRequested.connect(
+            lambda pos, p=pid, s=slot, e=entries: self._slot_context_menu(cell, pos, p, s, e))
+
         # Multi-asset indicator
         if len(entries) > 1:
             multi = QLabel(f"+{len(entries)-1} more")

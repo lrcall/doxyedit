@@ -127,6 +127,8 @@ class CalendarPane(QWidget):
         self._project: Project | None = None
         self._current_month: date = date.today().replace(day=1)
         self._selected_iso: str = ""
+        self._cross_cache = None
+        self._cross_exclude = ""
 
         self._build_ui()
 
@@ -135,6 +137,10 @@ class CalendarPane(QWidget):
     def set_project(self, project: Project) -> None:
         self._project = project
         self.refresh()
+
+    def set_cross_project(self, cache, exclude_path: str = "") -> None:
+        self._cross_cache = cache
+        self._cross_exclude = exclude_path
 
     def refresh(self) -> None:
         self._populate_grid()
@@ -233,6 +239,12 @@ class CalendarPane(QWidget):
                     day_key = post.scheduled_time[:10]
                     st = post.status if post.status else "draft"
                     day_statuses[day_key][st] += 1
+        # Inject cross-project posts as "xproject" status
+        if self._cross_cache:
+            for xp in self._cross_cache.get_all_schedules(exclude_path=self._cross_exclude):
+                xp_time = xp.get("scheduled_time", "")
+                if xp_time:
+                    day_statuses[xp_time[:10]]["xproject"] += 1
 
         # calendar.monthcalendar gives weeks starting Monday
         weeks = calendar.monthcalendar(year, month)

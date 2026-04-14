@@ -170,6 +170,8 @@ class GanttPanel(QWidget):
         self._theme = None
         self._px_per_day = 60
         self._platform_order: list[str] = []
+        self._cross_cache = None
+        self._cross_exclude = ""
 
         self._build_ui()
 
@@ -178,6 +180,10 @@ class GanttPanel(QWidget):
     def set_project(self, project: Project) -> None:
         self._project = project
         self.refresh()
+
+    def set_cross_project(self, cache, exclude_path: str = "") -> None:
+        self._cross_cache = cache
+        self._cross_exclude = exclude_path
 
     def set_theme(self, theme) -> None:
         self._theme = theme
@@ -468,6 +474,92 @@ class GanttPanel(QWidget):
                                     theme=theme, thumb_path=thumb)
                     self._scene.addItem(bar)
                     plat_dates[plat].append(post_date)
+
+        # Campaign milestone markers
+        if self._project and self._project.campaigns:
+            for campaign in self._project.campaigns:
+                cam_color = QColor(campaign.color) if campaign.color else _theme_color(theme, "warning")
+                cam_color.setAlpha(180)
+                # Campaign span bar (if launch_date and end_date)
+                if campaign.launch_date and campaign.end_date:
+                    try:
+                        c_start = date.fromisoformat(campaign.launch_date)
+                        c_end = date.fromisoformat(campaign.end_date)
+                        if c_end >= d_start and c_start <= d_end:
+                            cx = max(0, (c_start - d_start).days) * ppd
+                            cx2 = min(total_days, (c_end - d_start).days + 1) * ppd
+                            span_pen = QPen(cam_color, 0)
+                            span_brush = QBrush(cam_color)
+                            span_brush.color().setAlpha(30)
+                            span_rect = self._scene.addRect(
+                                cx, _HEADER_HEIGHT, cx2 - cx, chart_h - _HEADER_HEIGHT - 20,
+                                QPen(Qt.NoPen), QBrush(QColor(cam_color.red(), cam_color.green(), cam_color.blue(), 20))
+                            )
+                            span_rect.setToolTip(f"Campaign: {campaign.name}")
+                    except (ValueError, TypeError):
+                        pass
+                # Launch date marker
+                if campaign.launch_date:
+                    try:
+                        launch = date.fromisoformat(campaign.launch_date)
+                        if d_start <= launch <= d_end:
+                            lx = (launch - d_start).days * ppd
+                            launch_pen = QPen(cam_color, 2, Qt.DashDotLine)
+                            self._scene.addLine(lx, _HEADER_HEIGHT, lx, chart_h - 20, launch_pen)
+                            launch_lbl = self._scene.addSimpleText(f"🚀 {campaign.name}", self._view.font())
+                            launch_lbl.setPos(lx + 3, _HEADER_HEIGHT + 2)
+                            launch_lbl.setBrush(QBrush(cam_color))
+                    except (ValueError, TypeError):
+                        pass
+                # Milestone markers
+                for ms in campaign.milestones:
+                    if not ms.due_date:
+                        continue
+                    try:
+                        ms_date = date.fromisoformat(ms.due_date)
+                    except (ValueError, TypeError):
+                        continue
+                    if d_start <= ms_date <= d_end:
+                        mx = (ms_date - d_start).days * ppd
+                        ms_pen = QPen(cam_color, 1, Qt.DotLine)
+                        self._scene.addLine(mx, _HEADER_HEIGHT, mx, chart_h - 20, ms_pen)
+                        ms_lbl = self._scene.addSimpleText(ms.label, self._view.font())
+                        ms_lbl.setPos(mx + 3, _HEADER_HEIGHT + 14)
+                        ms_color = QColor(cam_color)
+                        ms_color.setAlpha(200)
+                        ms_lbl.setBrush(QBrush(ms_color))
+
+        # Cross-project ghost bars (muted, translucent)
+        if self._cross_cache:
+            xp_posts = self._cross_cache.get_all_schedules(exclude_path=self._cross_exclude)
+            ghost_color = _theme_color(theme, "text_muted")
+            ghost_color.setAlpha(60)
+            ghost_pen = QPen(ghost_color, 0)
+            ghost_brush = QBrush(ghost_color)
+            for xp in xp_posts:
+                try:
+                    xp_dt = datetime.fromisoformat(xp.get("scheduled_time", ""))
+                except (ValueError, TypeError):
+                    continue
+                xp_date = xp_dt.date()
+                if not (d_start <= xp_date <= d_end):
+                    continue
+                xp_day = (xp_date - d_start).days
+                xp_x = xp_day * ppd
+                for xp_plat in xp.get("platforms", []):
+                    if xp_plat not in plat_y:
+                        continue
+                    row_y = plat_y[xp_plat]
+                    stack_key = (xp_plat, xp_day)
+                    stack_n = _bar_stack.get(stack_key, 0)
+                    _bar_stack[stack_key] = stack_n + 1
+                    bar_y = row_y + 3 + stack_n * (_BAR_HEIGHT + _BAR_GAP)
+                    bar_w = max(_MIN_BAR_WIDTH, ppd * 0.6)
+                    rect = self._scene.addRect(xp_x, bar_y, bar_w, _BAR_HEIGHT - 2,
+                                               ghost_pen, ghost_brush)
+                    proj_name = xp.get("project_name", "?")
+                    caption = xp.get("caption_preview", "")
+                    rect.setToolTip(f"[{proj_name}] {caption}")
 
         # Gap detection — hatched regions for 7+ day gaps
         gap_color = _theme_color(theme, "post_failed")

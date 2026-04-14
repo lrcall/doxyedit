@@ -1662,6 +1662,9 @@ def generate_stylesheet(theme: Theme) -> str:
         QLabel#calendar_dot[dot_status="gap"] {{
             background: {theme.error};
         }}
+        QLabel#calendar_dot[dot_status="xproject"] {{
+            background: {theme.text_muted};
+        }}
 
         /* ── Gantt panel ────────────────────────────────────────────── */
         QWidget#gantt_panel {{
