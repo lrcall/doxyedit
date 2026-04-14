@@ -1551,6 +1551,12 @@ def generate_stylesheet(theme: Theme) -> str:
             font-weight: bold;
         }}
 
+        /* ── Composer timezone clock ─────────────────────────────────── */
+        QLabel#composer_tz_clock {{
+            color: {theme.text_secondary};
+            padding: 2px 0;
+        }}
+
         /* ── Claude progress dialog ──────────────────────────────────── */
         QProgressDialog#claude_progress {{
             background: {theme.bg_main};

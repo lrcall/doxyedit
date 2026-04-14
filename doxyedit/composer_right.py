@@ -306,13 +306,13 @@ class ContentPanel(QWidget):
                       tomorrow.hour, tomorrow.minute, 0)
         )
         sched_row.addWidget(self._schedule_edit, 1)
-        # World clock
+        schedule_layout.addLayout(sched_row)
+        # World clock — below date picker, horizontal
         self._tz_label = QLabel()
-        self._tz_label.setObjectName("timeline_caption")
+        self._tz_label.setObjectName("composer_tz_clock")
         self._update_tz_display()
         self._schedule_edit.dateTimeChanged.connect(lambda _: self._update_tz_display())
-        sched_row.addWidget(self._tz_label)
-        schedule_layout.addLayout(sched_row)
+        schedule_layout.addWidget(self._tz_label)
         layout.addWidget(schedule_box)
 
         # --- Reply Templates ---
@@ -430,7 +430,7 @@ class ContentPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _update_tz_display(self):
-        """Show the scheduled time in key Western timezones."""
+        """Show the scheduled time in key timezones — horizontal layout."""
         try:
             from zoneinfo import ZoneInfo
         except ImportError:
@@ -440,14 +440,14 @@ class ContentPanel(QWidget):
         py_dt = qt_dt.toPython()
         local_tz = datetime.now().astimezone().tzinfo
         aware = py_dt.replace(tzinfo=local_tz)
-        lines = []
-        for tz_name, label in [("US/Eastern", "EST"), ("US/Pacific", "PST"), ("Europe/London", "GMT"), ("Asia/Tokyo", "JST")]:
+        parts = []
+        for tz_name, label in [("US/Eastern", "EST"), ("US/Pacific", "PST"), ("Asia/Tokyo", "JST")]:
             try:
                 converted = aware.astimezone(ZoneInfo(tz_name))
-                lines.append(f"{label}: {converted.strftime('%I:%M%p %a').lstrip('0')}")
+                parts.append(f"{label} {converted.strftime('%I:%M%p').lstrip('0')}")
             except Exception:
                 pass
-        self._tz_label.setText("\n".join(lines))
+        self._tz_label.setText("  |  ".join(parts))
 
     # ------------------------------------------------------------------
     # Toggle per-platform captions
