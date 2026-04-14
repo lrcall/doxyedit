@@ -32,7 +32,10 @@ class FolderDelegate(QStyledItemDelegate):
                 bg = QColor(self._panel._theme.selection_bg)
                 bg.setAlpha(40)
             else:
-                bg = QColor(255, 255, 255, 20)
+                from doxyedit.themes import THEMES, DEFAULT_THEME
+                _dt = THEMES[DEFAULT_THEME]
+                bg = QColor(_dt.selection_bg)
+                bg.setAlpha(20)
             painter.setBrush(bg)
             painter.drawRect(option.rect)
             painter.restore()
@@ -76,8 +79,11 @@ class FolderDelegate(QStyledItemDelegate):
                 badge_bg.setAlpha(40)
             text_color = QColor(panel._theme.text_secondary)
         else:
-            badge_bg = QColor(128, 128, 128, 40)
-            text_color = QColor(128, 128, 128)
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            _dt = THEMES[DEFAULT_THEME]
+            badge_bg = QColor(_dt.text_muted)
+            badge_bg.setAlpha(40)
+            text_color = QColor(_dt.text_secondary)
         painter.setBrush(badge_bg)
         painter.drawRoundedRect(badge_rect, th // 2, th // 2)
 

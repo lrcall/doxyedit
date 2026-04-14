@@ -30,7 +30,9 @@ class EditableTextItem(QGraphicsTextItem):
             | QGraphicsTextItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsTextItem.GraphicsItemFlag.ItemSendsGeometryChanges
         )
-        self.setDefaultTextColor(QColor("#e0e0e0"))
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
+        self.setDefaultTextColor(QColor(_dt.text_primary))
         self._editing = False
 
     def mouseDoubleClickEvent(self, event):
@@ -58,7 +60,9 @@ class TagItem(QGraphicsRectItem):
         )
         self._label = QGraphicsTextItem(label, self)
         self._label.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
-        self._label.setDefaultTextColor(QColor("#ffffff"))
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
+        self._label.setDefaultTextColor(QColor(_dt.text_on_accent))
         self._label.setPos(4, 1)
 
     @property
@@ -85,7 +89,9 @@ class CanvasScene(QGraphicsScene):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSceneRect(QRectF(-2000, -2000, 4000, 4000))
-        self.setBackgroundBrush(QBrush(QColor(40, 40, 40)))
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
+        self.setBackgroundBrush(QBrush(QColor(_dt.bg_deep)))
         self.current_tool = Tool.SELECT
         self._draw_start = None
         self._temp_item = None

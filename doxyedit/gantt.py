@@ -37,27 +37,14 @@ _STATUS_COLORS = {
     "failed": "post_failed",
 }
 
-_FALLBACK_COLORS = {
-    "post_draft": "#888888",
-    "post_queued": "#e8a87c",
-    "post_posted": "#6eaa78",
-    "post_failed": "#cc4444",
-    "accent": "#666092",
-    "accent_dim": "#433455",
-    "bg_deep": "#1a1726",
-    "bg_main": "#252030",
-    "bg_raised": "#302a3c",
-    "border": "#3a3548",
-    "text_primary": "#c5ccb8",
-    "text_secondary": "#8a8a8a",
-    "text_muted": "#5a5a5a",
-}
-
-
 def _theme_color(theme, token: str) -> QColor:
-    """Resolve a theme token to QColor, falling back to hardcoded defaults."""
+    """Resolve a theme token to QColor, using DEFAULT_THEME as fallback."""
     val = getattr(theme, token, None) if theme else None
-    return QColor(val if val else _FALLBACK_COLORS.get(token, "#888888"))
+    if not val:
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
+        val = getattr(_dt, token, "#888888")
+    return QColor(val)
 
 
 # ---------------------------------------------------------------------------

@@ -444,7 +444,9 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.setPen(QPen(_sel_border, 2))
             painter.drawRect(rect.adjusted(1, 1, -1, -1))
         elif option.state & QStyle.StateFlag.State_MouseOver:
-            painter.fillRect(rect, QColor(128, 128, 128, 30))
+            _hover = QColor(self._theme.border)
+            _hover.setAlpha(30)
+            painter.fillRect(rect, _hover)
 
         # Thumbnail
         pixmap = index.data(ThumbnailModel.ThumbnailRole)
@@ -477,8 +479,12 @@ class ThumbnailDelegate(QStyledItemDelegate):
         else:
             # Placeholder
             ph_rect = QRect(rect.x() + self.PADDING, rect.y() + self.PADDING, ts, ts)
-            painter.fillRect(ph_rect, QColor(128, 128, 128, 25))
-            painter.setPen(QColor(128, 128, 128, 60))
+            _ph_fill = QColor(self._theme.text_muted)
+            _ph_fill.setAlpha(25)
+            painter.fillRect(ph_rect, _ph_fill)
+            _ph_text = QColor(self._theme.text_muted)
+            _ph_text.setAlpha(60)
+            painter.setPen(_ph_text)
             painter.drawText(ph_rect, Qt.AlignmentFlag.AlignCenter, "...")
 
         # Tag dots
@@ -489,7 +495,9 @@ class ThumbnailDelegate(QStyledItemDelegate):
             preset = TAG_ALL.get(tag_id)
             color = QColor(preset.color) if preset else QColor(VINIK_COLORS[hash(tag_id) % len(VINIK_COLORS)])
             painter.setBrush(color)
-            painter.setPen(QPen(QColor(0, 0, 0, 80), 1))
+            _dot_outline = QColor(self._theme.bg_deep)
+            _dot_outline.setAlpha(80)
+            painter.setPen(QPen(_dot_outline, 1))
             painter.drawEllipse(QPoint(dot_x + 5, dot_y + 5), 5, 5)
             dot_x += 13
 
@@ -576,7 +584,9 @@ class ThumbnailDelegate(QStyledItemDelegate):
         if star_val and star_val in STAR_COLORS:
             painter.setPen(QColor(STAR_COLORS[star_val]))
         else:
-            painter.setPen(QColor(150, 150, 150, 100))
+            _star_empty = QColor(self._theme.text_muted)
+            _star_empty.setAlpha(100)
+            painter.setPen(_star_empty)
         painter.setFont(self._font(fs + 4))
         star_rect = QRect(rect.right() - 24, rect.y() + ts + 34, 22, 22)
         painter.drawText(star_rect, Qt.AlignmentFlag.AlignCenter, star_char)
@@ -844,8 +854,11 @@ class FolderSection(QWidget):
             bg = QColor(theme.bg_deep)
             is_dark = bg.lightness() < 128
         else:
-            base = QColor("#7868b0")
-            is_dark = True
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            _dt = THEMES[DEFAULT_THEME]
+            base = QColor(_dt.accent)
+            bg = QColor(_dt.bg_deep)
+            is_dark = bg.lightness() < 128
         # Shift hue randomly by ±120 degrees from accent
         h, s, l, _ = base.getHsl()
         offset = random.randint(-120, 120)
