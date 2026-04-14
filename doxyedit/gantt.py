@@ -1,0 +1,468 @@
+"""Gantt chart tab — visual timeline of scheduled posts with stagger lines."""
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta
+from typing import Optional
+
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QDateEdit, QSlider, QGraphicsScene, QGraphicsView,
+    QGraphicsRectItem, QGraphicsLineItem, QSplitter,
+    QScrollArea, QFrame, QSizePolicy, QGraphicsItem,
+)
+from PySide6.QtCore import Signal, Qt, QDate, QRectF, QPointF
+from PySide6.QtGui import QPen, QColor, QBrush, QPainter, QPainterPath
+
+from doxyedit.models import Project, SocialPost, SocialPostStatus
+
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_ROW_HEIGHT = 30
+_HEADER_HEIGHT = 24
+_LABEL_WIDTH = 150
+_MIN_BAR_WIDTH = 8  # minimum bar width in pixels so tiny bars are still visible
+_GAP_THRESHOLD_DAYS = 7
+
+_STATUS_COLORS = {
+    SocialPostStatus.DRAFT: "post_draft",
+    SocialPostStatus.QUEUED: "post_queued",
+    SocialPostStatus.POSTED: "post_posted",
+    SocialPostStatus.FAILED: "post_failed",
+    "draft": "post_draft",
+    "queued": "post_queued",
+    "posted": "post_posted",
+    "failed": "post_failed",
+}
+
+_FALLBACK_COLORS = {
+    "post_draft": "#888888",
+    "post_queued": "#e8a87c",
+    "post_posted": "#6eaa78",
+    "post_failed": "#cc4444",
+    "accent": "#666092",
+    "accent_dim": "#433455",
+    "bg_deep": "#1a1726",
+    "bg_main": "#252030",
+    "bg_raised": "#302a3c",
+    "border": "#3a3548",
+    "text_primary": "#c5ccb8",
+    "text_secondary": "#8a8a8a",
+    "text_muted": "#5a5a5a",
+}
+
+
+def _theme_color(theme, token: str) -> QColor:
+    """Resolve a theme token to QColor, falling back to hardcoded defaults."""
+    val = getattr(theme, token, None) if theme else None
+    return QColor(val if val else _FALLBACK_COLORS.get(token, "#888888"))
+
+
+# ---------------------------------------------------------------------------
+# GanttBar — individual post rectangle
+# ---------------------------------------------------------------------------
+
+class _GanttBar(QGraphicsRectItem):
+    """A clickable bar representing one post on one platform."""
+
+    def __init__(self, x: float, y: float, w: float, h: float,
+                 post: SocialPost, platform: str, color: QColor,
+                 parent=None):
+        super().__init__(x, y, w, h, parent)
+        self.post_id = post.id
+        self._post = post
+        self._platform = platform
+        self.setBrush(QBrush(color))
+        self.setPen(QPen(color.darker(130), 1))
+        self.setAcceptHoverEvents(True)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFlag(QGraphicsItem.ItemIsSelectable, False)
+
+        # Tooltip
+        cap = post.caption_default or "(no caption)"
+        if len(cap) > 80:
+            cap = cap[:77] + "..."
+        sched = post.scheduled_time or "unscheduled"
+        plats = ", ".join(post.platforms) if post.platforms else platform
+        self.setToolTip(f"{cap}\n{sched}\nPlatforms: {plats}")
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            scene = self.scene()
+            if scene and hasattr(scene, "bar_clicked"):
+                scene.bar_clicked.emit(self.post_id)
+        super().mousePressEvent(event)
+
+    def hoverEnterEvent(self, event):
+        self.setBrush(QBrush(self.brush().color().lighter(120)))
+        self.update()
+        super().hoverEnterEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        self.setBrush(QBrush(self.brush().color().darker(120)))
+        self.update()
+        super().hoverLeaveEvent(event)
+
+
+# ---------------------------------------------------------------------------
+# GanttScene
+# ---------------------------------------------------------------------------
+
+class _GanttScene(QGraphicsScene):
+    """Scene that emits bar_clicked when a post bar is pressed."""
+    bar_clicked = Signal(str)
+
+
+# ---------------------------------------------------------------------------
+# GanttPanel — main widget
+# ---------------------------------------------------------------------------
+
+class GanttPanel(QWidget):
+    """Gantt chart visualizing scheduled posts across platforms."""
+
+    post_selected = Signal(str)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("gantt_panel")
+
+        self._project: Optional[Project] = None
+        self._theme = None
+        self._px_per_day = 60
+        self._platform_order: list[str] = []
+
+        self._build_ui()
+
+    # -- public API ---------------------------------------------------------
+
+    def set_project(self, project: Project) -> None:
+        self._project = project
+        self.refresh()
+
+    def set_theme(self, theme) -> None:
+        self._theme = theme
+        self.refresh()
+
+    def refresh(self) -> None:
+        self._rebuild_chart()
+
+    # -- UI construction ----------------------------------------------------
+
+    def _build_ui(self) -> None:
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # --- toolbar ---
+        toolbar = QWidget()
+        toolbar.setObjectName("gantt_toolbar")
+        tb_lay = QHBoxLayout(toolbar)
+        tb_lay.setContentsMargins(8, 4, 8, 4)
+        tb_lay.setSpacing(8)
+
+        tb_lay.addWidget(QLabel("From:"))
+        self._date_start = QDateEdit()
+        self._date_start.setObjectName("gantt_date_start")
+        self._date_start.setCalendarPopup(True)
+        self._date_start.setDate(QDate.currentDate().addDays(-7))
+        self._date_start.dateChanged.connect(lambda: self.refresh())
+        tb_lay.addWidget(self._date_start)
+
+        tb_lay.addWidget(QLabel("To:"))
+        self._date_end = QDateEdit()
+        self._date_end.setObjectName("gantt_date_end")
+        self._date_end.setCalendarPopup(True)
+        self._date_end.setDate(QDate.currentDate().addDays(30))
+        self._date_end.dateChanged.connect(lambda: self.refresh())
+        tb_lay.addWidget(self._date_end)
+
+        today_btn = QPushButton("Today")
+        today_btn.setObjectName("gantt_today_btn")
+        today_btn.clicked.connect(self._scroll_to_today)
+        tb_lay.addWidget(today_btn)
+
+        tb_lay.addStretch()
+
+        tb_lay.addWidget(QLabel("Zoom:"))
+        self._zoom_slider = QSlider(Qt.Horizontal)
+        self._zoom_slider.setObjectName("gantt_zoom")
+        self._zoom_slider.setRange(20, 200)
+        self._zoom_slider.setValue(self._px_per_day)
+        self._zoom_slider.setFixedWidth(120)
+        self._zoom_slider.valueChanged.connect(self._on_zoom)
+        tb_lay.addWidget(self._zoom_slider)
+
+        root.addWidget(toolbar)
+
+        # --- body: label column + chart ---
+        body = QWidget()
+        body_lay = QHBoxLayout(body)
+        body_lay.setContentsMargins(0, 0, 0, 0)
+        body_lay.setSpacing(0)
+
+        # Row labels (scrollable vertically, synced with chart)
+        self._label_area = QScrollArea()
+        self._label_area.setObjectName("gantt_label_area")
+        self._label_area.setFixedWidth(_LABEL_WIDTH)
+        self._label_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._label_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._label_area.setWidgetResizable(True)
+        self._label_container = QWidget()
+        self._label_layout = QVBoxLayout(self._label_container)
+        self._label_layout.setContentsMargins(4, _HEADER_HEIGHT, 4, 0)
+        self._label_layout.setSpacing(0)
+        self._label_layout.setAlignment(Qt.AlignTop)
+        self._label_area.setWidget(self._label_container)
+        body_lay.addWidget(self._label_area)
+
+        # Chart view
+        self._scene = _GanttScene()
+        self._scene.bar_clicked.connect(self.post_selected.emit)
+        self._view = QGraphicsView(self._scene)
+        self._view.setObjectName("gantt_view")
+        self._view.setRenderHint(QPainter.Antialiasing)
+        self._view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self._view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self._view.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self._view.setDragMode(QGraphicsView.ScrollHandDrag)
+        body_lay.addWidget(self._view, 1)
+
+        root.addWidget(body, 1)
+
+        # Sync vertical scrolling between labels and chart
+        self._view.verticalScrollBar().valueChanged.connect(
+            self._label_area.verticalScrollBar().setValue
+        )
+
+    # -- chart rebuild ------------------------------------------------------
+
+    def _rebuild_chart(self) -> None:
+        self._scene.clear()
+
+        # Clear row labels
+        while self._label_layout.count():
+            item = self._label_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not self._project:
+            return
+
+        posts = self._project.posts
+        if not posts:
+            return
+
+        d_start = self._date_start.date().toPython()
+        d_end = self._date_end.date().toPython()
+        if d_end <= d_start:
+            return
+
+        total_days = (d_end - d_start).days
+        ppd = self._px_per_day
+        chart_w = total_days * ppd
+        theme = self._theme
+
+        # Gather platforms from posts that fall in range
+        platform_set: set[str] = set()
+        scheduled_posts: list[SocialPost] = []
+        for p in posts:
+            if not p.scheduled_time:
+                continue
+            try:
+                dt = datetime.fromisoformat(p.scheduled_time)
+            except (ValueError, TypeError):
+                continue
+            if d_start <= dt.date() <= d_end:
+                scheduled_posts.append(p)
+                # Platforms from direct list
+                for plat in p.platforms:
+                    platform_set.add(plat)
+                # Platforms from release chain
+                for step in p.release_chain:
+                    if step.platform:
+                        platform_set.add(step.platform)
+
+        if not platform_set:
+            # Show at least the grid
+            self._draw_grid(chart_w, 0, total_days, d_start, theme)
+            return
+
+        self._platform_order = sorted(platform_set)
+        plat_y: dict[str, float] = {}
+        for i, plat in enumerate(self._platform_order):
+            y = _HEADER_HEIGHT + i * _ROW_HEIGHT
+            plat_y[plat] = y
+
+        num_rows = len(self._platform_order)
+        chart_h = _HEADER_HEIGHT + num_rows * _ROW_HEIGHT + 20
+
+        # Row labels
+        for plat in self._platform_order:
+            lbl = QLabel(plat.replace("_", " ").title())
+            lbl.setObjectName("gantt_row_label")
+            lbl.setFixedHeight(_ROW_HEIGHT)
+            lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self._label_layout.addWidget(lbl)
+
+        # Draw grid
+        self._draw_grid(chart_w, chart_h, total_days, d_start, theme)
+
+        # Draw today line
+        today = date.today()
+        if d_start <= today <= d_end:
+            tx = (today - d_start).days * ppd
+            pen = QPen(_theme_color(theme, "accent"), 2)
+            self._scene.addLine(tx, 0, tx, chart_h, pen)
+
+        # Draw row separators
+        border_pen = QPen(_theme_color(theme, "border"), 0.5)
+        for i in range(num_rows + 1):
+            y = _HEADER_HEIGHT + i * _ROW_HEIGHT
+            self._scene.addLine(0, y, chart_w, y, border_pen)
+
+        # Build per-platform post timeline for gap detection
+        plat_dates: dict[str, list[date]] = {p: [] for p in self._platform_order}
+
+        # Draw posts
+        for post in scheduled_posts:
+            try:
+                dt = datetime.fromisoformat(post.scheduled_time)
+            except (ValueError, TypeError):
+                continue
+
+            post_date = dt.date()
+            day_offset = (post_date - d_start).days
+            x = day_offset * ppd
+
+            status_token = _STATUS_COLORS.get(post.status, "post_draft")
+            color = _theme_color(theme, status_token)
+
+            # If post has release chain, draw per-step
+            if post.release_chain and len(post.release_chain) >= 2:
+                anchor_bars: list[tuple[float, float, float]] = []  # x, y, mid_y
+
+                for step in post.release_chain:
+                    plat = step.platform
+                    if plat not in plat_y:
+                        continue
+                    step_x = x + (step.delay_hours / 24.0) * ppd
+                    bar_w = max(_MIN_BAR_WIDTH, ppd * 0.8)
+                    row_y = plat_y[plat]
+                    bar_y = row_y + 4
+                    bar_h = _ROW_HEIGHT - 8
+
+                    step_color = color
+                    if step.status == "posted":
+                        step_color = _theme_color(theme, "post_posted")
+                    elif step.status == "skipped":
+                        step_color = _theme_color(theme, "text_muted")
+
+                    bar = _GanttBar(step_x, bar_y, bar_w, bar_h,
+                                    post, plat, step_color)
+                    self._scene.addItem(bar)
+                    anchor_bars.append((step_x + bar_w / 2, bar_y, bar_y + bar_h))
+                    plat_dates[plat].append(post_date + timedelta(hours=step.delay_hours / 24))
+
+                # Draw stagger dashed lines connecting the bars
+                if len(anchor_bars) >= 2:
+                    dash_pen = QPen(_theme_color(theme, "accent_dim"), 1, Qt.DashLine)
+                    for i in range(len(anchor_bars) - 1):
+                        x1, y1_top, y1_bot = anchor_bars[i]
+                        x2, y2_top, y2_bot = anchor_bars[i + 1]
+                        # Connect bottom of first to top of second (or vice versa)
+                        if y1_top < y2_top:
+                            self._scene.addLine(x1, y1_bot, x2, y2_top, dash_pen)
+                        else:
+                            self._scene.addLine(x1, y1_top, x2, y2_bot, dash_pen)
+            else:
+                # Simple bar on each platform
+                for plat in post.platforms:
+                    if plat not in plat_y:
+                        continue
+                    bar_w = max(_MIN_BAR_WIDTH, ppd * 0.8)
+                    row_y = plat_y[plat]
+                    bar_y = row_y + 4
+                    bar_h = _ROW_HEIGHT - 8
+
+                    bar = _GanttBar(x, bar_y, bar_w, bar_h,
+                                    post, plat, color)
+                    self._scene.addItem(bar)
+                    plat_dates[plat].append(post_date)
+
+        # Gap detection — hatched regions for 7+ day gaps
+        gap_color = _theme_color(theme, "post_failed")
+        gap_color.setAlpha(25)
+        gap_pen = QPen(gap_color, 0)
+        gap_brush = QBrush(gap_color)
+
+        for plat in self._platform_order:
+            dates = sorted(set(plat_dates[plat]))
+            if len(dates) < 2:
+                continue
+            row_y = plat_y[plat]
+            for i in range(len(dates) - 1):
+                gap_days = (dates[i + 1] - dates[i]).days
+                if gap_days >= _GAP_THRESHOLD_DAYS:
+                    gx = (dates[i] - d_start).days * ppd + ppd
+                    gw = (gap_days - 1) * ppd
+                    if gw > 0:
+                        rect = self._scene.addRect(
+                            gx, row_y + 2, gw, _ROW_HEIGHT - 4,
+                            gap_pen, gap_brush
+                        )
+                        rect.setToolTip(f"{gap_days}-day gap on {plat}")
+
+        self._scene.setSceneRect(0, 0, chart_w, chart_h)
+
+    def _draw_grid(self, chart_w: float, chart_h: float,
+                   total_days: int, d_start: date, theme) -> None:
+        """Draw vertical day/week grid lines and date header labels."""
+        ppd = self._px_per_day
+        thin_pen = QPen(_theme_color(theme, "border"), 0.3)
+        week_pen = QPen(_theme_color(theme, "border"), 1.0)
+        text_color = _theme_color(theme, "text_muted")
+
+        for d in range(total_days + 1):
+            x = d * ppd
+            cur_date = d_start + timedelta(days=d)
+            is_week = cur_date.weekday() == 0  # Monday
+            pen = week_pen if is_week else thin_pen
+            if chart_h > 0:
+                self._scene.addLine(x, _HEADER_HEIGHT, x, chart_h, pen)
+
+            # Date labels in header — show day number, and month on 1st/mondays
+            if ppd >= 40 or d % max(1, int(60 / ppd)) == 0:
+                label_text = cur_date.strftime("%d")
+                if cur_date.day == 1 or (is_week and ppd >= 50):
+                    label_text = cur_date.strftime("%b %d")
+                txt = self._scene.addSimpleText(label_text)
+                txt.setBrush(QBrush(text_color))
+                txt.setPos(x + 2, 2)
+
+    # -- controls -----------------------------------------------------------
+
+    def _on_zoom(self, value: int) -> None:
+        self._px_per_day = value
+        self.refresh()
+
+    def _scroll_to_today(self) -> None:
+        """Scroll the view so the today-line is centered horizontally."""
+        d_start = self._date_start.date().toPython()
+        today = date.today()
+        day_offset = (today - d_start).days
+        x = day_offset * self._px_per_day
+        self._view.centerOn(x, self._view.sceneRect().height() / 2)
+
+    # -- wheel override for horizontal scroll -------------------------------
+
+    def wheelEvent(self, event):
+        """Route wheel events to horizontal scroll on the chart view."""
+        if self._view.underMouse():
+            delta = event.angleDelta().y()
+            sb = self._view.horizontalScrollBar()
+            sb.setValue(sb.value() - delta)
+            event.accept()
+        else:
+            super().wheelEvent(event)
