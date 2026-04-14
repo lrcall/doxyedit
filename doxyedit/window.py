@@ -1470,6 +1470,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         _drag_fix.triggered.connect(lambda: self.browser.cycle_drag_fix())
         self.addAction(_drag_fix)
         tools_menu.addAction("Remove Missing Files", self._remove_missing_files)
+        tools_menu.addAction("Test Engagement Windows", self._test_engagement)
         tools_menu.addAction("Find Duplicate Files...", self._find_duplicates)
         tools_menu.addAction("Find Similar Images (Perceptual)...", self._find_similar)
         tools_menu.addSeparator()
@@ -2559,9 +2560,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 else:
                     reddit_subs.append(sub)
 
+        # Build account→platform type map from connected accounts
+        connected = get_connected_platforms(project_dir)
+        acct_platform = {p["id"]: str(p.get("platform", "")).lower() for p in connected}
+
         for account_id in oneup_platforms:
             caption = post.captions.get(account_id, post.caption_default)
-            is_reddit = "reddit" in account_id.lower() or account_id.startswith("Virtual-") or account_id.startswith("YackyHP")
+            is_reddit = acct_platform.get(account_id, "") in ("reddit", "13")
 
             if is_reddit and reddit_subs:
                 # Push once per subreddit
@@ -2689,6 +2694,34 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.browser._model.update_post_status(self.project.posts)
         self.browser.active_view.viewport().update()
         self.platform_panel.refresh()
+
+    def _test_engagement(self):
+        """Generate test engagement windows on the first post with platforms."""
+        from doxyedit.reminders import generate_engagement_windows
+        from doxyedit.oneup import get_connected_platforms
+        from datetime import datetime, timedelta
+        project_dir = str(Path(self._project_path).parent) if self._project_path else "."
+        connected = get_connected_platforms(project_dir)
+
+        target = None
+        for post in self.project.posts:
+            if post.platforms:
+                target = post
+                break
+        if not target:
+            self.status.showMessage("No posts with platforms to test", 3000)
+            return
+
+        windows = generate_engagement_windows(target, connected)
+        now = datetime.now()
+        # Make first few already due for immediate testing
+        for i, w in enumerate(windows[:3]):
+            w.check_at = (now - timedelta(minutes=10 - i * 3)).isoformat()
+        target.engagement_checks = [w.to_dict() for w in windows]
+        self._dirty = True
+        self._refresh_social_panels()
+        self.status.showMessage(
+            f"Generated {len(windows)} engagement windows for {target.id[:8]}", 5000)
 
     def _check_reminders(self):
         """Scan for pending release chain steps and Patreon cadence reminders."""
