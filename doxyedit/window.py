@@ -269,7 +269,12 @@ class MainWindow(QMainWindow):
         self.censor_editor = CensorEditor()
         self.tabs.addTab(self.censor_editor, "Censor")
 
-        # Tab 4: Social — Calendar + Timeline + Checklist (posting pipeline)
+        # Tab 4: Overlay Editor
+        from doxyedit.overlay_editor import OverlayEditor
+        self.overlay_editor = OverlayEditor()
+        self.tabs.addTab(self.overlay_editor, "Overlays")
+
+        # Tab 5: Social — Calendar + Timeline + Checklist (posting pipeline)
         self._timeline = TimelineStream()
         self._timeline.set_thumb_cache(self.browser._thumb_cache)
         self._timeline.set_project(self.project)
@@ -1467,7 +1472,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # — Top-level most-used —
         tools_menu.addAction("&Reload Project from Disk", self._reload_project, QKeySequence("F5"))
         tools_menu.addAction("Refresh Thumbnails", self._refresh_thumbs, QKeySequence("Shift+F5"))
-        tools_menu.addAction("Cycle Drag Fix (F8)", lambda: self.browser.cycle_drag_fix(), QKeySequence("F8"))
+        # F8 drag fix — keep shortcut, hide from menu
+        _drag_fix = QAction("", self)
+        _drag_fix.setShortcut(QKeySequence("F8"))
+        _drag_fix.triggered.connect(lambda: self.browser.cycle_drag_fix())
+        self.addAction(_drag_fix)
         tools_menu.addAction("Remove Missing Files", self._remove_missing_files)
         tools_menu.addAction("Find Duplicate Files...", self._find_duplicates)
         tools_menu.addAction("Find Similar Images (Perceptual)...", self._find_similar)
@@ -1525,6 +1534,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         importexport_menu.addSeparator()
         importexport_menu.addAction("Package Project (Transport)...", self._transport_project)
         importexport_menu.addAction("Unpackage (Restore Paths)...", self._untransport_project)
+        importexport_menu.addSeparator()
+        importexport_menu.addAction("Merge Project Into This...", self._merge_project)
 
         # — Project Info submenu —
         projinfo_menu = tools_menu.addMenu("Project Info")
@@ -3571,41 +3582,110 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             else "Local mode OFF — paths saved as absolute", 4000)
 
     def _transport_project(self):
-        """Package all project assets into _assets/ next to the project file."""
-        from PySide6.QtWidgets import QMessageBox
+        """Package all project assets into _assets/ — with options dialog + progress."""
+        from PySide6.QtWidgets import (
+            QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+            QCheckBox, QPushButton, QProgressBar, QGroupBox,
+        )
+        from PySide6.QtCore import QThread, Signal as _Signal
+
         if not self._project_path:
             self.status.showMessage("No project file open — save first", 4000)
             return
+
         proj_dir = Path(self._project_path).parent
         assets_dir = proj_dir / "_assets"
         total = sum(1 for a in self.project.assets if a.source_path)
-        reply = QMessageBox.question(
-            self, "Package Project",
-            f"Copy {total} asset files into:\n{assets_dir}\n\n"
-            "Original paths will be stored in metadata.\n"
-            "This enables local_mode for portability.",
-            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
-        )
-        if reply != QMessageBox.StandardButton.Ok:
-            return
-        self.status.showMessage("Packaging project...", 0)
-        QApplication.processEvents()
-        try:
-            import io, contextlib
-            buf = io.StringIO()
-            with contextlib.redirect_stdout(buf):
-                from doxyedit.__main__ import cmd_transport
-                cmd_transport(self._project_path, [])
-            output = buf.getvalue().strip()
-            self.project = type(self.project).load(self._project_path)
-            self._rebind_project(clear_folder_state=True)
-            if hasattr(self, '_local_mode_action'):
-                self._local_mode_action.blockSignals(True)
-                self._local_mode_action.setChecked(True)
-                self._local_mode_action.blockSignals(False)
-            QMessageBox.information(self, "Package Complete", output)
-        except Exception as e:
-            QMessageBox.warning(self, "Package Failed", str(e))
+
+        # --- Options dialog ---
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Package Project")
+        dlg.setMinimumWidth(420)
+        layout = QVBoxLayout(dlg)
+
+        layout.addWidget(QLabel(f"Copy <b>{total}</b> asset files into:<br><code>{assets_dir}</code>"))
+        layout.addWidget(QLabel("Original paths will be stored in metadata."))
+
+        opts_box = QGroupBox("Options")
+        opts_layout = QVBoxLayout(opts_box)
+        compact_cb = QCheckBox("Compact folders — collapse single-child chains (A/B/C → A_B_C)")
+        compact_cb.setToolTip("Removes empty intermediate folders by concatenating their names")
+        opts_layout.addWidget(compact_cb)
+        layout.addWidget(opts_box)
+
+        progress = QProgressBar()
+        progress.setRange(0, total)
+        progress.setValue(0)
+        progress.setVisible(False)
+        layout.addWidget(progress)
+
+        status_label = QLabel("")
+        status_label.setVisible(False)
+        layout.addWidget(status_label)
+
+        btn_row = QHBoxLayout()
+        btn_start = QPushButton("Package")
+        btn_cancel = QPushButton("Cancel")
+        btn_row.addStretch()
+        btn_row.addWidget(btn_start)
+        btn_row.addWidget(btn_cancel)
+        layout.addLayout(btn_row)
+
+        btn_cancel.clicked.connect(dlg.reject)
+
+        def _run_transport():
+            btn_start.setEnabled(False)
+            btn_cancel.setEnabled(False)
+            compact_cb.setEnabled(False)
+            progress.setVisible(True)
+            status_label.setVisible(True)
+
+            compact = compact_cb.isChecked()
+            args = ["--compact"] if compact else []
+
+            # Run in thread to keep UI responsive
+            class _Worker(QThread):
+                finished = _Signal(str)
+                error = _Signal(str)
+                step = _Signal(int, str)
+
+                def run(self_w):
+                    import io, contextlib
+                    try:
+                        buf = io.StringIO()
+                        with contextlib.redirect_stdout(buf):
+                            from doxyedit.__main__ import cmd_transport
+                            cmd_transport(self._project_path, args)
+                        self_w.finished.emit(buf.getvalue().strip())
+                    except Exception as e:
+                        self_w.error.emit(str(e))
+
+            worker = _Worker()
+
+            def _on_done(output):
+                self.project = type(self.project).load(self._project_path)
+                self._rebind_project(clear_folder_state=True)
+                if hasattr(self, '_local_mode_action'):
+                    self._local_mode_action.blockSignals(True)
+                    self._local_mode_action.setChecked(True)
+                    self._local_mode_action.blockSignals(False)
+                progress.setValue(total)
+                status_label.setText("Done!")
+                dlg.accept()
+                QMessageBox.information(self, "Package Complete", output)
+
+            def _on_error(err):
+                dlg.reject()
+                QMessageBox.warning(self, "Package Failed", err)
+
+            worker.finished.connect(_on_done)
+            worker.error.connect(_on_error)
+            # Keep ref so GC doesn't kill the thread
+            dlg._worker = worker
+            worker.start()
+
+        btn_start.clicked.connect(_run_transport)
+        dlg.exec()
 
     def _untransport_project(self):
         """Restore original absolute paths from transport metadata."""
@@ -3637,6 +3717,140 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             QMessageBox.information(self, "Unpackage Complete", output)
         except Exception as e:
             QMessageBox.warning(self, "Unpackage Failed", str(e))
+
+    def _merge_project(self):
+        """Merge another project's assets and notes into the current one."""
+        from PySide6.QtWidgets import (
+            QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+            QCheckBox, QPushButton, QFileDialog, QGroupBox, QTextEdit,
+        )
+        from doxyedit.models import Project
+
+        if not self._project_path:
+            self.status.showMessage("No project file open", 4000)
+            return
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Project to Merge", self._dialog_dir(),
+            "DoxyEdit Projects (*.doxyproj.json);;All Files (*)",
+        )
+        if not path:
+            return
+
+        try:
+            donor = Project.load(path)
+        except Exception as e:
+            QMessageBox.warning(self, "Merge Failed", f"Could not load:\n{e}")
+            return
+
+        # Build preview
+        existing_paths = {
+            os.path.normpath(a.source_path).lower()
+            for a in self.project.assets if a.source_path
+        }
+        new_assets = [
+            a for a in donor.assets
+            if a.source_path and os.path.normpath(a.source_path).lower() not in existing_paths
+        ]
+        dup_count = len(donor.assets) - len(new_assets)
+
+        new_tags = {
+            tid: defn for tid, defn in donor.tag_definitions.items()
+            if tid not in self.project.tag_definitions
+        }
+
+        new_posts = []
+        existing_post_ids = {p.id for p in self.project.posts}
+        for p in donor.posts:
+            if p.id not in existing_post_ids:
+                new_posts.append(p)
+
+        donor_notes = donor.notes.strip() if donor.notes else ""
+        donor_sub_notes = {
+            k: v for k, v in donor.sub_notes.items()
+            if k not in self.project.sub_notes
+        }
+
+        # --- Confirmation dialog ---
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Merge: {Path(path).stem} → {self.project.name}")
+        dlg.setMinimumWidth(450)
+        layout = QVBoxLayout(dlg)
+
+        layout.addWidget(QLabel(
+            f"<b>Donor:</b> {donor.name} ({len(donor.assets)} assets)<br>"
+            f"<b>Into:</b> {self.project.name} ({len(self.project.assets)} assets)"
+        ))
+
+        # What will be merged
+        info = QGroupBox("Merge Summary")
+        info_layout = QVBoxLayout(info)
+
+        cb_assets = QCheckBox(f"Assets: {len(new_assets)} new ({dup_count} duplicates skipped)")
+        cb_assets.setChecked(bool(new_assets))
+        cb_assets.setEnabled(bool(new_assets))
+        info_layout.addWidget(cb_assets)
+
+        cb_tags = QCheckBox(f"Tag definitions: {len(new_tags)} new")
+        cb_tags.setChecked(bool(new_tags))
+        cb_tags.setEnabled(bool(new_tags))
+        info_layout.addWidget(cb_tags)
+
+        cb_posts = QCheckBox(f"Posts: {len(new_posts)} new")
+        cb_posts.setChecked(bool(new_posts))
+        cb_posts.setEnabled(bool(new_posts))
+        info_layout.addWidget(cb_posts)
+
+        cb_notes = QCheckBox(f"Notes: {'yes' if donor_notes else 'none'} + {len(donor_sub_notes)} tabs")
+        cb_notes.setChecked(bool(donor_notes or donor_sub_notes))
+        cb_notes.setEnabled(bool(donor_notes or donor_sub_notes))
+        info_layout.addWidget(cb_notes)
+
+        layout.addWidget(info)
+        layout.addWidget(QLabel("Current project's settings, tags, and identity take priority."))
+
+        btn_row = QHBoxLayout()
+        btn_merge = QPushButton("Merge")
+        btn_cancel = QPushButton("Cancel")
+        btn_row.addStretch()
+        btn_row.addWidget(btn_merge)
+        btn_row.addWidget(btn_cancel)
+        layout.addLayout(btn_row)
+        btn_cancel.clicked.connect(dlg.reject)
+
+        def _do_merge():
+            merged = 0
+
+            if cb_assets.isChecked():
+                self.project.assets.extend(new_assets)
+                merged += len(new_assets)
+
+            if cb_tags.isChecked():
+                for tid, defn in new_tags.items():
+                    self.project.tag_definitions[tid] = defn
+                    self.project.custom_tags.append({"id": tid, **defn})
+
+            if cb_posts.isChecked():
+                self.project.posts.extend(new_posts)
+
+            if cb_notes.isChecked():
+                if donor_notes:
+                    sep = "\n\n---\n\n" if self.project.notes else ""
+                    self.project.notes += f"{sep}## Merged from {donor.name}\n\n{donor_notes}"
+                for tab, content in donor_sub_notes.items():
+                    self.project.sub_notes[tab] = content
+
+            self._dirty = True
+            self._rebind_project()
+            dlg.accept()
+            self.status.showMessage(
+                f"Merged {merged} assets, {len(new_tags) if cb_tags.isChecked() else 0} tags, "
+                f"{len(new_posts) if cb_posts.isChecked() else 0} posts from {donor.name}",
+                5000,
+            )
+
+        btn_merge.clicked.connect(_do_merge)
+        dlg.exec()
 
     def _on_shared_cache_toggled(self, shared: bool):
         self._settings.setValue("shared_cache", "true" if shared else "false")
@@ -4393,6 +4607,8 @@ Ctrl+Click tag — Search by tag
             self._calendar_pane.set_project(self.project)
         if hasattr(self, '_gantt_panel'):
             self._gantt_panel.set_project(self.project)
+        if hasattr(self, 'overlay_editor'):
+            self.overlay_editor.set_project(self.project)
         if hasattr(self, '_smart_folder_menu'):
             self._rebuild_smart_folder_menu()
         if hasattr(self, '_info_panel'):

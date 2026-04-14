@@ -64,6 +64,25 @@ class DragOutListWidget(QListWidget):
         self.style().polish(self)
         super().dragLeaveEvent(event)
 
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.MiddleButton:
+            item = self.itemAt(event.pos())
+            if item:
+                path = item.data(PATH_ROLE)
+                if path:
+                    from doxyedit.preview import HoverPreview
+                    from PySide6.QtGui import QCursor
+                    HoverPreview.instance().show_for(path, QCursor.pos())
+                    return
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.MiddleButton:
+            from doxyedit.preview import HoverPreview
+            HoverPreview.instance().hide_preview()
+            return
+        super().mouseReleaseEvent(event)
+
     def dropEvent(self, event):
         self.setProperty("drag_over", False)
         self.style().unpolish(self)
