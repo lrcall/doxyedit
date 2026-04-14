@@ -86,6 +86,11 @@ class MainWindow(QMainWindow):
         self._current_theme_id = self._settings.value("theme", DEFAULT_THEME)
         self._apply_theme(self._current_theme_id)
 
+        # --- Cross-project schedule awareness ---
+        from doxyedit.crossproject import CrossProjectCache, sync_registry_from_settings, register_project
+        self._cross_cache = CrossProjectCache()
+        sync_registry_from_settings(self._settings)
+
         # --- Project tabs (one per open project) ---
         self._project_slots: list[dict] = []   # [{project, path, label}]
         self._current_slot: int = -1
@@ -1636,7 +1641,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # Help menu
         help_menu = menu.addMenu("&Help")
         help_menu.addAction("Keyboard Shortcuts", self._show_shortcuts)
-        help_menu.addAction("What's New (v2.3)", self._show_whats_new)
+        help_menu.addAction("What's New (v2.4)", self._show_whats_new)
         help_menu.addAction("About DoxyEdit", self._show_about)
 
     def _setup_tag_shortcuts(self):
@@ -4793,40 +4798,51 @@ Ctrl+Click tag — Search by tag
     def _show_whats_new(self):
         from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
         dlg = QDialog(self)
-        dlg.setWindowTitle("What's New in v2.3")
+        dlg.setWindowTitle("What's New in v2.4")
         dlg.resize(560, 540)
         layout = QVBoxLayout(dlg)
         text = QTextEdit()
         text.setReadOnly(True)
         text.setMarkdown(
-            "# What's New in v2.3\n\n"
-            "## Social Media Suite\n"
-            "- **Gantt chart** in Social tab — visual timeline of all posts\n"
-            "- **AI Strategy** — Claude analyzes your art + context for posting advice\n"
-            "- **Release chains** — stagger posts across platforms (Twitter -> 48h -> Patreon)\n"
-            "- **Calendar** with JST clock + day filtering\n"
-            "- **Reminders** for due release steps\n\n"
-            "## Subscription Platforms\n"
-            "- **Quick-post** for Patreon, Fanbox, Fantia, Ci-en, Gumroad, Ko-fi\n"
-            "- **Tiered content** (free/basic/premium)\n"
-            "- **Japanese + English** dual captions\n\n"
-            "## Campaign Planning\n"
-            "- **Campaign + milestone tracking** for Kickstarter/Steam/merch\n"
-            "- **Cross-project schedule** awareness + conflict detection\n\n"
-            "## Composer\n"
-            "- **Two-column layout** with image preview + SFW/NSFW toggle\n"
-            "- **Dock/float toggle** — dock into Social tab or float as dialog\n"
-            "- **Connected OneUp accounts** with category support\n\n"
-            "## Notes\n"
-            "- **Tabbed notes** (General + Agent Primer + custom)\n"
-            "- **Right-click Claude actions** (Refine, Expand, Research, [Instruct])\n"
-            "- **Centered 1200px** reading column\n\n"
-            "## Canvas\n"
-            "- **Overlay Editor** — watermark, text, logo placement\n"
-            "- **Non-destructive overlays** applied on export\n\n"
-            "## Shortcuts\n"
-            "- All existing shortcuts still work\n"
-            "- **Middle-click** preview on timeline post cards\n"
+            "# What's New in v2.4\n\n"
+            "## Unified Content Pipeline\n"
+            "- **Platform readiness** — green/yellow/red dots show if assets are prepped\n"
+            "- **Prep Strip** in composer — see each platform's readiness with Fix buttons\n"
+            "- **Auto-crop** — images auto-fitted to platform ratios (16:9 for Twitter, 1:1 for Instagram)\n"
+            "- **Coordinate-correct exports** — censors + overlays transform when images are cropped\n"
+            "- **Export-on-queue** — platform-ready images cached to _exports/ before pushing\n"
+            "- **Advisory queue gate** — warns about unprepped platforms, never blocks\n\n"
+            "## Multi-Platform Posting\n"
+            "- **OneUp categories** — Doxy/Onta/L3rk/0rng dropdown with per-category accounts\n"
+            "- **Bluesky** direct posting via AT Protocol (app password in Identity)\n"
+            "- **Telegram** + **Discord webhook** direct posting\n"
+            "- **Browser automation** for Patreon, Fantia, Fanbox, Ci-en, Ko-fi, SubscribeStar\n"
+            "- **Per-platform censor mode** — Auto / Uncensored / Custom per platform\n"
+            "- **Sync OneUp** — push new, pull status, detect duplicates\n\n"
+            "## Studio Improvements\n"
+            "- **Keyboard shortcuts** — Delete, Ctrl+D, arrows, Q/W/E/R tools, H hide, F fit\n"
+            "- **Right-click context menus** on censors + overlays\n"
+            "- **Text effects** — outline (stroke), drop shadow, line height\n"
+            "- **Studio badge** on grid thumbnails + Studio filter checkbox\n"
+            "- **Configurable blur/pixelate** radius per censor region\n\n"
+            "## Identity System\n"
+            "- **Identity editor** — brand voice, all platform URLs, API credentials\n"
+            "- **Per-identity Bluesky/Telegram/Discord** credentials\n"
+            "- **OneUp category** auto-switches with identity\n\n"
+            "## Social Tab Layout\n"
+            "- **Gantt full-width** bottom, composer docks beside timeline\n"
+            "- **Engagement inline** on post cards (collapsible) + toolbar button\n"
+            "- **Live notes** — side-by-side markdown editor + preview\n"
+            "- **Calendar** — past days dimmed, theme-correct\n\n"
+            "## Entry Points\n"
+            "- **Right-click → Prepare for Posting** opens composer with asset\n"
+            "- **Studio → Queue This** sends current asset to composer\n"
+            "- **Right-click → Send to Studio** loads asset in Studio tab\n\n"
+            "## Other\n"
+            "- **Package/Transport** project with compact folder option\n"
+            "- **Merge projects** — import assets, tags, posts from another project\n"
+            "- **Per-project themes** saved with the project file\n"
+            "- **All 13 themes** have post status colors\n"
         )
         layout.addWidget(text)
         close = QPushButton("Close")
@@ -5078,10 +5094,21 @@ Ctrl+Click tag — Search by tag
         self._file_browser.set_project(self.project)
         if hasattr(self, '_timeline'):
             self._timeline.set_project(self.project)
+        # Cross-project: register and refresh cache
+        _excl = str(self._project_path) if self._project_path else ""
+        if hasattr(self, '_cross_cache'):
+            self._cross_cache.refresh()
+            if self._project_path:
+                from doxyedit.crossproject import register_project
+                register_project(str(self._project_path), self.project.name)
         if hasattr(self, '_calendar_pane'):
             self._calendar_pane.set_project(self.project)
+            if hasattr(self, '_cross_cache'):
+                self._calendar_pane.set_cross_project(self._cross_cache, _excl)
         if hasattr(self, '_gantt_panel'):
             self._gantt_panel.set_project(self.project)
+            if hasattr(self, '_cross_cache'):
+                self._gantt_panel.set_cross_project(self._cross_cache, _excl)
         if hasattr(self, 'studio'):
             self.studio.set_project(self.project)
         if hasattr(self, '_smart_folder_menu'):
