@@ -74,19 +74,26 @@ class _GanttBar(QGraphicsRectItem):
         self.post_id = post.id
         self._post = post
         self._platform = platform
+        self._base_color = color
         self.setBrush(QBrush(color))
-        self.setPen(QPen(color.darker(130), 1))
+        self.setPen(QPen(color.darker(120), 1))
         self.setAcceptHoverEvents(True)
         self.setCursor(Qt.PointingHandCursor)
         self.setFlag(QGraphicsItem.ItemIsSelectable, False)
 
-        # Tooltip
+        # Rich tooltip
+        status = post.status.upper() if post.status else "DRAFT"
         cap = post.caption_default or "(no caption)"
-        if len(cap) > 80:
-            cap = cap[:77] + "..."
-        sched = post.scheduled_time or "unscheduled"
+        if len(cap) > 100:
+            cap = cap[:97] + "..."
+        sched = post.scheduled_time[:16] if post.scheduled_time else "unscheduled"
         plats = ", ".join(post.platforms) if post.platforms else platform
-        self.setToolTip(f"{cap}\n{sched}\nPlatforms: {plats}")
+        assets = ", ".join(post.asset_ids[:3]) if post.asset_ids else "(no assets)"
+        tip = f"{status} | {sched}\n{plats}\n{cap}\nAssets: {assets}"
+        if post.release_chain:
+            steps = [f"{s.platform} +{s.delay_hours}h" for s in post.release_chain]
+            tip += f"\nRelease: {' > '.join(steps)}"
+        self.setToolTip(tip)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -96,12 +103,14 @@ class _GanttBar(QGraphicsRectItem):
         super().mousePressEvent(event)
 
     def hoverEnterEvent(self, event):
-        self.setBrush(QBrush(self.brush().color().lighter(120)))
+        self.setBrush(QBrush(self._base_color.lighter(140)))
+        self.setPen(QPen(self._base_color.lighter(160), 2))
         self.update()
         super().hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event):
-        self.setBrush(QBrush(self.brush().color().darker(120)))
+        self.setBrush(QBrush(self._base_color))
+        self.setPen(QPen(self._base_color.darker(120), 1))
         self.update()
         super().hoverLeaveEvent(event)
 

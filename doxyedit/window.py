@@ -32,6 +32,21 @@ from doxyedit.tagpanel import TagPanel
 from doxyedit.exporter import export_project
 from doxyedit.preview import ImagePreviewDialog, PreviewPane
 from doxyedit.filebrowser import FileBrowserPanel
+from PySide6.QtWidgets import QPlainTextEdit as _BasePlainTextEdit
+
+
+class _CenteredEditor(_BasePlainTextEdit):
+    """QPlainTextEdit with centered content column. Scrollbar stays at widget edge."""
+    _MAX_WIDTH = 1200
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        cr = self.contentsRect()
+        if cr.width() > self._MAX_WIDTH:
+            m = (cr.width() - self._MAX_WIDTH) // 2
+            self.setViewportMargins(m, 0, m, 0)
+        else:
+            self.setViewportMargins(0, 0, 0, 0)
 from doxyedit.infopanel import InfoPanel
 from doxyedit.tray import WorkTray
 from doxyedit.project import save_project, load_project
@@ -302,6 +317,7 @@ class MainWindow(QMainWindow):
 
         self._gantt_panel = GanttPanel()
         self._gantt_panel.set_project(self.project)
+        self._gantt_panel.set_theme(self._theme)
         self._gantt_panel.post_selected.connect(self._on_post_selected)
         self._social_right_split.addWidget(self._gantt_panel)
         self._social_right_split.setSizes([400, 250])
@@ -869,6 +885,8 @@ class MainWindow(QMainWindow):
             self._file_browser._theme = self._theme
         if hasattr(self, '_preview_pane'):
             self._preview_pane.update_theme(self._theme)
+        if hasattr(self, '_gantt_panel'):
+            self._gantt_panel.set_theme(self._theme)
 
     def _tint_titlebar(self, hex_color: str = ""):
         """Apply accent color to Windows 11 title bar via DwmSetWindowAttribute."""
@@ -991,7 +1009,7 @@ class MainWindow(QMainWindow):
         # Stacked: editor (default, index 0) / preview (index 1)
         stack = QStackedWidget()
 
-        editor = QPlainTextEdit()
+        editor = _CenteredEditor()
         editor.setObjectName("project_notes_tab")
         editor.setPlainText(content)
         editor.textChanged.connect(lambda: self._on_sub_note_changed(name))
@@ -1005,15 +1023,10 @@ class MainWindow(QMainWindow):
         preview.setObjectName("project_notes_preview")
         preview.setOpenExternalLinks(True)
 
-        # Wrap in containers with left margin only — scrollbar flush right
-        for w in (editor, preview):
-            wrapper = QWidget()
-            wrapper.setObjectName("notes_editor_wrapper")
-            wl = QHBoxLayout(wrapper)
-            wl.setContentsMargins(120, 8, 0, 8)
-            wl.setSpacing(0)
-            wl.addWidget(w)
-            stack.addWidget(wrapper)
+        # Editor uses _CenteredEditor with viewport margins (scrollbar at edge)
+        # Preview uses HTML max-width + margin:auto (scrollbar at edge)
+        stack.addWidget(editor)
+        stack.addWidget(preview)
 
         container_layout.addWidget(stack, 1)
 
@@ -1297,7 +1310,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         bg_raised = self._theme.bg_raised
         html = f"""<html><head><style>
             body {{ background:{bg}; color:{fg}; font-family:'Segoe UI',sans-serif;
-                   padding:0;
+                   padding:16px 40px; max-width:1200px; margin:0 auto;
                    line-height:1.2; }}
             h1 {{ color:{accent}; margin:8px 0 2px 0; }}
             h2 {{ color:{accent}; margin:8px 0 2px 0; }}
