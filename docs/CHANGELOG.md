@@ -3,7 +3,8 @@
 ## v2.3.0 (2026-04-14) — Social Media Suite Expansion
 
 ### New Tabs & Panels
-- **Studio Tab** — Canvas and Censor tabs merged into unified "Studio" tab. Layered scene: base image (Z=0), censors (Z=100+), overlays (Z=200+), annotations (Z=300+). Single toolbar with censor draw, overlay watermark/text/template, and annotation tools. Annotations are ephemeral (not saved); censors and overlays persist.
+- **Studio Tab** — Canvas and Censor tabs merged into unified "Studio" tab. Layered scene: base image (Z=0), censors (Z=100+), overlays (Z=200+), annotations (Z=300+). Single toolbar with censor draw, overlay watermark/text/template, and annotation tools. Drag-drop from tray to load assets. Rich text editing: font family, size, bold, italic, color picker, kerning, rotation. Watermark templates for batch application. Annotations are ephemeral (not saved); censors and overlays persist.
+- **Engagement Follow-Up System** — Auto-generates 5 timed check windows per platform after posting (+15m, +1h, +4h, +24h, +48h). EngagementPanel at top of timeline with Open/Done/Snooze buttons for each check window. Test button in Tools menu for dry-run testing.
 - **Gantt Chart** — Visual timeline in Social tab showing all posts as colored bars, stagger connection lines, gap detection, today marker. Zoom slider + date range picker. Click bar to edit post.
 - **Tabbed Notes** — General + Agent Primer (permanent) + custom tabs. Live markdown preview with Edit/Preview toggle. Right-click Claude actions (Refine, Expand, Research, Simplify, [Instruct]).
 
@@ -15,6 +16,11 @@
 - **Multi-Identity** — Multiple brand identities per project with voice, hashtags, Patreon schedules. Identity selector in composer.
 - **Reminder Engine** — Scans release chains + Patreon cadence for due actions. QTimer checks every 5 minutes, status bar alerts.
 - **Patreon Quick-Post** — Copies caption, exports image with overlays/censors, opens Patreon post URL in browser.
+
+### Manual Social Platforms
+- **Third platform section** for track-only platforms: Bluesky, Pixiv, Instagram, TikTok, Tumblr, Threads, Mastodon, Newgrounds
+- Manual platforms appear in composer for caption/scheduling but require manual posting (no API push)
+- Status tracking (draft/posted/skipped) works the same as automated platforms
 
 ### Subscription Platform Automation
 - **7 platforms**: Patreon, Pixiv Fanbox, Fantia, Ci-en, Gumroad, Ko-fi, SubscribeStar
@@ -39,6 +45,8 @@
 
 ### Composer Redesign
 - **Two-column layout** — Left: image preview + SFW/NSFW toggle + crop status. Right: strategy + captions + schedule.
+- **Schedule picker on left panel** — Moved to top of composer left side with EST/PST/JST world clock display, scroll wheel disabled to prevent accidental changes
+- **Per-platform captions** — Caption fields only appear for checked/enabled platforms, fields rebuild dynamically on toggle
 - **Dockable composer** — Float as dialog or dock into Social tab with compact mode. Toggle button persists preference.
 - **Connected platforms** — Shows actual OneUp accounts (8 Twitter/X + Reddit), greyed-out unconnected platforms
 - **Image preview** — Large preview fills available space, rescales on resize, censored toggle
@@ -68,6 +76,8 @@
 - **PST added to timeline** time display
 - **Context menu text** explicitly colored for readability
 - **Overlay editor tab removed** — absorbed into Studio
+- **Notes preview theme fix** — markdown preview re-renders on theme change
+- **Notes left padding** — 100px left padding on markdown editor for readability
 
 ### UI & Theming
 - **Tokenized scrollbars** — Single global rule with track/handle/hover tokens

@@ -198,6 +198,20 @@ A single toolbar provides access to all editing modes:
 - **Overlay tools** — watermark, text, and logo placement with drag positioning, opacity/scale sliders, and template presets
 - **Annotation tools** — free-form text, lines, boxes, markers for temporary notes
 
+### Drag-Drop from Tray
+Drag any asset from the Work Tray directly into the Studio scene to load it as the base image.
+
+### Rich Text Editing
+Text overlays support full rich text controls:
+- **Font family** and **size** selection
+- **Bold** and **italic** formatting
+- **Color picker** for text color
+- **Kerning** adjustment (letter spacing)
+- **Rotation** for angled text placement
+
+### Watermark Templates
+Save and load watermark configurations as templates for batch application across assets. Templates store position, opacity, scale, and image path.
+
 ### Controls
 - **Scroll** to zoom
 - **Middle-click + drag** to pan
@@ -351,6 +365,22 @@ A month-view grid showing scheduled posts as colored status dots:
 - **World clock** — shows JST, EST, and PST alongside the calendar
 - Navigate months with arrow buttons
 
+### Engagement Follow-Up System
+
+After posting, DoxyEdit auto-generates 5 timed check windows per platform to track engagement:
+- **+15 minutes** — initial reactions check
+- **+1 hour** — early engagement check
+- **+4 hours** — mid-day performance check
+- **+24 hours** — next-day review
+- **+48 hours** — final follow-up
+
+The **EngagementPanel** appears at the top of the timeline showing active check windows with:
+- **Open** — opens the platform post in the browser to check engagement
+- **Done** — marks the check as completed
+- **Snooze** — postpones the check window
+
+A **Test** button in the Tools menu allows dry-run testing of the engagement system without requiring an actual post.
+
 ### Timeline
 
 A chronological list of all social posts for the project. Each entry shows:
@@ -393,12 +423,13 @@ The redesigned two-column composer for creating and scheduling social posts.
 - Markdown strategy notes with Edit/Preview toggle and theme-aware CSS rendering
 
 **Caption & Hashtags:**
-- Per-platform caption editing
+- Per-platform caption editing — fields only appear for checked/enabled platforms, rebuild dynamically on toggle
 - Hashtag suggestions from identity profile
 - Dual-language support (Japanese + English) for Fanbox/Fantia/Ci-en
 
 **Schedule:**
-- Date/time picker with JST/EST/PST display
+- Date/time picker at top of composer left panel with JST/EST/PST world clock display
+- Scroll wheel disabled on schedule picker to prevent accidental changes
 - Platform checkboxes in a flow layout (wrap when window narrows)
 - Shows connected OneUp accounts (Twitter/X, Reddit) with greyed-out unconnected platforms
 
@@ -462,6 +493,29 @@ Generalized quick-post workflow for 7 subscription/monetization platforms:
 
 ### Tier-Based Content
 Each platform supports free preview vs paid full version. The tier level is set per release step in a release chain.
+
+---
+
+## Manual Social Platforms
+
+A third platform section for services that don't have API integration. These platforms appear in the composer for caption writing and scheduling, but require manual posting.
+
+| Platform | Notes |
+|----------|-------|
+| Bluesky | Microblogging |
+| Pixiv | Art community |
+| Instagram | Image/video posts |
+| TikTok | Short-form video |
+| Tumblr | Blog/art posts |
+| Threads | Meta microblogging |
+| Mastodon | Fediverse |
+| Newgrounds | Flash/art community |
+
+Manual platforms support:
+- Caption editing in the composer (per-platform fields when checked)
+- Schedule tracking (date/time with world clock)
+- Status tracking (draft/posted/skipped) — same workflow as automated platforms
+- Engagement follow-up windows after marking as posted
 
 ---
 
