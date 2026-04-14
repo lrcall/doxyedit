@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGraphicsScene, QGraphicsView, QGraphicsRectItem, QGraphicsPixmapItem,
     QGraphicsTextItem, QGraphicsLineItem, QComboBox, QFileDialog, QSlider,
+    QFontComboBox, QSpinBox, QColorDialog, QInputDialog,
 )
 from PySide6.QtCore import Qt, QRectF, QPointF, QLineF
 from PySide6.QtGui import (
@@ -79,6 +80,8 @@ class OverlayImageItem(QGraphicsPixmapItem):
         )
         self.setOpacity(overlay.opacity)
         self.setPos(overlay.x, overlay.y)
+        if overlay.rotation:
+            self.setRotation(overlay.rotation)
 
     def itemChange(self, change, value):
         if change == QGraphicsPixmapItem.GraphicsItemChange.ItemPositionHasChanged:
@@ -105,8 +108,19 @@ class OverlayTextItem(QGraphicsTextItem):
 
     def _apply_font(self):
         font = QFont(self.overlay.font_family, self.overlay.font_size)
+        if self.overlay.bold:
+            font.setBold(True)
+        if self.overlay.italic:
+            font.setItalic(True)
+        if self.overlay.letter_spacing:
+            font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, self.overlay.letter_spacing)
         self.setFont(font)
         self.setDefaultTextColor(QColor(self.overlay.color))
+        if self.overlay.text_width > 0:
+            self.setTextWidth(self.overlay.text_width)
+        else:
+            self.setTextWidth(-1)
+        self.setRotation(self.overlay.rotation)
 
     def itemChange(self, change, value):
         if change == QGraphicsTextItem.GraphicsItemChange.ItemPositionHasChanged:
@@ -266,8 +280,10 @@ class StudioView(QGraphicsView):
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+        self.setAcceptDrops(True)
         self._panning = False
         self._pan_start = QPointF()
+        self.on_file_dropped = None  # callback(path, scene_pos)
 
     def wheelEvent(self, event: QWheelEvent):
         factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
@@ -300,6 +316,24 @@ class StudioView(QGraphicsView):
             self.setCursor(Qt.CursorShape.ArrowCursor)
             return
         super().mouseReleaseEvent(event)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                if url.isLocalFile():
+                    path = url.toLocalFile()
+                    if self.on_file_dropped:
+                        pos = self.mapToScene(event.position().toPoint())
+                        self.on_file_dropped(path, pos)
+            event.acceptProposedAction()
 
 
 # ---------------------------------------------------------------------------
@@ -408,13 +442,104 @@ class StudioEditor(QWidget):
 
         root.addLayout(toolbar)
 
+        # Row 2: Overlay properties (visible when text/watermark selected)
+        self._props_row = QWidget()
+        self._props_row.setObjectName("studio_props_row")
+        props = QHBoxLayout(self._props_row)
+        props.setContentsMargins(0, 2, 0, 2)
+
+        props.addWidget(QLabel("Pos:"))
+        self.combo_position = QComboBox()
+        self.combo_position.setObjectName("studio_position_combo")
+        self.combo_position.addItems([
+            "bottom-right", "bottom-left", "top-right", "top-left", "center", "custom (drag)",
+        ])
+        self.combo_position.currentTextChanged.connect(self._on_position_changed)
+        props.addWidget(self.combo_position)
+
+        props.addWidget(QLabel("|"))
+
+        props.addWidget(QLabel("Font:"))
+        self.font_combo = QFontComboBox()
+        self.font_combo.setObjectName("studio_font_combo")
+        self.font_combo.currentFontChanged.connect(self._on_font_changed)
+        props.addWidget(self.font_combo)
+
+        self.spin_font_size = QSpinBox()
+        self.spin_font_size.setObjectName("studio_font_size")
+        self.spin_font_size.setRange(8, 200)
+        self.spin_font_size.setValue(24)
+        self.spin_font_size.valueChanged.connect(self._on_font_size_changed)
+        props.addWidget(self.spin_font_size)
+
+        self.btn_bold = QPushButton("B")
+        self.btn_bold.setObjectName("studio_bold_btn")
+        self.btn_bold.setCheckable(True)
+        self.btn_bold.setFixedWidth(28)
+        self.btn_bold.clicked.connect(self._on_bold_changed)
+        props.addWidget(self.btn_bold)
+
+        self.btn_italic = QPushButton("I")
+        self.btn_italic.setObjectName("studio_italic_btn")
+        self.btn_italic.setCheckable(True)
+        self.btn_italic.setFixedWidth(28)
+        self.btn_italic.clicked.connect(self._on_italic_changed)
+        props.addWidget(self.btn_italic)
+
+        self.btn_color = QPushButton("■")
+        self.btn_color.setObjectName("studio_color_btn")
+        self.btn_color.setFixedWidth(28)
+        self.btn_color.clicked.connect(self._on_color_pick)
+        props.addWidget(self.btn_color)
+
+        props.addWidget(QLabel("|"))
+
+        props.addWidget(QLabel("Kern:"))
+        self.slider_kerning = QSlider(Qt.Orientation.Horizontal)
+        self.slider_kerning.setObjectName("studio_kerning_slider")
+        self.slider_kerning.setRange(-20, 20)
+        self.slider_kerning.setValue(0)
+        self.slider_kerning.setFixedWidth(80)
+        self.slider_kerning.valueChanged.connect(self._on_kerning_changed)
+        props.addWidget(self.slider_kerning)
+
+        props.addWidget(QLabel("Rot:"))
+        self.slider_rotation = QSlider(Qt.Orientation.Horizontal)
+        self.slider_rotation.setObjectName("studio_rotation_slider")
+        self.slider_rotation.setRange(-180, 180)
+        self.slider_rotation.setValue(0)
+        self.slider_rotation.setFixedWidth(80)
+        self.slider_rotation.valueChanged.connect(self._on_rotation_changed)
+        props.addWidget(self.slider_rotation)
+
+        props.addWidget(QLabel("W:"))
+        self.spin_text_width = QSpinBox()
+        self.spin_text_width.setObjectName("studio_text_width")
+        self.spin_text_width.setRange(0, 5000)
+        self.spin_text_width.setValue(0)
+        self.spin_text_width.setSpecialValueText("auto")
+        self.spin_text_width.valueChanged.connect(self._on_text_width_changed)
+        props.addWidget(self.spin_text_width)
+
+        props.addWidget(QLabel("|"))
+
+        self.btn_save_template = QPushButton("Save Template")
+        self.btn_save_template.setObjectName("studio_save_template_btn")
+        self.btn_save_template.clicked.connect(self._save_as_template)
+        props.addWidget(self.btn_save_template)
+
+        props.addStretch()
+        self._props_row.setVisible(False)
+        root.addWidget(self._props_row)
+
         # Scene + View
         self._scene = StudioScene()
         self._scene.on_censor_finished = self._on_censor_drawn
         self._view = StudioView(self._scene)
+        self._view.on_file_dropped = self._on_file_dropped
         root.addWidget(self._view)
 
-        # Selection change -> update sliders
+        # Selection change -> update sliders + props row
         self._scene.selectionChanged.connect(self._on_selection_changed)
 
     # ---- public API ----
@@ -616,16 +741,179 @@ class StudioEditor(QWidget):
                         item.setPixmap(pm)
 
     def _on_selection_changed(self):
-        for item in self._scene.selectedItems():
-            if isinstance(item, (OverlayImageItem, OverlayTextItem)):
-                self.slider_opacity.blockSignals(True)
-                self.slider_opacity.setValue(int(item.overlay.opacity * 100))
-                self.slider_opacity.blockSignals(False)
-                if isinstance(item, OverlayImageItem):
-                    self.slider_scale.blockSignals(True)
-                    self.slider_scale.setValue(int(item.overlay.scale * 100))
-                    self.slider_scale.blockSignals(False)
-                break
+        sel = [i for i in self._scene.selectedItems()
+               if isinstance(i, (OverlayImageItem, OverlayTextItem))]
+        if not sel:
+            self._props_row.setVisible(False)
+            return
+
+        item = sel[0]
+        ov = item.overlay
+        self._props_row.setVisible(True)
+
+        # Block signals during bulk update
+        for w in (self.slider_opacity, self.slider_scale, self.combo_position,
+                  self.font_combo, self.spin_font_size, self.btn_bold,
+                  self.btn_italic, self.slider_kerning, self.slider_rotation,
+                  self.spin_text_width):
+            w.blockSignals(True)
+
+        self.slider_opacity.setValue(int(ov.opacity * 100))
+        self.slider_scale.setValue(int(ov.scale * 100))
+        pos_text = ov.position if ov.position != "custom" else "custom (drag)"
+        idx = self.combo_position.findText(pos_text)
+        if idx >= 0:
+            self.combo_position.setCurrentIndex(idx)
+        self.font_combo.setCurrentFont(QFont(ov.font_family))
+        self.spin_font_size.setValue(ov.font_size)
+        self.btn_bold.setChecked(ov.bold)
+        self.btn_italic.setChecked(ov.italic)
+        self.slider_kerning.setValue(int(ov.letter_spacing))
+        self.slider_rotation.setValue(int(ov.rotation))
+        self.spin_text_width.setValue(ov.text_width)
+
+        for w in (self.slider_opacity, self.slider_scale, self.combo_position,
+                  self.font_combo, self.spin_font_size, self.btn_bold,
+                  self.btn_italic, self.slider_kerning, self.slider_rotation,
+                  self.spin_text_width):
+            w.blockSignals(False)
+
+    # ---- drag-drop from tray ----
+
+    def _on_file_dropped(self, path: str, scene_pos):
+        """Add dropped file as a watermark overlay at the drop position."""
+        if not self._asset:
+            return
+        ext = Path(path).suffix.lower()
+        if ext not in ('.png', '.jpg', '.jpeg', '.webp', '.gif'):
+            return
+        ov = CanvasOverlay(
+            type="watermark", label=Path(path).stem, image_path=path,
+            position="custom", x=int(scene_pos.x()), y=int(scene_pos.y()),
+            opacity=self.slider_opacity.value() / 100.0,
+            scale=self.slider_scale.value() / 100.0,
+        )
+        self._add_overlay_image(ov)
+        self._sync_overlays_to_asset()
+
+    def _add_overlay_image(self, ov: CanvasOverlay):
+        """Add an overlay to the asset and scene."""
+        self._asset.overlays.append(ov)
+        item = self._create_overlay_item(ov)
+        if item:
+            item.setZValue(200 + len(self._overlay_items))
+            self._overlay_items.append(item)
+        self._update_info()
+
+    # ---- properties row handlers ----
+
+    def _selected_overlay_items(self):
+        return [i for i in self._scene.selectedItems()
+                if isinstance(i, (OverlayImageItem, OverlayTextItem))]
+
+    def _on_position_changed(self, text: str):
+        if not self._pixmap_item:
+            return
+        base_w = self._pixmap_item.pixmap().width()
+        base_h = self._pixmap_item.pixmap().height()
+        for item in self._selected_overlay_items():
+            ov = item.overlay
+            pos_key = text.replace(" (drag)", "")
+            ov.position = pos_key
+            if pos_key == "custom":
+                continue
+            iw = item.boundingRect().width()
+            ih = item.boundingRect().height()
+            margin = 20
+            positions = {
+                "bottom-right": (base_w - iw - margin, base_h - ih - margin),
+                "bottom-left": (margin, base_h - ih - margin),
+                "top-right": (base_w - iw - margin, margin),
+                "top-left": (margin, margin),
+                "center": ((base_w - iw) / 2, (base_h - ih) / 2),
+            }
+            if pos_key in positions:
+                nx, ny = positions[pos_key]
+                ov.x, ov.y = int(nx), int(ny)
+                item.setPos(nx, ny)
+        self._sync_overlays_to_asset()
+
+    def _on_font_changed(self, font: QFont):
+        for item in self._selected_overlay_items():
+            if isinstance(item, OverlayTextItem):
+                item.overlay.font_family = font.family()
+                item._apply_font()
+        self._sync_overlays_to_asset()
+
+    def _on_font_size_changed(self, value: int):
+        for item in self._selected_overlay_items():
+            if isinstance(item, OverlayTextItem):
+                item.overlay.font_size = value
+                item._apply_font()
+        self._sync_overlays_to_asset()
+
+    def _on_bold_changed(self):
+        checked = self.btn_bold.isChecked()
+        for item in self._selected_overlay_items():
+            if isinstance(item, OverlayTextItem):
+                item.overlay.bold = checked
+                item._apply_font()
+        self._sync_overlays_to_asset()
+
+    def _on_italic_changed(self):
+        checked = self.btn_italic.isChecked()
+        for item in self._selected_overlay_items():
+            if isinstance(item, OverlayTextItem):
+                item.overlay.italic = checked
+                item._apply_font()
+        self._sync_overlays_to_asset()
+
+    def _on_color_pick(self):
+        items = self._selected_overlay_items()
+        if not items:
+            return
+        current = QColor(items[0].overlay.color)
+        color = QColorDialog.getColor(current, self, "Overlay Color")
+        if color.isValid():
+            for item in items:
+                if isinstance(item, OverlayTextItem):
+                    item.overlay.color = color.name()
+                    item._apply_font()
+            self._sync_overlays_to_asset()
+
+    def _on_kerning_changed(self, value: int):
+        for item in self._selected_overlay_items():
+            if isinstance(item, OverlayTextItem):
+                item.overlay.letter_spacing = float(value)
+                item._apply_font()
+        self._sync_overlays_to_asset()
+
+    def _on_rotation_changed(self, value: int):
+        for item in self._selected_overlay_items():
+            item.overlay.rotation = float(value)
+            item.setRotation(value)
+        self._sync_overlays_to_asset()
+
+    def _on_text_width_changed(self, value: int):
+        for item in self._selected_overlay_items():
+            if isinstance(item, OverlayTextItem):
+                item.overlay.text_width = value
+                item._apply_font()
+        self._sync_overlays_to_asset()
+
+    def _save_as_template(self):
+        """Save selected overlay as a project template."""
+        items = self._selected_overlay_items()
+        if not items or not self._project:
+            return
+        ov = items[0].overlay
+        label, ok = QInputDialog.getText(self, "Save Template", "Template label:")
+        if not ok or not label.strip():
+            return
+        d = ov.to_dict()
+        d["label"] = label.strip()
+        self._project.default_overlays.append(d)
+        self.combo_template.addItem(label.strip())
 
     # ---- sync ----
 

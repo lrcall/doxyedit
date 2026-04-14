@@ -191,6 +191,11 @@ class CanvasOverlay:
     y: int = 0
     scale: float = 0.2        # fraction of image width for watermark/logo
     enabled: bool = True
+    rotation: float = 0.0     # degrees
+    bold: bool = False
+    italic: bool = False
+    text_width: int = 0       # 0 = no wrapping
+    letter_spacing: float = 0.0  # kerning
 
     def to_dict(self) -> dict:
         return {
@@ -198,6 +203,8 @@ class CanvasOverlay:
             "text": self.text, "font_family": self.font_family, "font_size": self.font_size,
             "color": self.color, "opacity": self.opacity, "position": self.position,
             "x": self.x, "y": self.y, "scale": self.scale, "enabled": self.enabled,
+            "rotation": self.rotation, "bold": self.bold, "italic": self.italic,
+            "text_width": self.text_width, "letter_spacing": self.letter_spacing,
         }
 
     @classmethod
