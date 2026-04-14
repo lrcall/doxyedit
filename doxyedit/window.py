@@ -35,24 +35,9 @@ from PySide6.QtWidgets import QPlainTextEdit as _QPlainTextEdit
 
 
 class _CenteredTextEdit(_QPlainTextEdit):
-    """QPlainTextEdit that centers content using document margin."""
-
-    _MAX_CONTENT = 900
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        # Use document margin for centering (safer than setViewportMargins)
-        try:
-            w = self.viewport().width() if self.viewport() else self.width()
-            if w > self._MAX_CONTENT:
-                margin = (w - self._MAX_CONTENT) // 2
-            else:
-                margin = 20
-            doc = self.document()
-            if doc and doc.documentMargin() != margin:
-                doc.setDocumentMargin(margin)
-        except RuntimeError:
-            pass
+    """QPlainTextEdit — centering handled by QSS padding only.
+    No viewport margin tricks. Scrollbar stays at widget edge."""
+    pass
 from doxyedit.infopanel import InfoPanel
 from doxyedit.tray import WorkTray
 from doxyedit.project import save_project, load_project
@@ -1291,7 +1276,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         bg_raised = self._theme.bg_raised
         html = f"""<html><head><style>
             body {{ background:{bg}; color:{fg}; font-family:'Segoe UI',sans-serif;
-                   padding:16px 28px; max-width:900px; margin:0 auto;
+                   padding:8px 120px;
                    line-height:1.2; }}
             h1 {{ color:{accent}; margin:8px 0 2px 0; }}
             h2 {{ color:{accent}; margin:8px 0 2px 0; }}
