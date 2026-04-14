@@ -174,7 +174,6 @@ class ImagePreviewPanel(QWidget):
 
         header = QLabel("Platform Prep")
         header.setObjectName("composer_prep_header")
-        header.setStyleSheet("font-weight: bold;")
         self._prep_strip_layout.addWidget(header)
 
         for pid in platform_ids:
@@ -190,9 +189,11 @@ class ImagePreviewPanel(QWidget):
             row.setContentsMargins(2, 1, 2, 1)
             row.setSpacing(6)
 
-            dot_colors = {"green": "#6eaa78", "yellow": "#be955c", "red": "#9a4f50"}
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            _dt = THEMES[DEFAULT_THEME]
+            dot_colors = {"green": _dt.success, "yellow": _dt.warning, "red": _dt.error}
             dot = QLabel("●")
-            dot.setStyleSheet(f"color: {dot_colors.get(status, '#888')};")
+            dot.setStyleSheet(f"color: {dot_colors.get(status, _dt.text_muted)};")
             dot.setFixedWidth(14)
             row.addWidget(dot)
 
@@ -202,11 +203,11 @@ class ImagePreviewPanel(QWidget):
             issues = readiness.get("issues", [])
             if issues:
                 issue_lbl = QLabel(issues[0])
-                issue_lbl.setStyleSheet("color: #9a4f50; font-size: 11px;")
+                issue_lbl.setStyleSheet(f"color: {_dt.error}; font-size: {_dt.font_size}px;")
                 row.addWidget(issue_lbl)
             else:
                 ok_lbl = QLabel("Ready")
-                ok_lbl.setStyleSheet("color: #6eaa78; font-size: 11px;")
+                ok_lbl.setStyleSheet(f"color: {_dt.success}; font-size: {_dt.font_size}px;")
                 row.addWidget(ok_lbl)
 
             self._prep_strip_layout.addWidget(row_w)

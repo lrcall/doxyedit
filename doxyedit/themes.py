@@ -1543,6 +1543,9 @@ def generate_stylesheet(theme: Theme) -> str:
         QWidget#post_composer_widget QLabel {{
             color: {theme.text_primary};
         }}
+        QLabel#composer_prep_header {{
+            font-weight: bold;
+        }}
         QDialog#post_composer QPushButton,
         QWidget#post_composer_widget QPushButton {{
             background: {theme.bg_raised};

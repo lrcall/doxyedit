@@ -270,7 +270,7 @@ class AnnotationTextItem(QGraphicsTextItem):
         )
         from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
-        self.setFont(QFont("Segoe UI", 11))
+        self.setFont(QFont(_dt.font_family, _dt.font_size))
         self.setDefaultTextColor(QColor(_dt.text_primary))
 
     def mouseDoubleClickEvent(self, event):

@@ -24,14 +24,14 @@ class EditableTextItem(QGraphicsTextItem):
 
     def __init__(self, text="Double-click to edit", parent=None):
         super().__init__(text, parent)
-        self.setFont(QFont("Segoe UI", 11))
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
+        self.setFont(QFont(_dt.font_family, _dt.font_size))
         self.setFlags(
             QGraphicsTextItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsTextItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsTextItem.GraphicsItemFlag.ItemSendsGeometryChanges
         )
-        from doxyedit.themes import THEMES, DEFAULT_THEME
-        _dt = THEMES[DEFAULT_THEME]
         self.setDefaultTextColor(QColor(_dt.text_primary))
         self._editing = False
 

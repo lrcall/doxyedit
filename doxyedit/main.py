@@ -68,7 +68,9 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("DoxyEdit")
     app.setOrganizationName("DoxyEdit")
-    app.setFont(QFont("Segoe UI", 10))
+    from doxyedit.themes import THEMES, DEFAULT_THEME
+    _dt = THEMES[DEFAULT_THEME]
+    app.setFont(QFont(_dt.font_family, _dt.font_size))
 
     # Set app icon
     icon_path = Path(__file__).parent.parent / "doxyedit.ico"
