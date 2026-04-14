@@ -13,6 +13,20 @@ from PySide6.QtGui import QPixmap
 from doxyedit.models import Project, SocialPost, SocialPostStatus, EngagementWindow
 
 
+def _resolve_chrome_profile(project, collection: str, account_id: str) -> str:
+    """Look up the Chrome profile for an account from the identity config."""
+    if not project or not collection:
+        return "Default"
+    identity = project.identities.get(collection, {})
+    return identity.get("chrome_profiles", {}).get(account_id, "Default")
+
+
+def _open_with_profile(url: str, profile_dir: str = "Default"):
+    """Open a URL with a Chrome profile, falling back to webbrowser."""
+    from doxyedit.composer_right import open_chrome_with_profile
+    open_chrome_with_profile(url, profile_dir)
+
+
 # Status icon map
 _STATUS_ICONS = {
     "draft":   "○",
@@ -48,6 +62,7 @@ class PostCard(QFrame):
     """Single post card in the timeline feed."""
 
     clicked = Signal(str)  # emits post_id
+    engagement_changed = Signal()  # emitted when done/snooze clicked
 
     def __init__(self, post: SocialPost, project: "Project | None" = None,
                  thumb_cache=None, parent=None):
@@ -55,12 +70,18 @@ class PostCard(QFrame):
         self.setObjectName("timeline_post_card")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._post_id = post.id
+        self._post = post
         self._asset_ids = post.asset_ids
         self._project = project
 
-        outer = QHBoxLayout(self)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        outer = QHBoxLayout()
         outer.setContentsMargins(6, 4, 6, 4)
         outer.setSpacing(8)
+        root.addLayout(outer)
 
         # Thumbnails (left side)
         if post.asset_ids and project:
@@ -155,6 +176,99 @@ class PostCard(QFrame):
             info.addWidget(links_label)
 
         outer.addLayout(info, 1)
+
+        # Inline engagement checks (collapsible, styled like original panel)
+        if hasattr(post, 'engagement_checks') and post.engagement_checks:
+            now = datetime.now()
+            pending = []
+            for i, check_dict in enumerate(post.engagement_checks):
+                check = EngagementWindow.from_dict(check_dict)
+                if check.done:
+                    continue
+                try:
+                    check_time = datetime.fromisoformat(check.check_at)
+                except (ValueError, TypeError):
+                    continue
+                mins = (check_time - now).total_seconds() / 60
+                if mins <= 60:
+                    pending.append((i, check, mins))
+
+            if pending:
+                pending.sort(key=lambda x: x[2])
+
+                eng_container = QFrame()
+                eng_container.setObjectName("engagement_panel")
+                eng_layout = QVBoxLayout(eng_container)
+                eng_layout.setContentsMargins(6, 4, 6, 4)
+                eng_layout.setSpacing(3)
+                eng_container.setVisible(False)
+
+                for idx, check, mins in pending:
+                    row = QFrame()
+                    row.setObjectName("engagement_row")
+                    row_lay = QHBoxLayout(row)
+                    row_lay.setContentsMargins(4, 2, 4, 2)
+                    row_lay.setSpacing(6)
+
+                    icon = "!!" if mins < 0 else ("!" if mins < 5 else "~")
+                    icon_lbl = QLabel(icon)
+                    icon_lbl.setFixedWidth(20)
+                    row_lay.addWidget(icon_lbl)
+
+                    desc = QLabel(f"{check.platform} — {check.notes}")
+                    desc.setWordWrap(True)
+                    row_lay.addWidget(desc, 1)
+
+                    if check.url:
+                        _open = QPushButton("Open")
+                        _open.setObjectName("engagement_open_btn")
+                        _prof = _resolve_chrome_profile(self._project, post.collection, check.account_id)
+                        _open.clicked.connect(lambda _=False, u=check.url, p=_prof: _open_with_profile(u, p))
+                        row_lay.addWidget(_open)
+
+                    _done = QPushButton("Done")
+                    _done.setObjectName("engagement_done_btn")
+                    _done.clicked.connect(lambda _=False, i=idx: self._eng_done(i, row, eng_layout))
+                    row_lay.addWidget(_done)
+
+                    _snz = QPushButton("Snooze")
+                    _snz.setObjectName("engagement_snooze_btn")
+                    _snz.clicked.connect(lambda _=False, i=idx: self._eng_snooze(i))
+                    row_lay.addWidget(_snz)
+
+                    eng_layout.addWidget(row)
+
+                toggle = QPushButton(f"Engagement ({len(pending)}) \u25bc")
+                toggle.setObjectName("engagement_toggle_btn")
+                toggle.setCheckable(True)
+                toggle.setChecked(False)
+                toggle.clicked.connect(lambda c: (
+                    eng_container.setVisible(c),
+                    toggle.setText(f"Engagement ({len(pending)}) \u25b2" if c
+                                   else f"Engagement ({len(pending)}) \u25bc"),
+                ))
+                root.addWidget(toggle)
+                root.addWidget(eng_container)
+
+    @staticmethod
+    def _eng_done(self, check_idx: int, row_widget, eng_layout):
+        """Mark engagement check as done, remove the row."""
+        if check_idx < len(self._post.engagement_checks):
+            self._post.engagement_checks[check_idx]["done"] = True
+        row_widget.deleteLater()
+        self.engagement_changed.emit()
+
+    def _eng_snooze(self, check_idx: int):
+        """Snooze engagement check by 30 minutes."""
+        if check_idx < len(self._post.engagement_checks):
+            try:
+                old = datetime.fromisoformat(self._post.engagement_checks[check_idx]["check_at"])
+                self._post.engagement_checks[check_idx]["check_at"] = (
+                    old + timedelta(minutes=30)
+                ).isoformat()
+            except (ValueError, TypeError, KeyError):
+                pass
+        self.engagement_changed.emit()
 
     @staticmethod
     def _load_thumb_direct(asset_id: str, project) -> "QPixmap | None":
@@ -325,7 +439,8 @@ class EngagementPanel(QFrame):
                 open_btn = QPushButton("Open")
                 open_btn.setObjectName("engagement_open_btn")
                 _url = check.url
-                open_btn.clicked.connect(lambda _=False, u=_url: __import__("webbrowser").open(u))
+                _prof = _resolve_chrome_profile(self._project, post.collection, check.account_id)
+                open_btn.clicked.connect(lambda _=False, u=_url, p=_prof: _open_with_profile(u, p))
                 row_layout.addWidget(open_btn)
 
             # Done button
@@ -419,10 +534,9 @@ class TimelineStream(QWidget):
         self._summary_label.setObjectName("timeline_summary")
         outer.addWidget(self._summary_label)
 
-        # ---- Engagement panel ----
+        # Engagement checks now inline on each PostCard (no top-level panel)
         self._engagement_panel = EngagementPanel()
         self._engagement_panel.changed.connect(self._on_engagement_changed)
-        outer.addWidget(self._engagement_panel)
 
         # ---- Scroll area ----
         self._scroll = QScrollArea()
@@ -517,6 +631,7 @@ class TimelineStream(QWidget):
             for post in by_day[day_str]:
                 card = PostCard(post, self._project, self._thumb_cache)
                 card.clicked.connect(self.post_selected)
+                card.engagement_changed.connect(self._on_engagement_changed)
                 self._content_layout.insertWidget(idx, card)
                 idx += 1
 
@@ -529,6 +644,7 @@ class TimelineStream(QWidget):
             for post in unscheduled:
                 card = PostCard(post, self._project, self._thumb_cache)
                 card.clicked.connect(self.post_selected)
+                card.engagement_changed.connect(self._on_engagement_changed)
                 self._content_layout.insertWidget(idx, card)
                 idx += 1
 

@@ -20,6 +20,51 @@ from PySide6.QtGui import QPixmap
 from doxyedit.models import Project, ReleaseStep, SocialPost, SocialPostStatus
 
 
+# ─── Chrome profile utilities ─────────────────────────────────────
+
+def list_chrome_profiles() -> list[tuple[str, str]]:
+    """Return (dir_name, display_name) for each Chrome profile."""
+    import json, os
+    user_data = os.path.expandvars(r"%LocalAppData%\Google\Chrome\User Data")
+    profiles = []
+    if os.path.isdir(user_data):
+        for name in os.listdir(user_data):
+            prefs = os.path.join(user_data, name, "Preferences")
+            if os.path.isfile(prefs):
+                try:
+                    with open(prefs, encoding="utf-8") as f:
+                        data = json.load(f)
+                    display = data.get("profile", {}).get("name", name)
+                    profiles.append((name, display))
+                except Exception:
+                    profiles.append((name, name))
+    return profiles
+
+
+def open_chrome_with_profile(url: str, profile_dir: str = "Default"):
+    """Launch Chrome with a specific profile."""
+    import subprocess, sys, os
+    chrome_paths = [
+        os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
+    ]
+    chrome = None
+    for p in chrome_paths:
+        if os.path.exists(p):
+            chrome = p
+            break
+    if not chrome:
+        import webbrowser
+        webbrowser.open(url)
+        return
+    cmd = [chrome, f"--profile-directory={profile_dir}", url]
+    if sys.platform == "win32":
+        subprocess.Popen(cmd, creationflags=0x08000000)
+    else:
+        subprocess.Popen(cmd)
+
+
 # ─── Flow layout ───────────────────────────────────────────────────
 
 class _FlowLayout(QLayout):
@@ -1292,49 +1337,52 @@ RULES:
         self._chain_template_combo.setCurrentIndex(0)
 
     def _edit_identity(self) -> None:
-        """Open a dialog to create or edit the current identity."""
+        """Open a tabbed dialog to create or edit the current identity."""
         from PySide6.QtWidgets import (
             QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
             QPushButton, QFormLayout, QDialogButtonBox, QComboBox as _QCB,
+            QTabWidget, QWidget, QScrollArea, QListWidget, QListWidgetItem,
         )
         current = self._identity_combo.currentData() or ""
         identity = dict(self._project.identities.get(current, {})) if current else {}
 
         dlg = QDialog(self)
+        dlg.setObjectName("identity_editor")
         dlg.setWindowTitle(f"Edit Identity: {current}" if current else "New Identity")
-        dlg.setMinimumWidth(450)
+        dlg.setMinimumSize(500, 400)
         layout = QVBoxLayout(dlg)
 
-        form = QFormLayout()
+        # Name field (above tabs)
         name_edit = QLineEdit(current)
         name_edit.setPlaceholderText("Identity name (e.g. Doxy, Onta)")
-        if not current:
-            form.addRow("Name:", name_edit)
-        else:
+        if current:
             name_edit.setReadOnly(True)
-            form.addRow("Name:", name_edit)
+        name_row = QHBoxLayout()
+        name_row.addWidget(QLabel("Name:"))
+        name_row.addWidget(name_edit)
+        layout.addLayout(name_row)
 
-        fields = {
-            "voice": ("Brand Voice", "e.g. Playful, energetic, slightly irreverent"),
-            "patreon_url": ("Patreon URL", "https://www.patreon.com/yourpage"),
-            "fanbox_url": ("Fanbox URL", "https://yourname.fanbox.cc"),
-            "fantia_url": ("Fantia URL", "https://fantia.jp/fanclubs/12345"),
-            "cien_url": ("Ci-en URL", "https://ci-en.dlsite.com/creator/12345"),
-            "gumroad_url": ("Gumroad URL", "https://yourname.gumroad.com"),
-            "kofi_url": ("Ko-fi URL", "https://ko-fi.com/yourname"),
-            "subscribestar_url": ("SubscribeStar URL", "https://subscribestar.adult/yourname"),
-            "kickstarter_url": ("Kickstarter URL", ""),
-            "indiegogo_url": ("Indiegogo URL", ""),
-            "bio_blurb": ("Bio / Blurb", "Short artist bio"),
-        }
+        tabs = QTabWidget()
+        tabs.setObjectName("identity_tabs")
+        layout.addWidget(tabs)
+
         edits: dict[str, QLineEdit] = {}
-        for key, (label, placeholder) in fields.items():
+
+        # ── Tab 1: Profile ──
+        profile_tab = QWidget()
+        profile_tab.setObjectName("identity_tab_profile")
+        profile_form = QFormLayout(profile_tab)
+        profile_fields = [
+            ("voice", "Brand Voice", "e.g. Playful, energetic, slightly irreverent"),
+            ("bio_blurb", "Bio / Blurb", "Short artist bio"),
+        ]
+        for key, label, placeholder in profile_fields:
             e = QLineEdit(identity.get(key, ""))
             e.setPlaceholderText(placeholder)
-            form.addRow(f"{label}:", e)
+            profile_form.addRow(f"{label}:", e)
             edits[key] = e
 
-        # Category mapping
+        # OneUp Category on Profile tab
         cat_combo = _QCB()
         cat_combo.addItem("(None)", "")
         if self._categories:
@@ -1343,15 +1391,155 @@ RULES:
         cat_idx = cat_combo.findData(str(identity.get("category_id", "")))
         if cat_idx >= 0:
             cat_combo.setCurrentIndex(cat_idx)
-        form.addRow("OneUp Category:", cat_combo)
+        profile_form.addRow("OneUp Category:", cat_combo)
+        tabs.addTab(profile_tab, "Profile")
 
-        # Hashtags
+        # ── Tab 2: Platforms ──
+        platforms_tab = QWidget()
+        platforms_tab.setObjectName("identity_tab_platforms")
+        platforms_form = QFormLayout(platforms_tab)
+        url_fields = [
+            ("patreon_url", "Patreon URL", "https://www.patreon.com/yourpage"),
+            ("fanbox_url", "Fanbox URL", "https://yourname.fanbox.cc"),
+            ("fantia_url", "Fantia URL", "https://fantia.jp/fanclubs/12345"),
+            ("cien_url", "Ci-en URL", "https://ci-en.dlsite.com/creator/12345"),
+            ("gumroad_url", "Gumroad URL", "https://yourname.gumroad.com"),
+            ("kofi_url", "Ko-fi URL", "https://ko-fi.com/yourname"),
+            ("subscribestar_url", "SubscribeStar URL", "https://subscribestar.adult/yourname"),
+            ("kickstarter_url", "Kickstarter URL", ""),
+            ("indiegogo_url", "Indiegogo URL", ""),
+        ]
+        for key, label, placeholder in url_fields:
+            e = QLineEdit(identity.get(key, ""))
+            e.setPlaceholderText(placeholder)
+            platforms_form.addRow(f"{label}:", e)
+            edits[key] = e
+        tabs.addTab(platforms_tab, "Platforms")
+
+        # ── Tab 3: Credentials ──
+        creds_tab = QWidget()
+        creds_tab.setObjectName("identity_tab_credentials")
+        creds_form = QFormLayout(creds_tab)
+        api_fields = [
+            ("bluesky_handle", "Bluesky Handle", "yourname.bsky.social"),
+            ("bluesky_app_password", "Bluesky App Password", "Settings > App Passwords"),
+            ("telegram_bot_token", "Telegram Bot Token", "From @BotFather"),
+            ("telegram_chat_id", "Telegram Chat ID", "-1001234567890 (channel/group ID)"),
+            ("discord_webhook_url", "Discord Webhook URL", "Server Settings > Integrations > Webhooks"),
+        ]
+        for key, label, placeholder in api_fields:
+            e = QLineEdit(identity.get(key, ""))
+            e.setPlaceholderText(placeholder)
+            if "password" in key or "token" in key:
+                e.setEchoMode(QLineEdit.EchoMode.Password)
+            creds_form.addRow(f"{label}:", e)
+            edits[key] = e
+        tabs.addTab(creds_tab, "Credentials")
+
+        # ── Tab 4: Chrome Profiles ──
+        chrome_tab = QWidget()
+        chrome_tab.setObjectName("identity_tab_chrome")
+        chrome_layout = QVBoxLayout(chrome_tab)
+        chrome_form = QFormLayout()
+        chrome_layout.addLayout(chrome_form)
+
+        existing_profiles = identity.get("chrome_profiles", {})
+        chrome_edits: dict[str, QLineEdit] = {}
+
+        # Gather all account IDs: OneUp accounts + subscription platforms
+        account_entries: list[tuple[str, str]] = []  # (account_id, display_name)
+        if self._connected:
+            for acct in self._connected:
+                aid = acct.get("id", "")
+                aname = acct.get("name", aid)
+                if aid:
+                    account_entries.append((str(aid), aname))
+        from doxyedit.models import SUB_PLATFORMS
+        for sub_id, sub in SUB_PLATFORMS.items():
+            account_entries.append((sub_id, sub.name))
+
+        for acct_id, acct_name in account_entries:
+            e = QLineEdit(existing_profiles.get(acct_id, ""))
+            e.setPlaceholderText("e.g. Profile 1, Default")
+            chrome_form.addRow(f"{acct_name}:", e)
+            chrome_edits[acct_id] = e
+
+        # Detect Profiles button
+        profile_list = QListWidget()
+        profile_list.setMaximumHeight(120)
+        profile_list.hide()
+
+        def _detect_profiles():
+            profile_list.clear()
+            profiles = list_chrome_profiles()
+            if profiles:
+                profile_list.show()
+                for dir_name, display_name in profiles:
+                    item = QListWidgetItem(f"{display_name}  ({dir_name})")
+                    item.setData(Qt.ItemDataRole.UserRole, dir_name)
+                    profile_list.addItem(item)
+            else:
+                profile_list.show()
+                profile_list.addItem("No Chrome profiles found")
+
+        btn_row = QHBoxLayout()
+        detect_btn = QPushButton("Detect Profiles")
+        detect_btn.clicked.connect(_detect_profiles)
+        btn_row.addWidget(detect_btn)
+
+        test_btn = QPushButton("Test")
+        def _test_chrome():
+            # Find the first non-empty profile and open Chrome with it
+            for _aid, e in chrome_edits.items():
+                prof = e.text().strip()
+                if prof:
+                    open_chrome_with_profile("about:blank", prof)
+                    return
+            open_chrome_with_profile("about:blank", "Default")
+        test_btn.clicked.connect(_test_chrome)
+        btn_row.addWidget(test_btn)
+        btn_row.addStretch()
+
+        chrome_layout.addLayout(btn_row)
+        chrome_layout.addWidget(profile_list)
+        chrome_layout.addStretch()
+        tabs.addTab(chrome_tab, "Chrome")
+
+        # ── Tab 5: Posting ──
+        posting_tab = QWidget()
+        posting_tab.setObjectName("identity_tab_posting")
+        posting_form = QFormLayout(posting_tab)
+
         hashtags_edit = QLineEdit(", ".join(identity.get("hashtags", [])))
         hashtags_edit.setPlaceholderText("#art #illustration #commission")
-        form.addRow("Hashtags:", hashtags_edit)
+        posting_form.addRow("Hashtags:", hashtags_edit)
 
-        layout.addLayout(form)
+        hashtags_ja_edit = QLineEdit(", ".join(identity.get("hashtags_ja", [])))
+        hashtags_ja_edit.setPlaceholderText("#イラスト #アート")
+        posting_form.addRow("Hashtags (JP):", hashtags_ja_edit)
 
+        voice_ja_edit = QLineEdit(identity.get("voice_ja", ""))
+        voice_ja_edit.setPlaceholderText("Japanese brand voice")
+        posting_form.addRow("Voice (JP):", voice_ja_edit)
+        edits["voice_ja"] = voice_ja_edit
+
+        # Default platforms checkboxes
+        default_platforms = identity.get("default_platforms", [])
+        platform_checks: dict[str, QCheckBox] = {}
+        plat_widget = QWidget()
+        plat_layout = _FlowLayout(plat_widget, hspacing=8, vspacing=4)
+        all_platform_ids = list(self._platform_checks.keys())
+        all_platform_ids += list(getattr(self, '_sub_platform_checks', {}).keys())
+        for pid in all_platform_ids:
+            cb = QCheckBox(pid)
+            cb.setChecked(pid in default_platforms)
+            plat_layout.addWidget(cb)
+            platform_checks[pid] = cb
+        posting_form.addRow("Default Platforms:", plat_widget)
+
+        tabs.addTab(posting_tab, "Posting")
+
+        # ── Buttons ──
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         if current:
@@ -1372,16 +1560,40 @@ RULES:
                     data[key] = val
                 elif key in data:
                     del data[key]
-            # Hashtags
+            # Hashtags (English)
             ht = [t.strip() for t in hashtags_edit.text().split(",") if t.strip()]
             if ht:
                 data["hashtags"] = ht
+            elif "hashtags" in data:
+                del data["hashtags"]
+            # Hashtags (Japanese)
+            ht_ja = [t.strip() for t in hashtags_ja_edit.text().split(",") if t.strip()]
+            if ht_ja:
+                data["hashtags_ja"] = ht_ja
+            elif "hashtags_ja" in data:
+                del data["hashtags_ja"]
             # Category
             cat_val = cat_combo.currentData()
             if cat_val:
                 data["category_id"] = cat_val
             elif "category_id" in data:
                 del data["category_id"]
+            # Chrome profiles
+            chrome_data = {}
+            for acct_id, e in chrome_edits.items():
+                val = e.text().strip()
+                if val:
+                    chrome_data[acct_id] = val
+            if chrome_data:
+                data["chrome_profiles"] = chrome_data
+            elif "chrome_profiles" in data:
+                del data["chrome_profiles"]
+            # Default platforms
+            sel_plats = [p for p, cb in platform_checks.items() if cb.isChecked()]
+            if sel_plats:
+                data["default_platforms"] = sel_plats
+            elif "default_platforms" in data:
+                del data["default_platforms"]
 
             self._project.identities[name] = data
             # Refresh combo

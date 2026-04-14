@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json
 import re
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, MISSING
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -342,6 +342,7 @@ class CollectionIdentity:
     hashtags_ja: list[str] = field(default_factory=list)  # Japanese hashtags
     bio_blurb: str = ""
     content_notes: str = ""
+    chrome_profiles: dict = field(default_factory=dict)  # account_id -> Chrome profile directory name
 
 
 @dataclass
@@ -379,27 +380,13 @@ class SubredditConfig:
     tags_required: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return {
-            "name": self.name, "flair_id": self.flair_id,
-            "flair_text": self.flair_text, "nsfw": self.nsfw,
-            "title_template": self.title_template,
-            "rules_notes": self.rules_notes,
-            "min_interval_days": self.min_interval_days,
-            "last_posted": self.last_posted,
-            "tags_required": self.tags_required,
-        }
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict) -> "SubredditConfig":
-        return cls(
-            name=d.get("name", ""), flair_id=d.get("flair_id", ""),
-            flair_text=d.get("flair_text", ""), nsfw=d.get("nsfw", True),
-            title_template=d.get("title_template", ""),
-            rules_notes=d.get("rules_notes", ""),
-            min_interval_days=d.get("min_interval_days", 0),
-            last_posted=d.get("last_posted", ""),
-            tags_required=d.get("tags_required", []),
-        )
+        fields = {f.name: f.default if f.default is not MISSING
+                  else f.default_factory() for f in cls.__dataclass_fields__.values()}
+        return cls(**{k: d.get(k, v) for k, v in fields.items()})
 
 
 SUB_PLATFORMS: dict[str, SubPlatform] = {
