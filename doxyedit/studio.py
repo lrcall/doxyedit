@@ -80,6 +80,8 @@ class OverlayImageItem(QGraphicsPixmapItem):
         )
         self.setOpacity(overlay.opacity)
         self.setPos(overlay.x, overlay.y)
+        # Rotate from center
+        self.setTransformOriginPoint(pixmap.width() / 2, pixmap.height() / 2)
         if overlay.rotation:
             self.setRotation(overlay.rotation)
 
@@ -120,6 +122,9 @@ class OverlayTextItem(QGraphicsTextItem):
             self.setTextWidth(self.overlay.text_width)
         else:
             self.setTextWidth(-1)
+        # Rotate from center of bounding rect
+        br = self.boundingRect()
+        self.setTransformOriginPoint(br.center())
         self.setRotation(self.overlay.rotation)
 
     def itemChange(self, change, value):
@@ -465,12 +470,16 @@ class StudioEditor(QWidget):
         self.font_combo.currentFontChanged.connect(self._on_font_changed)
         props.addWidget(self.font_combo)
 
-        self.spin_font_size = QSpinBox()
-        self.spin_font_size.setObjectName("studio_font_size")
-        self.spin_font_size.setRange(8, 200)
-        self.spin_font_size.setValue(24)
-        self.spin_font_size.valueChanged.connect(self._on_font_size_changed)
-        props.addWidget(self.spin_font_size)
+        props.addWidget(QLabel("Size:"))
+        self.slider_font_size = QSlider(Qt.Orientation.Horizontal)
+        self.slider_font_size.setObjectName("studio_font_size")
+        self.slider_font_size.setRange(8, 200)
+        self.slider_font_size.setValue(24)
+        self.slider_font_size.setFixedWidth(80)
+        self.slider_font_size.valueChanged.connect(self._on_font_size_changed)
+        props.addWidget(self.slider_font_size)
+        self._font_size_label = QLabel("24")
+        props.addWidget(self._font_size_label)
 
         self.btn_bold = QPushButton("B")
         self.btn_bold.setObjectName("studio_bold_btn")
@@ -513,13 +522,13 @@ class StudioEditor(QWidget):
         props.addWidget(self.slider_rotation)
 
         props.addWidget(QLabel("W:"))
-        self.spin_text_width = QSpinBox()
-        self.spin_text_width.setObjectName("studio_text_width")
-        self.spin_text_width.setRange(0, 5000)
-        self.spin_text_width.setValue(0)
-        self.spin_text_width.setSpecialValueText("auto")
-        self.spin_text_width.valueChanged.connect(self._on_text_width_changed)
-        props.addWidget(self.spin_text_width)
+        self.slider_text_width = QSlider(Qt.Orientation.Horizontal)
+        self.slider_text_width.setObjectName("studio_text_width")
+        self.slider_text_width.setRange(0, 2000)
+        self.slider_text_width.setValue(0)
+        self.slider_text_width.setFixedWidth(80)
+        self.slider_text_width.valueChanged.connect(self._on_text_width_changed)
+        props.addWidget(self.slider_text_width)
 
         props.addWidget(QLabel("|"))
 
@@ -529,7 +538,8 @@ class StudioEditor(QWidget):
         props.addWidget(self.btn_save_template)
 
         props.addStretch()
-        self._props_row.setVisible(False)
+        # Always visible but disabled when no overlay selected (prevents layout shift)
+        self._props_row.setEnabled(False)
         root.addWidget(self._props_row)
 
         # Scene + View
@@ -744,18 +754,18 @@ class StudioEditor(QWidget):
         sel = [i for i in self._scene.selectedItems()
                if isinstance(i, (OverlayImageItem, OverlayTextItem))]
         if not sel:
-            self._props_row.setVisible(False)
+            self._props_row.setEnabled(False)
             return
 
         item = sel[0]
         ov = item.overlay
-        self._props_row.setVisible(True)
+        self._props_row.setEnabled(True)
 
         # Block signals during bulk update
         for w in (self.slider_opacity, self.slider_scale, self.combo_position,
-                  self.font_combo, self.spin_font_size, self.btn_bold,
+                  self.font_combo, self.slider_font_size, self.btn_bold,
                   self.btn_italic, self.slider_kerning, self.slider_rotation,
-                  self.spin_text_width):
+                  self.slider_text_width):
             w.blockSignals(True)
 
         self.slider_opacity.setValue(int(ov.opacity * 100))
@@ -765,17 +775,17 @@ class StudioEditor(QWidget):
         if idx >= 0:
             self.combo_position.setCurrentIndex(idx)
         self.font_combo.setCurrentFont(QFont(ov.font_family))
-        self.spin_font_size.setValue(ov.font_size)
+        self.slider_font_size.setValue(ov.font_size)
         self.btn_bold.setChecked(ov.bold)
         self.btn_italic.setChecked(ov.italic)
         self.slider_kerning.setValue(int(ov.letter_spacing))
         self.slider_rotation.setValue(int(ov.rotation))
-        self.spin_text_width.setValue(ov.text_width)
+        self.slider_text_width.setValue(ov.text_width)
 
         for w in (self.slider_opacity, self.slider_scale, self.combo_position,
-                  self.font_combo, self.spin_font_size, self.btn_bold,
+                  self.font_combo, self.slider_font_size, self.btn_bold,
                   self.btn_italic, self.slider_kerning, self.slider_rotation,
-                  self.spin_text_width):
+                  self.slider_text_width):
             w.blockSignals(False)
 
     # ---- drag-drop from tray ----
@@ -846,6 +856,7 @@ class StudioEditor(QWidget):
         self._sync_overlays_to_asset()
 
     def _on_font_size_changed(self, value: int):
+        self._font_size_label.setText(str(value))
         for item in self._selected_overlay_items():
             if isinstance(item, OverlayTextItem):
                 item.overlay.font_size = value
@@ -891,6 +902,7 @@ class StudioEditor(QWidget):
     def _on_rotation_changed(self, value: int):
         for item in self._selected_overlay_items():
             item.overlay.rotation = float(value)
+            item.setTransformOriginPoint(item.boundingRect().center())
             item.setRotation(value)
         self._sync_overlays_to_asset()
 
