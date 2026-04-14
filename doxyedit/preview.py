@@ -843,6 +843,7 @@ class ImagePreviewDialog(QDialog):
         settings.setValue("preview_y", self.y())
         zoom = self.view.transform().m11()
         settings.setValue("preview_zoom", zoom)
+        settings.sync()
         super().closeEvent(event)
 
 
