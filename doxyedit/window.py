@@ -3596,11 +3596,26 @@ Ctrl+Click tag — Search by tag
             # while keeping everything else from the in-memory version
             existing_ids = {p.id for p in self.project.posts}
             new_posts = [p for p in fresh.posts if p.id not in existing_ids]
-            # Also update identity/oneup_config if they changed
+            # Merge fields that can change externally (CLI, Claude)
             if fresh.identity and not self.project.identity:
                 self.project.identity = fresh.identity
             if fresh.oneup_config and not self.project.oneup_config:
                 self.project.oneup_config = fresh.oneup_config
+            # Always pick up notes changes from external edits
+            if fresh.notes and fresh.notes != self.project.notes:
+                self.project.notes = fresh.notes
+                # Refresh notes UI if visible
+                if hasattr(self, '_project_notes_edit'):
+                    self._project_notes_edit.setPlainText(fresh.notes)
+                if hasattr(self, '_project_notes_preview'):
+                    try:
+                        import markdown
+                        self._project_notes_preview.setHtml(
+                            markdown.markdown(fresh.notes, extensions=["tables", "fenced_code"]))
+                    except Exception:
+                        self._project_notes_preview.setPlainText(fresh.notes)
+                if hasattr(self, '_notes_edit'):
+                    self._notes_edit.setPlainText(fresh.notes)
             if new_posts:
                 self.project.posts.extend(new_posts)
                 # Save merged state immediately so autosave won't clobber
