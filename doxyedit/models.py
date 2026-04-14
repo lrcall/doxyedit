@@ -231,6 +231,61 @@ class ReleaseStep:
 
 
 @dataclass
+class CampaignMilestone:
+    """A milestone in a campaign's preparation timeline."""
+    id: str = ""
+    label: str = ""            # e.g. "Art assets finalized", "Page goes live"
+    due_date: str = ""         # ISO date
+    completed: bool = False
+    notes: str = ""
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "label": self.label, "due_date": self.due_date,
+                "completed": self.completed, "notes": self.notes}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "CampaignMilestone":
+        return cls(**{k: d[k] for k in cls.__dataclass_fields__ if k in d})
+
+
+@dataclass
+class Campaign:
+    """A publishing campaign (Kickstarter launch, Steam release, merch drop)."""
+    id: str = ""
+    name: str = ""             # e.g. "Kickstarter Volume 2"
+    platform_id: str = ""      # links to PLATFORMS key
+    launch_date: str = ""      # ISO date
+    end_date: str = ""         # ISO date
+    status: str = "planning"   # planning, preparing, live, completed, cancelled
+    milestones: list[CampaignMilestone] = field(default_factory=list)
+    linked_post_ids: list[str] = field(default_factory=list)  # SocialPost IDs
+    notes: str = ""
+    color: str = ""            # accent color for Gantt display
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id, "name": self.name, "platform_id": self.platform_id,
+            "launch_date": self.launch_date, "end_date": self.end_date,
+            "status": self.status,
+            "milestones": [m.to_dict() for m in self.milestones],
+            "linked_post_ids": self.linked_post_ids,
+            "notes": self.notes, "color": self.color,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Campaign":
+        milestones = [CampaignMilestone.from_dict(m) for m in d.get("milestones", [])]
+        return cls(
+            id=d.get("id", ""), name=d.get("name", ""),
+            platform_id=d.get("platform_id", ""),
+            launch_date=d.get("launch_date", ""), end_date=d.get("end_date", ""),
+            status=d.get("status", "planning"), milestones=milestones,
+            linked_post_ids=d.get("linked_post_ids", []),
+            notes=d.get("notes", ""), color=d.get("color", ""),
+        )
+
+
+@dataclass
 class PlatformAssignment:
     """Tracks an asset assigned to a specific platform slot."""
     platform: str = ""
@@ -238,6 +293,7 @@ class PlatformAssignment:
     status: str = PostStatus.PENDING
     crop: Optional[CropRegion] = None
     notes: str = ""
+    campaign_id: str = ""  # links assignment to a specific campaign
 
 
 @dataclass
@@ -303,6 +359,7 @@ class SocialPost:
     sfw_asset_ids: list[str] = field(default_factory=list)   # alternate censored asset IDs (empty = auto-censor)
     tier_assets: dict = field(default_factory=dict)  # tier_name -> [asset_ids]
     sub_platform_status: dict = field(default_factory=dict)  # platform_id -> {status, posted_at}
+    campaign_id: str = ""  # links post to a campaign for promo tracking
     release_chain: list[ReleaseStep] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -319,6 +376,7 @@ class SocialPost:
             "sfw_asset_ids": self.sfw_asset_ids,
             "tier_assets": self.tier_assets,
             "sub_platform_status": self.sub_platform_status,
+            "campaign_id": self.campaign_id,
             "release_chain": [s.to_dict() for s in self.release_chain],
         }
 
@@ -340,6 +398,7 @@ class SocialPost:
             sfw_asset_ids=d.get("sfw_asset_ids", []),
             tier_assets=d.get("tier_assets", {}),
             sub_platform_status=d.get("sub_platform_status", {}),
+            campaign_id=d.get("campaign_id", ""),
             release_chain=[ReleaseStep.from_dict(s) for s in d.get("release_chain", [])],
         )
 
@@ -599,6 +658,7 @@ class Project:
     identities: dict = field(default_factory=dict)  # name -> CollectionIdentity dict + patreon_schedule
     blackout_periods: list[dict] = field(default_factory=list)
     # Each: {"start": "2026-05-01", "end": "2026-05-07", "label": "KS launch", "scope": "all"}
+    campaigns: list[Campaign] = field(default_factory=list)
 
     def get_tags(self) -> dict[str, TagPreset]:
         """Get merged tag presets — defaults + tag_definitions + legacy custom_tags."""
@@ -688,6 +748,7 @@ class Project:
             "release_templates": self.release_templates,
             "identities": self.identities,
             "blackout_periods": self.blackout_periods,
+            "campaigns": [c.to_dict() for c in self.campaigns],
             "assets": [_asset_dict(a) for a in self.assets],
         }
         Path(path).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
@@ -728,6 +789,8 @@ class Project:
         proj.release_templates = raw.get("release_templates", [])
         proj.identities = raw.get("identities", {})
         proj.blackout_periods = raw.get("blackout_periods", [])
+        for c in raw.get("campaigns", []):
+            proj.campaigns.append(Campaign.from_dict(c))
         for p in raw.get("posts", []):
             proj.posts.append(SocialPost.from_dict(p))
 
@@ -780,6 +843,7 @@ class Project:
                     slot=p.get("slot", ""),
                     status=p.get("status", PostStatus.PENDING),
                     notes=p.get("notes", ""),
+                    campaign_id=p.get("campaign_id", ""),
                 )
                 if p.get("crop"):
                     pa.crop = CropRegion(**p["crop"])
@@ -791,6 +855,12 @@ class Project:
         for p in self.posts:
             if p.id == post_id:
                 return p
+        return None
+
+    def get_campaign(self, campaign_id: str) -> "Campaign | None":
+        for c in self.campaigns:
+            if c.id == campaign_id:
+                return c
         return None
 
     def get_identity(self) -> CollectionIdentity:
