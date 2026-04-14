@@ -210,6 +210,36 @@ class ContentPanel(QWidget):
         platforms_layout.addWidget(sub_label)
         platforms_layout.addWidget(sub_container)
 
+        # --- Manual social platforms (not on OneUp, not subscription) ---
+        _MANUAL_PLATFORMS = [
+            ("bluesky", "Bluesky"),
+            ("pixiv", "Pixiv"),
+            ("instagram", "Instagram"),
+            ("tiktok", "TikTok"),
+            ("tumblr", "Tumblr"),
+            ("threads", "Threads"),
+            ("mastodon", "Mastodon"),
+            ("newgrounds", "Newgrounds"),
+        ]
+        self._manual_platform_checks: dict[str, QCheckBox] = {}
+        manual_flow = _FlowLayout(hspacing=8, vspacing=4)
+        manual_container = QWidget()
+        manual_container.setLayout(manual_flow)
+
+        for pid, name in _MANUAL_PLATFORMS:
+            cb = QCheckBox(name)
+            cb.setProperty("platform_id", pid)
+            cb.setObjectName("composer_manual_platform_check")
+            cb.setToolTip(f"Manual posting — track in schedule, post yourself")
+            cb.clicked.connect(self._on_platform_toggled)
+            self._manual_platform_checks[pid] = cb
+            manual_flow.addWidget(cb)
+
+        manual_label = QLabel("Social (manual):")
+        manual_label.setObjectName("composer_sub_platform_label")
+        platforms_layout.addWidget(manual_label)
+        platforms_layout.addWidget(manual_container)
+
         root.addWidget(platforms_box)
 
         # --- Splitter: strategy (top) / rest (bottom, scrollable) ---
@@ -413,6 +443,10 @@ class ContentPanel(QWidget):
         # Subscription platforms
         for plat, cb in self._sub_platform_checks.items():
             cb.setChecked(plat in post.platforms)
+        # Manual social platforms
+        if hasattr(self, '_manual_platform_checks'):
+            for plat, cb in self._manual_platform_checks.items():
+                cb.setChecked(plat in post.platforms)
 
         # Captions
         self._caption_edit.setPlainText(post.caption_default)
@@ -466,11 +500,16 @@ class ContentPanel(QWidget):
             cb.setChecked(plat in defaults)
         for plat, cb in self._sub_platform_checks.items():
             cb.setChecked(plat in defaults)
+        if hasattr(self, '_manual_platform_checks'):
+            for plat, cb in self._manual_platform_checks.items():
+                cb.setChecked(plat in defaults)
 
     def get_post_data(self) -> dict:
         """Return all field values as a dict for building a SocialPost."""
         platforms = [p for p, cb in self._platform_checks.items() if cb.isChecked()]
         platforms += [p for p, cb in self._sub_platform_checks.items() if cb.isChecked()]
+        if hasattr(self, '_manual_platform_checks'):
+            platforms += [p for p, cb in self._manual_platform_checks.items() if cb.isChecked()]
         caption_default = self._caption_edit.toPlainText()
         captions = {
             plat: te.toPlainText()
@@ -528,6 +567,8 @@ class ContentPanel(QWidget):
         platforms = [p for p, cb in self._platform_checks.items() if cb.isChecked()]
         if hasattr(self, '_sub_platform_checks'):
             platforms += [p for p, cb in self._sub_platform_checks.items() if cb.isChecked()]
+        if hasattr(self, '_manual_platform_checks'):
+            platforms += [p for p, cb in self._manual_platform_checks.items() if cb.isChecked()]
         self.platforms_changed.emit(platforms)
         # Rebuild per-platform captions if the toggle is expanded
         if hasattr(self, '_per_platform_toggle') and self._per_platform_toggle.isChecked():
@@ -615,9 +656,12 @@ class ContentPanel(QWidget):
             self._pp_layout.addWidget(lbl)
             self._pp_layout.addWidget(te)
 
-        # Also show captions for checked subscription platforms
-        if hasattr(self, '_sub_platform_checks'):
-            for pid, cb in self._sub_platform_checks.items():
+        # Also show captions for checked subscription + manual platforms
+        for checks in (
+            getattr(self, '_sub_platform_checks', {}),
+            getattr(self, '_manual_platform_checks', {}),
+        ):
+            for pid, cb in checks.items():
                 if not cb.isChecked():
                     continue
                 name = cb.text()
