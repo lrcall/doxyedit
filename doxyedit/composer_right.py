@@ -1350,10 +1350,6 @@ RULES:
         self._identity_combo.setCurrentIndex(0)
         dlg.reject()
 
-    def _edit_identity(self) -> None:
-        """Placeholder — identity editing not yet implemented."""
-        pass
-
     def _on_identity_changed(self, name: str) -> None:
         """Auto-fill defaults from the selected identity config."""
         if not name:
