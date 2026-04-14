@@ -32,25 +32,6 @@ from doxyedit.tagpanel import TagPanel
 from doxyedit.exporter import export_project
 from doxyedit.preview import ImagePreviewDialog, PreviewPane
 from doxyedit.filebrowser import FileBrowserPanel
-from PySide6.QtWidgets import QPlainTextEdit as _BasePlainTextEdit
-
-
-class _CenteredEditor(_BasePlainTextEdit):
-    """QPlainTextEdit with centered content column. Scrollbar stays at widget edge."""
-    _MAX_CONTENT = 800  # max text column width in pixels
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        w = self.contentsRect().width()
-        if w > self._MAX_CONTENT + 40:
-            m = (w - self._MAX_CONTENT) // 2
-            self.setViewportMargins(m, 0, m, 0)
-        elif w > 400:
-            # Proportional margins for medium widths
-            m = max(20, w // 8)
-            self.setViewportMargins(m, 0, m, 0)
-        else:
-            self.setViewportMargins(8, 0, 8, 0)
 from doxyedit.infopanel import InfoPanel
 from doxyedit.tray import WorkTray
 from doxyedit.project import save_project, load_project
@@ -1022,24 +1003,16 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_notes_tab(self, name: str, content: str, closable: bool = True):
-        """Create a notes sub-tab with preview + editor splitter."""
+        """Create a notes sub-tab with stacked editor/preview."""
         from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser, QStackedWidget
 
-        # Container with stacked editor/preview (toggle is in corner widget)
-        container = QWidget()
-        container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.setSpacing(0)
-
-        # Stacked: editor (default, index 0) / preview (index 1)
         stack = QStackedWidget()
 
-        editor = _CenteredEditor()
+        editor = QPlainTextEdit()
         editor.setObjectName("project_notes_tab")
         editor.setPlainText(content)
         editor.textChanged.connect(lambda: self._on_sub_note_changed(name))
 
-        # Right-click context menu with Claude actions
         editor.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         editor.customContextMenuRequested.connect(
             lambda pos, e=editor, n=name: self._show_notes_context_menu(pos, e, n))
@@ -1048,14 +1021,10 @@ class MainWindow(QMainWindow):
         preview.setObjectName("project_notes_preview")
         preview.setOpenExternalLinks(True)
 
-        # Editor uses _CenteredEditor with viewport margins (scrollbar at edge)
-        # Preview uses HTML max-width + margin:auto (scrollbar at edge)
         stack.addWidget(editor)
         stack.addWidget(preview)
 
-        container_layout.addWidget(stack, 1)
-
-        idx = self._notes_tabs.addTab(container, name)
+        idx = self._notes_tabs.addTab(stack, name)
         self._notes_tab_widgets[name] = (preview, editor, stack)
 
         # Make permanent tabs non-closable
@@ -2497,6 +2466,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         from doxyedit.oneup import get_client_from_config
         from doxyedit.models import SocialPostStatus
         project_dir = str(Path(self._project_path).parent) if self._project_path else "."
+        print(f"[OneUp Push] post={post.id[:8]} platforms={post.platforms} time={post.scheduled_time}")
+        print(f"[OneUp Push] caption={post.caption_default[:60]!r}")
+        print(f"[OneUp Push] project_dir={project_dir}")
+
         client = get_client_from_config(project_dir)
         if not client:
             key = (self.project.oneup_config or {}).get("api_key", "")
@@ -2504,18 +2477,22 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 from doxyedit.oneup import OneUpClient
                 client = OneUpClient(key)
         if not client:
+            print("[OneUp Push] ERROR: No API key found")
             self.status.showMessage("No OneUp API key — post saved as queued (offline)", 5000)
             return
+        print(f"[OneUp Push] client OK, category_id={client.category_id}")
 
         sched = ""
         if post.scheduled_time:
             sched = post.scheduled_time[:16].replace("T", " ")
         if not sched:
+            print("[OneUp Push] ERROR: No schedule time")
             self.status.showMessage("No schedule time set — post needs a date/time to push", 5000)
             post.status = SocialPostStatus.DRAFT
             return
 
         if not post.platforms:
+            print("[OneUp Push] ERROR: No platforms selected")
             self.status.showMessage("No accounts selected — check platforms first", 5000)
             return
 
@@ -2524,17 +2501,21 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         oneup_ids = []
         for account_id in post.platforms:
             caption = post.captions.get(account_id, post.caption_default)
+            print(f"[OneUp Push]   → {account_id}  sched={sched}  caption={caption[:40]!r}")
             result = client.schedule_post(
                 content=caption,
                 social_network_id=account_id,
                 scheduled_date_time=sched,
             )
             if result.success:
-                oneup_ids.append(str(result.data.get("id", "")))
+                rid = str(result.data.get("id", ""))
+                oneup_ids.append(rid)
                 pushed += 1
+                print(f"[OneUp Push]     ✓ OK  oneup_id={rid}")
             else:
                 failed += 1
                 post.platform_status[account_id] = f"failed: {result.error[:60]}"
+                print(f"[OneUp Push]     ✗ FAIL  {result.error[:80]}")
 
         if pushed:
             post.oneup_post_id = ",".join(oneup_ids)
@@ -2544,6 +2525,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         else:
             post.status = SocialPostStatus.FAILED
             self.status.showMessage(f"All {failed} push(es) failed", 8000)
+        print(f"[OneUp Push] Done: {pushed} pushed, {failed} failed")
         self._dirty = True
 
     # ---- Dockable composer ----
@@ -2563,12 +2545,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._composer_dock.setVisible(True)
         self._docked_composer = widget
         self._docked_is_new = is_new
-        # Ensure the dock pane has reasonable width in the top splitter
+        # Restore or create dock width
         sizes = self._social_top_split.sizes()
         if len(sizes) >= 3 and sizes[2] < 50:
-            # Give dock pane ~400px from the timeline pane
+            saved_dock_w = self._settings.value("composer_dock_width", 0, type=int)
+            dock_w = saved_dock_w if saved_dock_w >= 200 else min(400, sizes[1] // 2)
             mid = sizes[1]
-            dock_w = min(400, mid // 2) if mid > 100 else 400
             sizes[1] = max(200, mid - dock_w)
             sizes[2] = dock_w
             self._social_top_split.setSizes(sizes)
@@ -2578,6 +2560,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _undock_composer(self):
         """Hide the dock pane and clean up the docked widget."""
+        # Save dock width before hiding
+        sizes = self._social_top_split.sizes()
+        if len(sizes) >= 3 and sizes[2] > 50:
+            self._settings.setValue("composer_dock_width", sizes[2])
         self._composer_dock.setVisible(False)
         if self._docked_composer is not None:
             self._docked_composer.disconnect_workers()
@@ -2592,6 +2578,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if post.status == "queued":
             self._push_post_to_oneup(post)
         self._refresh_social_panels()
+        # Save dock width so it persists
+        sizes = self._social_top_split.sizes()
+        if len(sizes) >= 3 and sizes[2] > 50:
+            self._settings.setValue("composer_dock_width", sizes[2])
         # Keep dock pane open — just clear the composer content for next use
         if self._docked_composer:
             self._docked_composer.disconnect_workers()
@@ -2636,12 +2626,17 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         from doxyedit.models import SocialPostStatus
         project_dir = str(Path(self._project_path).parent) if hasattr(self, '_project_path') else "."
 
+        print(f"[OneUp Sync] Starting... project_dir={project_dir}")
         self.statusBar().showMessage("Syncing OneUp accounts & posts...", 0)
         QApplication.processEvents()
 
         # 1. Sync accounts + categories from MCP
+        print("[OneUp Sync] Fetching accounts from MCP...")
         synced_accounts = sync_accounts_from_mcp(project_dir)
-        acct_msg = f"{len(synced_accounts)} accounts" if synced_accounts else "accounts failed"
+        acct_msg = f"{len(synced_accounts)} accounts" if synced_accounts else "accounts sync failed"
+        print(f"[OneUp Sync] {acct_msg}")
+        for a in synced_accounts[:5]:
+            print(f"[OneUp Sync]   {a.get('name','')} [{a.get('platform','')}]")
 
         # Update the timeline label
         label = get_active_account_label(project_dir)
@@ -2656,17 +2651,26 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         updated = 0
         if client:
+            print(f"[OneUp Sync] Checking {len(self.project.posts)} posts...")
             for post in self.project.posts:
+                print(f"[OneUp Sync]   post={post.id[:8]} status={post.status} oneup_id={post.oneup_post_id or '(none)'}")
                 if post.status == SocialPostStatus.QUEUED and post.oneup_post_id:
                     result = client.get_post(post.oneup_post_id)
+                    print(f"[OneUp Sync]     API result: success={result.success} data={str(result.data)[:100]}")
                     if result.success:
                         rs = result.data.get("status", "")
                         if rs == "published":
                             post.status = SocialPostStatus.POSTED
                             updated += 1
+                            print(f"[OneUp Sync]     → POSTED")
                         elif rs == "failed":
                             post.status = SocialPostStatus.FAILED
                             updated += 1
+                            print(f"[OneUp Sync]     → FAILED")
+                    else:
+                        print(f"[OneUp Sync]     API error: {result.error[:80]}")
+        else:
+            print("[OneUp Sync] No client — skipping post status check")
 
         if updated:
             self._dirty = True
@@ -2674,8 +2678,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._calendar_pane.refresh()
         if hasattr(self, '_gantt_panel'):
             self._gantt_panel.refresh()
-        self.statusBar().showMessage(
-            f"Synced: {acct_msg}, {updated} post(s) updated", 5000)
+        msg = f"Synced: {acct_msg}, {updated} post(s) updated"
+        print(f"[OneUp Sync] {msg}")
+        self.statusBar().showMessage(msg, 5000)
 
     def _on_calendar_day_selected(self, iso_date: str):
         """Filter timeline to show only posts for the selected day."""
