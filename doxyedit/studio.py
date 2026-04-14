@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QGraphicsTextItem, QGraphicsLineItem, QComboBox, QFileDialog, QSlider,
     QFontComboBox, QSpinBox, QColorDialog, QInputDialog, QMenu,
 )
-from PySide6.QtCore import Qt, QRectF, QPointF, QLineF
+from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal
 from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
     QKeyEvent,
@@ -463,6 +463,8 @@ class StudioView(QGraphicsView):
 class StudioEditor(QWidget):
     """Unified censor + overlay + annotation workspace."""
 
+    queue_requested = Signal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("studio_editor")
@@ -634,6 +636,11 @@ class StudioEditor(QWidget):
         self.btn_export.setObjectName("studio_btn_export")
         self.btn_export.clicked.connect(self._export_preview)
         toolbar.addWidget(self.btn_export)
+
+        btn_queue = QPushButton("Queue This")
+        btn_queue.setObjectName("studio_queue_btn")
+        btn_queue.clicked.connect(self._queue_current)
+        toolbar.addWidget(btn_queue)
 
         toolbar.addStretch()
 
@@ -1232,6 +1239,10 @@ class StudioEditor(QWidget):
             item.setVisible(self._overlays_visible)
         for item in self._overlay_items:
             item.setVisible(self._overlays_visible)
+
+    def _queue_current(self):
+        if self._asset:
+            self.queue_requested.emit(self._asset.id)
 
     def _export_preview(self):
         """Render censors + overlays via PIL and save."""

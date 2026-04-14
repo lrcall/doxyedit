@@ -19,10 +19,14 @@ from PySide6.QtGui import (
 
 from doxyedit.models import Project, PLATFORMS, TAG_ALL, TAG_SHORTCUTS, TAG_SHORTCUTS_DEFAULT, toggle_tags
 from doxyedit import windroptarget
-from doxyedit.canvas import CanvasScene, CanvasView, Tool, EditableTextItem, TagItem
+# Canvas/Censor merged into Studio — keep TagItem for legacy instanceof check
+try:
+    from doxyedit.canvas import TagItem
+except ImportError:
+    TagItem = None
 from doxyedit.browser import AssetBrowser, IMAGE_EXTS, THUMB_GEN_SIZE
 from doxyedit.themes import THEMES, DEFAULT_THEME, generate_stylesheet, Theme
-from doxyedit.censor import CensorEditor
+# CensorEditor merged into Studio
 from doxyedit.platforms import PlatformPanel
 from doxyedit.timeline import TimelineStream
 from doxyedit.calendar_pane import CalendarPane
@@ -438,11 +442,13 @@ class MainWindow(QMainWindow):
         self.browser.asset_preview.connect(self._on_asset_preview)
         self.browser.asset_to_canvas.connect(self._send_to_canvas)
         self.browser.asset_to_censor.connect(self._send_to_censor)
+        self.browser.asset_to_post.connect(self._prepare_for_posting)
         self.browser.selection_changed.connect(self._on_selection_changed)
         self.browser.folder_opened.connect(self._add_recent_folder)
         self.browser.thumb_loaded.connect(self._on_thumb_for_tray)
         self.browser.asset_to_tray.connect(self._send_single_to_tray)
         self.browser.tags_modified.connect(self._on_tags_modified)
+        self.studio.queue_requested.connect(self._prepare_for_posting)
         self.platform_panel.request_asset_pick.connect(self._assign_selected_to_slot)
         self.platform_panel.asset_selected.connect(self._navigate_to_asset)
         self.checklist_panel.modified.connect(lambda: setattr(self, '_dirty', True))
@@ -2432,6 +2438,15 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         else:
             self._float_composer_dialog(post=None, is_new=True)
 
+    def _prepare_for_posting(self, asset_id: str):
+        """Open composer with asset pre-loaded for posting."""
+        asset = self.project.get_asset(asset_id)
+        if not asset:
+            return
+        from doxyedit.models import SocialPost
+        post = SocialPost(asset_ids=[asset_id])
+        self._float_composer_dialog(post=post, is_new=True)
+
     def _float_composer_dialog(self, post=None, is_new=True):
         """Open composer as a floating QDialog."""
         proj_dir = str(Path(self._project_path).parent) if self._project_path else "."
@@ -3231,21 +3246,17 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._color_action.setVisible(on_canvas)
         self._canvas_sep_after.setVisible(on_canvas)
 
-    def _set_tool(self, tool: Tool):
-        self.scene.set_tool(tool)
-        for action, t in self._tool_actions:
-            action.setChecked(t == tool)
-        self.status.showMessage(f"Tool: {tool.name}")
+    def _set_tool(self, tool):
+        """Legacy canvas tool — Studio has its own toolbar."""
+        if hasattr(self, 'studio'):
+            self.tabs.setCurrentWidget(self.studio)
+        self.status.showMessage("Use Studio tab tools")
 
     def _add_image_to_canvas(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Add Image", "",
-            "Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.svg);;All Files (*)"
-        )
-        if path:
-            self.scene.add_image(path)
-            self.tabs.setCurrentWidget(self.view)
-            self.status.showMessage(f"Added to canvas: {Path(path).name}")
+        """Legacy — redirect to Studio tab."""
+        if hasattr(self, 'studio'):
+            self.tabs.setCurrentWidget(self.studio)
+            self.status.showMessage("Use Studio tab to add images")
 
     def _rename_selected(self):
         """F2 — rename the selected file on disk and update the project."""

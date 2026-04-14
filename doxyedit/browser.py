@@ -974,6 +974,7 @@ class AssetBrowser(QWidget):
     asset_preview = Signal(str)
     asset_to_canvas = Signal(str)
     asset_to_censor = Signal(str)
+    asset_to_post = Signal(str)
     asset_to_tray = Signal(str)
     thumb_loaded = Signal(str, QPixmap)
     folder_opened = Signal(str)
@@ -2776,6 +2777,7 @@ class AssetBrowser(QWidget):
             menu.addAction("Send to Tray", lambda: self.asset_to_tray.emit(asset_id))
         menu.addAction("Send to Studio", lambda: self.asset_to_canvas.emit(asset_id))
         menu.addAction("Send to Censor", lambda: self.asset_to_censor.emit(asset_id))
+        menu.addAction("Prepare for Posting...", lambda: self.asset_to_post.emit(asset_id))
         menu.addSeparator()
         menu.addAction("Open in Explorer", lambda: _open_explorer(asset))
         # Open in Editor submenu

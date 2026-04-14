@@ -297,6 +297,24 @@ class ContentPanel(QWidget):
         platforms_layout.addWidget(manual_label)
         platforms_layout.addWidget(manual_container)
 
+        # Censor mode
+        from PySide6.QtWidgets import QRadioButton, QButtonGroup
+        censor_label = QLabel("Censor Mode:")
+        censor_label.setObjectName("composer_censor_mode_label")
+        platforms_layout.addWidget(censor_label)
+
+        self._censor_group = QButtonGroup(self)
+        self._censor_auto = QRadioButton("Auto (platform default)")
+        self._censor_uncensored = QRadioButton("Uncensored everywhere")
+        self._censor_custom = QRadioButton("Custom per-platform")
+        self._censor_auto.setChecked(True)
+        self._censor_group.addButton(self._censor_auto, 0)
+        self._censor_group.addButton(self._censor_uncensored, 1)
+        self._censor_group.addButton(self._censor_custom, 2)
+        platforms_layout.addWidget(self._censor_auto)
+        platforms_layout.addWidget(self._censor_uncensored)
+        platforms_layout.addWidget(self._censor_custom)
+
         root.addWidget(platforms_box)
 
         # --- Splitter: strategy (top) / rest (bottom, scrollable) ---
@@ -551,6 +569,15 @@ class ContentPanel(QWidget):
             self._strategy_view = "ai"
             self._update_strategy_btn_labels()
 
+        # Censor mode
+        if hasattr(post, 'censor_mode') and hasattr(self, '_censor_auto'):
+            if post.censor_mode == "uncensored":
+                self._censor_uncensored.setChecked(True)
+            elif post.censor_mode == "custom":
+                self._censor_custom.setChecked(True)
+            else:
+                self._censor_auto.setChecked(True)
+
     def set_default_platforms(self, defaults: list[str]) -> None:
         """Check the default platforms (used for new posts)."""
         for plat, cb in self._platform_checks.items():
@@ -595,6 +622,12 @@ class ContentPanel(QWidget):
         if self._category_combo is not None:
             category_id = str(self._category_combo.currentData() or "")
 
+        censor_mode = "auto"
+        if hasattr(self, '_censor_uncensored') and self._censor_uncensored.isChecked():
+            censor_mode = "uncensored"
+        elif hasattr(self, '_censor_custom') and self._censor_custom.isChecked():
+            censor_mode = "custom"
+
         return {
             "platforms": platforms,
             "caption_default": caption_default,
@@ -606,6 +639,7 @@ class ContentPanel(QWidget):
             "release_chain": release_chain,
             "collection": collection,
             "category_id": category_id,
+            "censor_mode": censor_mode,
         }
 
     def get_splitter_sizes(self) -> list[int]:
