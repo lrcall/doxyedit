@@ -2490,6 +2490,48 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             if dlg.result_post.status == "queued":
                 self.status.showMessage("Queued locally — press Sync OneUp to push", 4000)
 
+    def _export_post_assets(self, post):
+        """Export platform-ready images for all platforms in a post."""
+        from doxyedit.pipeline import prepare_for_platform
+        from doxyedit.models import PLATFORMS
+
+        if not post.asset_ids:
+            return {}
+
+        exports = {}
+        project_dir = str(Path(self._project_path).parent) if self._project_path else "."
+        output_base = str(Path(project_dir) / "_exports" / post.id[:8])
+
+        for aid in post.asset_ids[:1]:
+            asset = self.project.get_asset(aid)
+            if not asset:
+                continue
+            for pid in post.platforms:
+                if pid not in PLATFORMS:
+                    continue
+
+                censor_override = None
+                if hasattr(post, 'censor_mode'):
+                    if post.censor_mode == "uncensored":
+                        censor_override = False
+                    elif post.censor_mode == "custom":
+                        censor_override = post.platform_censor.get(pid)
+
+                result = prepare_for_platform(
+                    asset, pid, self.project,
+                    censor_override=censor_override,
+                    output_dir=output_base,
+                )
+                if result.success:
+                    exports[pid] = result.output_path
+                    print(f"[Export] {pid}: {result.width}x{result.height} -> {result.output_path}")
+                    for w in result.warnings:
+                        print(f"[Export]   warning: {w}")
+                else:
+                    print(f"[Export] {pid}: FAILED - {result.error}")
+
+        return exports
+
     def _push_post_to_oneup(self, post):
         """Push a single post to OneUp — one request per checked account."""
         from doxyedit.oneup import get_client_from_config
@@ -2860,6 +2902,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     elif not post.oneup_post_id:
                         # PUSH: not on OneUp, never pushed
                         print(f"[Sync] {post.id[:8]} → pushing...")
+                        # Export platform-ready images before pushing
+                        self._export_post_assets(post)
                         self._push_post_to_oneup(post)
                         if post.oneup_post_id:
                             pushed_count += 1
@@ -3301,10 +3345,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             n = len(assets)
             self.status.showMessage(f"Marked {n} asset(s) as ignored (Delete)")
         else:
-            # Canvas/other tabs — remove selected items
-            for item in self.scene.selectedItems():
-                self.scene.removeItem(item)
-            self.status.showMessage("Deleted selected items")
+            # Studio tab — delete selected items
+            if hasattr(self, 'studio'):
+                self.studio._delete_selected()
+                self.status.showMessage("Deleted selected items")
 
     def _select_all(self):
         if self.tabs.currentIndex() == 0:
@@ -4801,7 +4845,8 @@ Ctrl+Click tag — Search by tag
             "Built with PySide6 + PIL + psd-tools")
 
     def _change_color(self):
-        items = self.scene.selectedItems()
+        scene = self.studio._scene if hasattr(self, 'studio') else None
+        items = scene.selectedItems() if scene else []
         if not items:
             self.status.showMessage("Select an item first")
             return
@@ -4977,7 +5022,8 @@ Ctrl+Click tag — Search by tag
     def _new_project_blank(self):
         """Replace current window with a blank project (used internally)."""
         self.project = Project(name="Untitled")
-        self.scene.clear()
+        if hasattr(self, 'studio') and hasattr(self.studio, '_scene'):
+            self.studio._scene.clear()
         self._project_path = None
         self._rebind_project(clear_folder_state=True)
         self.setWindowTitle("DoxyEdit — New Project")
