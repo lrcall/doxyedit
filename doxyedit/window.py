@@ -1248,10 +1248,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         html = f"""<html><head><style>
             body {{ background:{bg}; color:{fg}; font-family:'Segoe UI',sans-serif;
                    padding:16px 28px; max-width:820px; margin:0 auto;
-                   line-height:1.2; font-size:13px; }}
-            h1 {{ color:{accent}; margin:8px 0 2px 0; font-size:16px; }}
-            h2 {{ color:{accent}; margin:8px 0 2px 0; font-size:14px; }}
-            h3 {{ color:{accent}; margin:6px 0 1px 0; font-size:13px; }}
+                   line-height:1.2; }}
+            h1 {{ color:{accent}; margin:8px 0 2px 0; }}
+            h2 {{ color:{accent}; margin:8px 0 2px 0; }}
+            h3 {{ color:{accent}; margin:6px 0 1px 0; }}
             h4,h5,h6 {{ color:{accent}; margin:4px 0 1px 0; }}
             a {{ color:{accent}; }}
             p {{ margin:2px 0; }}
@@ -1259,7 +1259,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             li {{ margin:0; padding:0; line-height:1.15; }}
             img {{ max-width:100%; border-radius:4px; }}
             code {{ background:{bg_raised}; padding:1px 4px;
-                    border-radius:3px; font-family:Consolas,monospace; font-size:12px; }}
+                    border-radius:3px; font-family:Consolas,monospace; }}
             pre {{ background:{bg_raised}; padding:8px 12px;
                    border-radius:4px; overflow-x:auto; }}
             pre code {{ background:transparent; padding:0; }}
