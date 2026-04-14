@@ -397,12 +397,7 @@ class MainWindow(QMainWindow):
         _corner_layout.setContentsMargins(0, 0, 4, 0)
         _corner_layout.setSpacing(4)
 
-        self._notes_preview_btn = QPushButton("Preview")
-        self._notes_preview_btn.setObjectName("notes_toggle_btn")
-        self._notes_preview_btn.setCheckable(True)
-        self._notes_preview_btn.setToolTip("Toggle between editor and rendered preview")
-        self._notes_preview_btn.clicked.connect(self._toggle_notes_preview)
-        _corner_layout.addWidget(self._notes_preview_btn)
+        # Preview button removed — live side-by-side editor + preview
 
         _add_tab_btn = QPushButton("+")
         _add_tab_btn.setObjectName("notes_add_tab_btn")
@@ -1008,15 +1003,17 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_notes_tab(self, name: str, content: str, closable: bool = True):
-        """Create a notes sub-tab with stacked editor/preview."""
-        from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser, QStackedWidget
+        """Create a notes sub-tab with live side-by-side editor + preview."""
+        from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser, QSplitter
 
-        stack = QStackedWidget()
+        split = QSplitter(Qt.Orientation.Horizontal)
 
         editor = QPlainTextEdit()
         editor.setObjectName("project_notes_tab")
         editor.setPlainText(content)
+        editor.setStyleSheet("QPlainTextEdit { padding-left: 12px; }")
         editor.textChanged.connect(lambda: self._on_sub_note_changed(name))
+        editor.textChanged.connect(lambda: self._live_render_notes(name))
 
         editor.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         editor.customContextMenuRequested.connect(
@@ -1025,19 +1022,26 @@ class MainWindow(QMainWindow):
         preview = QTextBrowser()
         preview.setObjectName("project_notes_preview")
         preview.setOpenExternalLinks(True)
+        preview.setStyleSheet("QTextBrowser { padding-left: 12px; }")
 
-        stack.addWidget(editor)
-        stack.addWidget(preview)
+        split.addWidget(editor)
+        split.addWidget(preview)
+        split.setSizes([500, 500])
+        split.setStretchFactor(0, 1)
+        split.setStretchFactor(1, 1)
 
-        idx = self._notes_tabs.addTab(stack, name)
-        self._notes_tab_widgets[name] = (preview, editor, stack)
+        idx = self._notes_tabs.addTab(split, name)
+        self._notes_tab_widgets[name] = (preview, editor, split)
 
         # Make permanent tabs non-closable
         if not closable:
             self._notes_tabs.tabBar().setTabButton(
                 idx, QTabBar.ButtonPosition.RightSide, None)
 
-        # Render initial content (show editor by default)
+        # Render initial content
+        if content:
+            self._render_notes_preview_to(preview, content)
+
         if name == "General":
             self._project_notes_edit = editor
             self._project_notes_preview = preview
@@ -1104,31 +1108,17 @@ class MainWindow(QMainWindow):
         # Switch to new tab
         self._notes_tabs.setCurrentIndex(self._notes_tabs.count() - 1)
 
-    def _toggle_notes_preview(self, checked: bool):
-        """Toggle current notes tab between editor and preview."""
-        if not hasattr(self, '_notes_tabs'):
-            return
-        tab_name = self._notes_tabs.tabText(self._notes_tabs.currentIndex())
+    def _live_render_notes(self, tab_name: str):
+        """Re-render the preview pane whenever the editor text changes."""
         widgets = self._notes_tab_widgets.get(tab_name)
         if not widgets:
             return
-        preview, editor, stack = widgets
-        if checked:
-            text = editor.toPlainText()
-            self._render_notes_preview_to(preview, text)
-            stack.setCurrentIndex(1)
-            self._notes_preview_btn.setText("Edit")
-        else:
-            stack.setCurrentIndex(0)
-            self._notes_preview_btn.setText("Preview")
+        preview, editor, _split = widgets
+        text = editor.toPlainText()
+        self._render_notes_preview_to(preview, text)
 
     def _on_notes_tab_switched(self, index: int):
-        """Reset preview/edit state when switching tabs."""
-        if not hasattr(self, '_notes_preview_btn'):
-            return
-        self._notes_preview_btn.setChecked(False)
-        self._notes_preview_btn.setText("Preview")
-        # Make sure the new tab shows the editor
+        """Render preview for the newly selected tab."""
         tab_name = self._notes_tabs.tabText(index)
         widgets = self._notes_tab_widgets.get(tab_name)
         if widgets:
