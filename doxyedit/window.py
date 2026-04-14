@@ -2522,7 +2522,47 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             if is_new:
                 self.project.posts.append(dlg.result_post)
             self._dirty = True
+            if dlg.result_post.status == "queued":
+                self._push_post_to_oneup(dlg.result_post)
             self._refresh_social_panels()
+
+    def _push_post_to_oneup(self, post):
+        """Push a single post to OneUp via API."""
+        from doxyedit.oneup import get_client_from_config
+        from doxyedit.models import SocialPostStatus
+        project_dir = str(Path(self._project_path).parent) if self._project_path else "."
+        client = get_client_from_config(project_dir)
+        if not client:
+            key = (self.project.oneup_config or {}).get("api_key", "")
+            if key:
+                from doxyedit.oneup import OneUpClient
+                client = OneUpClient(key)
+        if not client:
+            self.status.showMessage("No OneUp API key — post saved as queued (offline)", 5000)
+            return
+
+        # Format schedule time
+        sched = ""
+        if post.scheduled_time:
+            sched = post.scheduled_time[:16].replace("T", " ")
+        if not sched:
+            self.status.showMessage("No schedule time set — post needs a date/time to push", 5000)
+            post.status = SocialPostStatus.DRAFT
+            return
+
+        result = client.schedule_post(
+            content=post.caption_default,
+            social_network_id="ALL",
+            scheduled_date_time=sched,
+        )
+        if result.success:
+            post.oneup_post_id = result.data.get("id", "")
+            post.status = SocialPostStatus.QUEUED
+            self.status.showMessage(f"Pushed to OneUp — scheduled for {sched}", 5000)
+        else:
+            post.status = SocialPostStatus.FAILED
+            self.status.showMessage(f"OneUp push failed: {result.error[:80]}", 8000)
+        self._dirty = True
 
     # ---- Dockable composer ----
 
@@ -2567,6 +2607,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if self._docked_is_new:
             self.project.posts.append(post)
         self._dirty = True
+        if post.status == "queued":
+            self._push_post_to_oneup(post)
         self._refresh_social_panels()
         self._undock_composer()
 
