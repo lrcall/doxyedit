@@ -495,54 +495,55 @@ class ThumbnailDelegate(QStyledItemDelegate):
 
         # Platform assignment status badge (top-right corner of thumbnail)
         assignments = index.data(ThumbnailModel.AssignmentsRole) or []
-        if assignments:
-            # Pick highest-priority status: posted > ready > pending
+        if assignments and self._theme:
+            t = self._theme
             statuses = {s for _, s in assignments}
             if "posted" in statuses:
-                badge_color = QColor(110, 170, 120, 220)   # green
-                badge_char = "✓"
+                badge_hex, badge_char = t.post_posted, "✓"
             elif "ready" in statuses:
-                badge_color = QColor(124, 161, 192, 220)   # blue
-                badge_char = "R"
+                badge_hex, badge_char = t.accent, "R"
             else:
-                badge_color = QColor(190, 149, 92, 220)    # amber
-                badge_char = "…"
-            bx = rect.x() + rect.width() - self.PADDING - 18
+                badge_hex, badge_char = t.warning, "…"
+            badge_color = QColor(badge_hex)
+            badge_color.setAlpha(220)
+            _bdg_size = max(12, self.font_size + 2)
+            bx = rect.x() + rect.width() - self.PADDING - _bdg_size - 2
             by = rect.y() + self.PADDING + 2
             painter.setBrush(badge_color)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(bx, by, 16, 16, 4, 4)
-            painter.setPen(QColor(255, 255, 255, 230))
+            painter.drawRoundedRect(bx, by, _bdg_size, _bdg_size, 4, 4)
+            painter.setPen(QColor(t.text_on_accent))
             _bdg_sz = max(6, self.font_size - 4)
-            if _bdg_sz not in self._fonts or self._fonts[_bdg_sz].weight() != QFont.Weight.Bold:
-                _bf = QFont(self._theme.font_family if self._theme else "Segoe UI", _bdg_sz, QFont.Weight.Bold)
-                self._fonts[(_bdg_sz, "bold")] = _bf
-            painter.setFont(self._fonts.get((_bdg_sz, "bold"), self._font(_bdg_sz)))
-            painter.drawText(QRect(bx, by, 16, 16), Qt.AlignmentFlag.AlignCenter, badge_char)
+            if (_bdg_sz, "bold") not in self._fonts:
+                self._fonts[(_bdg_sz, "bold")] = QFont(t.font_family, _bdg_sz, QFont.Weight.Bold)
+            painter.setFont(self._fonts[(_bdg_sz, "bold")])
+            painter.drawText(QRect(bx, by, _bdg_size, _bdg_size), Qt.AlignmentFlag.AlignCenter, badge_char)
 
         # Social post status badge (below platform badge, top-right)
         post_status = index.data(ThumbnailModel.PostStatusRole)
-        if post_status:
-            _ps_colors = {
-                "draft": (QColor(136, 136, 136, 200), "D"),
-                "queued": (QColor(232, 168, 124, 220), "Q"),
-                "posted": (QColor(110, 170, 120, 220), "P"),
-                "failed": (QColor(200, 68, 68, 220), "!"),
+        if post_status and self._theme:
+            t = self._theme
+            _ps_token_map = {
+                "draft": (t.post_draft, "D"),
+                "queued": (t.post_queued, "Q"),
+                "posted": (t.post_posted, "P"),
+                "failed": (t.post_failed, "!"),
             }
-            ps_color, ps_char = _ps_colors.get(post_status, (QColor(136, 136, 136, 200), "?"))
-            ps_x = rect.x() + rect.width() - self.PADDING - 18
-            ps_y = rect.y() + self.PADDING + (22 if assignments else 2)
+            ps_hex, ps_char = _ps_token_map.get(post_status, (t.post_draft, "?"))
+            ps_color = QColor(ps_hex)
+            ps_color.setAlpha(220)
+            _bdg_size = max(12, self.font_size + 2)
+            ps_x = rect.x() + rect.width() - self.PADDING - _bdg_size - 2
+            ps_y = rect.y() + self.PADDING + (_bdg_size + 6 if assignments else 2)
             painter.setBrush(ps_color)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(ps_x, ps_y, 16, 16, 4, 4)
-            painter.setPen(QColor(255, 255, 255, 230))
+            painter.drawRoundedRect(ps_x, ps_y, _bdg_size, _bdg_size, 4, 4)
+            painter.setPen(QColor(t.text_on_accent))
             _ps_sz = max(6, self.font_size - 4)
             if (_ps_sz, "bold") not in self._fonts:
-                self._fonts[(_ps_sz, "bold")] = QFont(
-                    self._theme.font_family if self._theme else "Segoe UI",
-                    _ps_sz, QFont.Weight.Bold)
+                self._fonts[(_ps_sz, "bold")] = QFont(t.font_family, _ps_sz, QFont.Weight.Bold)
             painter.setFont(self._fonts[(_ps_sz, "bold")])
-            painter.drawText(QRect(ps_x, ps_y, 16, 16), Qt.AlignmentFlag.AlignCenter, ps_char)
+            painter.drawText(QRect(ps_x, ps_y, _bdg_size, _bdg_size), Qt.AlignmentFlag.AlignCenter, ps_char)
 
         # Dimensions text
         fs = self.font_size
