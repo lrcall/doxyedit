@@ -269,12 +269,7 @@ class MainWindow(QMainWindow):
         self.censor_editor = CensorEditor()
         self.tabs.addTab(self.censor_editor, "Censor")
 
-        # Tab 4: Overlay Editor
-        from doxyedit.overlay_editor import OverlayEditor
-        self.overlay_editor = OverlayEditor()
-        self.tabs.addTab(self.overlay_editor, "Overlays")
-
-        # Tab 5: Social — Calendar + Timeline + Checklist (posting pipeline)
+        # Tab 4: Social — Calendar + Timeline + Checklist (posting pipeline)
         self._timeline = TimelineStream()
         self._timeline.set_thumb_cache(self.browser._thumb_cache)
         self._timeline.set_project(self.project)
@@ -1534,6 +1529,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         importexport_menu.addSeparator()
         importexport_menu.addAction("Package Project (Transport)...", self._transport_project)
         importexport_menu.addAction("Unpackage (Restore Paths)...", self._untransport_project)
+        importexport_menu.addAction("Compact Folders (Shrink)...", self._compact_asset_folders)
+        importexport_menu.addAction("Expand Folders (Restore)...", self._expand_asset_folders)
         importexport_menu.addSeparator()
         importexport_menu.addAction("Merge Project Into This...", self._merge_project)
 
@@ -3718,6 +3715,161 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             QMessageBox.information(self, "Unpackage Complete", output)
         except Exception as e:
             QMessageBox.warning(self, "Unpackage Failed", str(e))
+
+    def _compact_asset_folders(self):
+        """Collapse single-child folder chains in _assets/ (A/B/C → A_B_C)."""
+        from PySide6.QtWidgets import QMessageBox
+        if not self._project_path:
+            self.status.showMessage("No project file open", 4000)
+            return
+        proj_dir = Path(self._project_path).parent
+        assets_dir = proj_dir / "_assets"
+        if not assets_dir.exists():
+            self.status.showMessage("No _assets/ folder — package the project first", 4000)
+            return
+
+        # Count how many chains can be compacted
+        def _count_chains(d):
+            count = 0
+            if not d.is_dir():
+                return 0
+            children = list(d.iterdir())
+            for c in children:
+                if c.is_dir():
+                    count += _count_chains(c)
+            children = list(d.iterdir())
+            if len(children) == 1 and children[0].is_dir() and d != assets_dir:
+                count += 1
+            return count
+
+        chains = _count_chains(assets_dir)
+        if chains == 0:
+            QMessageBox.information(self, "Compact Folders", "No single-child folder chains to collapse.")
+            return
+
+        reply = QMessageBox.question(
+            self, "Compact Folders",
+            f"Collapse {chains} single-child folder chain(s)?\n\n"
+            "Example: _assets/Furry/Marty/ → _assets/Furry_Marty/\n"
+            "(only when a folder has exactly one subfolder and no files)",
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QMessageBox.StandardButton.Ok:
+            return
+
+        compacted = 0
+
+        def _collapse(d):
+            nonlocal compacted
+            if not d.is_dir():
+                return
+            for c in list(d.iterdir()):
+                if c.is_dir():
+                    _collapse(c)
+            children = list(d.iterdir())
+            if len(children) == 1 and children[0].is_dir() and d != assets_dir:
+                child = children[0]
+                merged = d.parent / f"{d.name}_{child.name}"
+                child.rename(merged)
+                d.rmdir()
+                compacted += 1
+
+        _collapse(assets_dir)
+
+        # Update asset paths
+        if compacted:
+            for asset in self.project.assets:
+                p = Path(asset.source_path)
+                try:
+                    p.relative_to(assets_dir)
+                except ValueError:
+                    continue
+                if not p.exists():
+                    fname = p.name
+                    for found in assets_dir.rglob(fname):
+                        asset.source_path = str(found)
+                        asset.source_folder = str(found.parent)
+                        break
+            self._dirty = True
+            self._rebind_project()
+        self.status.showMessage(f"Compacted {compacted} folder chain(s)", 4000)
+
+    def _expand_asset_folders(self):
+        """Restore concatenated folder names back to nested structure (A_B_C → A/B/C)."""
+        from PySide6.QtWidgets import QMessageBox
+        import shutil
+        if not self._project_path:
+            self.status.showMessage("No project file open", 4000)
+            return
+        proj_dir = Path(self._project_path).parent
+        assets_dir = proj_dir / "_assets"
+        if not assets_dir.exists():
+            self.status.showMessage("No _assets/ folder — package the project first", 4000)
+            return
+
+        # Find folders with underscores that could be expanded
+        expandable = []
+        for d in sorted(assets_dir.iterdir()):
+            if d.is_dir() and "_" in d.name:
+                expandable.append(d)
+
+        if not expandable:
+            QMessageBox.information(self, "Expand Folders",
+                                   "No concatenated folder names found to expand.")
+            return
+
+        preview = "\n".join(f"  {d.name} → {d.name.replace('_', '/')}" for d in expandable[:10])
+        if len(expandable) > 10:
+            preview += f"\n  ... and {len(expandable) - 10} more"
+
+        reply = QMessageBox.question(
+            self, "Expand Folders",
+            f"Expand {len(expandable)} folder(s) back to nested structure?\n\n{preview}",
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QMessageBox.StandardButton.Ok:
+            return
+
+        expanded = 0
+        for d in expandable:
+            parts = d.name.split("_")
+            if len(parts) < 2:
+                continue
+            # Build nested path
+            nested = assets_dir / Path(*parts)
+            nested.mkdir(parents=True, exist_ok=True)
+            # Move all files from flat folder into nested
+            for item in list(d.iterdir()):
+                dest = nested / item.name
+                if item.is_dir():
+                    # Move subfolder contents
+                    shutil.move(str(item), str(dest))
+                else:
+                    shutil.move(str(item), str(dest))
+            # Remove now-empty folder
+            try:
+                d.rmdir()
+            except OSError:
+                pass  # not empty — some nested dirs remain
+            expanded += 1
+
+        # Update asset paths
+        if expanded:
+            for asset in self.project.assets:
+                p = Path(asset.source_path)
+                try:
+                    p.relative_to(assets_dir)
+                except ValueError:
+                    continue
+                if not p.exists():
+                    fname = p.name
+                    for found in assets_dir.rglob(fname):
+                        asset.source_path = str(found)
+                        asset.source_folder = str(found.parent)
+                        break
+            self._dirty = True
+            self._rebind_project()
+        self.status.showMessage(f"Expanded {expanded} folder(s) to nested structure", 4000)
 
     def _merge_project(self):
         """Merge another project's assets and notes into the current one."""
