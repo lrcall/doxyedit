@@ -296,10 +296,22 @@ class MainWindow(QMainWindow):
         self._social_left_split.setStretchFactor(0, 1)
         self._social_left_split.setStretchFactor(1, 1)
 
-        # Horizontal: calendar+checklist left, timeline right
+        # Right side: timeline + gantt stacked vertically
+        self._social_right_split = QSplitter(Qt.Orientation.Vertical)
+        self._social_right_split.addWidget(self._timeline)
+
+        self._gantt_panel = GanttPanel()
+        self._gantt_panel.set_project(self.project)
+        self._gantt_panel.post_selected.connect(self._on_post_selected)
+        self._social_right_split.addWidget(self._gantt_panel)
+        self._social_right_split.setSizes([400, 250])
+        self._social_right_split.setStretchFactor(0, 3)
+        self._social_right_split.setStretchFactor(1, 1)
+
+        # Horizontal: calendar+checklist left, timeline+gantt right
         self._social_split = QSplitter(Qt.Orientation.Horizontal)
         self._social_split.addWidget(self._social_left_split)
-        self._social_split.addWidget(self._timeline)
+        self._social_split.addWidget(self._social_right_split)
         self._social_split.setSizes([250, 600])
         self._social_split.setStretchFactor(0, 0)
         self._social_split.setStretchFactor(1, 1)
@@ -311,16 +323,13 @@ class MainWindow(QMainWindow):
         saved_social_left = self._settings_early.value("social_left_splitter", None)
         if saved_social_left:
             self._social_left_split.setSizes([int(s) for s in saved_social_left])
+        saved_social_right = self._settings_early.value("social_right_splitter", None)
+        if saved_social_right:
+            self._social_right_split.setSizes([int(s) for s in saved_social_right])
 
         self.tabs.addTab(self._social_split, "Social")
 
-        # Tab 5: Gantt — visual timeline for all scheduled posts
-        self._gantt_panel = GanttPanel()
-        self._gantt_panel.set_project(self.project)
-        self._gantt_panel.post_selected.connect(self._on_post_selected)
-        self.tabs.addTab(self._gantt_panel, "Gantt")
-
-        # Tab 6: Platforms — slot assignments + kanban (legacy)
+        # Tab 5: Platforms — slot assignments + kanban
         self.platform_panel = PlatformPanel(self.project)
         self.platform_panel.set_thumb_cache(self.browser._thumb_cache)
 
@@ -4642,6 +4651,8 @@ Ctrl+Click tag — Search by tag
         self._settings.setValue("splitter_sizes", self._browse_split.sizes())
         self._settings.setValue("social_splitter", self._social_split.sizes())
         self._settings.setValue("social_left_splitter", self._social_left_split.sizes())
+        if hasattr(self, '_social_right_split'):
+            self._settings.setValue("social_right_splitter", self._social_right_split.sizes())
         self._settings.setValue("plat_top_splitter", self._plat_top.sizes())
         self._settings.setValue("plat_full_splitter", self._plat_full.sizes())
         self._settings.setValue("tag_notes_splitter", self.tag_panel._tag_notes_split.sizes())
