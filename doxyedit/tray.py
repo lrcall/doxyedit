@@ -319,12 +319,13 @@ class WorkTray(QWidget):
         menu.addAction("Move to Top", lambda: self._move_to_top(asset_id))
         menu.addAction("Move to Bottom", lambda: self._move_to_bottom(asset_id))
 
-        # Quick Tag
+        # Quick Tag — user-defined tags only (not presets)
         if self._project and asset:
-            all_tags = list(self._project.get_tags().values())
-            if all_tags:
+            custom_ids = set(self._project.tag_definitions.keys())
+            custom_tags = [t for t in self._project.get_tags().values() if t.id in custom_ids]
+            if custom_tags:
                 qt_menu = menu.addMenu("Quick Tag")
-                for tag in all_tags:
+                for tag in custom_tags:
                     checked = tag.id in asset.tags
                     a = qt_menu.addAction(f"{'✓ ' if checked else '   '}{tag.label}")
                     a.triggered.connect(lambda _, aid=asset_id, tid=tag.id: self._toggle_tray_tag(aid, tid))
