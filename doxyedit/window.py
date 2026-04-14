@@ -972,7 +972,6 @@ class MainWindow(QMainWindow):
 
         editor = QPlainTextEdit()
         editor.setObjectName("project_notes_tab")
-        editor.setMaximumWidth(900)
         editor.setPlainText(content)
         editor.textChanged.connect(lambda: self._on_sub_note_changed(name))
 
@@ -984,17 +983,10 @@ class MainWindow(QMainWindow):
         preview = QTextBrowser()
         preview.setObjectName("project_notes_preview")
         preview.setOpenExternalLinks(True)
-        preview.setMaximumWidth(900)
 
-        # Center the editor/preview
-        for w in (editor, preview):
-            wrapper = QWidget()
-            wl = QHBoxLayout(wrapper)
-            wl.setContentsMargins(0, 0, 0, 0)
-            wl.addStretch()
-            wl.addWidget(w)
-            wl.addStretch()
-            stack.addWidget(wrapper)
+        # Full width, scrollbar at window edge. Padding handled by CSS/margins.
+        stack.addWidget(editor)
+        stack.addWidget(preview)
 
         container_layout.addWidget(stack, 1)
 

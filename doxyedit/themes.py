@@ -560,40 +560,40 @@ def generate_stylesheet(theme: Theme) -> str:
 
         QScrollArea {{ border: none; background: {theme.bg_deep}; }}
         QScrollBar:vertical {{
-            background: {theme.border}15; width: 8px; border: none;
+            background: {theme.accent_dim}20; width: 8px; border: none;
         }}
         QScrollBar::handle:vertical {{
-            background: {theme.accent_dim}; border-radius: 3px; min-height: 30px; margin: 1px;
+            background: {theme.border}; border-radius: 3px; min-height: 30px; margin: 1px;
         }}
-        QScrollBar::handle:vertical:hover {{ background: {theme.accent}; }}
+        QScrollBar::handle:vertical:hover {{ background: {theme.text_muted}; }}
         QScrollBar:horizontal {{
-            background: {theme.border}15; height: 8px; border: none;
+            background: {theme.accent_dim}20; height: 8px; border: none;
         }}
         QScrollBar::handle:horizontal {{
-            background: {theme.accent_dim}; border-radius: 3px; min-width: 30px; margin: 1px;
+            background: {theme.border}; border-radius: 3px; min-width: 30px; margin: 1px;
         }}
-        QScrollBar::handle:horizontal:hover {{ background: {theme.accent}; }}
+        QScrollBar::handle:horizontal:hover {{ background: {theme.text_muted}; }}
         QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
 
         QListView#doxyedit_grid QScrollBar:vertical {{
-            background: {theme.border}15; width: 8px; border: none;
+            background: {theme.accent_dim}20; width: 8px; border: none;
         }}
         QListView#doxyedit_grid QScrollBar::handle:vertical {{
-            background: {theme.accent_dim}; border-radius: 3px;
+            background: {theme.border}; border-radius: 3px;
             min-height: 40px; margin: 1px;
         }}
         QListView#doxyedit_grid QScrollBar::handle:vertical:hover {{
-            background: {theme.accent};
+            background: {theme.text_muted};
         }}
         QListView#doxyedit_grid QScrollBar:horizontal {{
-            background: {theme.border}15; height: 8px; border: none;
+            background: {theme.accent_dim}20; height: 8px; border: none;
         }}
         QListView#doxyedit_grid QScrollBar::handle:horizontal {{
-            background: {theme.accent_dim}; border-radius: 3px;
+            background: {theme.border}; border-radius: 3px;
             min-width: 40px; margin: 1px;
         }}
         QListView#doxyedit_grid QScrollBar::handle:horizontal:hover {{
-            background: {theme.accent};
+            background: {theme.text_muted};
         }}
 
         QLineEdit {{
@@ -684,7 +684,7 @@ def generate_stylesheet(theme: Theme) -> str:
         QTextBrowser#project_notes_preview {{
             background: {theme.bg_deep};
             border: none;
-            padding-left: 20px;
+            padding: 16px 80px;
         }}
         QPlainTextEdit#project_notes_tab {{
             background: {theme.bg_deep};
@@ -692,7 +692,7 @@ def generate_stylesheet(theme: Theme) -> str:
             border: none;
             font-family: Consolas, monospace;
             font-size: {f}px;
-            padding-left: 24px;
+            padding: 16px 80px;
         }}
         QWidget#health_toolbar {{
             background: {theme.bg_raised};
@@ -758,14 +758,14 @@ def generate_stylesheet(theme: Theme) -> str:
 
         /* Thin scrollbars inside folder sections */
         QWidget#folder_section QScrollBar:vertical {{
-            background: {theme.border}15; width: 8px; border: none;
+            background: {theme.accent_dim}20; width: 8px; border: none;
         }}
         QWidget#folder_section QScrollBar::handle:vertical {{
-            background: {theme.accent_dim}; border-radius: 3px;
+            background: {theme.border}; border-radius: 3px;
             min-height: 40px; margin: 1px;
         }}
         QWidget#folder_section QScrollBar::handle:vertical:hover {{
-            background: {theme.accent};
+            background: {theme.text_muted};
         }}
         QWidget#folder_section QScrollBar::add-line,
         QWidget#folder_section QScrollBar::sub-line {{
