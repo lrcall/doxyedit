@@ -1820,6 +1820,19 @@ def generate_stylesheet(theme: Theme) -> str:
             font-weight: bold;
             font-size: {fs}px;
         }}
+        QPushButton#composer_preview_mode_btn {{
+            background: {theme.bg_input};
+            color: {theme.text_secondary};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            padding: 1px {pad}px;
+            font-size: {fxs}px;
+        }}
+        QPushButton#composer_preview_mode_btn:checked {{
+            background: {theme.accent_dim};
+            color: {theme.text_on_accent};
+            border-color: {theme.accent};
+        }}
         QFrame#composer_nsfw_frame,
         QFrame#composer_crop_frame {{
             background: {theme.bg_raised};

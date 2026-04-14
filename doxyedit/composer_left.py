@@ -41,6 +41,33 @@ class ImagePreviewPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
+        # -- Preview mode toggle --
+        mode_row = QHBoxLayout()
+        mode_row.setSpacing(2)
+        self._mode_raw = QPushButton("Raw")
+        self._mode_raw.setObjectName("composer_preview_mode_btn")
+        self._mode_raw.setCheckable(True)
+        self._mode_raw.setChecked(True)
+        self._mode_raw.clicked.connect(lambda: self._set_preview_mode("raw"))
+
+        self._mode_studio = QPushButton("Studio")
+        self._mode_studio.setObjectName("composer_preview_mode_btn")
+        self._mode_studio.setCheckable(True)
+        self._mode_studio.clicked.connect(lambda: self._set_preview_mode("studio"))
+
+        self._mode_platform = QPushButton("Platform")
+        self._mode_platform.setObjectName("composer_preview_mode_btn")
+        self._mode_platform.setCheckable(True)
+        self._mode_platform.clicked.connect(lambda: self._set_preview_mode("platform"))
+
+        for btn in (self._mode_raw, self._mode_studio, self._mode_platform):
+            btn.setFixedHeight(22)
+            mode_row.addWidget(btn)
+        mode_row.addStretch()
+        layout.addLayout(mode_row)
+
+        self._preview_mode = "raw"
+
         # -- Large image preview --
         self._preview_label = QLabel()
         self._preview_label.setObjectName("composer_main_preview")
@@ -118,6 +145,64 @@ class ImagePreviewPanel(QWidget):
 
     # -- Public API --
 
+    def _set_preview_mode(self, mode: str):
+        """Switch between raw, studio, and platform preview modes."""
+        self._preview_mode = mode
+        for btn, m in [(self._mode_raw, "raw"), (self._mode_studio, "studio"), (self._mode_platform, "platform")]:
+            btn.setChecked(m == mode)
+        self._update_preview()
+
+    def _generate_studio_preview(self) -> "QPixmap | None":
+        """Generate preview with censors + overlays applied."""
+        if not self._assets:
+            return None
+        asset = self._assets[0]
+        try:
+            from doxyedit.imaging import load_image_for_export, pil_to_qpixmap
+            from doxyedit.exporter import apply_censors, apply_overlays
+            img = load_image_for_export(asset.source_path)
+            if asset.censors:
+                img = apply_censors(img, asset.censors)
+            if asset.overlays:
+                project_dir = str(Path(asset.source_path).parent)
+                img = apply_overlays(img, asset.overlays, project_dir)
+            return pil_to_qpixmap(img)
+        except Exception:
+            return None
+
+    def _generate_platform_preview(self) -> "QPixmap | None":
+        """Generate preview cropped to the first selected platform's dimensions."""
+        if not self._assets:
+            return None
+        asset = self._assets[0]
+        from doxyedit.models import PLATFORMS
+        # Find the first platform that has a "post" slot
+        for pa in asset.assignments:
+            plat = PLATFORMS.get(pa.platform)
+            if not plat:
+                continue
+            for slot in plat.slots:
+                if "post" in slot.name.lower() or slot == plat.slots[0]:
+                    try:
+                        from doxyedit.imaging import load_image_for_export, pil_to_qpixmap
+                        from doxyedit.exporter import apply_censors, apply_overlays
+                        img = load_image_for_export(asset.source_path)
+                        if asset.censors:
+                            img = apply_censors(img, asset.censors)
+                        if asset.overlays:
+                            img = apply_overlays(img, asset.overlays, str(Path(asset.source_path).parent))
+                        # Crop/resize to slot dimensions
+                        if pa.crop and pa.crop.w > 0:
+                            img = img.crop((pa.crop.x, pa.crop.y, pa.crop.x + pa.crop.w, pa.crop.y + pa.crop.h))
+                        if slot.width and slot.height:
+                            img = img.resize((slot.width, slot.height))
+                        return pil_to_qpixmap(img)
+                    except Exception:
+                        return None
+                    break
+        # No platform assignment — just show studio version
+        return self._generate_studio_preview()
+
     def _toggle_nsfw_section(self, checked: bool):
         self._nsfw_body.setVisible(checked)
         self._nsfw_header_btn.setText(
@@ -171,17 +256,32 @@ class ImagePreviewPanel(QWidget):
     # -- Internal --
 
     def _update_preview(self) -> None:
-        """Show the first asset as a large preview."""
+        """Show the first asset based on current preview mode."""
         if not self._assets:
             self._preview_label.setText("No image selected")
             self._raw_pm = None
             return
 
         asset = self._assets[0]
+
+        if self._preview_mode == "studio":
+            pm = self._generate_studio_preview()
+            if pm and not pm.isNull():
+                self._raw_pm = pm
+                self._apply_scaled_pixmap()
+                return
+        elif self._preview_mode == "platform":
+            pm = self._generate_platform_preview()
+            if pm and not pm.isNull():
+                self._raw_pm = pm
+                self._apply_scaled_pixmap()
+                return
+
+        # Raw mode (default)
         pm = self._load_pixmap(asset)
         if pm and not pm.isNull():
             self._raw_pm = pm
-            self._censored_pm = None  # invalidate censored cache
+            self._censored_pm = None
             self._showing_censored = False
             self._apply_scaled_pixmap()
         else:
