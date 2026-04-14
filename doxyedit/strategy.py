@@ -523,15 +523,21 @@ def generate_strategy_briefing(project: Project, post: SocialPost) -> str:
 # ---------------------------------------------------------------------------
 
 def _project_notes_block(project: Project) -> str:
-    """Format project notes for inclusion in the AI prompt.
-    These contain the creator's marketing plan, account context, and strategy notes."""
+    """Format project notes + agent primer for inclusion in the AI prompt."""
+    blocks = []
     notes = getattr(project, 'notes', '') or ''
-    if not notes.strip():
+    if notes.strip():
+        blocks.append(f"## Creator's Project Notes\n{notes.strip()}")
+
+    # Agent Primer — high priority instructions for strategy generation
+    sub_notes = getattr(project, 'sub_notes', {}) or {}
+    primer = sub_notes.get("Agent Primer", "")
+    if primer.strip():
+        blocks.append(f"## Agent Primer (FOLLOW THESE RULES)\n{primer.strip()}")
+
+    if not blocks:
         return ""
-    return f"""
-## Creator's Marketing Notes (READ THIS — contains account context, strategy, and plans)
-{notes.strip()}
-"""
+    return "\n\n".join(blocks) + "\n"
 
 
 def generate_ai_strategy(

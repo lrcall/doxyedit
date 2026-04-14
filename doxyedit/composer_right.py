@@ -127,7 +127,7 @@ class ContentPanel(QWidget):
         root.setSpacing(4)
         root.setContentsMargins(0, 0, 0, 0)
 
-        # --- Platforms (from OneUp connected accounts) ---
+        # --- Platforms (connected OneUp accounts + standard platforms greyed out) ---
         from doxyedit.oneup import get_connected_platforms, get_active_account_label
         project_dir = "."
         for a in self._project.assets:
@@ -136,18 +136,49 @@ class ContentPanel(QWidget):
                 break
         self._connected = get_connected_platforms(project_dir)
         self._acct_label = get_active_account_label(project_dir)
+        connected_ids = {p["id"] for p in self._connected}
+
+        # Standard platforms that might not be connected yet
+        _STANDARD_PLATFORMS = [
+            ("twitter", "Twitter/X"), ("instagram", "Instagram"),
+            ("bluesky", "Bluesky"), ("reddit", "Reddit"),
+            ("patreon", "Patreon"), ("discord", "Discord"),
+            ("tiktok", "TikTok"), ("pinterest", "Pinterest"),
+        ]
 
         platforms_title = f"Platforms ({self._acct_label})" if self._acct_label else "Platforms"
         platforms_box = QGroupBox(platforms_title)
-        platforms_flow = _FlowLayout(platforms_box, hspacing=8, vspacing=4)
-        for plat_info in self._connected:
-            pid = plat_info["id"]
-            name = plat_info.get("name", pid)
-            cb = QCheckBox(name)
-            cb.setProperty("platform_id", pid)
-            cb.clicked.connect(self._on_platform_toggled)
-            self._platform_checks[pid] = cb
-            platforms_flow.addWidget(cb)
+        platforms_layout = QVBoxLayout(platforms_box)
+        platforms_layout.setSpacing(4)
+
+        # Connected accounts (full checkboxes)
+        if self._connected:
+            connected_flow = _FlowLayout(hspacing=8, vspacing=4)
+            for plat_info in self._connected:
+                pid = plat_info["id"]
+                name = plat_info.get("name", pid)
+                platform_type = plat_info.get("platform", "")
+                label = f"{name}" if platform_type else name
+                cb = QCheckBox(label)
+                cb.setProperty("platform_id", pid)
+                cb.clicked.connect(self._on_platform_toggled)
+                self._platform_checks[pid] = cb
+                connected_flow.addWidget(cb)
+            platforms_layout.addLayout(connected_flow)
+
+        # Standard platforms not connected (greyed out, disabled)
+        unconnected = [(pid, name) for pid, name in _STANDARD_PLATFORMS
+                       if not any(pid in c.get("id", "") for c in self._connected)]
+        if unconnected:
+            grey_flow = _FlowLayout(hspacing=8, vspacing=4)
+            for pid, name in unconnected:
+                cb = QCheckBox(f"{name} (not connected)")
+                cb.setEnabled(False)
+                cb.setObjectName("composer_platform_disabled")
+                cb.setToolTip(f"Connect {name} in OneUp to enable")
+                grey_flow.addWidget(cb)
+            platforms_layout.addLayout(grey_flow)
+
         root.addWidget(platforms_box)
 
         # --- Splitter: strategy (top) / rest (bottom, scrollable) ---

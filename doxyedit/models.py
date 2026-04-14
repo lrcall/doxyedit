@@ -489,6 +489,7 @@ class Project:
     sort_mode: str = "Name A-Z"
     tray_items: list | dict = field(default_factory=list)  # list[str] or dict[str, list[str]] for named trays
     notes: str = ""
+    sub_notes: dict = field(default_factory=dict)  # tab_name → markdown content (tabbed notes)
     accent_color: str = ""  # project-level accent override (hex, e.g. "#7ca1c0")
     checklist: list[str] = field(default_factory=list)  # posting checklist items (prefix "[ ] " or "[x] ")
     excluded_paths: set[str] = field(default_factory=set)  # paths permanently excluded (moved/deleted)
@@ -559,6 +560,7 @@ class Project:
             "_comment": "DoxyEdit project — edit with Claude CLI or by hand",
             "name": self.name,
             "notes": self.notes,
+            "sub_notes": self.sub_notes,
             "local_mode": self.local_mode,
             "platforms": self.platforms,
             "tag_definitions": self.tag_definitions,
@@ -594,6 +596,7 @@ class Project:
         proj = cls(
             name=raw.get("name", "Untitled"),
             notes=raw.get("notes", ""),
+            sub_notes=raw.get("sub_notes", {}),
             local_mode=local,
             platforms=raw.get("platforms", list(PLATFORMS.keys())),
             custom_tags=raw.get("custom_tags", []),

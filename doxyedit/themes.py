@@ -552,40 +552,40 @@ def generate_stylesheet(theme: Theme) -> str:
 
         QScrollArea {{ border: none; background: {theme.bg_deep}; }}
         QScrollBar:vertical {{
-            background: {theme.bg_deep}; width: 14px; border: none;
+            background: transparent; width: 10px; border: none;
         }}
         QScrollBar::handle:vertical {{
-            background: {theme.border_light}; border-radius: 4px; min-height: 30px; margin: 2px;
+            background: {theme.border_light}40; border-radius: 4px; min-height: 30px; margin: 2px;
         }}
-        QScrollBar::handle:vertical:hover {{ background: {theme.text_muted}; }}
+        QScrollBar::handle:vertical:hover {{ background: {theme.border_light}90; }}
         QScrollBar:horizontal {{
-            background: {theme.bg_deep}; height: 14px; border: none;
+            background: transparent; height: 10px; border: none;
         }}
         QScrollBar::handle:horizontal {{
-            background: {theme.border_light}; border-radius: 4px; min-width: 30px; margin: 2px;
+            background: {theme.border_light}40; border-radius: 4px; min-width: 30px; margin: 2px;
         }}
-        QScrollBar::handle:horizontal:hover {{ background: {theme.text_muted}; }}
+        QScrollBar::handle:horizontal:hover {{ background: {theme.border_light}90; }}
         QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
 
         QListView#doxyedit_grid QScrollBar:vertical {{
-            background: {theme.bg_deep}; width: 10px; border: none;
+            background: transparent; width: 10px; border: none;
         }}
         QListView#doxyedit_grid QScrollBar::handle:vertical {{
-            background: {theme.border_light}; border-radius: 4px;
+            background: {theme.border_light}40; border-radius: 4px;
             min-height: 40px; margin: 1px;
         }}
         QListView#doxyedit_grid QScrollBar::handle:vertical:hover {{
-            background: {theme.text_muted};
+            background: {theme.border_light}90;
         }}
         QListView#doxyedit_grid QScrollBar:horizontal {{
-            background: {theme.bg_deep}; height: 10px; border: none;
+            background: transparent; height: 10px; border: none;
         }}
         QListView#doxyedit_grid QScrollBar::handle:horizontal {{
-            background: {theme.border_light}; border-radius: 4px;
+            background: {theme.border_light}40; border-radius: 4px;
             min-width: 40px; margin: 1px;
         }}
         QListView#doxyedit_grid QScrollBar::handle:horizontal:hover {{
-            background: {theme.text_muted};
+            background: {theme.border_light}90;
         }}
 
         QLineEdit {{
@@ -750,14 +750,14 @@ def generate_stylesheet(theme: Theme) -> str:
 
         /* Thin scrollbars inside folder sections */
         QWidget#folder_section QScrollBar:vertical {{
-            background: {theme.bg_deep}; width: 10px; border: none;
+            background: transparent; width: 10px; border: none;
         }}
         QWidget#folder_section QScrollBar::handle:vertical {{
-            background: {theme.border_light}; border-radius: 4px;
+            background: {theme.border_light}40; border-radius: 4px;
             min-height: 40px; margin: 1px;
         }}
         QWidget#folder_section QScrollBar::handle:vertical:hover {{
-            background: {theme.text_muted};
+            background: {theme.border_light}90;
         }}
         QWidget#folder_section QScrollBar::add-line,
         QWidget#folder_section QScrollBar::sub-line {{
@@ -1539,6 +1539,11 @@ def generate_stylesheet(theme: Theme) -> str:
         /* ── Composer platform label ────────────────────────────────── */
         QLabel#composer_platform_label {{
             font-weight: bold;
+        }}
+
+        /* ── Composer disabled platform ──────────────────────────────── */
+        QCheckBox#composer_platform_disabled {{
+            color: {theme.text_muted};
         }}
 
         /* ── Composer left panel ─────────────────────────────────────── */

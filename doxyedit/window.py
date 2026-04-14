@@ -342,25 +342,36 @@ class MainWindow(QMainWindow):
         _plat_full.setStretchFactor(1, 0)
         self.tabs.addTab(_plat_full, "Platforms")
 
-        # Tab 5: Project Notes — preview (left) + markdown source (right)
-        from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser
-        self._project_notes_preview = QTextBrowser()
-        self._project_notes_preview.setObjectName("project_notes_preview")
-        self._project_notes_preview.setOpenExternalLinks(True)
+        # Tab 5: Project Notes — tabbed sub-notes with preview + editor
+        from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser, QTabWidget, QTabBar, QInputDialog
+        self._notes_tabs = QTabWidget()
+        self._notes_tabs.setObjectName("project_notes_tabs")
+        self._notes_tabs.setTabsClosable(True)
+        self._notes_tabs.tabCloseRequested.connect(self._on_notes_tab_close)
+        self._notes_tabs.currentChanged.connect(self._on_notes_tab_switched)
 
-        self._project_notes_edit = QPlainTextEdit()
-        self._project_notes_edit.setPlaceholderText(
-            "# Project Notes\n\nWrite markdown here — preview updates live.\n\n"
-            "**bold**  _italic_  `code`\n- bullet\n1. numbered\n\n> blockquote")
-        self._project_notes_edit.setObjectName("project_notes_tab")
-        self._project_notes_edit.textChanged.connect(self._on_project_notes_tab_changed)
+        # Add tab button
+        _add_tab_btn = QPushButton("+")
+        _add_tab_btn.setObjectName("notes_add_tab_btn")
+        _add_tab_btn.setFixedSize(24, 24)
+        _add_tab_btn.setToolTip("Add new notes tab")
+        _add_tab_btn.clicked.connect(self._on_add_notes_tab)
+        self._notes_tabs.setCornerWidget(_add_tab_btn)
 
-        _notes_splitter = QSplitter(Qt.Orientation.Horizontal)
-        _notes_splitter.addWidget(self._project_notes_preview)
-        _notes_splitter.addWidget(self._project_notes_edit)
-        _notes_splitter.setSizes([600, 400])
-        _notes_splitter.setStretchFactor(0, 3)
-        _notes_splitter.setStretchFactor(1, 2)
+        # Storage for tab editors: tab_name → (preview, editor, splitter)
+        self._notes_tab_widgets: dict[str, tuple] = {}
+
+        # Create tabs from project data
+        # "General" tab = project.notes (always first, not closable)
+        # "Agent Primer" tab = permanent, not closable
+        # Other tabs from project.sub_notes
+        self._build_notes_tab("General", self.project.notes, closable=False)
+        primer_text = self.project.sub_notes.get("Agent Primer", "")
+        self._build_notes_tab("Agent Primer", primer_text, closable=False)
+        for tab_name, content in self.project.sub_notes.items():
+            if tab_name == "Agent Primer":
+                continue  # already created
+            self._build_notes_tab(tab_name, content, closable=True)
         # Tab 6: Overview — Stats (left) + Health (right)
         self.stats_panel = StatsPanel(self.project)
         self.health_panel = HealthPanel(self.project)
@@ -386,7 +397,7 @@ class MainWindow(QMainWindow):
         self._overview_split.setStretchFactor(0, 1)
         self._overview_split.setStretchFactor(1, 1)
         self.tabs.addTab(self._overview_split, "Overview")
-        self.tabs.addTab(_notes_splitter, "Notes")
+        self.tabs.addTab(self._notes_tabs, "Notes")
 
         # (Kanban panel moved into Platforms tab above)
 
@@ -919,19 +930,124 @@ class MainWindow(QMainWindow):
         self._project_notes_edit.setPlainText(text)
         self._project_notes_edit.blockSignals(False)
 
-    def _on_project_notes_tab_changed(self):
-        text = self._project_notes_edit.toPlainText()
-        self.project.notes = text
+    # ------------------------------------------------------------------
+    # Tabbed notes system
+    # ------------------------------------------------------------------
+
+    def _build_notes_tab(self, name: str, content: str, closable: bool = True):
+        """Create a notes sub-tab with preview + editor splitter."""
+        from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser
+
+        preview = QTextBrowser()
+        preview.setObjectName("project_notes_preview")
+        preview.setOpenExternalLinks(True)
+
+        editor = QPlainTextEdit()
+        editor.setObjectName("project_notes_tab")
+        editor.setPlainText(content)
+        editor.textChanged.connect(lambda: self._on_sub_note_changed(name))
+
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.addWidget(preview)
+        splitter.addWidget(editor)
+        splitter.setSizes([600, 400])
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 2)
+
+        idx = self._notes_tabs.addTab(splitter, name)
+        self._notes_tab_widgets[name] = (preview, editor, splitter)
+
+        # Make permanent tabs non-closable
+        if not closable:
+            self._notes_tabs.tabBar().setTabButton(
+                idx, QTabBar.ButtonPosition.RightSide, None)
+
+        # Render initial content
+        if content:
+            self._render_sub_note_preview(name, content)
+
+        # Backward compat — keep _project_notes_edit and _project_notes_preview
+        # pointing to the General tab widgets
+        if name == "General":
+            self._project_notes_edit = editor
+            self._project_notes_preview = preview
+
+    def _on_sub_note_changed(self, tab_name: str):
+        """Handle text change in a sub-note tab."""
+        widgets = self._notes_tab_widgets.get(tab_name)
+        if not widgets:
+            return
+        _, editor, _ = widgets
+        text = editor.toPlainText()
+
+        if tab_name == "General":
+            self.project.notes = text
+            # Sync small notes panel
+            if hasattr(self, '_notes_edit') and self._notes_edit.isVisible():
+                self._notes_edit.blockSignals(True)
+                self._notes_edit.setPlainText(text)
+                self._notes_edit.blockSignals(False)
+        else:
+            self.project.sub_notes[tab_name] = text
+
         self._dirty = True
-        # Keep the small notes panel in sync if visible
-        if self._notes_edit.isVisible():
-            self._notes_edit.blockSignals(True)
-            self._notes_edit.setPlainText(text)
-            self._notes_edit.blockSignals(False)
-        # Render markdown preview
-        self._render_notes_preview(text)
+        self._render_sub_note_preview(tab_name, text)
+
+    def _render_sub_note_preview(self, tab_name: str, text: str):
+        """Render markdown preview for a specific sub-note tab."""
+        widgets = self._notes_tab_widgets.get(tab_name)
+        if not widgets:
+            return
+        preview, _, _ = widgets
+        self._render_notes_preview_to(preview, text)
+
+    def _on_notes_tab_close(self, index: int):
+        """Close a notes sub-tab (permanent tabs can't be closed)."""
+        name = self._notes_tabs.tabText(index)
+        if name in ("General", "Agent Primer"):
+            return  # permanent tabs
+        from PySide6.QtWidgets import QMessageBox
+        if QMessageBox.question(
+            self, "Delete Tab",
+            f"Delete the '{name}' notes tab? Content will be lost.",
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        self._notes_tabs.removeTab(index)
+        self._notes_tab_widgets.pop(name, None)
+        self.project.sub_notes.pop(name, None)
+        self._dirty = True
+
+    def _on_add_notes_tab(self):
+        """Add a new notes sub-tab."""
+        from PySide6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "New Tab", "Tab name:")
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+        if name in self._notes_tab_widgets:
+            self._notes_tabs.setCurrentIndex(
+                self._notes_tabs.indexOf(self._notes_tab_widgets[name][2]))
+            return
+        self._build_notes_tab(name, "", closable=True)
+        self.project.sub_notes[name] = ""
+        self._dirty = True
+        # Switch to new tab
+        self._notes_tabs.setCurrentIndex(self._notes_tabs.count() - 1)
+
+    def _on_notes_tab_switched(self, index: int):
+        """Handle tab switch — no-op for now, future: lazy render."""
+        pass
+
+    def _on_project_notes_tab_changed(self):
+        """Legacy handler — redirects to sub-note system."""
+        self._on_sub_note_changed("General")
 
     def _render_notes_preview(self, text: str):
+        """Render to the General tab preview (backward compat)."""
+        self._render_notes_preview_to(self._project_notes_preview, text)
+
+    def _render_notes_preview_to(self, widget, text: str):
+        """Render markdown preview into a specific QTextBrowser widget."""
         try:
             import markdown as _md
             html_body = _md.markdown(text, extensions=["tables", "fenced_code", "nl2br"])
@@ -967,7 +1083,7 @@ class MainWindow(QMainWindow):
             th {{ background:{bg_raised}; }}
             hr {{ border:none; border-top:1px solid {border}; }}
         </style></head><body>{html_body}</body></html>"""
-        self._project_notes_preview.setHtml(html)
+        widget.setHtml(html)
 
     def _clear_project_color(self):
         self.project.accent_color = ""
@@ -3730,10 +3846,16 @@ Ctrl+Click tag — Search by tag
             self._notes_edit.blockSignals(True)
             self._notes_edit.setPlainText(self.project.notes)
             self._notes_edit.blockSignals(False)
-        self._project_notes_edit.blockSignals(True)
-        self._project_notes_edit.setPlainText(self.project.notes)
-        self._project_notes_edit.blockSignals(False)
-        self._render_notes_preview(self.project.notes)
+        # Refresh all notes tabs
+        for tab_name, (preview, editor, _) in self._notes_tab_widgets.items():
+            if tab_name == "General":
+                text = self.project.notes
+            else:
+                text = self.project.sub_notes.get(tab_name, "")
+            editor.blockSignals(True)
+            editor.setPlainText(text)
+            editor.blockSignals(False)
+            self._render_notes_preview_to(preview, text)
         self._update_progress()
         self._watch_asset_files()
         self._watch_import_folders()
