@@ -343,7 +343,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(_plat_full, "Platforms")
 
         # Tab 5: Project Notes — tabbed sub-notes with preview + editor
-        from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser, QTabWidget, QTabBar, QInputDialog
+        from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser, QInputDialog
         self._notes_tabs = QTabWidget()
         self._notes_tabs.setObjectName("project_notes_tabs")
         self._notes_tabs.setTabsClosable(True)
