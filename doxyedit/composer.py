@@ -310,6 +310,8 @@ class PostComposerWidget(QWidget):
             p.sfw_asset_ids = sfw_asset_ids
             p.collection = data.get("collection", "")
             p.release_chain = [ReleaseStep.from_dict(s) for s in data.get("release_chain", [])]
+            p.campaign_id = data.get("campaign_id", getattr(p, "campaign_id", ""))
+            # Preserve fields not yet in the UI
             p.updated_at = now
             result_post = p
         else:
@@ -328,6 +330,7 @@ class PostComposerWidget(QWidget):
                 sfw_asset_ids=sfw_asset_ids,
                 collection=data.get("collection", ""),
                 release_chain=[ReleaseStep.from_dict(s) for s in data.get("release_chain", [])],
+                campaign_id=data.get("campaign_id", ""),
                 created_at=now,
                 updated_at=now,
             )
