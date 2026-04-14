@@ -1090,6 +1090,8 @@ class MainWindow(QMainWindow):
 
     def _toggle_notes_preview(self, checked: bool):
         """Toggle current notes tab between editor and preview."""
+        if not hasattr(self, '_notes_tabs'):
+            return
         tab_name = self._notes_tabs.tabText(self._notes_tabs.currentIndex())
         widgets = self._notes_tab_widgets.get(tab_name)
         if not widgets:
@@ -1106,6 +1108,8 @@ class MainWindow(QMainWindow):
 
     def _on_notes_tab_switched(self, index: int):
         """Reset preview/edit state when switching tabs."""
+        if not hasattr(self, '_notes_preview_btn'):
+            return
         self._notes_preview_btn.setChecked(False)
         self._notes_preview_btn.setText("Preview")
         # Make sure the new tab shows the editor
