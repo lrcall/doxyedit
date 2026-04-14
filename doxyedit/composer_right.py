@@ -513,8 +513,9 @@ class ContentPanel(QWidget):
 
     def _on_platform_toggled(self) -> None:
         platforms = [p for p, cb in self._platform_checks.items() if cb.isChecked()]
-        # Include checked subscription platforms
-        platforms += [p for p, cb in self._sub_platform_checks.items() if cb.isChecked()]
+        # Include checked subscription platforms (may not exist yet during init)
+        if hasattr(self, '_sub_platform_checks'):
+            platforms += [p for p, cb in self._sub_platform_checks.items() if cb.isChecked()]
         self.platforms_changed.emit(platforms)
 
     def _on_category_changed(self, _index: int) -> None:
