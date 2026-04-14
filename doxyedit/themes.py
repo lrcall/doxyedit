@@ -1435,6 +1435,52 @@ def generate_stylesheet(theme: Theme) -> str:
             font-size: {fxs}px;
         }}
 
+        /* ── Engagement panel ─────────────────────────────────────── */
+        QFrame#engagement_panel {{
+            background: {theme.bg_raised};
+            border: 1px solid {theme.accent_dim};
+            border-radius: {rad}px;
+            padding: {pad}px;
+        }}
+        QFrame#engagement_row {{
+            border: none;
+            padding: 2px 0;
+        }}
+        QPushButton#engagement_open_btn {{
+            background: {theme.accent_dim};
+            color: {theme.text_on_accent};
+            border: none;
+            border-radius: {rad}px;
+            padding: {pad}px {pad_lg}px;
+            font-size: {fs}px;
+        }}
+        QPushButton#engagement_open_btn:hover {{
+            background: {theme.accent};
+        }}
+        QPushButton#engagement_done_btn {{
+            background: {theme.post_posted}60;
+            color: {theme.post_posted};
+            border: 1px solid {theme.post_posted}80;
+            border-radius: {rad}px;
+            padding: {pad}px {pad_lg}px;
+            font-size: {fs}px;
+        }}
+        QPushButton#engagement_done_btn:hover {{
+            background: {theme.post_posted}90;
+            color: {theme.text_on_accent};
+        }}
+        QPushButton#engagement_snooze_btn {{
+            background: {theme.warning}40;
+            color: {theme.warning};
+            border: 1px solid {theme.warning}60;
+            border-radius: {rad}px;
+            padding: {pad}px {pad_lg}px;
+            font-size: {fs}px;
+        }}
+        QPushButton#engagement_snooze_btn:hover {{
+            background: {theme.warning}70;
+        }}
+
         /* ── Post composer (dialog + docked) ──────────────────────────── */
         QDialog#post_composer,
         QDialog#post_composer QWidget,

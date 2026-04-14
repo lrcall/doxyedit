@@ -276,6 +276,7 @@ class MainWindow(QMainWindow):
         self._timeline.post_selected.connect(self._on_post_selected)
         self._timeline.new_post_requested.connect(self._on_new_post)
         self._timeline.sync_requested.connect(self._on_sync_oneup)
+        self._timeline.engagement_changed.connect(self._on_engagement_changed)
         # Show active OneUp account on sync button
         from doxyedit.oneup import get_active_account_label
         project_dir = str(Path(self._project_path).parent) if hasattr(self, '_project_path') and self._project_path else "."
@@ -893,6 +894,12 @@ class MainWindow(QMainWindow):
             self._preview_pane.update_theme(self._theme)
         if hasattr(self, '_gantt_panel'):
             self._gantt_panel.set_theme(self._theme)
+        # Re-render notes previews with new theme colors
+        if hasattr(self, '_notes_tab_widgets'):
+            for tab_name, (preview, editor, _) in self._notes_tab_widgets.items():
+                text = editor.toPlainText()
+                if text:
+                    self._render_notes_preview_to(preview, text)
 
     def _tint_titlebar(self, hex_color: str = ""):
         """Apply accent color to Windows 11 title bar via DwmSetWindowAttribute."""
@@ -2799,6 +2806,17 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                         post.status = SocialPostStatus.POSTED
                         updated += 1
                         print(f"[Sync] {post.id[:8]} → POSTED")
+                        # Generate engagement follow-up windows
+                        if not post.engagement_checks:
+                            try:
+                                from doxyedit.reminders import generate_engagement_windows
+                                from doxyedit.oneup import get_connected_platforms as _gcp
+                                _connected = _gcp(project_dir)
+                                _windows = generate_engagement_windows(post, _connected)
+                                post.engagement_checks = [w.to_dict() for w in _windows]
+                                print(f"[Sync] Generated {len(_windows)} engagement windows")
+                            except Exception as _e:
+                                print(f"[Sync] Engagement gen error: {_e}")
                     elif remote == "failed":
                         # PULL: OneUp failed
                         post.status = SocialPostStatus.FAILED
@@ -2861,6 +2879,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         msg = f"Synced: {', '.join(parts)}"
         print(f"[Sync] {msg}")
         self.statusBar().showMessage(msg, 5000)
+
+    def _on_engagement_changed(self):
+        """Engagement check was done/snoozed — mark dirty and save."""
+        self._dirty = True
 
     def _on_calendar_day_selected(self, iso_date: str):
         """Filter timeline to show only posts for the selected day."""

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Optional
 
-from doxyedit.models import Project, SocialPost, ReleaseStep
+from doxyedit.models import Project, SocialPost, ReleaseStep, EngagementWindow
 
 
 @dataclass
@@ -18,6 +18,53 @@ class Reminder:
     message: str = ""
     urgency: str = "normal"   # "normal", "urgent", "overdue"
     step_index: int = 0       # index into release_chain
+
+
+def generate_engagement_windows(post: SocialPost, connected_accounts: list[dict]) -> list[EngagementWindow]:
+    """Generate engagement follow-up windows for a newly-posted post."""
+    windows = []
+    now = datetime.now()
+
+    _URL_PATTERNS = {
+        "twitter": "https://x.com/{username}",
+        "reddit": "https://reddit.com/user/{username}/submitted",
+        "bluesky": "https://bsky.app/profile/{handle}",
+        "instagram": "https://instagram.com/{username}",
+    }
+
+    _SCHEDULE = [
+        (15, "first_reactions", "Check first reactions, reply to early comments"),
+        (60, "peak_engagement", "Peak engagement window, respond and boost"),
+        (240, "follow_up", "Follow-up wave, engage with shares and late comments"),
+        (1440, "next_day", "Next day check, thank followers, final replies"),
+        (2880, "metrics", "Metrics review, note what worked for future posts"),
+    ]
+
+    for platform in post.platforms:
+        username = ""
+        for acct in connected_accounts:
+            if acct.get("id") == platform:
+                username = acct.get("name", "").split("@")[-1].rstrip(")")
+                break
+
+        url = ""
+        for pattern_key, pattern in _URL_PATTERNS.items():
+            if pattern_key in platform.lower():
+                url = pattern.format(username=username, handle=username)
+                break
+
+        for delay_min, action, description in _SCHEDULE:
+            windows.append(EngagementWindow(
+                post_id=post.id,
+                platform=platform,
+                account_id=platform,
+                check_at=(now + timedelta(minutes=delay_min)).isoformat(),
+                action=action,
+                url=url,
+                notes=description,
+            ))
+
+    return windows
 
 
 def scan_pending_reminders(project: Project) -> list[Reminder]:
@@ -120,6 +167,39 @@ def scan_pending_reminders(project: Project) -> list[Reminder]:
                     message=msg,
                     urgency=urgency,
                 ))
+
+    # Scan engagement checks
+    for post in project.posts:
+        if not post.engagement_checks:
+            continue
+        for check_dict in post.engagement_checks:
+            check = EngagementWindow.from_dict(check_dict)
+            if check.done:
+                continue
+            try:
+                check_time = datetime.fromisoformat(check.check_at)
+            except (ValueError, TypeError):
+                continue
+            minutes_until = (check_time - now).total_seconds() / 60
+            if minutes_until > 15:
+                continue  # not due yet
+            if minutes_until < 0:
+                urgency = "overdue"
+                msg = f"OVERDUE: {check.action} for {check.platform} ({abs(int(minutes_until))}m ago)"
+            elif minutes_until < 5:
+                urgency = "urgent"
+                msg = f"NOW: {check.action} for {check.platform}"
+            else:
+                urgency = "normal"
+                msg = f"Soon: {check.action} for {check.platform} in {int(minutes_until)}m"
+            reminders.append(Reminder(
+                post_id=post.id,
+                platform=check.platform,
+                identity=post.collection or "",
+                due_at=check.check_at,
+                message=msg,
+                urgency=urgency,
+            ))
 
     # Sort by urgency then due time
     urgency_order = {"overdue": 0, "urgent": 1, "normal": 2}

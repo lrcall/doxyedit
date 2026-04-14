@@ -238,6 +238,26 @@ class ReleaseStep:
 
 
 @dataclass
+class EngagementWindow:
+    """A scheduled engagement check after a post goes live."""
+    post_id: str = ""
+    platform: str = ""
+    account_id: str = ""
+    check_at: str = ""          # ISO datetime
+    action: str = ""            # "first_reactions", "peak_engagement", "follow_up", "next_day", "metrics"
+    url: str = ""               # URL to open (profile page)
+    done: bool = False
+    notes: str = ""             # engagement advice
+
+    def to_dict(self) -> dict:
+        return {k: getattr(self, k) for k in self.__dataclass_fields__}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "EngagementWindow":
+        return cls(**{k: d[k] for k in cls.__dataclass_fields__ if k in d})
+
+
+@dataclass
 class CampaignMilestone:
     """A milestone in a campaign's preparation timeline."""
     id: str = ""
@@ -420,6 +440,8 @@ class SocialPost:
     campaign_id: str = ""  # links post to a campaign for promo tracking
     category_id: str = ""  # OneUp category ID for posting
     release_chain: list[ReleaseStep] = field(default_factory=list)
+    published_urls: dict = field(default_factory=dict)           # platform_id -> post URL
+    engagement_checks: list[dict] = field(default_factory=list)  # list of EngagementWindow dicts
 
     def to_dict(self) -> dict:
         return {
@@ -438,6 +460,8 @@ class SocialPost:
             "campaign_id": self.campaign_id,
             "category_id": self.category_id,
             "release_chain": [s.to_dict() for s in self.release_chain],
+            "published_urls": self.published_urls,
+            "engagement_checks": self.engagement_checks,
         }
 
     @classmethod
@@ -461,6 +485,8 @@ class SocialPost:
             campaign_id=d.get("campaign_id", ""),
             category_id=d.get("category_id", ""),
             release_chain=[ReleaseStep.from_dict(s) for s in d.get("release_chain", [])],
+            published_urls=d.get("published_urls", {}),
+            engagement_checks=d.get("engagement_checks", []),
         )
 
 

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, Qt, QSize
 from PySide6.QtGui import QPixmap
 
-from doxyedit.models import Project, SocialPost, SocialPostStatus
+from doxyedit.models import Project, SocialPost, SocialPostStatus, EngagementWindow
 
 
 # Status icon map
@@ -243,6 +243,127 @@ class GapMarker(QFrame):
         layout.addWidget(fill_btn)
 
 
+class EngagementPanel(QFrame):
+    """Shows pending engagement follow-up windows at the top of the timeline."""
+
+    changed = Signal()  # emitted when a check is marked done or snoozed
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("engagement_panel")
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(6, 6, 6, 6)
+        self._layout.setSpacing(4)
+        self._project: "Project | None" = None
+        self.hide()
+
+    def set_project(self, project: "Project"):
+        self._project = project
+
+    def refresh(self):
+        """Scan project posts for undone engagement checks and populate rows."""
+        # Clear existing rows
+        while self._layout.count():
+            item = self._layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not self._project:
+            self.hide()
+            return
+
+        now = datetime.now()
+        pending = []
+        for post in self._project.posts:
+            for i, check_dict in enumerate(post.engagement_checks):
+                check = EngagementWindow.from_dict(check_dict)
+                if check.done:
+                    continue
+                try:
+                    check_time = datetime.fromisoformat(check.check_at)
+                except (ValueError, TypeError):
+                    continue
+                minutes_until = (check_time - now).total_seconds() / 60
+                if minutes_until > 60:
+                    continue  # only show checks due within the hour
+                pending.append((post, i, check, minutes_until))
+
+        if not pending:
+            self.hide()
+            return
+
+        pending.sort(key=lambda x: x[3])
+        header = QLabel(f"Engagement ({len(pending)} pending)")
+        header.setObjectName("timeline_day_header")
+        self._layout.addWidget(header)
+
+        for post, idx, check, minutes_until in pending:
+            row = QFrame()
+            row.setObjectName("engagement_row")
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(4, 2, 4, 2)
+            row_layout.setSpacing(6)
+
+            # Urgency icon
+            if minutes_until < 0:
+                icon_text = "!!"
+            elif minutes_until < 5:
+                icon_text = "!"
+            else:
+                icon_text = "~"
+            icon_lbl = QLabel(icon_text)
+            icon_lbl.setFixedWidth(20)
+            row_layout.addWidget(icon_lbl)
+
+            # Platform + action
+            desc_lbl = QLabel(f"{check.platform} — {check.notes}")
+            desc_lbl.setWordWrap(True)
+            row_layout.addWidget(desc_lbl, 1)
+
+            # Open button
+            if check.url:
+                open_btn = QPushButton("Open")
+                open_btn.setObjectName("engagement_open_btn")
+                _url = check.url
+                open_btn.clicked.connect(lambda _=False, u=_url: __import__("webbrowser").open(u))
+                row_layout.addWidget(open_btn)
+
+            # Done button
+            done_btn = QPushButton("Done")
+            done_btn.setObjectName("engagement_done_btn")
+            _post_ref, _idx = post, idx
+            done_btn.clicked.connect(lambda _=False, p=_post_ref, i=_idx: self._mark_done(p, i))
+            row_layout.addWidget(done_btn)
+
+            # Snooze button
+            snooze_btn = QPushButton("Snooze")
+            snooze_btn.setObjectName("engagement_snooze_btn")
+            snooze_btn.clicked.connect(lambda _=False, p=_post_ref, i=_idx: self._snooze(p, i))
+            row_layout.addWidget(snooze_btn)
+
+            self._layout.addWidget(row)
+
+        self.show()
+
+    def _mark_done(self, post: SocialPost, check_idx: int):
+        if check_idx < len(post.engagement_checks):
+            post.engagement_checks[check_idx]["done"] = True
+        self.changed.emit()
+        self.refresh()
+
+    def _snooze(self, post: SocialPost, check_idx: int):
+        if check_idx < len(post.engagement_checks):
+            try:
+                old = datetime.fromisoformat(post.engagement_checks[check_idx]["check_at"])
+                post.engagement_checks[check_idx]["check_at"] = (
+                    old + timedelta(minutes=30)
+                ).isoformat()
+            except (ValueError, TypeError, KeyError):
+                pass
+        self.changed.emit()
+        self.refresh()
+
+
 class TimelineStream(QWidget):
     """Scrollable post feed grouped by day with gap markers."""
 
@@ -250,6 +371,7 @@ class TimelineStream(QWidget):
     new_post_requested = Signal()
     sync_requested = Signal()
     fill_gaps_requested = Signal()
+    engagement_changed = Signal()  # emitted when a check is done/snoozed
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -297,6 +419,11 @@ class TimelineStream(QWidget):
         self._summary_label.setObjectName("timeline_summary")
         outer.addWidget(self._summary_label)
 
+        # ---- Engagement panel ----
+        self._engagement_panel = EngagementPanel()
+        self._engagement_panel.changed.connect(self._on_engagement_changed)
+        outer.addWidget(self._engagement_panel)
+
         # ---- Scroll area ----
         self._scroll = QScrollArea()
         self._scroll.setObjectName("timeline_scroll")
@@ -329,6 +456,7 @@ class TimelineStream(QWidget):
 
     def set_project(self, project: "Project") -> None:
         self._project = project
+        self._engagement_panel.set_project(project)
         self.refresh()
 
     def set_day_filter(self, iso_date: str | None) -> None:
@@ -409,6 +537,9 @@ class TimelineStream(QWidget):
             f"{total} posts · {n_queued} queued · {n_posted} posted"
         )
 
+        # Refresh engagement panel
+        self._engagement_panel.refresh()
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -434,6 +565,10 @@ class TimelineStream(QWidget):
         label = QLabel(text)
         label.setObjectName("timeline_day_header")
         return label
+
+    def _on_engagement_changed(self) -> None:
+        """Engagement check was marked done or snoozed — bubble up for save."""
+        self.engagement_changed.emit()
 
     def _on_filter_changed(self, _text: str) -> None:
         self.refresh()
