@@ -38,7 +38,6 @@ from doxyedit.project import save_project, load_project
 from doxyedit.stats import StatsPanel
 from doxyedit.checklist import ChecklistPanel
 from doxyedit.health import HealthPanel
-from doxyedit.kanban import KanbanPanel
 
 AUTOSAVE_INTERVAL_MS = 30_000
 
@@ -346,37 +345,14 @@ class MainWindow(QMainWindow):
 
         self.tabs.addTab(self._social_split, "Social")
 
-        # Tab 5: Platforms — slot assignments + kanban
+        # Tab 5: Platforms — slot assignments
         self.platform_panel = PlatformPanel(self.project)
         self.platform_panel.set_thumb_cache(self.browser._thumb_cache)
 
-        self._kanban_panel = KanbanPanel()
-        self._kanban_panel.status_changed.connect(self._on_data_changed)
-        self._kanban_panel.status_changed.connect(lambda: self.platform_panel.refresh())
-        self._kanban_panel.status_changed.connect(lambda: self._timeline.refresh())
-
-        _plat_right = QSplitter(Qt.Orientation.Vertical)
-        _plat_right.addWidget(self._kanban_panel)
-        _plat_right.setSizes([500])
-        # Platforms (left) + kanban (right)
-        self._plat_top = QSplitter(Qt.Orientation.Horizontal)
-        self._plat_top.addWidget(self.platform_panel)
-        self._plat_top.addWidget(_plat_right)
-        self._plat_top.setStretchFactor(0, 3)
-        self._plat_top.setStretchFactor(1, 2)
-        # Assigned art hive at bottom — full width
         self._plat_full = QSplitter(Qt.Orientation.Vertical)
-        self._plat_full.addWidget(self._plat_top)
+        self._plat_full.addWidget(self.platform_panel)
         if hasattr(self.platform_panel, '_hive_container'):
             self._plat_full.addWidget(self.platform_panel._hive_container)
-        self._plat_full.setStretchFactor(0, 4)
-        self._plat_full.setStretchFactor(1, 0)
-        # Restore saved sizes
-        saved_pt = self._settings_early.value("plat_top_splitter", None)
-        if saved_pt:
-            self._plat_top.setSizes([int(s) for s in saved_pt])
-        else:
-            self._plat_top.setSizes([600, 400])
         saved_pf = self._settings_early.value("plat_full_splitter", None)
         if saved_pf:
             self._plat_full.setSizes([int(s) for s in saved_pf])
@@ -884,8 +860,6 @@ class MainWindow(QMainWindow):
             self.project.theme_id = theme_id
         self._tint_titlebar(proj_accent)
         # Panels with deeply nested widgets that need explicit theme
-        if hasattr(self, '_kanban_panel'):
-            self._kanban_panel.apply_theme(self._theme)
         if hasattr(self, 'browser') and hasattr(self.browser, '_delegate'):
             self.browser._delegate.set_theme(self._theme)
         if hasattr(self, '_file_browser'):
@@ -5031,8 +5005,6 @@ Ctrl+Click tag — Search by tag
         self.health_panel.project = self.project
         self.health_panel.refresh()
         self._file_browser.set_project(self.project)
-        if hasattr(self, '_kanban_panel'):
-            self._kanban_panel.set_project(self.project)
         if hasattr(self, '_timeline'):
             self._timeline.set_project(self.project)
         if hasattr(self, '_calendar_pane'):
@@ -5609,7 +5581,6 @@ Ctrl+Click tag — Search by tag
         self._settings.setValue("social_splitter_v", self._social_split.sizes())
         self._settings.setValue("social_top_splitter", self._social_top_split.sizes())
         self._settings.setValue("social_left_splitter", self._social_left_split.sizes())
-        self._settings.setValue("plat_top_splitter", self._plat_top.sizes())
         self._settings.setValue("plat_full_splitter", self._plat_full.sizes())
         self._settings.setValue("tag_notes_splitter", self.tag_panel._tag_notes_split.sizes())
         self._settings.setValue("collapsed_folders", sorted(self.browser._collapsed_folders))

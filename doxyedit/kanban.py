@@ -9,11 +9,22 @@ from PySide6.QtGui import QColor, QDrag, QPixmap, QPainter, QPalette
 
 
 STATUS_COLS = [
-    ("pending", "Pending", "#666666"),
-    ("ready", "Ready", "#ffa500"),
-    ("posted", "Posted", "#44cc44"),
-    ("skip", "Skip", "#555555"),
+    ("pending", "Pending"),
+    ("ready", "Ready"),
+    ("posted", "Posted"),
+    ("skip", "Skip"),
 ]
+
+def _status_color(status: str, theme) -> str:
+    """Resolve status to a theme-based color."""
+    if theme is None:
+        return "#666666"
+    return {
+        "pending": theme.text_muted,
+        "ready": theme.warning,
+        "posted": theme.post_posted,
+        "skip": theme.text_muted,
+    }.get(status, theme.text_muted)
 
 
 class KanbanCard(QFrame):
@@ -80,11 +91,11 @@ class KanbanColumn(QWidget):
 
     card_dropped = Signal(str, str, str, str)  # asset_id, platform, slot, new_status
 
-    def __init__(self, status: str, label: str, color: str, parent=None):
+    def __init__(self, status: str, label: str, parent=None):
         super().__init__(parent)
         self.setObjectName("kanban_column")
         self.status = status
-        self._status_color = color
+        self._status_color = _status_color(status, None)
         self.setAcceptDrops(True)
         self.setAutoFillBackground(True)
 
@@ -152,13 +163,14 @@ class KanbanColumn(QWidget):
 
     def apply_theme(self, theme):
         """Apply theme via QPalette (reliable for nested widgets)."""
+        self._status_color = _status_color(self.status, theme)
         pal = self.palette()
         pal.setColor(QPalette.ColorRole.Window, QColor(theme.bg_main))
         self.setPalette(pal)
         # Scroll area + card widget backgrounds
         self._scroll.setStyleSheet(f"QScrollArea {{ background: {theme.bg_main}; border: none; }}")
         self._card_widget.setStyleSheet(f"background: {theme.bg_main};")
-        # Status dot keeps its fixed color
+        # Status dot uses theme-derived color
         self._dot.setStyleSheet(f"color: {self._status_color}; font-size: 14px; background: transparent;")
         self._title.setStyleSheet(f"color: {theme.text_primary}; background: transparent;")
         self._count.setStyleSheet(f"color: {theme.text_muted}; background: transparent;")
@@ -195,8 +207,8 @@ class KanbanPanel(QWidget):
         cols_layout = QHBoxLayout()
         cols_layout.setSpacing(_pad_lg)
         self._columns: dict[str, KanbanColumn] = {}
-        for status, label, color in STATUS_COLS:
-            col = KanbanColumn(status, label, color)
+        for status, label in STATUS_COLS:
+            col = KanbanColumn(status, label)
             col.card_dropped.connect(self._on_card_dropped)
             self._columns[status] = col
             cols_layout.addWidget(col, 1)

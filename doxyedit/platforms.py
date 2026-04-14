@@ -484,8 +484,9 @@ class PlatformPanel(QWidget):
         dot.setProperty("status", str(status))
         v.addWidget(dot)
 
-        # Click → emit asset_selected if signal wired (handled via mousePressEvent)
-        cell.mousePressEvent = lambda _, aid=asset.id: self.asset_selected.emit(aid)
+        # Click → emit asset_selected — capture asset_id via default arg
+        asset_id = asset.id
+        cell.mousePressEvent = lambda _, _aid=asset_id: self.asset_selected.emit(_aid)
         return cell
 
     def _build_card(self, platform, pid: str, assign_map: dict) -> QFrame:
@@ -594,6 +595,12 @@ class PlatformPanel(QWidget):
             status_btn.setEnabled(False)
         h.addWidget(status_btn)
 
+        # Show assignment notes as tooltip
+        if entries:
+            notes_parts = [pa.notes for _, pa in entries if pa.notes]
+            if notes_parts:
+                row.setToolTip("\n".join(notes_parts))
+
         return row
 
     def _slot_context_menu(self, row, pos, pid: str, slot, entries: list):
@@ -608,6 +615,8 @@ class PlatformPanel(QWidget):
                 a.triggered.connect(
                     lambda checked=False, aid=asset.id, p=pid, s=slot.name:
                         self._remove_asset_from_slot(aid, p, s))
+            menu.addSeparator()
+            menu.addAction("Edit Note", lambda: self._edit_slot_note(pid, slot.name, entries))
             menu.addSeparator()
             menu.addAction("Clear all", lambda: self._clear_assignment(pid, slot.name))
         menu.exec(row.mapToGlobal(pos))
@@ -630,6 +639,15 @@ class PlatformPanel(QWidget):
                 if not (pa.platform == pid and pa.slot == slot_name)
             ]
         self.refresh()
+
+    def _edit_slot_note(self, pid: str, slot_name: str, entries: list):
+        """Edit the note on all assignments in a slot via QInputDialog."""
+        current = entries[0][1].notes if entries else ""
+        text, ok = QInputDialog.getText(self, "Edit Note", "Note:", text=current)
+        if ok:
+            for _, pa in entries:
+                pa.notes = text
+            self.refresh()
 
     def _style_status_btn(self, btn: QPushButton, status: str):
         btn.setObjectName("status_btn")
@@ -756,7 +774,8 @@ class PlatformPanel(QWidget):
                                Qt.TransformationMode.SmoothTransformation)
                 thumb_lbl.setPixmap(pm)
             cell.setCursor(Qt.CursorShape.PointingHandCursor)
-            cell.mousePressEvent = lambda _, aid=asset.id: self.asset_selected.emit(aid)
+            _aid = asset.id
+            cell.mousePressEvent = lambda _, _aid=_aid: self.asset_selected.emit(_aid)
             status = str(pa.status)
         else:
             thumb_lbl.setText("—")
