@@ -1090,7 +1090,7 @@ class MainWindow(QMainWindow):
             table {{ border-collapse:collapse; width:100%; }}
             th,td {{ border:1px solid {border}; padding:6px 10px; text-align:left; }}
             th {{ background:{bg_raised}; }}
-            hr {{ border:none; border-top:1px solid {border}; }}
+            hr {{ border:none; height:2px; background: linear-gradient(to right, transparent, {accent}40, transparent); margin:12px 0; }}
         </style></head><body>{html_body}</body></html>"""
         widget.setHtml(html)
 

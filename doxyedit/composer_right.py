@@ -494,7 +494,7 @@ h3 {{ font-size: 1.0em; }}
 p {{ margin: 4px 0; }}
 ul, ol {{ margin: 4px 0 4px 16px; padding: 0; }}
 li {{ margin: 1px 0; padding: 0; line-height: 1.25; }}
-hr {{ border: none; height: 1px; background: {theme.border}; margin: 8px 0; }}
+hr {{ border: none; height: 2px; background: linear-gradient(to right, transparent, {theme.accent}40, transparent); margin: 10px 0; }}
 code {{ background: {theme.bg_raised}; padding: 1px 4px; border-radius: 3px; }}
 pre {{ background: {theme.bg_raised}; padding: 6px 8px; border-radius: 4px; margin: 4px 0; }}
 table {{ border-collapse: collapse; margin: 4px 0; }}
