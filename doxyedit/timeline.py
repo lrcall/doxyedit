@@ -32,15 +32,13 @@ class PlatformBadge(QLabel):
 
 
 class StatusBadge(QLabel):
-    """Post status label with icon, styled via QSS property selector."""
+    """Post status label with icon, styled via distinct objectName per status."""
 
     def __init__(self, status: str, parent=None):
-        # Normalize: enum value or raw string → plain lowercase
         status_str = status.value if hasattr(status, 'value') else str(status)
         icon = _STATUS_ICONS.get(status_str, _STATUS_ICONS.get(status, "○"))
         super().__init__(f"{icon} {status_str}", parent)
-        self.setObjectName("post_status_badge")
-        self.setProperty("status", status_str)
+        self.setObjectName(f"post_badge_{status_str}")
 
 
 THUMB_SIZE = 64
@@ -112,7 +110,20 @@ class PostCard(QFrame):
 
         time_str = post.scheduled_time[11:16] if len(post.scheduled_time) > 10 else ""
         if time_str:
-            time_label = QLabel(time_str)
+            tz_parts = [time_str]
+            try:
+                from datetime import datetime as _dt
+                from zoneinfo import ZoneInfo
+                local_dt = _dt.fromisoformat(post.scheduled_time)
+                local_tz = _dt.now().astimezone().tzinfo
+                aware = local_dt.replace(tzinfo=local_tz)
+                for tz_name, tz_label in [("US/Eastern", "EST"), ("US/Pacific", "PST"), ("Asia/Tokyo", "JST")]:
+                    conv = aware.astimezone(ZoneInfo(tz_name))
+                    tz_parts.append(f"{tz_label} {conv.strftime('%H:%M')}")
+            except Exception:
+                pass
+            time_label = QLabel("  ".join(tz_parts))
+            time_label.setObjectName("post_time_label")
             row1.addWidget(time_label)
 
         info.addLayout(row1)

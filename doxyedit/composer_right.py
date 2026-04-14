@@ -519,10 +519,12 @@ class ContentPanel(QWidget):
 
     def _on_platform_toggled(self) -> None:
         platforms = [p for p, cb in self._platform_checks.items() if cb.isChecked()]
-        # Include checked subscription platforms (may not exist yet during init)
         if hasattr(self, '_sub_platform_checks'):
             platforms += [p for p, cb in self._sub_platform_checks.items() if cb.isChecked()]
         self.platforms_changed.emit(platforms)
+        # Rebuild per-platform captions if the section is open
+        if hasattr(self, '_per_platform_toggle') and self._per_platform_toggle.isChecked():
+            self._rebuild_per_platform_captions()
 
     def _on_category_changed(self, _index: int) -> None:
         """Rebuild account checkboxes, captions, and chain when category changes."""
@@ -571,7 +573,7 @@ class ContentPanel(QWidget):
         self._on_platform_toggled()
 
     def _rebuild_per_platform_captions(self) -> None:
-        """Rebuild per-platform caption fields to match the selected category."""
+        """Rebuild per-platform caption fields for CHECKED platforms only."""
         # Save existing caption text
         saved_captions = {
             pid: te.toPlainText() for pid, te in self._platform_captions.items()
@@ -584,23 +586,16 @@ class ContentPanel(QWidget):
                 item.widget().deleteLater()
         self._platform_captions.clear()
 
-        # Determine which accounts to show
-        accounts = self._connected
-        if self._categories and self._category_combo is not None:
-            cat_id = self._category_combo.currentData()
-            for cat in self._categories:
-                if cat["id"] == cat_id:
-                    accounts = cat.get("accounts", [])
-                    break
-
-        for acct in accounts:
-            pid = acct["id"]
-            name = acct.get("name", pid)
+        # Only show captions for checked OneUp accounts
+        for pid, cb in self._platform_checks.items():
+            if not cb.isChecked():
+                continue
+            name = cb.text()
             lbl = QLabel(name)
             lbl.setObjectName("composer_platform_label")
             te = QTextEdit()
             te.setMaximumHeight(100)
-            te.setPlaceholderText(f"Caption for {pid} (leave blank to use default)")
+            te.setPlaceholderText(f"Caption for {name} (leave blank to use default)")
             te.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             te.customContextMenuRequested.connect(
                 lambda pos, _te=te: self._claude_context_menu(_te, pos))
@@ -609,6 +604,23 @@ class ContentPanel(QWidget):
             self._platform_captions[pid] = te
             self._pp_layout.addWidget(lbl)
             self._pp_layout.addWidget(te)
+
+        # Also show captions for checked subscription platforms
+        if hasattr(self, '_sub_platform_checks'):
+            for pid, cb in self._sub_platform_checks.items():
+                if not cb.isChecked():
+                    continue
+                name = cb.text()
+                lbl = QLabel(name)
+                lbl.setObjectName("composer_platform_label")
+                te = QTextEdit()
+                te.setMaximumHeight(100)
+                te.setPlaceholderText(f"Caption for {name} (leave blank to use default)")
+                if pid in saved_captions and saved_captions[pid]:
+                    te.setPlainText(saved_captions[pid])
+                self._platform_captions[pid] = te
+                self._pp_layout.addWidget(lbl)
+                self._pp_layout.addWidget(te)
 
     # ------------------------------------------------------------------
     # Timezone display
