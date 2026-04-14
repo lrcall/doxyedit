@@ -56,6 +56,7 @@ class _GanttBar(QGraphicsRectItem):
 
     def __init__(self, x: float, y: float, w: float, h: float,
                  post: SocialPost, platform: str, color: QColor,
+                 theme=None, thumb_path: str = "",
                  parent=None):
         super().__init__(x, y, w, h, parent)
         self.post_id = post.id
@@ -68,18 +69,47 @@ class _GanttBar(QGraphicsRectItem):
         self.setCursor(Qt.PointingHandCursor)
         self.setFlag(QGraphicsItem.ItemIsSelectable, False)
 
-        # Rich tooltip
+        # Themed HTML tooltip with thumbnail
         status = post.status.upper() if post.status else "DRAFT"
         cap = post.caption_default or "(no caption)"
-        if len(cap) > 100:
-            cap = cap[:97] + "..."
-        sched = post.scheduled_time[:16] if post.scheduled_time else "unscheduled"
+        if len(cap) > 120:
+            cap = cap[:117] + "..."
+        # Escape HTML entities
+        cap = cap.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        sched = post.scheduled_time[:16].replace("T", " ") if post.scheduled_time else "unscheduled"
         plats = ", ".join(post.platforms) if post.platforms else platform
-        assets = ", ".join(post.asset_ids[:3]) if post.asset_ids else "(no assets)"
-        tip = f"{status} | {sched}\n{plats}\n{cap}\nAssets: {assets}"
+        assets_str = ", ".join(post.asset_ids[:3]) if post.asset_ids else "(no assets)"
+
+        bg = _theme_color(theme, "bg_raised").name()
+        fg = _theme_color(theme, "text_primary").name()
+        fg2 = _theme_color(theme, "text_secondary").name()
+        fg_m = _theme_color(theme, "text_muted").name()
+        accent = color.name()
+        bdr = _theme_color(theme, "border").name()
+
+        img_html = ""
+        if thumb_path:
+            img_html = (f'<img src="file:///{thumb_path}" '
+                        f'width="80" height="80" '
+                        f'style="border-radius:4px; margin-right:8px; float:left;" />')
+
+        chain_html = ""
         if post.release_chain:
-            steps = [f"{s.platform} +{s.delay_hours}h" for s in post.release_chain]
-            tip += f"\nRelease: {' > '.join(steps)}"
+            steps = " &rarr; ".join(f"{s.platform} +{s.delay_hours}h" for s in post.release_chain)
+            chain_html = f'<div style="color:{fg_m}; margin-top:4px;">Release: {steps}</div>'
+
+        tip = (
+            f'<div style="background:{bg}; color:{fg}; padding:8px; '
+            f'border:1px solid {bdr}; border-radius:6px; max-width:360px;">'
+            f'{img_html}'
+            f'<div style="font-weight:bold; color:{accent}; margin-bottom:2px;">'
+            f'{status} &nbsp; <span style="color:{fg2};">{sched}</span></div>'
+            f'<div style="color:{fg2}; margin-bottom:4px;">{plats}</div>'
+            f'<div style="color:{fg};">{cap}</div>'
+            f'<div style="color:{fg_m}; margin-top:4px;">Assets: {assets_str}</div>'
+            f'{chain_html}'
+            f'</div>'
+        )
         self.setToolTip(tip)
 
     def mousePressEvent(self, event):
@@ -139,6 +169,8 @@ class GanttPanel(QWidget):
 
     def set_theme(self, theme) -> None:
         self._theme = theme
+        # Set scene background so the QGraphicsScene matches the view
+        self._scene.setBackgroundBrush(QBrush(_theme_color(theme, "bg_deep")))
         self.refresh()
 
     def refresh(self) -> None:
@@ -321,6 +353,30 @@ class GanttPanel(QWidget):
         # Build per-platform post timeline for gap detection
         plat_dates: dict[str, list[date]] = {p: [] for p in self._platform_order}
 
+        # Build asset-id → thumbnail path lookup
+        from pathlib import Path as _Path
+        asset_index = {a.id: a for a in self._project.assets} if self._project else {}
+
+        def _thumb_for_post(post: SocialPost) -> str:
+            """Return thumbnail path for the first asset, or empty string."""
+            for aid in post.asset_ids:
+                asset = asset_index.get(aid)
+                if not asset or not asset.source_path:
+                    continue
+                src = _Path(asset.source_path)
+                # Check _previews/ cache
+                preview = _Path("_previews") / f"{src.stem}.jpg"
+                if preview.exists():
+                    return str(preview.resolve()).replace("\\", "/")
+                # Check _starred_previews/
+                starred = _Path("_starred_previews") / f"{src.stem}.jpg"
+                if starred.exists():
+                    return str(starred.resolve()).replace("\\", "/")
+                # Try the source file itself (for jpg/png)
+                if src.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp") and src.exists():
+                    return str(src.resolve()).replace("\\", "/")
+            return ""
+
         # Draw posts
         for post in scheduled_posts:
             try:
@@ -334,6 +390,7 @@ class GanttPanel(QWidget):
 
             status_token = _STATUS_COLORS.get(post.status, "post_draft")
             color = _theme_color(theme, status_token)
+            thumb = _thumb_for_post(post)
 
             # If post has release chain, draw per-step
             if post.release_chain and len(post.release_chain) >= 2:
@@ -356,10 +413,11 @@ class GanttPanel(QWidget):
                         step_color = _theme_color(theme, "text_muted")
 
                     bar = _GanttBar(step_x, bar_y, bar_w, bar_h,
-                                    post, plat, step_color)
+                                    post, plat, step_color,
+                                    theme=theme, thumb_path=thumb)
                     self._scene.addItem(bar)
                     anchor_bars.append((step_x + bar_w / 2, bar_y, bar_y + bar_h))
-                    plat_dates[plat].append(post_date + timedelta(hours=step.delay_hours / 24))
+                    plat_dates[plat].append(post_date + timedelta(hours=step.delay_hours))
 
                 # Draw stagger dashed lines connecting the bars
                 if len(anchor_bars) >= 2:
@@ -383,7 +441,8 @@ class GanttPanel(QWidget):
                     bar_h = _ROW_HEIGHT - 8
 
                     bar = _GanttBar(x, bar_y, bar_w, bar_h,
-                                    post, plat, color)
+                                    post, plat, color,
+                                    theme=theme, thumb_path=thumb)
                     self._scene.addItem(bar)
                     plat_dates[plat].append(post_date)
 

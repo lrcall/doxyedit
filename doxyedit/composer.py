@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QSettings, Signal
 
-from doxyedit.models import Project, SocialPost, SocialPostStatus
+from doxyedit.models import Project, SocialPost, SocialPostStatus, ReleaseStep
 from doxyedit.composer_left import ImagePreviewPanel
 from doxyedit.composer_right import ContentPanel
 
@@ -89,11 +89,13 @@ class PostComposerWidget(QWidget):
     cancel_requested = Signal()
     dock_toggled = Signal(bool)        # True=dock, False=float
 
-    def __init__(self, project: Project, post: SocialPost | None = None, parent=None):
+    def __init__(self, project: Project, post: SocialPost | None = None,
+                 project_dir: str = "", parent=None):
         super().__init__(parent)
         self.setObjectName("post_composer_widget")
         self._project = project
         self._editing = post
+        self._project_dir = project_dir
         self._settings = QSettings("DoxyEdit", "DoxyEdit")
 
         self._build_ui()
@@ -136,7 +138,7 @@ class PostComposerWidget(QWidget):
         self._composer_split.addWidget(self._left_wrapper)
 
         # Right panel — content
-        self._right_panel = ContentPanel(self._project)
+        self._right_panel = ContentPanel(self._project, project_dir=self._project_dir)
         self._composer_split.addWidget(self._right_panel)
 
         # Restore or set default splitter sizes
@@ -307,7 +309,8 @@ class PostComposerWidget(QWidget):
             p.strategy_notes = data["strategy_notes"]
             p.nsfw_platforms = nsfw_platforms
             p.sfw_asset_ids = sfw_asset_ids
-            p.category_id = data.get("category_id", "")
+            p.collection = data.get("collection", "")
+            p.release_chain = [ReleaseStep.from_dict(s) for s in data.get("release_chain", [])]
             p.updated_at = now
             result_post = p
         else:
@@ -324,7 +327,8 @@ class PostComposerWidget(QWidget):
                 strategy_notes=data["strategy_notes"],
                 nsfw_platforms=nsfw_platforms,
                 sfw_asset_ids=sfw_asset_ids,
-                category_id=data.get("category_id", ""),
+                collection=data.get("collection", ""),
+                release_chain=[ReleaseStep.from_dict(s) for s in data.get("release_chain", [])],
                 created_at=now,
                 updated_at=now,
             )
@@ -349,7 +353,8 @@ class PostComposerWidget(QWidget):
 class PostComposer(QDialog):
     """Two-column post composer dialog (floating window)."""
 
-    def __init__(self, project: Project, post: SocialPost | None = None, parent=None):
+    def __init__(self, project: Project, post: SocialPost | None = None,
+                 project_dir: str = "", parent=None):
         super().__init__(parent)
         self.setObjectName("post_composer")
         self.setWindowTitle("Edit Post" if post else "New Post")
@@ -368,7 +373,7 @@ class PostComposer(QDialog):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        self._widget = PostComposerWidget(project, post, parent=self)
+        self._widget = PostComposerWidget(project, post, project_dir=project_dir, parent=self)
         layout.addWidget(self._widget)
 
         self._widget.save_requested.connect(self._on_save)

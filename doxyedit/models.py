@@ -360,6 +360,7 @@ class SocialPost:
     tier_assets: dict = field(default_factory=dict)  # tier_name -> [asset_ids]
     sub_platform_status: dict = field(default_factory=dict)  # platform_id -> {status, posted_at}
     campaign_id: str = ""  # links post to a campaign for promo tracking
+    category_id: str = ""  # OneUp category ID for posting
     release_chain: list[ReleaseStep] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -377,6 +378,7 @@ class SocialPost:
             "tier_assets": self.tier_assets,
             "sub_platform_status": self.sub_platform_status,
             "campaign_id": self.campaign_id,
+            "category_id": self.category_id,
             "release_chain": [s.to_dict() for s in self.release_chain],
         }
 
@@ -399,6 +401,7 @@ class SocialPost:
             tier_assets=d.get("tier_assets", {}),
             sub_platform_status=d.get("sub_platform_status", {}),
             campaign_id=d.get("campaign_id", ""),
+            category_id=d.get("category_id", ""),
             release_chain=[ReleaseStep.from_dict(s) for s in d.get("release_chain", [])],
         )
 
@@ -644,6 +647,7 @@ class Project:
     notes: str = ""
     sub_notes: dict = field(default_factory=dict)  # tab_name → markdown content (tabbed notes)
     accent_color: str = ""  # project-level accent override (hex, e.g. "#7ca1c0")
+    theme_id: str = ""  # per-project theme override (empty = use app default)
     checklist: list[str] = field(default_factory=list)  # posting checklist items (prefix "[ ] " or "[x] ")
     excluded_paths: set[str] = field(default_factory=set)  # paths permanently excluded (moved/deleted)
     import_sources: list[dict] = field(default_factory=list)  # [{type, path, recursive, added_at}]
@@ -732,6 +736,7 @@ class Project:
             "sort_mode": self.sort_mode,
             "tray_items": self.tray_items,
             "accent_color": self.accent_color,
+            "theme_id": self.theme_id,
             "checklist": self.checklist,
             "excluded_paths": sorted(
                 self._to_rel(p, base) if self.local_mode else p
@@ -751,7 +756,7 @@ class Project:
             "campaigns": [c.to_dict() for c in self.campaigns],
             "assets": [_asset_dict(a) for a in self.assets],
         }
-        Path(path).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+        Path(path).write_text(json.dumps(data, indent=2, default=str, ensure_ascii=False), encoding="utf-8")
 
     @classmethod
     def load(cls, path: str) -> "Project":
@@ -773,6 +778,7 @@ class Project:
             sort_mode=raw.get("sort_mode", "Name A-Z"),
             tray_items=raw.get("tray_items", []),
             accent_color=raw.get("accent_color", ""),
+            theme_id=raw.get("theme_id", ""),
             checklist=raw.get("checklist", []),
             excluded_paths={
                 cls._to_abs(p, base) if local else p

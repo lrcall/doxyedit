@@ -372,7 +372,13 @@ class OverlayEditor(QWidget):
             return
         self._sync_to_asset()
 
-        img = Image.open(self._asset.source_path).convert("RGBA")
+        src_path = Path(self._asset.source_path)
+        ext = src_path.suffix.lower()
+        if ext in (".psd", ".psb"):
+            from doxyedit.imaging import load_psd
+            img, _, _ = load_psd(str(src_path))
+        else:
+            img = Image.open(str(src_path)).convert("RGBA")
         img = apply_overlays(img, self._asset.overlays)
 
         src = Path(self._asset.source_path)

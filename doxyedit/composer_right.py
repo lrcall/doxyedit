@@ -99,10 +99,11 @@ class ContentPanel(QWidget):
 
     platforms_changed = Signal(list)
 
-    def __init__(self, project: Project, parent=None):
+    def __init__(self, project: Project, project_dir: str = "", parent=None):
         super().__init__(parent)
         self.setObjectName("composer_content_panel")
         self._project = project
+        self._project_dir = project_dir
 
         self._platform_checks: dict[str, QCheckBox] = {}
         self._platform_captions: dict[str, QTextEdit] = {}
@@ -128,57 +129,43 @@ class ContentPanel(QWidget):
         root.setSpacing(4)
         root.setContentsMargins(0, 0, 0, 0)
 
-        # --- Platforms (connected OneUp accounts + standard platforms greyed out) ---
-        from doxyedit.oneup import get_connected_platforms, get_active_account_label
-        project_dir = "."
-        for a in self._project.assets:
-            if a.source_path:
-                project_dir = str(Path(a.source_path).parent)
-                break
+        # --- Platforms: category dropdown → account checkboxes ---
+        from doxyedit.oneup import get_categories, get_connected_platforms, get_active_account_label
+        project_dir = self._project_dir or "."
+        self._categories = get_categories(project_dir)
         self._connected = get_connected_platforms(project_dir)
         self._acct_label = get_active_account_label(project_dir)
-        connected_ids = {p["id"] for p in self._connected}
 
-        # Standard platforms that might not be connected yet
-        _STANDARD_PLATFORMS = [
-            ("twitter", "Twitter/X"), ("instagram", "Instagram"),
-            ("bluesky", "Bluesky"), ("reddit", "Reddit"),
-            ("patreon", "Patreon"), ("discord", "Discord"),
-            ("tiktok", "TikTok"), ("pinterest", "Pinterest"),
-        ]
-
-        platforms_title = f"Platforms ({self._acct_label})" if self._acct_label else "Platforms"
-        platforms_box = QGroupBox(platforms_title)
+        platforms_box = QGroupBox("Platforms")
+        platforms_box.setObjectName("composer_platforms_box")
         platforms_layout = QVBoxLayout(platforms_box)
         platforms_layout.setSpacing(4)
 
-        # Connected accounts (full checkboxes)
-        if self._connected:
-            connected_flow = _FlowLayout(hspacing=8, vspacing=4)
-            for plat_info in self._connected:
-                pid = plat_info["id"]
-                name = plat_info.get("name", pid)
-                platform_type = plat_info.get("platform", "")
-                label = f"{name}" if platform_type else name
-                cb = QCheckBox(label)
-                cb.setProperty("platform_id", pid)
-                cb.clicked.connect(self._on_platform_toggled)
-                self._platform_checks[pid] = cb
-                connected_flow.addWidget(cb)
-            platforms_layout.addLayout(connected_flow)
+        # Category dropdown
+        if self._categories:
+            cat_row = QHBoxLayout()
+            cat_label = QLabel("Category:")
+            cat_label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+            self._category_combo = QComboBox()
+            self._category_combo.setObjectName("composer_category_combo")
+            for cat in self._categories:
+                self._category_combo.addItem(cat["name"], cat["id"])
+            self._category_combo.currentIndexChanged.connect(self._on_category_changed)
+            cat_row.addWidget(cat_label)
+            cat_row.addWidget(self._category_combo, 1)
+            platforms_layout.addLayout(cat_row)
+        else:
+            self._category_combo = None
 
-        # Standard platforms not connected (greyed out, disabled)
-        unconnected = [(pid, name) for pid, name in _STANDARD_PLATFORMS
-                       if not any(pid in c.get("id", "") for c in self._connected)]
-        if unconnected:
-            grey_flow = _FlowLayout(hspacing=8, vspacing=4)
-            for pid, name in unconnected:
-                cb = QCheckBox(f"{name} (not connected)")
-                cb.setEnabled(False)
-                cb.setObjectName("composer_platform_disabled")
-                cb.setToolTip(f"Connect {name} in OneUp to enable")
-                grey_flow.addWidget(cb)
-            platforms_layout.addLayout(grey_flow)
+        # Container widget for account checkboxes (rebuilt on category change)
+        self._accounts_container = QWidget()
+        self._accounts_container.setObjectName("composer_accounts_container")
+        self._accounts_flow = _FlowLayout(hspacing=8, vspacing=4)
+        self._accounts_container.setLayout(self._accounts_flow)
+        platforms_layout.addWidget(self._accounts_container)
+
+        # Populate with first category (or flat connected list)
+        self._rebuild_account_checkboxes()
 
         root.addWidget(platforms_box)
 
@@ -386,6 +373,13 @@ class ContentPanel(QWidget):
         if post is None:
             return
 
+        # Restore category dropdown (rebuilds checkboxes for that category)
+        if post.category_id and self._category_combo is not None:
+            for i in range(self._category_combo.count()):
+                if str(self._category_combo.itemData(i)) == str(post.category_id):
+                    self._category_combo.setCurrentIndex(i)
+                    break
+
         # Platforms
         for plat, cb in self._platform_checks.items():
             cb.setChecked(plat in post.platforms)
@@ -467,6 +461,11 @@ class ContentPanel(QWidget):
         # Identity / collection
         collection = self._identity_combo.currentData() or ""
 
+        # Selected category
+        category_id = ""
+        if self._category_combo is not None:
+            category_id = str(self._category_combo.currentData() or "")
+
         return {
             "platforms": platforms,
             "caption_default": caption_default,
@@ -477,6 +476,7 @@ class ContentPanel(QWidget):
             "strategy_notes": strategy_notes,
             "release_chain": release_chain,
             "collection": collection,
+            "category_id": category_id,
         }
 
     def get_splitter_sizes(self) -> list[int]:
@@ -494,6 +494,49 @@ class ContentPanel(QWidget):
     def _on_platform_toggled(self) -> None:
         platforms = [p for p, cb in self._platform_checks.items() if cb.isChecked()]
         self.platforms_changed.emit(platforms)
+
+    def _on_category_changed(self, _index: int) -> None:
+        """Rebuild account checkboxes when category dropdown changes."""
+        self._rebuild_account_checkboxes()
+
+    def _rebuild_account_checkboxes(self) -> None:
+        """Clear and rebuild the account checkboxes for the selected category."""
+        # Remember which accounts were checked
+        previously_checked = {
+            pid for pid, cb in self._platform_checks.items() if cb.isChecked()
+        }
+
+        # Clear existing checkboxes
+        while self._accounts_flow.count():
+            item = self._accounts_flow.takeAt(0)
+            if item and item.widget():
+                item.widget().deleteLater()
+        self._platform_checks.clear()
+
+        # Determine which accounts to show
+        accounts = self._connected  # fallback: flat list
+        if self._categories and self._category_combo is not None:
+            cat_id = self._category_combo.currentData()
+            for cat in self._categories:
+                if cat["id"] == cat_id:
+                    accounts = cat.get("accounts", [])
+                    break
+
+        for acct in accounts:
+            pid = acct["id"]
+            name = acct.get("name", pid)
+            platform = acct.get("platform", "")
+            label = f"{name}  [{platform}]" if platform else name
+            cb = QCheckBox(label)
+            cb.setProperty("platform_id", pid)
+            cb.clicked.connect(self._on_platform_toggled)
+            if pid in previously_checked:
+                cb.setChecked(True)
+            self._platform_checks[pid] = cb
+            self._accounts_flow.addWidget(cb)
+
+        # Emit updated platform list
+        self._on_platform_toggled()
 
     # ------------------------------------------------------------------
     # Timezone display
@@ -765,11 +808,11 @@ RULES:
                 import subprocess, sys
                 try:
                     print("[Apply Strategy] Calling Claude to extract fields...", file=sys.stderr, flush=True)
-                    result = subprocess.run(
-                        ["claude", "-p", self._prompt],
-                        capture_output=True, text=True, encoding="utf-8",
-                        errors="replace", timeout=60,
-                    )
+                    kwargs = dict(capture_output=True, text=True, encoding="utf-8",
+                                  errors="replace", timeout=60)
+                    if sys.platform == "win32":
+                        kwargs["creationflags"] = 0x08000000
+                    result = subprocess.run(["claude", "-p", self._prompt], **kwargs)
                     self.finished.emit(result.stdout.strip() if result.returncode == 0 else "")
                 except Exception as e:
                     print(f"[Apply Strategy] Error: {e}", file=sys.stderr, flush=True)
