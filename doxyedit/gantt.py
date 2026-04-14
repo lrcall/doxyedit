@@ -20,10 +20,12 @@ from doxyedit.models import Project, SocialPost, SocialPostStatus
 # Constants
 # ---------------------------------------------------------------------------
 
-_ROW_HEIGHT = 30
+_ROW_HEIGHT = 40
 _HEADER_HEIGHT = 24
 _LABEL_WIDTH = 150
 _MIN_BAR_WIDTH = 8  # minimum bar width in pixels so tiny bars are still visible
+_BAR_HEIGHT = 14    # height of each individual bar
+_BAR_GAP = 2        # gap between stacked bars
 _GAP_THRESHOLD_DAYS = 7
 
 _STATUS_COLORS = {
@@ -74,42 +76,52 @@ class _GanttBar(QGraphicsRectItem):
         cap = post.caption_default or "(no caption)"
         if len(cap) > 120:
             cap = cap[:117] + "..."
-        # Escape HTML entities
         cap = cap.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         sched = post.scheduled_time[:16].replace("T", " ") if post.scheduled_time else "unscheduled"
         plats = ", ".join(post.platforms) if post.platforms else platform
         assets_str = ", ".join(post.asset_ids[:3]) if post.asset_ids else "(no assets)"
 
         bg = _theme_color(theme, "bg_raised").name()
+        bg2 = _theme_color(theme, "bg_main").name()
         fg = _theme_color(theme, "text_primary").name()
         fg2 = _theme_color(theme, "text_secondary").name()
         fg_m = _theme_color(theme, "text_muted").name()
         accent = color.name()
         bdr = _theme_color(theme, "border").name()
 
-        img_html = ""
-        if thumb_path:
-            img_html = (f'<img src="file:///{thumb_path}" '
-                        f'width="80" height="80" '
-                        f'style="border-radius:4px; margin-right:8px; float:left;" />')
-
         chain_html = ""
         if post.release_chain:
             steps = " &rarr; ".join(f"{s.platform} +{s.delay_hours}h" for s in post.release_chain)
-            chain_html = f'<div style="color:{fg_m}; margin-top:4px;">Release: {steps}</div>'
+            chain_html = f'<tr><td colspan="2" style="color:{fg_m}; padding-top:4px;">Release: {steps}</td></tr>'
 
-        tip = (
-            f'<div style="background:{bg}; color:{fg}; padding:8px; '
-            f'border:1px solid {bdr}; border-radius:6px; max-width:360px;">'
-            f'{img_html}'
-            f'<div style="font-weight:bold; color:{accent}; margin-bottom:2px;">'
-            f'{status} &nbsp; <span style="color:{fg2};">{sched}</span></div>'
-            f'<div style="color:{fg2}; margin-bottom:4px;">{plats}</div>'
-            f'<div style="color:{fg};">{cap}</div>'
-            f'<div style="color:{fg_m}; margin-top:4px;">Assets: {assets_str}</div>'
+        info_rows = (
+            f'<tr><td style="font-weight:bold; color:{accent}; padding-bottom:2px;" colspan="2">'
+            f'{status} &nbsp; <span style="color:{fg2};">{sched}</span></td></tr>'
+            f'<tr><td colspan="2" style="color:{fg2}; padding-bottom:4px;">{plats}</td></tr>'
+            f'<tr><td colspan="2" style="color:{fg};">{cap}</td></tr>'
+            f'<tr><td colspan="2" style="color:{fg_m}; padding-top:4px;">Assets: {assets_str}</td></tr>'
             f'{chain_html}'
-            f'</div>'
         )
+
+        if thumb_path:
+            tip = (
+                f'<table cellspacing="0" cellpadding="0" style="background:{bg}; '
+                f'border:1px solid {bdr}; border-radius:6px;">'
+                f'<tr>'
+                f'<td style="padding:8px; background:{bg2}; vertical-align:top; border-right:1px solid {bdr};">'
+                f'<img src="file:///{thumb_path}" width="120" /></td>'
+                f'<td style="padding:8px; vertical-align:top; max-width:260px;">'
+                f'<table cellspacing="0" cellpadding="0">{info_rows}</table>'
+                f'</td></tr></table>'
+            )
+        else:
+            tip = (
+                f'<table cellspacing="0" cellpadding="0" style="background:{bg}; '
+                f'border:1px solid {bdr}; border-radius:6px; max-width:340px;">'
+                f'<tr><td style="padding:8px;">'
+                f'<table cellspacing="0" cellpadding="0">{info_rows}</table>'
+                f'</td></tr></table>'
+            )
         self.setToolTip(tip)
 
     def mousePressEvent(self, event):
@@ -377,6 +389,9 @@ class GanttPanel(QWidget):
                     return str(src.resolve()).replace("\\", "/")
             return ""
 
+        # Track bar stacking per (platform, day) to offset overlapping bars
+        _bar_stack: dict[tuple[str, int], int] = {}  # (platform, day_offset) -> count
+
         # Draw posts
         for post in scheduled_posts:
             try:
@@ -400,11 +415,15 @@ class GanttPanel(QWidget):
                     plat = step.platform
                     if plat not in plat_y:
                         continue
+                    step_day = day_offset + int(step.delay_hours / 24)
                     step_x = x + (step.delay_hours / 24.0) * ppd
                     bar_w = max(_MIN_BAR_WIDTH, ppd * 0.8)
                     row_y = plat_y[plat]
-                    bar_y = row_y + 4
-                    bar_h = _ROW_HEIGHT - 8
+                    stack_key = (plat, step_day)
+                    stack_n = _bar_stack.get(stack_key, 0)
+                    _bar_stack[stack_key] = stack_n + 1
+                    bar_y = row_y + 3 + stack_n * (_BAR_HEIGHT + _BAR_GAP)
+                    bar_h = _BAR_HEIGHT
 
                     step_color = color
                     if step.status == "posted":
@@ -437,8 +456,11 @@ class GanttPanel(QWidget):
                         continue
                     bar_w = max(_MIN_BAR_WIDTH, ppd * 0.8)
                     row_y = plat_y[plat]
-                    bar_y = row_y + 4
-                    bar_h = _ROW_HEIGHT - 8
+                    stack_key = (plat, day_offset)
+                    stack_n = _bar_stack.get(stack_key, 0)
+                    _bar_stack[stack_key] = stack_n + 1
+                    bar_y = row_y + 3 + stack_n * (_BAR_HEIGHT + _BAR_GAP)
+                    bar_h = _BAR_HEIGHT
 
                     bar = _GanttBar(x, bar_y, bar_w, bar_h,
                                     post, plat, color,
