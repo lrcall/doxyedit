@@ -1509,6 +1509,10 @@ def generate_stylesheet(theme: Theme) -> str:
             color: {theme.text_muted};
             font-size: {fxs}px;
         }}
+        QLabel#calendar_dot {{
+            border-radius: 3px;
+            border: none;
+        }}
         QLabel#calendar_dot[dot_status="posted"] {{
             background: {theme.post_posted};
         }}
@@ -1520,6 +1524,74 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
         QLabel#calendar_dot[dot_status="gap"] {{
             background: {theme.error};
+        }}
+
+        /* ── Gantt panel ────────────────────────────────────────────── */
+        QWidget#gantt_panel {{
+            background: {theme.bg_deep};
+        }}
+        QWidget#gantt_toolbar {{
+            background: {theme.bg_raised};
+        }}
+        QGraphicsView#gantt_view {{
+            background: {theme.bg_deep};
+            border: none;
+        }}
+        QScrollArea#gantt_label_area {{
+            background: {theme.bg_main};
+            border: none;
+        }}
+        QLabel#gantt_row_label {{
+            color: {theme.text_secondary};
+            font-size: {fs}px;
+            padding-right: {pad}px;
+        }}
+        QPushButton#gantt_today_btn {{
+            background: {theme.accent_dim};
+            color: {theme.text_on_accent};
+            border: 1px solid {theme.accent};
+            border-radius: {rad}px;
+            padding: {pad}px {pad_lg}px;
+        }}
+        QPushButton#gantt_today_btn:hover {{
+            background: {theme.accent};
+        }}
+
+        /* ── Composer release chain ─────────────────────────────────── */
+        QWidget#composer_chain_step_row {{
+            background: {theme.bg_raised};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            padding: 2px;
+        }}
+        QLabel#composer_chain_step_label {{
+            color: {theme.text_secondary};
+            font-weight: bold;
+            font-size: {fs}px;
+        }}
+        QLabel#composer_chain_anchor_label {{
+            color: {theme.text_muted};
+            font-size: {fxs}px;
+            font-style: italic;
+        }}
+        QPushButton#composer_add_step_btn {{
+            background: {theme.bg_input};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            padding: {pad}px {pad_lg}px;
+        }}
+        QPushButton#composer_add_step_btn:hover {{
+            background: {theme.bg_hover};
+            border-color: {theme.accent_dim};
+        }}
+        QPushButton#composer_chain_remove_btn {{
+            background: transparent;
+            border: none;
+            color: {theme.text_muted};
+        }}
+        QPushButton#composer_chain_remove_btn:hover {{
+            color: {theme.error};
         }}
 
         /* ── Timeline asset name ─────────────────────────────────────── */
