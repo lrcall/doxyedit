@@ -250,7 +250,6 @@ class PostCard(QFrame):
                 root.addWidget(toggle)
                 root.addWidget(eng_container)
 
-    @staticmethod
     def _eng_done(self, check_idx: int, row_widget, eng_layout):
         """Mark engagement check as done, remove the row."""
         if check_idx < len(self._post.engagement_checks):
@@ -519,6 +518,11 @@ class TimelineStream(QWidget):
         self._btn_fill.clicked.connect(lambda: self.fill_gaps_requested.emit())
         toolbar.addWidget(self._btn_fill)
 
+        self._btn_engagement = QPushButton("Engagement")
+        self._btn_engagement.setObjectName("timeline_btn_engagement")
+        self._btn_engagement.clicked.connect(self._show_engagement_popup)
+        toolbar.addWidget(self._btn_engagement)
+
         toolbar.addStretch()
 
         self._filter_combo = QComboBox()
@@ -654,8 +658,26 @@ class TimelineStream(QWidget):
             f"{total} posts · {n_queued} queued · {n_posted} posted"
         )
 
-        # Refresh engagement panel
-        self._engagement_panel.refresh()
+        # Update engagement button badge (don't auto-show the popup)
+        if self._project:
+            from datetime import datetime as _dt
+            now = _dt.now()
+            eng_count = 0
+            for p in self._project.posts:
+                for cd in getattr(p, 'engagement_checks', []):
+                    check = EngagementWindow.from_dict(cd)
+                    if check.done:
+                        continue
+                    try:
+                        ct = _dt.fromisoformat(check.check_at)
+                        if (ct - now).total_seconds() / 60 <= 60:
+                            eng_count += 1
+                    except Exception:
+                        pass
+            if eng_count:
+                self._btn_engagement.setText(f"Engagement ({eng_count})")
+            else:
+                self._btn_engagement.setText("Engagement")
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -682,6 +704,14 @@ class TimelineStream(QWidget):
         label = QLabel(text)
         label.setObjectName("timeline_day_header")
         return label
+
+    def _show_engagement_popup(self):
+        """Show the engagement panel as a popup window."""
+        self._engagement_panel.refresh()
+        if self._engagement_panel.isVisible():
+            self._engagement_panel.raise_()
+            self._engagement_panel.activateWindow()
+        # If refresh found nothing, it hides itself — that's fine
 
     def _on_engagement_changed(self) -> None:
         """Engagement check was marked done or snoozed — bubble up for save."""
