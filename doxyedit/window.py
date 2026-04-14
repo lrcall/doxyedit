@@ -1155,6 +1155,9 @@ class MainWindow(QMainWindow):
             expand_action = menu.addAction("Expand with Claude")
             expand_action.triggered.connect(
                 lambda: self._refine_with_claude(editor, tab_name, selected, "expand"))
+            research_action = menu.addAction("Research with Claude")
+            research_action.triggered.connect(
+                lambda: self._refine_with_claude(editor, tab_name, selected, "research"))
             simplify_action = menu.addAction("Simplify with Claude")
             simplify_action.triggered.connect(
                 lambda: self._refine_with_claude(editor, tab_name, selected, "simplify"))
@@ -1177,6 +1180,7 @@ class MainWindow(QMainWindow):
             mode_desc = {
                 "refine": "Improve this text. Fix any issues, clarify wording, make it more actionable. Keep the same length and format.",
                 "expand": "Expand this into more detail. Add examples, edge cases, or specifics. Keep the same style.",
+                "research": "Research this topic using web search. Find current, accurate, actionable information. Replace the selected text with your findings formatted as concise bullet points. Cite no URLs, just the facts.",
                 "simplify": "Make this shorter and more direct. Remove fluff. Keep only what matters.",
             }[mode]
 
