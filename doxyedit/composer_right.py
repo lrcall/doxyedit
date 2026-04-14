@@ -179,7 +179,7 @@ class ContentPanel(QWidget):
         self._apply_strategy_btn.clicked.connect(self._apply_strategy)
         strategy_btn_row.addWidget(self._apply_strategy_btn)
 
-        self._strategy_edit_btn = QPushButton("Edit")
+        self._strategy_edit_btn = QPushButton("Preview")
         self._strategy_edit_btn.setObjectName("strategy_generate_btn")
         self._strategy_edit_btn.setCheckable(True)
         self._strategy_edit_btn.setToolTip("Toggle between rendered and raw markdown")
@@ -188,19 +188,17 @@ class ContentPanel(QWidget):
         strategy_btn_row.addStretch()
         strategy_layout.addLayout(strategy_btn_row)
 
-        # Stacked: rendered HTML view (default) / raw text edit
+        # Stacked: raw edit (default, index 0) / rendered preview (index 1)
         self._strategy_stack = QStackedWidget()
+
+        self._strategy_edit = QTextEdit()
+        self._strategy_edit.setPlaceholderText("Strategy notes — raw markdown")
+        self._strategy_stack.addWidget(self._strategy_edit)  # index 0 = raw edit
 
         self._strategy_browser = QTextBrowser()
         self._strategy_browser.setObjectName("strategy_browser")
         self._strategy_browser.setOpenExternalLinks(True)
-        self._strategy_browser.setPlaceholderText(
-            "Click 'Generate Strategy' or 'AI Strategy' to analyze this post")
-        self._strategy_stack.addWidget(self._strategy_browser)  # index 0 = rendered
-
-        self._strategy_edit = QTextEdit()
-        self._strategy_edit.setPlaceholderText("Raw markdown — edit here, click Edit again to render")
-        self._strategy_stack.addWidget(self._strategy_edit)  # index 1 = raw edit
+        self._strategy_stack.addWidget(self._strategy_browser)  # index 1 = rendered preview
 
         strategy_layout.addWidget(self._strategy_stack, 1)
         self._content_split.addWidget(strategy_box)
@@ -441,35 +439,64 @@ class ContentPanel(QWidget):
         if text:
             import markdown
             html = markdown.markdown(text, extensions=["tables", "fenced_code"])
-            self._strategy_browser.setHtml(html)
+            self._strategy_browser.setHtml(self._wrap_html(html))
         else:
             self._strategy_browser.setHtml("")
-        # Show rendered view
+        # Show raw edit view (default)
         self._strategy_stack.setCurrentIndex(0)
         self._strategy_edit_btn.setChecked(False)
 
+    def _wrap_html(self, body: str) -> str:
+        """Wrap rendered markdown with theme-aware CSS for compact display."""
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        from PySide6.QtCore import QSettings
+        theme_id = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
+        theme = THEMES.get(theme_id)
+        if not theme:
+            theme = THEMES[DEFAULT_THEME]
+
+        return f"""<style>
+body {{ color: {theme.text_primary}; background: {theme.bg_input}; line-height: 1.3; }}
+h1, h2, h3, h4 {{ color: {theme.text_primary}; margin: 8px 0 4px 0; padding: 0; }}
+h2 {{ font-size: 1.1em; }}
+h3 {{ font-size: 1.0em; }}
+p {{ margin: 4px 0; }}
+ul, ol {{ margin: 4px 0 4px 16px; padding: 0; }}
+li {{ margin: 1px 0; padding: 0; line-height: 1.25; }}
+hr {{ border: none; height: 1px; background: {theme.border}; margin: 8px 0; }}
+code {{ background: {theme.bg_raised}; padding: 1px 4px; border-radius: 3px; }}
+pre {{ background: {theme.bg_raised}; padding: 6px 8px; border-radius: 4px; margin: 4px 0; }}
+table {{ border-collapse: collapse; margin: 4px 0; }}
+td, th {{ border: 1px solid {theme.border}; padding: 3px 8px; }}
+strong {{ font-weight: 600; color: {theme.text_primary}; }}
+a {{ color: {theme.accent}; }}
+</style>
+{body}"""
+
     def _get_strategy_text(self) -> str:
         """Get the current strategy text (raw markdown)."""
-        if self._strategy_stack.currentIndex() == 1:
+        if self._strategy_stack.currentIndex() == 0:
+            # Raw edit is showing — grab latest from editor
             self._strategy_raw = self._strategy_edit.toPlainText()
         return self._strategy_raw or self._ai_strategy_cache or self._local_strategy_cache
 
     def _toggle_strategy_edit(self, checked: bool) -> None:
-        """Toggle between rendered HTML and raw markdown edit."""
+        """Toggle between raw markdown (default) and rendered preview."""
         if checked:
-            self._strategy_edit.setPlainText(self._strategy_raw)
-            self._strategy_stack.setCurrentIndex(1)
-            self._strategy_edit_btn.setText("Done")
-        else:
+            # Show rendered preview
             self._strategy_raw = self._strategy_edit.toPlainText()
             if self._strategy_raw:
                 import markdown
                 html = markdown.markdown(self._strategy_raw, extensions=["tables", "fenced_code"])
-                self._strategy_browser.setHtml(html)
+                self._strategy_browser.setHtml(self._wrap_html(html))
             else:
                 self._strategy_browser.setHtml("")
-            self._strategy_stack.setCurrentIndex(0)
+            self._strategy_stack.setCurrentIndex(1)
             self._strategy_edit_btn.setText("Edit")
+        else:
+            # Back to raw edit
+            self._strategy_stack.setCurrentIndex(0)
+            self._strategy_edit_btn.setText("Preview")
 
     def _build_temp_post(self) -> SocialPost:
         """Build a temporary SocialPost from current form state."""
