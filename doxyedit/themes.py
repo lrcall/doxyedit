@@ -681,7 +681,6 @@ def generate_stylesheet(theme: Theme) -> str:
             border: none;
             font-family: Consolas, monospace;
             font-size: {f}px;
-            padding: 24px 15%;
         }}
         QWidget#health_toolbar {{
             background: {theme.bg_raised};

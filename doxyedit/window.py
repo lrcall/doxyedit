@@ -31,6 +31,30 @@ from doxyedit.tagpanel import TagPanel
 from doxyedit.exporter import export_project
 from doxyedit.preview import ImagePreviewDialog, PreviewPane
 from doxyedit.filebrowser import FileBrowserPanel
+from PySide6.QtWidgets import QPlainTextEdit as _QPlainTextEdit
+
+
+class _CenteredTextEdit(_QPlainTextEdit):
+    """QPlainTextEdit that centers content with dynamic viewport margins.
+    Max content width ~900px, centered horizontally. Scrollbar stays at window edge."""
+
+    _MAX_CONTENT = 900
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_margins()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._update_margins()
+
+    def _update_margins(self):
+        w = self.viewport().width() if self.viewport() else self.width()
+        if w > self._MAX_CONTENT:
+            margin = (w - self._MAX_CONTENT) // 2
+        else:
+            margin = 20
+        self.setViewportMargins(margin, 16, margin, 16)
 from doxyedit.infopanel import InfoPanel
 from doxyedit.tray import WorkTray
 from doxyedit.project import save_project, load_project
@@ -970,7 +994,7 @@ class MainWindow(QMainWindow):
         # Stacked: editor (default, index 0) / preview (index 1)
         stack = QStackedWidget()
 
-        editor = QPlainTextEdit()
+        editor = _CenteredTextEdit()
         editor.setObjectName("project_notes_tab")
         editor.setPlainText(content)
         editor.textChanged.connect(lambda: self._on_sub_note_changed(name))
@@ -1261,7 +1285,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         bg_raised = self._theme.bg_raised
         html = f"""<html><head><style>
             body {{ background:{bg}; color:{fg}; font-family:'Segoe UI',sans-serif;
-                   padding:16px 28px; max-width:820px; margin:0 auto;
+                   padding:16px 28px; max-width:900px; margin:0 auto;
                    line-height:1.2; }}
             h1 {{ color:{accent}; margin:8px 0 2px 0; }}
             h2 {{ color:{accent}; margin:8px 0 2px 0; }}
