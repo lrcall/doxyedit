@@ -304,6 +304,7 @@ class ThumbnailModel(QAbstractListModel):
     TagsRole = Qt.ItemDataRole.UserRole + 5
     AssignmentsRole = Qt.ItemDataRole.UserRole + 6  # list of (platform, status) tuples
     PostStatusRole = Qt.ItemDataRole.UserRole + 7   # social post status: "draft"|"queued"|"posted"|None
+    StudioEditedRole = Qt.ItemDataRole.UserRole + 8  # bool: has censors or overlays
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -336,6 +337,8 @@ class ThumbnailModel(QAbstractListModel):
             return [(pa.platform, pa.status) for pa in asset.assignments] if asset.assignments else []
         elif role == self.PostStatusRole:
             return self._post_status_map.get(asset.id)
+        elif role == self.StudioEditedRole:
+            return bool(asset.censors or asset.overlays)
         return None
 
     def update_post_status(self, posts):
@@ -552,6 +555,25 @@ class ThumbnailDelegate(QStyledItemDelegate):
                 self._fonts[(_ps_sz, "bold")] = QFont(t.font_family, _ps_sz, QFont.Weight.Bold)
             painter.setFont(self._fonts[(_ps_sz, "bold")])
             painter.drawText(QRect(ps_x, ps_y, _bdg_size, _bdg_size), Qt.AlignmentFlag.AlignCenter, ps_char)
+
+        # Studio-edited badge (top-left, pencil icon)
+        studio_edited = index.data(ThumbnailModel.StudioEditedRole)
+        if studio_edited and self._theme:
+            t = self._theme
+            _bdg_size = max(12, self.font_size + 2)
+            se_x = rect.x() + self.PADDING + 2
+            se_y = rect.y() + self.PADDING + 2
+            se_color = QColor(t.accent)
+            se_color.setAlpha(220)
+            painter.setBrush(se_color)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(se_x, se_y, _bdg_size, _bdg_size, 4, 4)
+            painter.setPen(QColor(t.text_on_accent))
+            _se_sz = max(6, self.font_size - 4)
+            if (_se_sz, "bold") not in self._fonts:
+                self._fonts[(_se_sz, "bold")] = QFont(t.font_family, _se_sz, QFont.Weight.Bold)
+            painter.setFont(self._fonts[(_se_sz, "bold")])
+            painter.drawText(QRect(se_x, se_y, _bdg_size, _bdg_size), Qt.AlignmentFlag.AlignCenter, "S")
 
         # Dimensions text
         fs = self.font_size
@@ -1164,6 +1186,12 @@ class AssetBrowser(QWidget):
         self.filter_has_notes.toggled.connect(self._on_filter_changed)
         row2.addWidget(self.filter_has_notes)
 
+        self.filter_studio_edited = QCheckBox("Studio")
+        self.filter_studio_edited.setChecked(False)
+        self.filter_studio_edited.setToolTip("Show only assets with censors or overlays")
+        self.filter_studio_edited.toggled.connect(self._on_filter_changed)
+        row2.addWidget(self.filter_studio_edited)
+
         self._format_filter = ""
         self._format_combo = QComboBox()
         self._format_combo.addItems(["All", "PSD", "PNG", "JPG", "SAI", "WEBP", "CLIP", "Other", "Ignored"])
@@ -1345,7 +1373,8 @@ class AssetBrowser(QWidget):
             btn.setCheckable(True)
             btn.setChecked(tag_id in self._bar_tag_filters)
             btn.setProperty("tag_id", tag_id)
-            btn.setToolTip(f"Click to filter grid by '{tag_id}'")
+            btn.setToolTip(f"Left-click to filter grid by '{tag_id}'")
+            btn.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
             btn.clicked.connect(lambda checked, tid=tag_id: self._toggle_bar_filter(tid))
             self._tag_buttons.append((btn, preset.color))
             self._tag_button_map[tag_id] = btn
@@ -1748,6 +1777,7 @@ class AssetBrowser(QWidget):
             "needs_censor": self.filter_needs_censor.isChecked(),
             "show_ignored": self.filter_show_ignored.isChecked(),
             "has_notes": self.filter_has_notes.isChecked(),
+            "studio_edited": self.filter_studio_edited.isChecked(),
             "format": self._format_filter,
             "tag_filters": sorted(self._bar_tag_filters),
             "folders": sorted(self._folder_filter) if self._folder_filter else None,
@@ -1765,6 +1795,7 @@ class AssetBrowser(QWidget):
         self.filter_needs_censor.setChecked(state.get("needs_censor", False))
         self.filter_show_ignored.setChecked(state.get("show_ignored", False))
         self.filter_has_notes.setChecked(state.get("has_notes", False))
+        self.filter_studio_edited.setChecked(state.get("studio_edited", False))
         # Format filter
         fmt = state.get("format", "")
         self._format_filter = fmt
@@ -1818,6 +1849,8 @@ class AssetBrowser(QWidget):
             preds.append(lambda a: "ignore" not in a.tags)
         if self.filter_has_notes.isChecked():
             preds.append(lambda a: bool(a.notes and a.notes.strip()))
+        if self.filter_studio_edited.isChecked():
+            preds.append(lambda a: bool(a.censors or a.overlays))
         if self.filter_assigned.isChecked():
             preds.append(lambda a: bool(a.assignments))
         if self.filter_posted.isChecked():
@@ -1986,7 +2019,8 @@ class AssetBrowser(QWidget):
                       or self.filter_starred.isChecked() or self.filter_untagged.isChecked()
                       or self.filter_tagged.isChecked() or self.filter_assigned.isChecked()
                       or self.filter_posted.isChecked() or self.filter_needs_censor.isChecked()
-                      or self.filter_has_notes.isChecked())
+                      or self.filter_has_notes.isChecked()
+                      or self.filter_studio_edited.isChecked())
         filtered_marker = "  ⬡ FILTERED" if (any_filter and shown < total) else ""
         self.count_label.setText(f"{shown}/{total} shown, {starred}★, {tagged} tagged{filtered_marker}")
         self.page_label.setText(f"{shown} images")
@@ -2740,7 +2774,7 @@ class AssetBrowser(QWidget):
             menu.addAction(f"Export {n_sel} Selected to Folder...", self._export_selected)
         else:
             menu.addAction("Send to Tray", lambda: self.asset_to_tray.emit(asset_id))
-        menu.addAction("Send to Canvas", lambda: self.asset_to_canvas.emit(asset_id))
+        menu.addAction("Send to Studio", lambda: self.asset_to_canvas.emit(asset_id))
         menu.addAction("Send to Censor", lambda: self.asset_to_censor.emit(asset_id))
         menu.addSeparator()
         menu.addAction("Open in Explorer", lambda: _open_explorer(asset))
