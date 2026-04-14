@@ -331,12 +331,8 @@ class ImagePreviewPanel(QWidget):
             if not src.exists():
                 return None
 
-            ext = src.suffix.lower()
-            if ext in (".psd", ".psb"):
-                from doxyedit.imaging import load_psd
-                img, _, _ = load_psd(str(src))
-            else:
-                img = Image.open(str(src)).convert("RGBA")
+            from doxyedit.imaging import load_image_for_export
+            img = load_image_for_export(str(src))
 
             censored = apply_censors(img, asset.censors)
             return pil_to_qpixmap(censored)

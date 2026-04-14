@@ -196,6 +196,16 @@ def _make_placeholder(path: str) -> tuple[PILImage.Image, int, int]:
     return img, 0, 0
 
 
+def load_image_for_export(src_path: str) -> PILImage.Image:
+    """Load any image format (PSD/PSB/PNG/JPG) as PIL RGBA Image for export."""
+    ext = Path(src_path).suffix.lower()
+    if ext in PSD_EXTS:
+        img, _, _ = load_psd(src_path)
+    else:
+        img = PILImage.open(src_path).convert("RGBA")
+    return img
+
+
 def open_for_thumb(path: str, target_size: int = 160) -> tuple[PILImage.Image, int, int]:
     """Open image for thumbnailing. Prefers Windows Shell API for PSD/SAI
     (instant) over psd_tools composite (slow)."""

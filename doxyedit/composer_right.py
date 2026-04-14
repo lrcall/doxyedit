@@ -22,8 +22,17 @@ from doxyedit.models import Project, ReleaseStep, SocialPost, SocialPostStatus
 
 # ─── Chrome profile utilities ─────────────────────────────────────
 
+_chrome_profile_cache: list[tuple[str, str]] | None = None
+_chrome_cache_time: float = 0
+
 def list_chrome_profiles() -> list[tuple[str, str]]:
-    """Return (dir_name, display_name) for each Chrome profile."""
+    """Return (dir_name, display_name) for each Chrome profile. Cached for 30s."""
+    global _chrome_profile_cache, _chrome_cache_time
+    import time
+    now = time.time()
+    if _chrome_profile_cache is not None and (now - _chrome_cache_time) < 30:
+        return _chrome_profile_cache
+
     import json, os
     user_data = os.path.expandvars(r"%LocalAppData%\Google\Chrome\User Data")
     profiles = []
@@ -38,6 +47,9 @@ def list_chrome_profiles() -> list[tuple[str, str]]:
                     profiles.append((name, display))
                 except Exception:
                     profiles.append((name, name))
+
+    _chrome_profile_cache = profiles
+    _chrome_cache_time = now
     return profiles
 
 
@@ -1346,10 +1358,21 @@ RULES:
         current = self._identity_combo.currentData() or ""
         identity = dict(self._project.identities.get(current, {})) if current else {}
 
+        from PySide6.QtCore import QSettings
+        _settings = QSettings("DoxyEdit", "DoxyEdit")
+
         dlg = QDialog(self)
         dlg.setObjectName("identity_editor")
         dlg.setWindowTitle(f"Edit Identity: {current}" if current else "New Identity")
         dlg.setMinimumSize(500, 400)
+
+        # Restore saved geometry
+        geo = _settings.value("identity_editor_geometry")
+        if geo:
+            dlg.restoreGeometry(geo)
+        else:
+            dlg.resize(550, 600)
+
         layout = QVBoxLayout(dlg)
 
         # Name field (above tabs)
@@ -1549,7 +1572,10 @@ RULES:
         buttons.rejected.connect(dlg.reject)
         layout.addWidget(buttons)
 
-        if dlg.exec() == QDialog.DialogCode.Accepted:
+        result = dlg.exec()
+        _settings.setValue("identity_editor_geometry", dlg.saveGeometry())
+        _settings.sync()
+        if result == QDialog.DialogCode.Accepted:
             name = name_edit.text().strip()
             if not name:
                 return

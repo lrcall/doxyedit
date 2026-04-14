@@ -105,12 +105,8 @@ def _export_for_platform(asset: Asset, sub: SubPlatform, project: Project) -> st
         if not src.exists():
             return ""
 
-        ext = src.suffix.lower()
-        if ext in (".psd", ".psb"):
-            from doxyedit.imaging import load_psd
-            img, _, _ = load_psd(str(src))
-        else:
-            img = Image.open(str(src)).convert("RGBA")
+        from doxyedit.imaging import load_image_for_export
+        img = load_image_for_export(str(src))
 
         # Apply censors if platform needs them (Japanese platforms)
         if sub.needs_censor and asset.censors:
@@ -188,17 +184,22 @@ def post_everywhere(project, post, project_dir=".", auto_submit=False):
         print(f"[PostEverywhere] Direct-post error: {e}")
 
     # Subscription platforms — try browser automation, fall back to quick-post
+    chrome_available = False
+    try:
+        from doxyedit.browserpost import is_chrome_running, post_to_platform_sync
+        chrome_available = is_chrome_running()
+    except Exception:
+        pass
+
     for plat_id in post.platforms:
         if plat_id not in SUB_PLATFORMS:
             continue
         if post.sub_platform_status.get(plat_id, {}).get("status") == "posted":
-            continue  # already posted
+            continue
 
-        # Try browser automation first
         browser_ok = False
         try:
-            from doxyedit.browserpost import is_chrome_running, post_to_platform_sync
-            if is_chrome_running():
+            if chrome_available:
                 sub = SUB_PLATFORMS[plat_id]
                 identity = project.get_identity()
                 base_url = getattr(identity, sub.url_field, "") if identity else ""

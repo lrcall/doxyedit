@@ -13,16 +13,44 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGraphicsScene, QGraphicsView, QGraphicsRectItem, QGraphicsPixmapItem,
     QGraphicsTextItem, QGraphicsLineItem, QComboBox, QFileDialog, QSlider,
-    QFontComboBox, QSpinBox, QColorDialog, QInputDialog,
+    QFontComboBox, QSpinBox, QColorDialog, QInputDialog, QMenu,
 )
 from PySide6.QtCore import Qt, QRectF, QPointF, QLineF
 from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
+    QKeyEvent,
 )
+import copy
 from PIL import Image
 
 from doxyedit.models import Asset, Project, CensorRegion, CanvasOverlay
 from doxyedit.exporter import apply_censors, apply_overlays
+
+
+# ---------------------------------------------------------------------------
+# Context menu theming helper
+# ---------------------------------------------------------------------------
+
+def _themed_menu(parent=None) -> QMenu:
+    """Create a QMenu styled from the current theme (same pattern as window.py)."""
+    from doxyedit.themes import THEMES, DEFAULT_THEME
+    t = THEMES[DEFAULT_THEME]
+    menu = QMenu(parent)
+    rad = max(3, t.font_size // 4)
+    pad = max(4, t.font_size // 3)
+    pad_lg = max(6, t.font_size // 2)
+    menu.setStyleSheet(f"""
+        QMenu {{
+            background: {t.bg_raised}; color: {t.text_primary};
+            border: 1px solid {t.border}; border-radius: {rad}px;
+            padding: {pad}px 0;
+        }}
+        QMenu::item {{ padding: {pad}px {pad_lg * 3}px; color: {t.text_primary}; }}
+        QMenu::item:selected {{ background: {t.accent_dim}; color: {t.text_on_accent}; }}
+        QMenu::item:disabled {{ color: {t.text_muted}; }}
+        QMenu::separator {{ background: {t.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
+    """)
+    return menu
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +77,7 @@ class CensorRectItem(QGraphicsRectItem):
     def __init__(self, rect: QRectF, style: str = "black"):
         super().__init__(rect)
         self.style = style
+        self._editor = None  # set by StudioEditor after creation
         self.setFlags(
             QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable
@@ -66,6 +95,29 @@ class CensorRectItem(QGraphicsRectItem):
             self.setBrush(QBrush(QColor(100, 255, 100, 80)))
             self.setPen(QPen(QColor("#66ff66"), 1.5, Qt.PenStyle.DashLine))
 
+    def contextMenuEvent(self, event):
+        menu = _themed_menu()
+        styles = {"black": "Change to Black", "blur": "Change to Blur",
+                   "pixelate": "Change to Pixelate"}
+        for key, label in styles.items():
+            if key != self.style:
+                act = menu.addAction(label)
+                act.setData(key)
+        menu.addSeparator()
+        delete_act = menu.addAction("Delete")
+
+        chosen = menu.exec(event.screenPos())
+        if not chosen:
+            return
+        if chosen is delete_act:
+            if self._editor:
+                self._editor._remove_censor_item(self)
+        elif chosen.data():
+            self.style = chosen.data()
+            self._apply_style()
+            if self._editor:
+                self._editor._sync_censors_to_asset()
+
 
 class OverlayImageItem(QGraphicsPixmapItem):
     """Movable watermark/logo image — syncs position back to CanvasOverlay."""
@@ -73,6 +125,7 @@ class OverlayImageItem(QGraphicsPixmapItem):
     def __init__(self, pixmap: QPixmap, overlay: CanvasOverlay):
         super().__init__(pixmap)
         self.overlay = overlay
+        self._editor = None  # set by StudioEditor after creation
         self.setFlags(
             QGraphicsPixmapItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsPixmapItem.GraphicsItemFlag.ItemIsSelectable
@@ -92,6 +145,27 @@ class OverlayImageItem(QGraphicsPixmapItem):
             self.overlay.position = "custom"
         return super().itemChange(change, value)
 
+    def contextMenuEvent(self, event):
+        menu = _themed_menu()
+        dup_act = menu.addAction("Duplicate")
+        menu.addSeparator()
+        fwd_act = menu.addAction("Bring Forward")
+        bwd_act = menu.addAction("Send Backward")
+        menu.addSeparator()
+        del_act = menu.addAction("Delete")
+
+        chosen = menu.exec(event.screenPos())
+        if not chosen:
+            return
+        if chosen is dup_act and self._editor:
+            self._editor._duplicate_overlay_item(self)
+        elif chosen is fwd_act:
+            self.setZValue(self.zValue() + 1)
+        elif chosen is bwd_act:
+            self.setZValue(max(200, self.zValue() - 1))
+        elif chosen is del_act and self._editor:
+            self._editor._remove_overlay_item(self)
+
 
 class OverlayTextItem(QGraphicsTextItem):
     """Movable, double-click editable text overlay — syncs to CanvasOverlay."""
@@ -99,6 +173,7 @@ class OverlayTextItem(QGraphicsTextItem):
     def __init__(self, overlay: CanvasOverlay):
         super().__init__(overlay.text or "Your text")
         self.overlay = overlay
+        self._editor = None  # set by StudioEditor after creation
         self.setFlags(
             QGraphicsTextItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsTextItem.GraphicsItemFlag.ItemIsSelectable
@@ -122,6 +197,15 @@ class OverlayTextItem(QGraphicsTextItem):
             self.setTextWidth(self.overlay.text_width)
         else:
             self.setTextWidth(-1)
+        # Line height via block format
+        lh = getattr(self.overlay, 'line_height', 1.2) or 1.2
+        from PySide6.QtGui import QTextBlockFormat, QTextCursor
+        fmt = QTextBlockFormat()
+        fmt.setLineHeight(lh * 100, 1)  # 1 = ProportionalHeight (percentage)
+        cursor = self.textCursor()
+        cursor.select(QTextCursor.SelectionType.Document)
+        cursor.mergeBlockFormat(fmt)
+        self.setTextCursor(cursor)
         # Rotate from center of bounding rect
         br = self.boundingRect()
         self.setTransformOriginPoint(br.center())
@@ -142,6 +226,32 @@ class OverlayTextItem(QGraphicsTextItem):
         self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self.overlay.text = self.toPlainText()
         super().focusOutEvent(event)
+
+    def contextMenuEvent(self, event):
+        menu = _themed_menu()
+        edit_act = menu.addAction("Edit Text")
+        menu.addSeparator()
+        dup_act = menu.addAction("Duplicate")
+        menu.addSeparator()
+        fwd_act = menu.addAction("Bring Forward")
+        bwd_act = menu.addAction("Send Backward")
+        menu.addSeparator()
+        del_act = menu.addAction("Delete")
+
+        chosen = menu.exec(event.screenPos())
+        if not chosen:
+            return
+        if chosen is edit_act:
+            self.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
+            self.setFocus()
+        elif chosen is dup_act and self._editor:
+            self._editor._duplicate_overlay_item(self)
+        elif chosen is fwd_act:
+            self.setZValue(self.zValue() + 1)
+        elif chosen is bwd_act:
+            self.setZValue(max(200, self.zValue() - 1))
+        elif chosen is del_act and self._editor:
+            self._editor._remove_overlay_item(self)
 
 
 class AnnotationTextItem(QGraphicsTextItem):
@@ -356,7 +466,88 @@ class StudioEditor(QWidget):
         self._pixmap_item: QGraphicsPixmapItem | None = None
         self._censor_items: list[CensorRectItem] = []
         self._overlay_items: list[OverlayImageItem | OverlayTextItem] = []
+        self._overlays_visible = True
         self._build()
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    # ---- keyboard shortcuts ----
+
+    def keyPressEvent(self, event: QKeyEvent):
+        key = event.key()
+        mods = event.modifiers()
+        ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+        shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
+
+        # Ctrl combos
+        if ctrl and key == Qt.Key.Key_Z:
+            print("[Studio] Undo not yet implemented")
+            return
+        if ctrl and key == Qt.Key.Key_Y:
+            print("[Studio] Redo not yet implemented")
+            return
+        if ctrl and key == Qt.Key.Key_D:
+            self._duplicate_selected()
+            return
+
+        # Delete
+        if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+            # Only delete if no text item is in edit mode
+            for item in self._scene.selectedItems():
+                if isinstance(item, OverlayTextItem) and \
+                   item.textInteractionFlags() & Qt.TextInteractionFlag.TextEditorInteraction:
+                    break
+            else:
+                self._delete_selected()
+            return
+
+        # Arrow nudge
+        if key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
+            delta = 10 if shift else 1
+            dx, dy = 0, 0
+            if key == Qt.Key.Key_Left:
+                dx = -delta
+            elif key == Qt.Key.Key_Right:
+                dx = delta
+            elif key == Qt.Key.Key_Up:
+                dy = -delta
+            elif key == Qt.Key.Key_Down:
+                dy = delta
+            moved = False
+            for item in self._scene.selectedItems():
+                if isinstance(item, (CensorRectItem, OverlayImageItem, OverlayTextItem)):
+                    item.moveBy(dx, dy)
+                    if isinstance(item, (OverlayImageItem, OverlayTextItem)):
+                        item.overlay.x = int(item.pos().x())
+                        item.overlay.y = int(item.pos().y())
+                    moved = True
+            if moved:
+                self._sync_censors_to_asset()
+                self._sync_overlays_to_asset()
+            return
+
+        # Tool shortcuts (only when no modifier)
+        if not ctrl and not shift:
+            if key == Qt.Key.Key_Q:
+                self._set_tool(StudioTool.SELECT)
+                return
+            if key == Qt.Key.Key_W:
+                self._set_tool(StudioTool.CENSOR)
+                return
+            if key == Qt.Key.Key_E:
+                self._set_tool(StudioTool.WATERMARK)
+                return
+            if key == Qt.Key.Key_R:
+                self._set_tool(StudioTool.TEXT_OVERLAY)
+                return
+            if key == Qt.Key.Key_F:
+                if self._scene.sceneRect():
+                    self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+                return
+            if key == Qt.Key.Key_H:
+                self._toggle_overlay_visibility()
+                return
+
+        super().keyPressEvent(event)
 
     # ---- construction ----
 
@@ -512,6 +703,16 @@ class StudioEditor(QWidget):
         self.slider_kerning.valueChanged.connect(self._on_kerning_changed)
         props.addWidget(self.slider_kerning)
 
+        props.addWidget(QLabel("LH:"))
+        self.slider_line_height = QSlider(Qt.Orientation.Horizontal)
+        self.slider_line_height.setObjectName("studio_line_height_slider")
+        self.slider_line_height.setRange(50, 300)  # 0.5x to 3.0x (stored as int * 100)
+        self.slider_line_height.setValue(120)       # default 1.2
+        self.slider_line_height.setFixedWidth(80)
+        self.slider_line_height.setToolTip("Line height (1.0 = tight, 1.5 = loose, 2.0 = double)")
+        self.slider_line_height.valueChanged.connect(self._on_line_height_changed)
+        props.addWidget(self.slider_line_height)
+
         props.addWidget(QLabel("Rot:"))
         self.slider_rotation = QSlider(Qt.Orientation.Horizontal)
         self.slider_rotation.setObjectName("studio_rotation_slider")
@@ -599,6 +800,7 @@ class StudioEditor(QWidget):
         # Restore censors (Z 100-199)
         for i, cr in enumerate(asset.censors):
             item = CensorRectItem(QRectF(cr.x, cr.y, cr.w, cr.h), cr.style)
+            item._editor = self
             item.setZValue(100 + i)
             self._scene.addItem(item)
             self._censor_items.append(item)
@@ -636,6 +838,7 @@ class StudioEditor(QWidget):
 
     def _on_censor_drawn(self, item: CensorRectItem):
         """Called when a censor rect is finished drawing."""
+        item._editor = self
         self._censor_items.append(item)
         item.setZValue(100 + len(self._censor_items))
         self._sync_censors_to_asset()
@@ -656,10 +859,12 @@ class StudioEditor(QWidget):
                 target_w = max(10, int(base_w * ov.scale))
                 pm = pm.scaledToWidth(target_w, Qt.TransformationMode.SmoothTransformation)
             item = OverlayImageItem(pm, ov)
+            item._editor = self
             self._scene.addItem(item)
             return item
         elif ov.type == "text":
             item = OverlayTextItem(ov)
+            item._editor = self
             self._scene.addItem(item)
             return item
         return None
@@ -764,8 +969,8 @@ class StudioEditor(QWidget):
         # Block signals during bulk update
         for w in (self.slider_opacity, self.slider_scale, self.combo_position,
                   self.font_combo, self.slider_font_size, self.btn_bold,
-                  self.btn_italic, self.slider_kerning, self.slider_rotation,
-                  self.slider_text_width):
+                  self.btn_italic, self.slider_kerning, self.slider_line_height,
+                  self.slider_rotation, self.slider_text_width):
             w.blockSignals(True)
 
         self.slider_opacity.setValue(int(ov.opacity * 100))
@@ -779,13 +984,14 @@ class StudioEditor(QWidget):
         self.btn_bold.setChecked(ov.bold)
         self.btn_italic.setChecked(ov.italic)
         self.slider_kerning.setValue(int(ov.letter_spacing))
+        self.slider_line_height.setValue(int(getattr(ov, 'line_height', 1.2) * 100))
         self.slider_rotation.setValue(int(ov.rotation))
         self.slider_text_width.setValue(ov.text_width)
 
         for w in (self.slider_opacity, self.slider_scale, self.combo_position,
                   self.font_combo, self.slider_font_size, self.btn_bold,
-                  self.btn_italic, self.slider_kerning, self.slider_rotation,
-                  self.slider_text_width):
+                  self.btn_italic, self.slider_kerning, self.slider_line_height,
+                  self.slider_rotation, self.slider_text_width):
             w.blockSignals(False)
 
     # ---- drag-drop from tray ----
@@ -906,6 +1112,14 @@ class StudioEditor(QWidget):
             item.setRotation(value)
         self._sync_overlays_to_asset()
 
+    def _on_line_height_changed(self, value: int):
+        lh = value / 100.0
+        for item in self._selected_overlay_items():
+            if isinstance(item, OverlayTextItem):
+                item.overlay.line_height = lh
+                item._apply_font()
+        self._sync_overlays_to_asset()
+
     def _on_text_width_changed(self, value: int):
         for item in self._selected_overlay_items():
             if isinstance(item, OverlayTextItem):
@@ -970,6 +1184,50 @@ class StudioEditor(QWidget):
         self._sync_overlays_to_asset()
         self._update_info()
 
+    def _remove_censor_item(self, item: CensorRectItem):
+        """Remove a single censor item from scene + model (for context menu)."""
+        self._scene.removeItem(item)
+        if item in self._censor_items:
+            self._censor_items.remove(item)
+        self._sync_censors_to_asset()
+        self._update_info()
+
+    def _remove_overlay_item(self, item):
+        """Remove a single overlay item from scene + model (for context menu)."""
+        self._scene.removeItem(item)
+        if item in self._overlay_items:
+            self._overlay_items.remove(item)
+        self._sync_overlays_to_asset()
+        self._update_info()
+
+    def _duplicate_overlay_item(self, item):
+        """Duplicate an overlay item with 20px offset (for context menu / Ctrl+D)."""
+        if not self._asset:
+            return
+        ov_copy = copy.copy(item.overlay)
+        ov_copy.x += 20
+        ov_copy.y += 20
+        self._asset.overlays.append(ov_copy)
+        new_item = self._create_overlay_item(ov_copy)
+        if new_item:
+            new_item.setZValue(200 + len(self._overlay_items))
+            self._overlay_items.append(new_item)
+        self._update_info()
+
+    def _duplicate_selected(self):
+        """Duplicate all selected overlay items."""
+        for item in list(self._scene.selectedItems()):
+            if isinstance(item, (OverlayImageItem, OverlayTextItem)):
+                self._duplicate_overlay_item(item)
+
+    def _toggle_overlay_visibility(self):
+        """Toggle visibility of all censor + overlay items."""
+        self._overlays_visible = not self._overlays_visible
+        for item in self._censor_items:
+            item.setVisible(self._overlays_visible)
+        for item in self._overlay_items:
+            item.setVisible(self._overlays_visible)
+
     def _export_preview(self):
         """Render censors + overlays via PIL and save."""
         if not self._asset:
@@ -978,12 +1236,8 @@ class StudioEditor(QWidget):
         self._sync_overlays_to_asset()
 
         src_path = Path(self._asset.source_path)
-        ext = src_path.suffix.lower()
-        if ext in (".psd", ".psb"):
-            from doxyedit.imaging import load_psd
-            img, _, _ = load_psd(str(src_path))
-        else:
-            img = Image.open(str(src_path)).convert("RGBA")
+        from doxyedit.imaging import load_image_for_export
+        img = load_image_for_export(str(src_path))
 
         img = apply_censors(img, self._asset.censors)
         img = apply_overlays(img, self._asset.overlays)
