@@ -729,7 +729,6 @@ def generate_stylesheet(theme: Theme) -> str:
         QTextBrowser#project_notes_preview {{
             background: {theme.bg_deep};
             border: none;
-            padding: 16px 80px;
         }}
         QPlainTextEdit#project_notes_tab {{
             background: {theme.bg_deep};
@@ -1616,6 +1615,17 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.accent_dim};
             border: 2px solid {theme.accent_bright};
             border-radius: {rad}px;
+        }}
+        QFrame#calendar_day_past {{
+            background: {theme.bg_deep};
+            border: 1px solid {theme.border_light};
+            border-radius: {rad}px;
+        }}
+        QFrame#calendar_day_past:hover {{
+            border-color: {theme.accent_dim};
+        }}
+        QFrame#calendar_day_past QLabel#calendar_day_number {{
+            color: {theme.text_muted};
         }}
         QFrame#calendar_day_other_month {{
             background: {theme.bg_deep};
