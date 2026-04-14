@@ -15,8 +15,8 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLineEdit,
-    QPushButton, QSplitter, QWidget,
+    QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel,
+    QPushButton, QSplitter, QWidget, QDateTimeEdit,
 )
 from PySide6.QtCore import Qt, QSettings, Signal
 
@@ -78,6 +78,12 @@ class AssetDropLineEdit(QLineEdit):
             super().dropEvent(event)
 
 
+class _NoScrollDateTimeEdit(QDateTimeEdit):
+    """QDateTimeEdit that ignores scroll wheel to prevent accidental changes."""
+    def wheelEvent(self, event):
+        event.ignore()
+
+
 # ======================================================================
 # PostComposerWidget — reusable QWidget (dockable or embeddable)
 # ======================================================================
@@ -119,6 +125,33 @@ class PostComposerWidget(QWidget):
         left_layout = QVBoxLayout(self._left_wrapper)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(4)
+
+        # Schedule picker (top of left panel for visibility)
+        from PySide6.QtWidgets import QDateTimeEdit, QGroupBox
+        from PySide6.QtCore import QDateTime
+        from datetime import datetime as _dt, timedelta as _td
+
+        sched_box = QGroupBox("Schedule")
+        sched_box.setObjectName("composer_left_schedule")
+        sched_lay = QVBoxLayout(sched_box)
+        sched_lay.setContentsMargins(4, 4, 4, 4)
+        self._left_schedule = _NoScrollDateTimeEdit()
+        self._left_schedule.setObjectName("composer_left_schedule_edit")
+        self._left_schedule.setCalendarPopup(True)
+        self._left_schedule.setDisplayFormat("yyyy-MM-dd hh:mm AP")
+        tomorrow = _dt.now() + _td(days=1)
+        self._left_schedule.setDateTime(
+            QDateTime(tomorrow.year, tomorrow.month, tomorrow.day,
+                      tomorrow.hour, tomorrow.minute, 0))
+        sched_lay.addWidget(self._left_schedule)
+
+        # Timezone display
+        self._left_tz_label = QLabel()
+        self._left_tz_label.setObjectName("composer_tz_clock")
+        sched_lay.addWidget(self._left_tz_label)
+        self._left_schedule.dateTimeChanged.connect(self._update_left_tz)
+        self._update_left_tz()
+        left_layout.addWidget(sched_box)
 
         # Asset ID input + Use Selected
         images_row = QHBoxLayout()
@@ -215,6 +248,31 @@ class PostComposerWidget(QWidget):
     # Signal handlers
     # ------------------------------------------------------------------
 
+    def _update_left_tz(self):
+        """Update timezone display on left schedule picker."""
+        try:
+            from zoneinfo import ZoneInfo
+            from datetime import datetime as _dtm
+            qt_dt = self._left_schedule.dateTime()
+            py_dt = qt_dt.toPython()
+            local_tz = _dtm.now().astimezone().tzinfo
+            aware = py_dt.replace(tzinfo=local_tz)
+            parts = []
+            for tz_name, label in [("US/Eastern", "EST"), ("US/Pacific", "PST"), ("Asia/Tokyo", "JST")]:
+                conv = aware.astimezone(ZoneInfo(tz_name))
+                parts.append(f"{label} {conv.strftime('%I:%M%p').lstrip('0')}")
+            self._left_tz_label.setText("  |  ".join(parts))
+        except Exception:
+            pass
+
+        # Sync to right panel schedule
+        if hasattr(self, '_right_panel') and hasattr(self._right_panel, '_schedule_edit'):
+            self._right_panel._schedule_edit.blockSignals(True)
+            self._right_panel._schedule_edit.setDateTime(self._left_schedule.dateTime())
+            self._right_panel._schedule_edit.blockSignals(False)
+            if hasattr(self._right_panel, '_update_tz_display'):
+                self._right_panel._update_tz_display()
+
     def _on_images_changed(self) -> None:
         """Update left panel when asset IDs change."""
         ids = [s.strip() for s in self._images_edit.text().split(",") if s.strip()]
@@ -248,6 +306,17 @@ class PostComposerWidget(QWidget):
 
         # Right panel fields
         self._right_panel.set_post(post)
+
+        # Sync schedule to left panel
+        if post.scheduled_time:
+            try:
+                from datetime import datetime as _dtm
+                from PySide6.QtCore import QDateTime
+                dt = _dtm.fromisoformat(post.scheduled_time)
+                self._left_schedule.setDateTime(
+                    QDateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute, 0))
+            except Exception:
+                pass
 
         # Left panel NSFW
         if post.nsfw_platforms:
