@@ -398,11 +398,21 @@ class PlatformPanel(QWidget):
                 self._assign_map.setdefault((pa.platform, pa.slot), []).append((asset, pa))
         assign_map = self._assign_map
 
+        # Campaign platform filter
+        campaign_platform = ""
+        if cid:
+            for c in self.project.campaigns:
+                if c.id == cid and c.platform_id:
+                    campaign_platform = c.platform_id
+                    break
+
         total_slots = filled_slots = posted_slots = 0
 
         for i, (pid, platform) in enumerate(
             (pid, PLATFORMS[pid]) for pid in self.project.platforms if pid in PLATFORMS
         ):
+            if campaign_platform and pid != campaign_platform:
+                continue
             col = self._col0 if i % 2 == 0 else self._col1
             col.addWidget(self._build_card(platform, pid, assign_map))
 
@@ -527,6 +537,25 @@ class PlatformPanel(QWidget):
         count_lbl = QLabel(f"{filled}/{total}")
         count_lbl.setObjectName("platform_count")
         header.addWidget(count_lbl)
+
+        # Readiness badge
+        required_slots = [s for s in platform.slots if s.required]
+        filled_required = sum(1 for s in required_slots if assign_map.get((pid, s.name)))
+        total_required = len(required_slots)
+        if total_required > 0:
+            if filled_required == total_required:
+                badge_text = f"● {filled_required}/{total_required}"
+                badge_color = "#6eaa78"
+            elif filled_required > 0:
+                badge_text = f"◑ {filled_required}/{total_required}"
+                badge_color = "#be955c"
+            else:
+                badge_text = f"○ 0/{total_required}"
+                badge_color = "#9a4f50"
+            badge = QLabel(badge_text)
+            badge.setStyleSheet(f"color: {badge_color}; font-weight: bold;")
+            header.addWidget(badge)
+
         layout.addLayout(header)
 
         # Divider
@@ -609,7 +638,39 @@ class PlatformPanel(QWidget):
             if notes_parts:
                 row.setToolTip("\n".join(notes_parts))
 
+        # Show notes inline if present
+        for asset, pa in entries:
+            if pa.notes:
+                note_lbl = QLabel(pa.notes)
+                note_lbl.setStyleSheet("color: gray; font-size: 10px; font-style: italic;")
+                note_lbl.setWordWrap(True)
+                h.addWidget(note_lbl)
+                break  # only show first note
+
+        # Drag-drop support
+        row.setAcceptDrops(True)
+        row.dragEnterEvent = lambda e, r=row: (e.acceptProposedAction() if e.mimeData().hasUrls() else None, r.setStyleSheet("background: rgba(110,170,120,40);"))
+        row.dragLeaveEvent = lambda e, r=row: r.setStyleSheet("")
+        row.dropEvent = lambda e, p=pid, s=slot, r=row: self._on_slot_drop(e, p, s, r)
+
         return row
+
+    def _on_slot_drop(self, event, platform_id, slot, row):
+        """Handle drag-drop of asset onto a slot."""
+        row.setStyleSheet("")
+        for url in event.mimeData().urls():
+            path = url.toLocalFile()
+            if not path:
+                continue
+            # Find asset by source_path
+            import os
+            norm = os.path.normpath(path).lower()
+            for asset in self.project.assets:
+                if os.path.normpath(asset.source_path).lower() == norm:
+                    self.assign_asset(asset, platform_id, slot.name)
+                    self.refresh()
+                    return
+        event.acceptProposedAction()
 
     def _slot_context_menu(self, row, pos, pid: str, slot, entries: list):
         from PySide6.QtWidgets import QMenu
@@ -843,9 +904,35 @@ class PlatformPanel(QWidget):
         for pa in asset.assignments:
             if pa.platform == platform_id and pa.slot == slot_name:
                 return  # already assigned
+        # Find slot object for aspect-ratio check
+        slot_obj = None
+        plat = PLATFORMS.get(platform_id)
+        if plat:
+            for _s in plat.slots:
+                if _s.name == slot_name:
+                    slot_obj = _s
+                    break
+
         asset.assignments.append(PlatformAssignment(
             platform=platform_id,
             slot=slot_name,
-            status=PostStatus.READY,
+            status=PostStatus.PENDING,
         ))
+
+        # Warn on aspect ratio mismatch
+        if slot_obj and slot_obj.width and slot_obj.height:
+            from pathlib import Path as _P
+            src = _P(asset.source_path)
+            if src.exists():
+                try:
+                    from PIL import Image
+                    with Image.open(str(src)) as img:
+                        iw, ih = img.size
+                        target_ratio = slot_obj.width / slot_obj.height
+                        img_ratio = iw / ih
+                        if abs(target_ratio - img_ratio) / target_ratio > 0.15:
+                            print(f"[Platforms] Warning: {asset.id} ratio {img_ratio:.2f} vs slot {target_ratio:.2f}")
+                except Exception:
+                    pass
+
         self.refresh()
