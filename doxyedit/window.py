@@ -2654,42 +2654,91 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         label = get_active_account_label(project_dir)
         self._timeline.set_oneup_label(label)
 
-        # 2. Sync post statuses
-        client = get_client_from_config(project_dir)
-        if not client:
-            key = (self.project.oneup_config or {}).get("api_key", "")
-            if key:
-                client = OneUpClient(key)
-
+        # 2. Sync post statuses via MCP (REST API is unreliable)
         updated = 0
-        if client:
-            print(f"[OneUp Sync] Checking {len(self.project.posts)} posts...")
-            for post in self.project.posts:
-                print(f"[OneUp Sync]   post={post.id[:8]} status={post.status} oneup_id={post.oneup_post_id or '(none)'}")
-                if post.status == SocialPostStatus.QUEUED and post.oneup_post_id:
-                    result = client.get_post(post.oneup_post_id)
-                    print(f"[OneUp Sync]     API result: success={result.success} data={str(result.data)[:100]}")
-                    if result.success:
-                        rs = result.data.get("status", "")
-                        if rs == "published":
+        try:
+            import json as _json
+            from urllib.request import Request as _Req, urlopen as _urlopen
+
+            api_key = ""
+            client = get_client_from_config(project_dir)
+            if client:
+                api_key = client.api_key
+            if not api_key:
+                api_key = (self.project.oneup_config or {}).get("api_key", "")
+
+            if api_key:
+                mcp_url = f"https://feed.oneupapp.io/mcp/oneup?apiKey={api_key}"
+
+                # Init MCP session
+                init = {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                        "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                                   "clientInfo": {"name": "doxyedit", "version": "2.3"}}}
+                req = _Req(mcp_url, data=_json.dumps(init).encode(),
+                           headers={"Content-Type": "application/json"})
+                resp = _urlopen(req, timeout=15)
+                resp.read()
+                sid = resp.headers.get("MCP-Session-Id", "")
+                headers = {"Content-Type": "application/json"}
+                if sid:
+                    headers["MCP-Session-Id"] = sid
+
+                # Fetch scheduled, published, failed posts from OneUp
+                oneup_posts = {}  # oneup_id -> status
+                for tool, status_label in [
+                    ("get-scheduled-posts-tool", "scheduled"),
+                    ("get-published-posts-tool", "published"),
+                    ("get-failed-posts-tool", "failed"),
+                ]:
+                    call = {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                            "params": {"name": tool, "arguments": {}}}
+                    req2 = _Req(mcp_url, data=_json.dumps(call).encode(), headers=headers)
+                    resp2 = _urlopen(req2, timeout=15)
+                    data = _json.loads(resp2.read().decode())
+                    text = data.get("result", {}).get("content", [{}])[0].get("text", "")
+                    try:
+                        posts_data = _json.loads(text).get("posts", [])
+                        for p in posts_data:
+                            pid = str(p.get("id", ""))
+                            if pid:
+                                oneup_posts[pid] = status_label
+                        print(f"[OneUp Sync] {tool}: {len(posts_data)} posts")
+                    except Exception:
+                        print(f"[OneUp Sync] {tool}: parse error")
+
+                # Match against local posts
+                print(f"[OneUp Sync] Checking {len(self.project.posts)} local posts against {len(oneup_posts)} OneUp posts...")
+                for post in self.project.posts:
+                    if not post.oneup_post_id:
+                        continue
+                    # Check each oneup_id (comma-separated for multi-account)
+                    for oid in post.oneup_post_id.split(","):
+                        oid = oid.strip()
+                        if not oid:
+                            continue
+                        oneup_status = oneup_posts.get(oid)
+                        if oneup_status == "published" and post.status != SocialPostStatus.POSTED:
                             post.status = SocialPostStatus.POSTED
                             updated += 1
-                            print(f"[OneUp Sync]     → POSTED")
-                        elif rs == "failed":
+                            print(f"[OneUp Sync]   {post.id[:8]} → POSTED")
+                        elif oneup_status == "failed" and post.status != SocialPostStatus.FAILED:
                             post.status = SocialPostStatus.FAILED
                             updated += 1
-                            print(f"[OneUp Sync]     → FAILED")
-                    else:
-                        print(f"[OneUp Sync]     API error: {result.error[:80]}")
-        else:
-            print("[OneUp Sync] No client — skipping post status check")
+                            print(f"[OneUp Sync]   {post.id[:8]} → FAILED")
+                        elif oneup_status is None and post.status == SocialPostStatus.QUEUED:
+                            # Post was deleted from OneUp
+                            post.status = SocialPostStatus.DRAFT
+                            post.oneup_post_id = ""
+                            updated += 1
+                            print(f"[OneUp Sync]   {post.id[:8]} → DRAFT (deleted from OneUp)")
+            else:
+                print("[OneUp Sync] No API key — skipping post status check")
+        except Exception as e:
+            print(f"[OneUp Sync] Error syncing posts: {e}")
 
         if updated:
             self._dirty = True
-        self._timeline.refresh()
-        self._calendar_pane.refresh()
-        if hasattr(self, '_gantt_panel'):
-            self._gantt_panel.refresh()
+        self._refresh_social_panels()
         msg = f"Synced: {acct_msg}, {updated} post(s) updated"
         print(f"[OneUp Sync] {msg}")
         self.statusBar().showMessage(msg, 5000)
