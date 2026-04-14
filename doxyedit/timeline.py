@@ -251,10 +251,13 @@ class PostCard(QFrame):
                 root.addWidget(eng_container)
 
     def _eng_done(self, check_idx: int, row_widget, eng_layout):
-        """Mark engagement check as done, remove the row."""
+        """Mark engagement check as done."""
         if check_idx < len(self._post.engagement_checks):
             self._post.engagement_checks[check_idx]["done"] = True
-        row_widget.deleteLater()
+        try:
+            row_widget.deleteLater()
+        except RuntimeError:
+            pass  # already deleted by refresh
         self.engagement_changed.emit()
 
     def _eng_snooze(self, check_idx: int):
