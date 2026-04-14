@@ -1,8 +1,8 @@
 # DoxyEdit Documentation
 
-**Version 2.2** — Art Asset Manager
+**Version 2.3** — Art Asset Manager + Social Media Pipeline
 
-DoxyEdit is a desktop tool for artists and creators to browse, tag, organize, and export art assets across multiple platforms (Kickstarter, Steam, Patreon, social media).
+DoxyEdit is a desktop tool for artists and creators to browse, tag, organize, and export art assets across multiple platforms (Kickstarter, Steam, Patreon, social media). v2.3 adds a full social media publishing pipeline with scheduling, cross-platform release chains, subscription platform automation, and AI-assisted strategy.
 
 ---
 
@@ -29,7 +29,7 @@ Produces `dist/DoxyEdit.exe` (requires Nuitka).
 
 ## Interface Overview
 
-DoxyEdit has 6 tabs: **Assets**, **Canvas**, **Censor**, **Platforms**, **Overview**, **Notes**.
+DoxyEdit has 8 tabs: **Assets**, **Canvas**, **Censor**, **Platforms**, **Social**, **Overview**, **Notes**, **Overlay Editor**.
 
 ### Assets Tab (Main View)
 
@@ -269,6 +269,9 @@ Shows target platforms with their required image slots and sizes.
 
 Each slot shows: name, target size, assigned asset, and status (pending/ready/posted/skip).
 
+**Campaign Linking:**
+Platform assignments can be linked to a Campaign (see [Campaign System](#campaign-system) below). This ties assets to specific launches (Kickstarter, Steam, merch) with milestone tracking and blackout period enforcement.
+
 **Kanban Board:**
 The Platforms tab includes a kanban-style board view for tracking publish status across platforms. Each platform column shows cards for its image slots, which can be dragged between status columns (Backlog, Ready, Posted, Skip). The board and the slot list stay in sync — updating one updates the other.
 
@@ -340,15 +343,197 @@ Last project auto-loads on startup.
 
 ---
 
+## Social Tab
+
+The Social tab is the publishing pipeline hub. It contains four sub-panels: **Calendar**, **Timeline**, **Gantt Chart**, and **Checklist**.
+
+### Calendar Pane
+
+A month-view grid showing scheduled posts as colored status dots:
+- **Green** = posted, **Blue** = queued, **Yellow** = draft, **Red** = failed
+- Click a day to filter the timeline to that date
+- **World clock** — shows JST, EST, and PST alongside the calendar
+- Navigate months with arrow buttons
+
+### Timeline
+
+A chronological list of all social posts for the project. Each entry shows:
+- Asset thumbnail, caption preview, scheduled date/time
+- Platform badges (Twitter/X, Reddit, Patreon, etc.)
+- Status indicator (draft/queued/posted/failed)
+- Click to open the post in the Composer
+
+### Gantt Chart
+
+Visual timeline rendering all posts as horizontal colored bars on a date axis:
+- **Stagger connection lines** — shows release chain relationships between posts
+- **Gap detection** — highlights periods with no scheduled content
+- **Today marker** — vertical line indicating the current date
+- **Zoom slider** — adjust the time scale from days to months
+- **Date range picker** — focus on a specific window
+- Click any bar to open that post in the Composer
+
+### Checklist
+
+Task checklist for tracking publishing sub-tasks per post or per platform slot.
+
+---
+
+## Post Composer
+
+The redesigned two-column composer for creating and scheduling social posts.
+
+### Left Column — Image Preview
+- Large asset preview that fills available space, rescales on resize
+- **SFW/NSFW toggle** — switches between safe and explicit versions
+- **Crop status** — shows whether the asset has platform-specific crops defined
+- Censored preview toggle for platforms that require it
+
+### Right Column — Content & Scheduling
+
+**Strategy Section:**
+- **Strategy Briefing** button — runs local data analysis (tags, posting history, content gaps, platform fit) and displays a structured brief
+- **AI Strategy** button — sends project context to Claude CLI, which returns captions, timing recommendations, platform play, and hooks. Results append (don't replace existing notes). **Apply** button extracts structured data from the AI response into the post's caption, hashtags, and schedule fields.
+- Markdown strategy notes with Edit/Preview toggle and theme-aware CSS rendering
+
+**Caption & Hashtags:**
+- Per-platform caption editing
+- Hashtag suggestions from identity profile
+- Dual-language support (Japanese + English) for Fanbox/Fantia/Ci-en
+
+**Schedule:**
+- Date/time picker with JST/EST/PST display
+- Platform checkboxes in a flow layout (wrap when window narrows)
+- Shows connected OneUp accounts (Twitter/X, Reddit) with greyed-out unconnected platforms
+
+**Release Chains:**
+- Define staggered cross-platform posting sequences (e.g., Twitter first, Patreon 48h later)
+- Release step editor with per-step platform, delay, account, tier level, and locale
+- Load from saved release templates
+
+**Docking:**
+- Toggle button to float the composer as a dialog or dock it into the Social tab
+- Compact mode when docked, persists preference across sessions
+
+---
+
+## Notes Tab
+
+The Notes tab provides a structured notepad for project documentation.
+
+### Tab System
+- **General** (permanent) — freeform project notes
+- **Agent Primer** (permanent) — context document for Claude/AI interactions
+- **Custom tabs** — add/remove named tabs for organizing notes by topic
+
+### Markdown Preview
+- **Edit/Preview toggle** — switch between raw markdown editing and rendered HTML
+- Live markdown preview with theme-aware CSS
+- Centered 1200px content column with scrollbar at the window edge
+- Accent-colored horizontal rules (2px styled `<hr>`)
+
+### Claude Actions
+Right-click selected text to invoke Claude actions:
+- **Refine** — polish and tighten the selected text
+- **Expand** — elaborate on the selection with more detail
+- **Research** — look up relevant context and add findings
+- **Simplify** — reduce complexity and jargon
+- **[Instruct]** — custom freeform instruction sent to Claude with the selection
+
+---
+
+## Overlay Editor
+
+Asset-bound overlay placement for watermarks, text, and logos.
+
+### Overlay Types
+- **Watermark** — semi-transparent image overlay (e.g., signature or copyright)
+- **Text** — custom text with font, size, and color
+- **Logo** — pre-defined logo image with template presets
+
+### Controls
+- **Drag positioning** — place overlays anywhere on the canvas
+- **Opacity slider** — adjust overlay transparency
+- **Scale slider** — resize overlays relative to the asset
+- **Logo template presets** — quick-load common logo configurations
+- **Export preview** — see the final composited result before exporting
+
+### Export Pipeline
+Overlays are composited during export only — the source file is never modified. The `apply_overlays()` function is shared between the GUI export and the CLI `watermark` command, ensuring identical output.
+
+---
+
+## Subscription Platforms
+
+Generalized quick-post workflow for 6 subscription/monetization platforms:
+
+| Platform | Locale | Censor | Monetization |
+|----------|--------|--------|--------------|
+| Patreon | en | No | Subscription |
+| Pixiv Fanbox | ja | Yes | Subscription |
+| Fantia | ja | Yes | Subscription |
+| Ci-en | ja | Yes | Subscription |
+| Gumroad | en | No | Per-item |
+| Ko-fi | en | No | Tips/Shop |
+
+### Quick-Post Flow
+1. Select an asset and open the quick-post dialog
+2. Choose the target platform
+3. Caption is copied to clipboard (dual-language for Japanese platforms)
+4. Image is exported with appropriate overlays and censoring applied
+5. Platform's post URL opens in the browser
+6. Paste caption, attach exported image, publish
+
+### Tier-Based Content
+Each platform supports free preview vs paid full version. The tier level is set per release step in a release chain.
+
+---
+
+## Campaign System
+
+Campaigns represent major launches (Kickstarter, Steam, merch drops) with milestone tracking.
+
+### Campaign Data
+- **Name, type** (kickstarter/steam/merch/other), **status** (planning/preparing/live/completed)
+- **Launch date** and **end date**
+- **Campaign milestones** — named checkpoints with target dates and completion status
+
+### Integration
+- Platform assignments can be linked to a campaign via `campaign_id`
+- Social posts can be linked to a campaign for coordinated promotion
+- Blackout periods prevent scheduling conflicting content during campaign exclusivity windows
+
+---
+
+## Cross-Project Awareness
+
+DoxyEdit can detect scheduling conflicts across multiple projects.
+
+### Project Registry
+A global registry at `~/.doxyedit/project_registry.json` tracks all known DoxyEdit projects on the machine.
+
+### Conflict Detection
+When scheduling a post, DoxyEdit performs a lightweight JSON peek into other registered projects (reads only post data, skips assets for performance) and warns about:
+- **Same-day conflicts** — another project posting to the same platform on the same day
+- **Blackout periods** — the target date falls within another project's campaign exclusivity window
+- **Saturation warnings** — too many posts across projects in a short timeframe
+
+---
+
 ## CLI Commands
 
 For integration with Claude CLI or scripts:
 
 ```bash
-python -m doxyedit summary project.doxyproj.json   # JSON status overview
-python -m doxyedit tags project.doxyproj.json       # List all assets and tags
-python -m doxyedit untagged project.doxyproj.json   # List untagged assets
-python -m doxyedit status project.doxyproj.json     # Platform slot assignments
+python -m doxyedit summary project.doxyproj.json     # JSON status overview
+python -m doxyedit tags project.doxyproj.json         # List all assets and tags
+python -m doxyedit untagged project.doxyproj.json     # List untagged assets
+python -m doxyedit status project.doxyproj.json       # Platform slot assignments
+python -m doxyedit reminders project.doxyproj.json    # Check due release chain steps and Patreon cadence
+python -m doxyedit patreon-prep project.doxyproj.json # Export image + copy caption for Patreon quick-post
+python -m doxyedit plan-posts project.doxyproj.json   # Generate full briefing for Claude to plan posting strategy
+python -m doxyedit flatten project.doxyproj.json      # PSD flattening + crop extraction
+python -m doxyedit watermark project.doxyproj.json    # Apply watermark overlays to exported images
 ```
 
 ---

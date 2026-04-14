@@ -1,5 +1,87 @@
 # DoxyEdit Changelog
 
+## v2.3.0 (2026-04-14) — Social Media Suite Expansion
+
+### New Tabs & Panels
+- **Gantt Chart** — Visual timeline in Social tab showing all posts as colored bars, stagger connection lines, gap detection, today marker. Zoom slider + date range picker. Click bar to edit post.
+- **Overlay Editor** — Asset-bound watermark, text, and logo placement. Drag positioning, opacity/scale sliders, logo template presets. Export preview button.
+- **Tabbed Notes** — General + Agent Primer (permanent) + custom tabs. Live markdown preview with Edit/Preview toggle. Right-click Claude actions (Refine, Expand, Research, Simplify, [Instruct]).
+
+### Social Media Pipeline
+- **Strategy Briefing** — Local data analysis (tags, history, gaps, platform fit) + AI Strategy via Claude CLI with full project context
+- **AI Strategy** — Claude analyzes posting context, returns captions, timing, platform play, hooks. Append mode (doesn't replace). Apply button extracts structured data into post fields.
+- **Calendar Pane** — Month grid with colored status dots, JST/EST/PST clock, day click filters timeline
+- **Release Chains** — Staggered cross-platform posting (e.g., Twitter first, Patreon 48h later). Release step editor in composer with template loading.
+- **Multi-Identity** — Multiple brand identities per project with voice, hashtags, Patreon schedules. Identity selector in composer.
+- **Reminder Engine** — Scans release chains + Patreon cadence for due actions. QTimer checks every 5 minutes, status bar alerts.
+- **Patreon Quick-Post** — Copies caption, exports image with overlays/censors, opens Patreon post URL in browser.
+
+### Subscription Platform Automation
+- **6 platforms**: Patreon, Pixiv Fanbox, Fantia, Ci-en, Gumroad, Ko-fi
+- **Quick-post module** — Generalized clipboard + export + browser launch for all platforms
+- **Tier-based content** — Free preview vs paid full version per platform
+- **Dual-language** — Japanese + English captions for Fanbox/Fantia/Ci-en
+- **SubPlatform registry** with locale, censor flags, URL templates
+
+### Cross-Project Awareness
+- **Project registry** at ~/.doxyedit/project_registry.json
+- **Lightweight JSON peek** — Reads only posts from other projects (skips assets)
+- **Conflict detection** — Same day, same platform, blackout periods, saturation warnings
+- **Blackout periods** — Campaign exclusivity windows
+
+### Campaign System
+- **Campaign + CampaignMilestone** data models for Kickstarter, Steam, merch launches
+- **campaign_id** on PlatformAssignment and SocialPost for linking
+- Launch dates, end dates, status tracking (planning/preparing/live/completed)
+
+### Composer Redesign
+- **Two-column layout** — Left: image preview + SFW/NSFW toggle + crop status. Right: strategy + captions + schedule.
+- **Dockable composer** — Float as dialog or dock into Social tab with compact mode. Toggle button persists preference.
+- **Connected platforms** — Shows actual OneUp accounts (8 Twitter/X + Reddit), greyed-out unconnected platforms
+- **Image preview** — Large preview fills available space, rescales on resize, censored toggle
+- **Platform flow layout** — Checkboxes wrap when window narrows
+- **Markdown strategy notes** — Rendered HTML with Edit/Preview toggle, theme-aware CSS
+
+### Canvas Overlays
+- **CanvasOverlay data model** — Watermark, text, logo overlays per asset
+- **Export pipeline** — apply_overlays() composites during export (not on source)
+- **Shared compositing** — CLI watermark command and GUI export use same pipeline
+
+### OneUp Integration Fixes
+- **Category ID fix** — Was using wrong ID (49839), now uses correct (86698=Doxy, 176197=Onta, etc.)
+- **Account sync from MCP** — Fetches connected accounts directly from OneUp MCP server
+- **Category-based accounts** — Config supports categories with per-category account lists
+
+### UI & Theming
+- **Tokenized scrollbars** — Single global rule with track/handle/hover tokens
+- **Social post badges** — D/Q/P/! badges on thumbnails for draft/queued/posted/failed
+- **Themed context menus** — Right-click menus match theme on Windows
+- **Themed progress dialogs** — Claude progress spinner uses theme colors + DWM title bar
+- **JST clock** — Calendar pane + schedule picker show JST alongside EST/PST
+- **Centered notes editor** — 1200px content column with scrollbar at window edge
+- **Styled horizontal rules** — Accent-colored 2px rules in markdown
+- **Full QColor tokenization** — 12 hardcoded color violations fixed across codebase
+
+### Data Model Additions
+- `CanvasOverlay` — type, image_path, text, font, color, opacity, position, scale
+- `ReleaseStep` — platform, delay_hours, account_id, status, tier_level, locale
+- `SubPlatform` — id, name, locale, post_url_template, needs_censor, monetization_type
+- `Campaign` + `CampaignMilestone` — launch planning with milestones
+- `SocialPost` gains: release_chain, nsfw_platforms, sfw_asset_ids, tier_assets, sub_platform_status, campaign_id
+- `CollectionIdentity` gains: fanbox_url, fantia_url, cien_url, kofi_url, voice_ja, hashtags_ja
+- `Project` gains: sub_notes, default_overlays, release_templates, identities, blackout_periods, campaigns
+
+### New Files
+- `doxyedit/strategy.py` — Strategy briefing generator (local + AI)
+- `doxyedit/calendar_pane.py` — Month calendar widget
+- `doxyedit/gantt.py` — Gantt chart with QGraphicsScene
+- `doxyedit/composer_left.py` — Image preview panel
+- `doxyedit/composer_right.py` — Content panel (strategy, captions, schedule)
+- `doxyedit/reminders.py` — Release chain + Patreon cadence reminders
+- `doxyedit/quickpost.py` — Generalized quick-post for subscription platforms
+- `doxyedit/crossproject.py` — Cross-project registry + conflict detection
+- `doxyedit/overlay_editor.py` — Asset-bound overlay placement editor
+
 ## v2.2.0 — 2026-04-09
 
 ### New Panels

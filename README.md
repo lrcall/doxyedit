@@ -6,6 +6,7 @@ Art asset manager for artists and creators. Browse, tag, organize, and export ar
 
 ## Features
 
+### Asset Management
 - **Thumbnail Browser** — QListView with smooth virtual scrolling, Ctrl+scroll zoom, hover/middle-click preview
 - **File Browser** — folder tree with asset counts, search, pinned folders, drag-to-import (Ctrl+B)
 - **Info Panel** — asset metadata with editable tag pills, inline notes, color palette swatches (Ctrl+I)
@@ -17,14 +18,39 @@ Art asset manager for artists and creators. Browse, tag, organize, and export ar
 - **Canvas Annotation** — free-form text, lines, boxes, markers
 - **Preview Annotations** — draw note boxes on images, persist with project
 - **Work Tray** — collapsible quickslot panel, persists across all tabs
+- **Crop Handles** — 8 drag handles on crop regions with persistent overlays
+- **Overlay Editor** — asset-bound watermark, text, and logo placement with drag positioning, opacity/scale sliders
+
+### Social Media Pipeline
+- **Post Composer** — two-column layout with image preview, SFW/NSFW toggle, strategy notes, captions, scheduling
+- **Calendar Pane** — month grid with colored status dots, JST/EST/PST world clock
+- **Gantt Chart** — visual timeline with colored bars, stagger lines, gap detection, zoom slider
+- **Release Chains** — staggered cross-platform posting (e.g., Twitter first, Patreon 48h later)
+- **AI Strategy** — Claude CLI analyzes posting context, returns captions, timing, platform play, hooks
+- **Multi-Identity** — multiple brand identities per project with voice, hashtags, locale settings
+- **Reminder Engine** — scans release chains + Patreon cadence for due actions, status bar alerts
+
+### Subscription Platform Automation
+- **6 platforms** — Patreon, Pixiv Fanbox, Fantia, Ci-en, Gumroad, Ko-fi
+- **Quick-Post** — clipboard + export + browser launch workflow for all platforms
+- **Tier-based content** — free preview vs paid full version per platform
+- **Dual-language** — Japanese + English captions for Fanbox/Fantia/Ci-en
+
+### Cross-Project & Campaigns
+- **Campaign System** — Kickstarter, Steam, merch launch tracking with milestones and blackout periods
+- **Cross-Project Awareness** — conflict detection across projects (same day, same platform, saturation warnings)
+- **Project Registry** — global registry at ~/.doxyedit/project_registry.json
+
+### Platform & Infrastructure
 - **Kanban Board** — 4 status columns (Pending/Ready/Posted/Skip) embedded in Platforms tab
 - **7 Themes** — Vinik 24, Warm Charcoal, Soot, Bone, Milk Glass, Forest, Grey
 - **Platform Export** — Kickstarter, Steam, Patreon, Twitter, Reddit, Instagram with auto-resize
+- **OneUp Integration** — connected accounts for Twitter/X and Reddit via OneUp MCP server
 - **YAML Config** — custom platform definitions via config.yaml (Tools > Edit Project Config)
 - **Perceptual Hash** — Find Similar Images grouping via Tools menu
 - **Disk Cache** — persistent thumbnail cache with color palette extraction
-- **CLI Pipeline** — `python -m doxyedit summary/tags/untagged/status project.json`
-- **Crop Handles** — 8 drag handles on crop regions with persistent overlays
+- **CLI Pipeline** — `python -m doxyedit summary/tags/untagged/status/reminders/plan-posts project.json`
+- **Tabbed Notes** — General + Agent Primer + custom tabs with markdown preview and Claude actions
 
 ## Install
 
