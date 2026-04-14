@@ -1536,6 +1536,55 @@ def generate_stylesheet(theme: Theme) -> str:
             font-weight: bold;
         }}
 
+        /* ── Composer left panel ─────────────────────────────────────── */
+        QWidget#composer_preview_panel {{
+            background: {theme.bg_main};
+        }}
+        QLabel#composer_main_preview {{
+            background: {theme.bg_deep};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+        }}
+        QLabel#composer_section_header {{
+            color: {theme.text_primary};
+            font-weight: bold;
+            font-size: {fs}px;
+        }}
+        QFrame#composer_nsfw_frame,
+        QFrame#composer_crop_frame {{
+            background: {theme.bg_raised};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+        }}
+        QPushButton#composer_nsfw_toggle {{
+            background: {theme.bg_input};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            padding: {pad}px {pad_lg}px;
+        }}
+        QPushButton#composer_nsfw_toggle:checked {{
+            background: {theme.warning};
+            color: {theme.text_on_accent};
+            border-color: {theme.warning};
+        }}
+        QLabel#composer_censor_info {{
+            color: {theme.text_secondary};
+            font-size: {fs}px;
+        }}
+        QLabel#composer_crop_icon {{
+            font-size: {fl}px;
+        }}
+        QLabel#composer_crop_label {{
+            color: {theme.text_secondary};
+            font-size: {fs}px;
+        }}
+        QLabel#composer_order_thumb {{
+            background: {theme.bg_input};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+        }}
+
         /* ── Composer thumb cells ────────────────────────────────────── */
         QFrame#composer_thumb_cell {{
             background: transparent;
