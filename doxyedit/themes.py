@@ -58,6 +58,10 @@ class Theme:
     post_posted: str = "#6eaa78"
     post_failed: str = "#cc4444"
     post_partial: str = "#ccaa55"
+    # Scrollbar
+    scrollbar_track: str = ""      # defaults to border + 20% alpha
+    scrollbar_handle: str = ""     # defaults to accent_dim
+    scrollbar_handle_hover: str = ""  # defaults to accent
     # Timeline
     timeline_gap: str = "#664444"
     timeline_day_header: str = ""  # defaults to text_secondary
@@ -481,6 +485,10 @@ def generate_stylesheet(theme: Theme) -> str:
     pad = max(4, f // 3)         # standard padding
     pad_lg = max(6, f // 2)      # large padding
     rad = max(3, f // 4)         # border radius
+    # Scrollbar tokens — single source of truth
+    _sb_track = theme.scrollbar_track or f"{theme.border}15"
+    _sb_handle = theme.scrollbar_handle or theme.accent_dim
+    _sb_hover = theme.scrollbar_handle_hover or theme.accent
 
     return f"""
         * {{ font-family: "{ff}"; font-size: {f}px; }}
@@ -560,41 +568,20 @@ def generate_stylesheet(theme: Theme) -> str:
 
         QScrollArea {{ border: none; background: {theme.bg_deep}; }}
         QScrollBar:vertical {{
-            background: {theme.border}20; width: 8px; border: none;
+            background: {_sb_track}; width: 8px; border: none;
         }}
         QScrollBar::handle:vertical {{
-            background: {theme.accent_dim}; border-radius: 3px; min-height: 30px; margin: 1px;
+            background: {_sb_handle}; border-radius: 3px; min-height: 30px; margin: 1px;
         }}
-        QScrollBar::handle:vertical:hover {{ background: {theme.accent}; }}
+        QScrollBar::handle:vertical:hover {{ background: {_sb_hover}; }}
         QScrollBar:horizontal {{
-            background: {theme.border}20; height: 8px; border: none;
+            background: {_sb_track}; height: 8px; border: none;
         }}
         QScrollBar::handle:horizontal {{
-            background: {theme.accent_dim}; border-radius: 3px; min-width: 30px; margin: 1px;
+            background: {_sb_handle}; border-radius: 3px; min-width: 30px; margin: 1px;
         }}
-        QScrollBar::handle:horizontal:hover {{ background: {theme.accent}; }}
+        QScrollBar::handle:horizontal:hover {{ background: {_sb_hover}; }}
         QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
-
-        QListView#doxyedit_grid QScrollBar:vertical {{
-            background: {theme.border}20; width: 8px; border: none;
-        }}
-        QListView#doxyedit_grid QScrollBar::handle:vertical {{
-            background: {theme.accent_dim}; border-radius: 3px;
-            min-height: 40px; margin: 1px;
-        }}
-        QListView#doxyedit_grid QScrollBar::handle:vertical:hover {{
-            background: {theme.accent};
-        }}
-        QListView#doxyedit_grid QScrollBar:horizontal {{
-            background: {theme.border}20; height: 8px; border: none;
-        }}
-        QListView#doxyedit_grid QScrollBar::handle:horizontal {{
-            background: {theme.accent_dim}; border-radius: 3px;
-            min-width: 40px; margin: 1px;
-        }}
-        QListView#doxyedit_grid QScrollBar::handle:horizontal:hover {{
-            background: {theme.accent};
-        }}
 
         QLineEdit {{
             background: {theme.bg_input}; color: {theme.text_primary};
@@ -758,21 +745,7 @@ def generate_stylesheet(theme: Theme) -> str:
             color: {theme.text_primary};
         }}
 
-        /* Thin scrollbars inside folder sections */
-        QWidget#folder_section QScrollBar:vertical {{
-            background: {theme.border}20; width: 8px; border: none;
-        }}
-        QWidget#folder_section QScrollBar::handle:vertical {{
-            background: {theme.accent_dim}; border-radius: 3px;
-            min-height: 40px; margin: 1px;
-        }}
-        QWidget#folder_section QScrollBar::handle:vertical:hover {{
-            background: {theme.accent};
-        }}
-        QWidget#folder_section QScrollBar::add-line,
-        QWidget#folder_section QScrollBar::sub-line {{
-            height: 0; width: 0;
-        }}
+
 
         /* Scroll area viewports inside new panels inherit bg_deep */
         QWidget#platform_panel QScrollArea,
