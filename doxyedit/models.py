@@ -215,6 +215,8 @@ class SocialPost:
     notes: str = ""
     collection: str = ""
     strategy_notes: str = ""  # AI-generated posting strategy, advice, long-term vision
+    nsfw_platforms: list[str] = field(default_factory=list)  # platforms that get NSFW/uncensored version
+    sfw_asset_ids: list[str] = field(default_factory=list)   # alternate censored asset IDs (empty = auto-censor)
 
     def to_dict(self) -> dict:
         return {
@@ -226,6 +228,8 @@ class SocialPost:
             "created_at": self.created_at, "updated_at": self.updated_at,
             "notes": self.notes, "collection": self.collection,
             "strategy_notes": self.strategy_notes,
+            "nsfw_platforms": self.nsfw_platforms,
+            "sfw_asset_ids": self.sfw_asset_ids,
         }
 
     @classmethod
@@ -242,6 +246,8 @@ class SocialPost:
             created_at=d.get("created_at", ""), updated_at=d.get("updated_at", ""),
             notes=d.get("notes", ""), collection=d.get("collection", ""),
             strategy_notes=d.get("strategy_notes", ""),
+            nsfw_platforms=d.get("nsfw_platforms", []),
+            sfw_asset_ids=d.get("sfw_asset_ids", []),
         )
 
 
