@@ -308,6 +308,7 @@ class CollectionIdentity:
     fantia_url: str = ""        # Fantia creator page
     cien_url: str = ""          # Ci-en/DLsite creator page
     kofi_url: str = ""          # Ko-fi page
+    subscribestar_url: str = "" # SubscribeStar page
     voice_ja: str = ""          # Japanese brand voice
     hashtags_ja: list[str] = field(default_factory=list)  # Japanese hashtags
     bio_blurb: str = ""
@@ -327,6 +328,51 @@ class SubPlatform:
     url_field: str = ""          # which CollectionIdentity field holds the URL
 
 
+# Platforms with direct API posting (not via OneUp, not semi-auto browser)
+DIRECT_POST_PLATFORMS: dict[str, str] = {
+    "discord_webhook": "Discord (Webhook)",
+    "telegram": "Telegram",
+    "bluesky": "Bluesky",
+}
+
+
+@dataclass
+class SubredditConfig:
+    """A subreddit with its posting rules and metadata."""
+    name: str = ""              # e.g. "hentai", "rule34"
+    flair_id: str = ""          # Reddit flair ID
+    flair_text: str = ""        # Display text for flair
+    nsfw: bool = True
+    title_template: str = ""    # e.g. "{character} [OC]"
+    rules_notes: str = ""       # Free-text posting rules
+    min_interval_days: int = 0  # Cooldown between posts
+    last_posted: str = ""       # ISO date
+    tags_required: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name, "flair_id": self.flair_id,
+            "flair_text": self.flair_text, "nsfw": self.nsfw,
+            "title_template": self.title_template,
+            "rules_notes": self.rules_notes,
+            "min_interval_days": self.min_interval_days,
+            "last_posted": self.last_posted,
+            "tags_required": self.tags_required,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "SubredditConfig":
+        return cls(
+            name=d.get("name", ""), flair_id=d.get("flair_id", ""),
+            flair_text=d.get("flair_text", ""), nsfw=d.get("nsfw", True),
+            title_template=d.get("title_template", ""),
+            rules_notes=d.get("rules_notes", ""),
+            min_interval_days=d.get("min_interval_days", 0),
+            last_posted=d.get("last_posted", ""),
+            tags_required=d.get("tags_required", []),
+        )
+
+
 SUB_PLATFORMS: dict[str, SubPlatform] = {
     "patreon": SubPlatform("patreon", "Patreon", "en", "{base_url}/posts/new", False, "subscription", True, "patreon_url"),
     "fanbox": SubPlatform("fanbox", "Pixiv Fanbox", "ja", "{base_url}/manage/posts/new", True, "subscription", True, "fanbox_url"),
@@ -334,6 +380,7 @@ SUB_PLATFORMS: dict[str, SubPlatform] = {
     "cien": SubPlatform("cien", "Ci-en", "ja", "{base_url}/creator/posting", True, "subscription", True, "cien_url"),
     "gumroad": SubPlatform("gumroad", "Gumroad", "en", "https://gumroad.com/products/new", False, "product", False, "gumroad_url"),
     "kofi": SubPlatform("kofi", "Ko-fi", "en", "https://ko-fi.com/post/create", False, "tips", True, "kofi_url"),
+    "subscribestar": SubPlatform("subscribestar", "SubscribeStar", "en", "{base_url}/posts/new", False, "subscription", True, "subscribestar_url"),
 }
 
 
@@ -663,6 +710,7 @@ class Project:
     blackout_periods: list[dict] = field(default_factory=list)
     # Each: {"start": "2026-05-01", "end": "2026-05-07", "label": "KS launch", "scope": "all"}
     campaigns: list[Campaign] = field(default_factory=list)
+    subreddits: list[SubredditConfig] = field(default_factory=list)
 
     def get_tags(self) -> dict[str, TagPreset]:
         """Get merged tag presets — defaults + tag_definitions + legacy custom_tags."""
@@ -754,6 +802,7 @@ class Project:
             "identities": self.identities,
             "blackout_periods": self.blackout_periods,
             "campaigns": [c.to_dict() for c in self.campaigns],
+            "subreddits": [s.to_dict() for s in self.subreddits],
             "assets": [_asset_dict(a) for a in self.assets],
         }
         Path(path).write_text(json.dumps(data, indent=2, default=str, ensure_ascii=False), encoding="utf-8")
@@ -797,6 +846,8 @@ class Project:
         proj.blackout_periods = raw.get("blackout_periods", [])
         for c in raw.get("campaigns", []):
             proj.campaigns.append(Campaign.from_dict(c))
+        for s in raw.get("subreddits", []):
+            proj.subreddits.append(SubredditConfig.from_dict(s))
         for p in raw.get("posts", []):
             proj.posts.append(SocialPost.from_dict(p))
 
