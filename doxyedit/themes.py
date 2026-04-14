@@ -689,6 +689,8 @@ def generate_stylesheet(theme: Theme) -> str:
         QPlainTextEdit#project_notes_tab {{
             background: {theme.bg_deep};
             color: {theme.text_primary};
+            selection-background-color: {theme.selection_bg};
+            selection-color: {theme.text_primary};
             border: none;
             font-family: Consolas, monospace;
             font-size: {f}px;
