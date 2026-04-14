@@ -527,14 +527,22 @@ def generate_stylesheet(theme: Theme) -> str:
         QMenuBar::item:selected {{ background: {theme.accent_dim}; font-size: {f}px; }}
         QMenu {{
             background: {theme.bg_raised}; color: {theme.text_primary};
-            border: 1px solid {theme.border}; font-size: {f}px;
+            border: 1px solid {theme.border}; border-radius: {rad}px;
+            padding: {pad}px 0; font-size: {f}px;
         }}
-        QMenu::item {{ padding: {pad_lg}px {pad_lg * 3}px; font-size: {f}px; }}
+        QMenu::item {{
+            padding: {pad}px {pad_lg * 3}px; font-size: {f}px;
+        }}
         QMenu::item:selected, QMenu::item:hover {{
             background: {theme.accent_dim}; color: {theme.text_on_accent};
-            font-size: {f}px;
         }}
-        QMenu::separator {{ background: {theme.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
+        QMenu::item:disabled {{
+            color: {theme.text_muted};
+        }}
+        QMenu::separator {{
+            background: {theme.border}; height: 1px;
+            margin: {pad}px {pad_lg}px;
+        }}
 
 
         QTabWidget {{ background: {theme.bg_raised}; }}

@@ -359,13 +359,27 @@ class MainWindow(QMainWindow):
         self._notes_tabs.tabCloseRequested.connect(self._on_notes_tab_close)
         self._notes_tabs.currentChanged.connect(self._on_notes_tab_switched)
 
-        # Add tab button
+        # Corner buttons: Preview/Edit toggle + Add tab
+        _corner = QWidget()
+        _corner_layout = QHBoxLayout(_corner)
+        _corner_layout.setContentsMargins(0, 0, 4, 0)
+        _corner_layout.setSpacing(4)
+
+        self._notes_preview_btn = QPushButton("Preview")
+        self._notes_preview_btn.setObjectName("notes_toggle_btn")
+        self._notes_preview_btn.setCheckable(True)
+        self._notes_preview_btn.setToolTip("Toggle between editor and rendered preview")
+        self._notes_preview_btn.clicked.connect(self._toggle_notes_preview)
+        _corner_layout.addWidget(self._notes_preview_btn)
+
         _add_tab_btn = QPushButton("+")
         _add_tab_btn.setObjectName("notes_add_tab_btn")
         _add_tab_btn.setFixedSize(24, 24)
         _add_tab_btn.setToolTip("Add new notes tab")
         _add_tab_btn.clicked.connect(self._on_add_notes_tab)
-        self._notes_tabs.setCornerWidget(_add_tab_btn)
+        _corner_layout.addWidget(_add_tab_btn)
+
+        self._notes_tabs.setCornerWidget(_corner)
 
         # Storage for tab editors: tab_name → (preview, editor, splitter)
         self._notes_tab_widgets: dict[str, tuple] = {}
@@ -947,21 +961,11 @@ class MainWindow(QMainWindow):
         """Create a notes sub-tab with preview + editor splitter."""
         from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser, QStackedWidget
 
-        # Container with toggle button + stacked editor/preview
+        # Container with stacked editor/preview (toggle is in corner widget)
         container = QWidget()
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.setSpacing(4)
-
-        # Toggle button row
-        btn_row = QHBoxLayout()
-        btn_row.addStretch()
-        toggle_btn = QPushButton("Preview")
-        toggle_btn.setObjectName("notes_toggle_btn")
-        toggle_btn.setCheckable(True)
-        btn_row.addWidget(toggle_btn)
-        btn_row.addStretch()
-        container_layout.addLayout(btn_row)
+        container_layout.setSpacing(0)
 
         # Stacked: editor (default, index 0) / preview (index 1)
         stack = QStackedWidget()
@@ -994,21 +998,8 @@ class MainWindow(QMainWindow):
 
         container_layout.addWidget(stack, 1)
 
-        # Toggle logic
-        def _toggle(checked):
-            if checked:
-                # Show preview
-                text = editor.toPlainText()
-                self._render_notes_preview_to(preview, text)
-                stack.setCurrentIndex(1)
-                toggle_btn.setText("Edit")
-            else:
-                stack.setCurrentIndex(0)
-                toggle_btn.setText("Preview")
-        toggle_btn.clicked.connect(_toggle)
-
         idx = self._notes_tabs.addTab(container, name)
-        self._notes_tab_widgets[name] = (preview, editor, container)
+        self._notes_tab_widgets[name] = (preview, editor, stack)
 
         # Make permanent tabs non-closable
         if not closable:
@@ -1082,9 +1073,32 @@ class MainWindow(QMainWindow):
         # Switch to new tab
         self._notes_tabs.setCurrentIndex(self._notes_tabs.count() - 1)
 
+    def _toggle_notes_preview(self, checked: bool):
+        """Toggle current notes tab between editor and preview."""
+        tab_name = self._notes_tabs.tabText(self._notes_tabs.currentIndex())
+        widgets = self._notes_tab_widgets.get(tab_name)
+        if not widgets:
+            return
+        preview, editor, stack = widgets
+        if checked:
+            text = editor.toPlainText()
+            self._render_notes_preview_to(preview, text)
+            stack.setCurrentIndex(1)
+            self._notes_preview_btn.setText("Edit")
+        else:
+            stack.setCurrentIndex(0)
+            self._notes_preview_btn.setText("Preview")
+
     def _on_notes_tab_switched(self, index: int):
-        """Handle tab switch — no-op for now, future: lazy render."""
-        pass
+        """Reset preview/edit state when switching tabs."""
+        self._notes_preview_btn.setChecked(False)
+        self._notes_preview_btn.setText("Preview")
+        # Make sure the new tab shows the editor
+        tab_name = self._notes_tabs.tabText(index)
+        widgets = self._notes_tab_widgets.get(tab_name)
+        if widgets:
+            _, _, stack = widgets
+            stack.setCurrentIndex(0)
 
     def _show_notes_context_menu(self, pos, editor, tab_name: str):
         """Show right-click menu with Claude actions for notes editors."""
@@ -1093,6 +1107,17 @@ class MainWindow(QMainWindow):
 
         if selected.strip():
             menu.addSeparator()
+
+            # Check if selection contains [bracketed instructions]
+            import re
+            bracket_match = re.search(r'\[(.+?)\]', selected)
+            if bracket_match:
+                instruction = bracket_match.group(1)
+                instruct_action = menu.addAction(f"Claude: {instruction[:40]}")
+                instruct_action.triggered.connect(
+                    lambda: self._refine_with_claude(editor, tab_name, selected, "instruct"))
+                menu.addSeparator()
+
             refine_action = menu.addAction("Refine with Claude")
             refine_action.triggered.connect(
                 lambda: self._refine_with_claude(editor, tab_name, selected, "refine"))
@@ -1111,15 +1136,22 @@ class MainWindow(QMainWindow):
 
         full_text = editor.toPlainText()
 
-        mode_instructions = {
-            "refine": "Improve this text. Fix any issues, clarify wording, make it more actionable. Keep the same length and format.",
-            "expand": "Expand this into more detail. Add examples, edge cases, or specifics. Keep the same style.",
-            "simplify": "Make this shorter and more direct. Remove fluff. Keep only what matters.",
-        }
+        # For "instruct" mode, extract the [bracketed instruction] from the selection
+        import re
+        if mode == "instruct":
+            bracket_match = re.search(r'\[(.+?)\]', selected)
+            instruction = bracket_match.group(1) if bracket_match else selected
+            mode_desc = f"Follow this instruction: {instruction}"
+        else:
+            mode_desc = {
+                "refine": "Improve this text. Fix any issues, clarify wording, make it more actionable. Keep the same length and format.",
+                "expand": "Expand this into more detail. Add examples, edge cases, or specifics. Keep the same style.",
+                "simplify": "Make this shorter and more direct. Remove fluff. Keep only what matters.",
+            }[mode]
 
-        prompt = f"""You are editing an Agent Primer document that guides AI strategy generation for a social media art posting pipeline.
+        prompt = f"""You are editing a document for a social media art posting pipeline.
 
-The user selected this text and asked you to {mode} it:
+The user selected this text and wants you to act on it:
 
 SELECTED TEXT:
 {selected}
@@ -1127,13 +1159,21 @@ SELECTED TEXT:
 FULL DOCUMENT CONTEXT (for reference, don't rewrite the whole thing):
 {full_text[:2000]}
 
-INSTRUCTION: {mode_instructions[mode]}
+INSTRUCTION: {mode_desc}
 
 Return ONLY the replacement text. No explanation, no markdown fences, no preamble. Just the improved text that will replace the selection."""
 
-        self.status.showMessage(f"Claude is {mode}ing selected text...", 10000)
-
+        # Modal progress dialog
+        from PySide6.QtWidgets import QProgressDialog
         from PySide6.QtCore import QThread, Signal as _Signal
+
+        self._refine_progress = QProgressDialog(
+            f"Claude is working on: {mode}...", None, 0, 0, self)
+        self._refine_progress.setWindowTitle("Claude")
+        self._refine_progress.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self._refine_progress.setCancelButton(None)  # no cancel — let it finish
+        self._refine_progress.setMinimumDuration(0)
+        self._refine_progress.show()
 
         class _Worker(QThread):
             finished = _Signal(str)
@@ -1159,13 +1199,16 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _on_refine_done(self, editor, tab_name: str, original: str, replacement: str):
         """Replace selected text with Claude's refinement."""
+        # Close progress dialog
+        if hasattr(self, '_refine_progress'):
+            self._refine_progress.close()
+
         if not replacement:
             self.status.showMessage("Claude returned empty response", 3000)
             return
 
         # Replace the selected text in the editor
         current = editor.toPlainText()
-        # Use paragraph separator that Qt uses for selected multi-line text
         original_normalized = original.replace("\u2029", "\n")
         if original_normalized in current:
             new_text = current.replace(original_normalized, replacement, 1)
