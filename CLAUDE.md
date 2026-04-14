@@ -117,6 +117,13 @@ An asset at `Furry\Marty\file.psd` receives tags: `["furry", "marty"]`
 - The global stylesheet cascades to all children automatically — no per-widget overrides needed
 - Use `setProperty()` + property selectors for dynamic state (status colors, etc.)
 - Exception: overlays (crop handles, censor rects, note annotations) may use fixed high-contrast colors
+- QGraphicsScene items (QPen, QBrush, QColor) can't use QSS — read from Theme object directly via `set_theme(theme)` method
+- NEVER use hardcoded QColor values — even fallbacks must reference theme tokens (e.g., `QColor(self._theme.text_muted)`)
+- Scrollbar styling: one global rule using `scrollbar_track`, `scrollbar_handle`, `scrollbar_handle_hover` tokens — no duplicate rules per widget
+- For centered text editors with scrollbar at window edge: use `setViewportMargins()` in `resizeEvent()` only — NOT in showEvent (segfaults), NOT document margins (applies to all sides), NOT QSS padding (moves scrollbar inward)
+- Qt property selectors (`[prop="val"]`) are unreliable on dynamic properties — use distinct objectNames instead (e.g., `calendar_day_today` not `calendar_day_cell[day_type="today"]`)
+- Top-level popup menus (context menus from `createStandardContextMenu()`) don't inherit app QSS on Windows — force inline stylesheet
+- Windows title bar color: use `DwmSetWindowAttribute` with `DWMWA_CAPTION_COLOR=35` on dialog `.show()`, not in constructor
 - Full spec: `docs/ressources/uidocs/DOXYEDIT_UI_SPEC.md`
 - Reference design philosophy: `docs/ressources/uidocs/SHADER_LAB_UI_GUIDE.md`
 
@@ -137,3 +144,27 @@ When writing to claudelog via `/focus claudenote` or `/focus update claudelog`:
 - Never sort or reorder assets — order is meaningful (affects display)
 - `id` field format is `"{base_filename}_{index}"` — don't change existing IDs
 - Re-running `tag-by-folder.py` is idempotent — it checks before adding
+
+## Architecture
+- New panels: QWidget subclass with `set_project()`, `refresh()`, `setObjectName()` — wired in `_rebind_project()` in window.py
+- Serialization: all new dataclasses get `to_dict()`/`from_dict()` with backward-compat defaults via `.get()`
+- Composer save: when adding fields to SocialPost, ALSO update `PostComposerWidget._save()` in composer.py — it manually copies each field
+- Subprocess on Windows: always add `creationflags=0x08000000` (CREATE_NO_WINDOW) + `encoding="utf-8", errors="replace"`
+- OneUp API: requires both `category_id` AND `scheduled_date_time` — posts silently fail without them. Categories: 86698=Doxy, 176197=Onta, 176198=L3rk, 176199=0rng
+- config.yaml is gitignored (contains API keys) — code changes to config structure need manual user update
+- Tab indices: never hardcode tab numbers beyond 0 (Assets) — use widget identity checks instead
+- HTML in QTextBrowser: Qt doesn't support CSS `linear-gradient` or `%` padding. `max-width` with `margin:auto` works for centering.
+
+## Project File Structure (v2.3 additions)
+```
+doxyart.doxyproj.json
+  .posts             — array of SocialPost objects (social media schedule)
+  .identity          — CollectionIdentity dict (brand voice, URLs)
+  .identities        — dict of named identities (multi-brand)
+  .sub_notes         — dict of tab_name → markdown (tabbed notes)
+  .campaigns         — array of Campaign objects (Kickstarter, Steam, merch)
+  .release_templates — array of reusable release chain presets
+  .default_overlays  — array of CanvasOverlay presets (logo templates)
+  .blackout_periods  — array of {start, end, label, scope} (cross-project)
+  .oneup_config      — OneUp API config
+```

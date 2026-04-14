@@ -37,16 +37,20 @@ from PySide6.QtWidgets import QPlainTextEdit as _BasePlainTextEdit
 
 class _CenteredEditor(_BasePlainTextEdit):
     """QPlainTextEdit with centered content column. Scrollbar stays at widget edge."""
-    _MAX_WIDTH = 1200
+    _MAX_CONTENT = 800  # max text column width in pixels
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        cr = self.contentsRect()
-        if cr.width() > self._MAX_WIDTH:
-            m = (cr.width() - self._MAX_WIDTH) // 2
+        w = self.contentsRect().width()
+        if w > self._MAX_CONTENT + 40:
+            m = (w - self._MAX_CONTENT) // 2
+            self.setViewportMargins(m, 0, m, 0)
+        elif w > 400:
+            # Proportional margins for medium widths
+            m = max(20, w // 8)
             self.setViewportMargins(m, 0, m, 0)
         else:
-            self.setViewportMargins(0, 0, 0, 0)
+            self.setViewportMargins(8, 0, 8, 0)
 from doxyedit.infopanel import InfoPanel
 from doxyedit.tray import WorkTray
 from doxyedit.project import save_project, load_project
@@ -309,22 +313,9 @@ class MainWindow(QMainWindow):
         self._social_left_split.addWidget(self.checklist_panel)
         self._social_left_split.setSizes([350, 200])
         self._social_left_split.setStretchFactor(0, 1)
-        self._social_left_split.setStretchFactor(1, 1)
+        self._social_left_split.setStretchFactor(1, 0)
 
-        # Right side: timeline + gantt stacked vertically
-        self._social_right_split = QSplitter(Qt.Orientation.Vertical)
-        self._social_right_split.addWidget(self._timeline)
-
-        self._gantt_panel = GanttPanel()
-        self._gantt_panel.set_project(self.project)
-        self._gantt_panel.set_theme(self._theme)
-        self._gantt_panel.post_selected.connect(self._on_post_selected)
-        self._social_right_split.addWidget(self._gantt_panel)
-        self._social_right_split.setSizes([400, 250])
-        self._social_right_split.setStretchFactor(0, 3)
-        self._social_right_split.setStretchFactor(1, 1)
-
-        # Dock container for composer (initially hidden)
+        # Dock container for composer (initially hidden, docks beside timeline)
         self._composer_dock = QWidget()
         self._composer_dock.setObjectName("composer_dock")
         self._composer_dock.setVisible(False)
@@ -333,30 +324,43 @@ class MainWindow(QMainWindow):
         self._docked_composer = None
         self._docked_is_new = False
 
-        # Horizontal: calendar+checklist left, timeline+gantt right, composer dock
-        self._social_split = QSplitter(Qt.Orientation.Horizontal)
-        self._social_split.addWidget(self._social_left_split)
-        self._social_split.addWidget(self._social_right_split)
-        self._social_split.addWidget(self._composer_dock)
-        self._social_split.setSizes([250, 600, 0])
-        self._social_split.setStretchFactor(0, 0)
-        self._social_split.setStretchFactor(1, 1)
-        self._social_split.setStretchFactor(2, 1)
+        # Top row: calendar+checklist | timeline | composer dock
+        self._social_top_split = QSplitter(Qt.Orientation.Horizontal)
+        self._social_top_split.addWidget(self._social_left_split)
+        self._social_top_split.addWidget(self._timeline)
+        self._social_top_split.addWidget(self._composer_dock)
+        self._social_top_split.setSizes([250, 600, 0])
+        self._social_top_split.setStretchFactor(0, 0)
+        self._social_top_split.setStretchFactor(1, 1)
+        self._social_top_split.setStretchFactor(2, 1)
 
-        # Restore saved social splitter sizes
-        saved_social = self._settings_early.value("social_splitter", None)
+        # Gantt — full width bottom
+        self._gantt_panel = GanttPanel()
+        self._gantt_panel.set_project(self.project)
+        self._gantt_panel.set_theme(self._theme)
+        self._gantt_panel.post_selected.connect(self._on_post_selected)
+
+        # Main vertical split: top row above, gantt below (full width)
+        self._social_split = QSplitter(Qt.Orientation.Vertical)
+        self._social_split.addWidget(self._social_top_split)
+        self._social_split.addWidget(self._gantt_panel)
+        self._social_split.setSizes([450, 250])
+        self._social_split.setStretchFactor(0, 3)
+        self._social_split.setStretchFactor(1, 1)
+
+        # Restore saved splitter sizes
+        saved_social = self._settings_early.value("social_splitter_v", None)
         if saved_social:
-            sizes = [int(s) for s in saved_social]
-            # Pad to 3 elements if saved before dock pane existed
+            self._social_split.setSizes([int(s) for s in saved_social])
+        saved_top = self._settings_early.value("social_top_splitter", None)
+        if saved_top:
+            sizes = [int(s) for s in saved_top]
             while len(sizes) < 3:
                 sizes.append(0)
-            self._social_split.setSizes(sizes)
+            self._social_top_split.setSizes(sizes)
         saved_social_left = self._settings_early.value("social_left_splitter", None)
         if saved_social_left:
             self._social_left_split.setSizes([int(s) for s in saved_social_left])
-        saved_social_right = self._settings_early.value("social_right_splitter", None)
-        if saved_social_right:
-            self._social_right_split.setSizes([int(s) for s in saved_social_right])
 
         self.tabs.addTab(self._social_split, "Social")
 
@@ -1578,6 +1582,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._rebuild_launch_menu()
         importexport_menu.addAction("Mass Tag Editor (AI Training)...", self._mass_tag_editor)
         importexport_menu.addAction("Edit Project Config (YAML)...", self._edit_project_config)
+        importexport_menu.addSeparator()
+        importexport_menu.addAction("Package Project (Transport)...", self._transport_project)
+        importexport_menu.addAction("Unpackage (Restore Paths)...", self._untransport_project)
 
         # — Project Info submenu —
         projinfo_menu = tools_menu.addMenu("Project Info")
@@ -2534,15 +2541,15 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._composer_dock.setVisible(True)
         self._docked_composer = widget
         self._docked_is_new = is_new
-        # Ensure the dock pane has reasonable width in the splitter
-        sizes = self._social_split.sizes()
+        # Ensure the dock pane has reasonable width in the top splitter
+        sizes = self._social_top_split.sizes()
         if len(sizes) >= 3 and sizes[2] < 50:
-            # Give dock pane ~400px from the middle pane
+            # Give dock pane ~400px from the timeline pane
             mid = sizes[1]
             dock_w = min(400, mid // 2) if mid > 100 else 400
             sizes[1] = max(200, mid - dock_w)
             sizes[2] = dock_w
-            self._social_split.setSizes(sizes)
+            self._social_top_split.setSizes(sizes)
         widget.save_requested.connect(lambda p: self._on_docked_save(p))
         widget.cancel_requested.connect(self._undock_composer)
         widget.dock_toggled.connect(lambda checked: self._float_from_dock(post, is_new))
@@ -2591,40 +2598,54 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             pass
 
     def _on_sync_oneup(self):
-        """Sync post statuses from OneUp API."""
-        from doxyedit.oneup import get_client_from_config, OneUpClient
+        """Sync accounts, categories, and post statuses from OneUp."""
+        from doxyedit.oneup import (
+            get_client_from_config, OneUpClient, sync_accounts_from_mcp,
+            get_active_account_label,
+        )
         from doxyedit.models import SocialPostStatus
         project_dir = str(Path(self._project_path).parent) if hasattr(self, '_project_path') else "."
 
+        self.statusBar().showMessage("Syncing OneUp accounts & posts...", 0)
+        QApplication.processEvents()
+
+        # 1. Sync accounts + categories from MCP
+        synced_accounts = sync_accounts_from_mcp(project_dir)
+        acct_msg = f"{len(synced_accounts)} accounts" if synced_accounts else "accounts failed"
+
+        # Update the timeline label
+        label = get_active_account_label(project_dir)
+        self._timeline.set_oneup_label(label)
+
+        # 2. Sync post statuses
         client = get_client_from_config(project_dir)
         if not client:
             key = (self.project.oneup_config or {}).get("api_key", "")
             if key:
                 client = OneUpClient(key)
-        if not client:
-            self.statusBar().showMessage("No OneUp API key configured", 5000)
-            return
 
         updated = 0
-        for post in self.project.posts:
-            if post.status == SocialPostStatus.QUEUED and post.oneup_post_id:
-                result = client.get_post(post.oneup_post_id)
-                if result.success:
-                    rs = result.data.get("status", "")
-                    if rs == "published":
-                        post.status = SocialPostStatus.POSTED
-                        updated += 1
-                    elif rs == "failed":
-                        post.status = SocialPostStatus.FAILED
-                        updated += 1
+        if client:
+            for post in self.project.posts:
+                if post.status == SocialPostStatus.QUEUED and post.oneup_post_id:
+                    result = client.get_post(post.oneup_post_id)
+                    if result.success:
+                        rs = result.data.get("status", "")
+                        if rs == "published":
+                            post.status = SocialPostStatus.POSTED
+                            updated += 1
+                        elif rs == "failed":
+                            post.status = SocialPostStatus.FAILED
+                            updated += 1
 
         if updated:
             self._dirty = True
-            self._timeline.refresh()
-            self._calendar_pane.refresh()
-            if hasattr(self, '_gantt_panel'):
-                self._gantt_panel.refresh()
-        self.statusBar().showMessage(f"Synced: {updated} post(s) updated", 3000)
+        self._timeline.refresh()
+        self._calendar_pane.refresh()
+        if hasattr(self, '_gantt_panel'):
+            self._gantt_panel.refresh()
+        self.statusBar().showMessage(
+            f"Synced: {acct_msg}, {updated} post(s) updated", 5000)
 
     def _on_calendar_day_selected(self, iso_date: str):
         """Filter timeline to show only posts for the selected day."""
@@ -3444,6 +3465,76 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.status.showMessage(
             "Local mode ON — paths saved relative to project file (repo-safe)" if on
             else "Local mode OFF — paths saved as absolute", 4000)
+
+    def _transport_project(self):
+        """Package all project assets into _assets/ next to the project file."""
+        from PySide6.QtWidgets import QMessageBox
+        if not self._project_path:
+            self.status.showMessage("No project file open — save first", 4000)
+            return
+        proj_dir = Path(self._project_path).parent
+        assets_dir = proj_dir / "_assets"
+        # Confirm
+        total = sum(1 for a in self.project.assets if a.source_path)
+        reply = QMessageBox.question(
+            self, "Package Project",
+            f"Copy {total} asset files into:\n{assets_dir}\n\n"
+            "Original paths will be stored in metadata.\n"
+            "This enables local_mode for portability.",
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QMessageBox.StandardButton.Ok:
+            return
+        # Run transport
+        import subprocess
+        result = subprocess.run(
+            ["py", "-m", "doxyedit", "transport", self._project_path],
+            capture_output=True, text=True, cwd=str(proj_dir),
+        )
+        output = (result.stdout + result.stderr).strip()
+        if result.returncode == 0:
+            # Reload project to pick up new paths
+            self.project = type(self.project).load(self._project_path)
+            self._rebind_project(clear_folder_state=True)
+            if hasattr(self, '_local_mode_action'):
+                self._local_mode_action.blockSignals(True)
+                self._local_mode_action.setChecked(True)
+                self._local_mode_action.blockSignals(False)
+            QMessageBox.information(self, "Package Complete", output)
+        else:
+            QMessageBox.warning(self, "Package Failed", output)
+
+    def _untransport_project(self):
+        """Restore original absolute paths from transport metadata."""
+        from PySide6.QtWidgets import QMessageBox
+        if not self._project_path:
+            self.status.showMessage("No project file open", 4000)
+            return
+        reply = QMessageBox.question(
+            self, "Unpackage Project",
+            "Restore all asset paths to their original locations?\n"
+            "The copied files in _assets/ will NOT be deleted.",
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QMessageBox.StandardButton.Ok:
+            return
+        import subprocess
+        proj_dir = Path(self._project_path).parent
+        result = subprocess.run(
+            ["py", "-m", "doxyedit", "untransport", self._project_path],
+            capture_output=True, text=True, cwd=str(proj_dir),
+        )
+        output = (result.stdout + result.stderr).strip()
+        if result.returncode == 0:
+            self.project = type(self.project).load(self._project_path)
+            self._rebind_project(clear_folder_state=True)
+            if hasattr(self, '_local_mode_action'):
+                self._local_mode_action.blockSignals(True)
+                self._local_mode_action.setChecked(False)
+                self._local_mode_action.blockSignals(False)
+            QMessageBox.information(self, "Unpackage Complete", output)
+        else:
+            QMessageBox.warning(self, "Unpackage Failed", output)
 
     def _on_shared_cache_toggled(self, shared: bool):
         self._settings.setValue("shared_cache", "true" if shared else "false")
@@ -4761,10 +4852,9 @@ Ctrl+Click tag — Search by tag
             self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
         # Save splitter and window position/size
         self._settings.setValue("splitter_sizes", self._browse_split.sizes())
-        self._settings.setValue("social_splitter", self._social_split.sizes())
+        self._settings.setValue("social_splitter_v", self._social_split.sizes())
+        self._settings.setValue("social_top_splitter", self._social_top_split.sizes())
         self._settings.setValue("social_left_splitter", self._social_left_split.sizes())
-        if hasattr(self, '_social_right_split'):
-            self._settings.setValue("social_right_splitter", self._social_right_split.sizes())
         self._settings.setValue("plat_top_splitter", self._plat_top.sizes())
         self._settings.setValue("plat_full_splitter", self._plat_full.sizes())
         self._settings.setValue("tag_notes_splitter", self.tag_panel._tag_notes_split.sizes())
