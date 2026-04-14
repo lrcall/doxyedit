@@ -774,32 +774,39 @@ a {{ color: {theme.accent}; }}
             scheduled_time=self.get_post_data()["scheduled_time"],
         )
 
-        existing = self._ai_strategy_cache
-        if existing:
-            self._set_strategy_text(existing + "\n\n---\n\n*Generating follow-up...*")
-        else:
-            self._set_strategy_text("*Analyzing with Claude... 30-60 seconds.*")
         self._ai_strategy_btn.setEnabled(False)
         self._ai_strategy_btn.setText("Generating...")
 
-        class _Worker(QThread):
-            finished = _Signal(str)
+        # Show themed modal
+        from doxyedit.claude_modal import ClaudeWorker
+        from PySide6.QtWidgets import QProgressDialog
+        self._ai_progress = QProgressDialog("Claude: generating strategy...", None, 0, 0, self)
+        self._ai_progress.setObjectName("claude_progress")
+        self._ai_progress.setWindowTitle("Claude")
+        self._ai_progress.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self._ai_progress.setCancelButton(None)
+        self._ai_progress.setMinimumDuration(0)
+        self._ai_progress.setMinimumWidth(320)
+        self._ai_progress.show()
 
+        class _StrategyWorker(QThread):
+            finished = _Signal(str)
             def __init__(self, project, post):
                 super().__init__()
                 self._project = project
                 self._post = post
-
             def run(self):
                 result = generate_ai_strategy(self._project, self._post)
                 self.finished.emit(result)
 
-        self._strategy_worker = _Worker(self._project, temp_post)
+        self._strategy_worker = _StrategyWorker(self._project, temp_post)
         self._strategy_worker.finished.connect(self._on_ai_strategy_done)
         self._strategy_worker.start()
 
     def _on_ai_strategy_done(self, result: str) -> None:
         """Handle completed AI strategy generation."""
+        if hasattr(self, '_ai_progress'):
+            self._ai_progress.close()
         if self._ai_strategy_cache:
             self._ai_strategy_cache += f"\n\n---\n\n**Follow-up:**\n\n{result}"
         else:
@@ -870,28 +877,10 @@ RULES:
         self._apply_strategy_btn.setEnabled(False)
         self._apply_strategy_btn.setText("Applying...")
 
-        class _Worker(QThread):
-            finished = _Signal(str)
-            def __init__(self, p):
-                super().__init__()
-                self._prompt = p
-            def run(self):
-                import subprocess, sys
-                try:
-                    print("[Apply Strategy] Calling Claude to extract fields...", file=sys.stderr, flush=True)
-                    kwargs = dict(capture_output=True, text=True, encoding="utf-8",
-                                  errors="replace", timeout=60)
-                    if sys.platform == "win32":
-                        kwargs["creationflags"] = 0x08000000
-                    result = subprocess.run(["claude", "-p", self._prompt], **kwargs)
-                    self.finished.emit(result.stdout.strip() if result.returncode == 0 else "")
-                except Exception as e:
-                    print(f"[Apply Strategy] Error: {e}", file=sys.stderr, flush=True)
-                    self.finished.emit("")
-
-        self._apply_worker = _Worker(prompt)
-        self._apply_worker.finished.connect(self._on_apply_done)
-        self._apply_worker.start()
+        from doxyedit.claude_modal import show_claude_modal
+        self._apply_progress, self._apply_worker = show_claude_modal(
+            self, "Claude: extracting post data...", prompt, self._on_apply_done,
+        )
 
     def _on_apply_done(self, raw: str) -> None:
         """Parse extracted JSON and fill post fields."""

@@ -1244,48 +1244,14 @@ INSTRUCTION: {mode_desc}
 
 Return ONLY the replacement text. No explanation, no markdown fences, no preamble. Just the improved text that will replace the selection."""
 
-        # Modal progress dialog
-        from PySide6.QtWidgets import QProgressDialog
-        from PySide6.QtCore import QThread, Signal as _Signal
-
-        self._refine_progress = QProgressDialog(
-            f"Claude is working on: {mode}...", None, 0, 0, self)
-        self._refine_progress.setObjectName("claude_progress")
-        self._refine_progress.setWindowTitle("Claude")
-        self._refine_progress.setWindowModality(Qt.WindowModality.ApplicationModal)
-        self._refine_progress.setCancelButton(None)
-        self._refine_progress.setMinimumDuration(0)
-        self._refine_progress.setMinimumWidth(300)
-        self._refine_progress.show()
-        self._theme_dialog_titlebar(self._refine_progress)
-
-        class _Worker(QThread):
-            finished = _Signal(str)
-            def __init__(self, p):
-                super().__init__()
-                self._prompt = p
-            def run(self):
-                try:
-                    kwargs = dict(capture_output=True, text=True,
-                                  encoding="utf-8", errors="replace", timeout=60)
-                    if sys.platform == "win32":
-                        kwargs["creationflags"] = 0x08000000
-                    result = subprocess.run(
-                        ["claude", "-p", self._prompt], **kwargs)
-                    self.finished.emit(result.stdout.strip() if result.returncode == 0 else "")
-                except Exception:
-                    self.finished.emit("")
-
-        self._refine_worker = _Worker(prompt)
-        self._refine_worker.finished.connect(
-            lambda result: self._on_refine_done(editor, tab_name, selected, result))
-        self._refine_worker.start()
+        from doxyedit.claude_modal import show_claude_modal
+        self._refine_progress, self._refine_worker = show_claude_modal(
+            self, f"Claude: {mode}...", prompt,
+            lambda result: self._on_refine_done(editor, tab_name, selected, result),
+        )
 
     def _on_refine_done(self, editor, tab_name: str, original: str, replacement: str):
         """Replace selected text with Claude's refinement."""
-        # Close progress dialog
-        if hasattr(self, '_refine_progress'):
-            self._refine_progress.close()
 
         if not replacement:
             self.status.showMessage("Claude returned empty response", 3000)
@@ -2527,7 +2493,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._refresh_social_panels()
 
     def _push_post_to_oneup(self, post):
-        """Push a single post to OneUp via API."""
+        """Push a single post to OneUp — one request per checked account."""
         from doxyedit.oneup import get_client_from_config
         from doxyedit.models import SocialPostStatus
         project_dir = str(Path(self._project_path).parent) if self._project_path else "."
@@ -2541,7 +2507,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self.status.showMessage("No OneUp API key — post saved as queued (offline)", 5000)
             return
 
-        # Format schedule time
         sched = ""
         if post.scheduled_time:
             sched = post.scheduled_time[:16].replace("T", " ")
@@ -2550,18 +2515,35 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             post.status = SocialPostStatus.DRAFT
             return
 
-        result = client.schedule_post(
-            content=post.caption_default,
-            social_network_id="ALL",
-            scheduled_date_time=sched,
-        )
-        if result.success:
-            post.oneup_post_id = result.data.get("id", "")
+        if not post.platforms:
+            self.status.showMessage("No accounts selected — check platforms first", 5000)
+            return
+
+        pushed = 0
+        failed = 0
+        oneup_ids = []
+        for account_id in post.platforms:
+            caption = post.captions.get(account_id, post.caption_default)
+            result = client.schedule_post(
+                content=caption,
+                social_network_id=account_id,
+                scheduled_date_time=sched,
+            )
+            if result.success:
+                oneup_ids.append(str(result.data.get("id", "")))
+                pushed += 1
+            else:
+                failed += 1
+                post.platform_status[account_id] = f"failed: {result.error[:60]}"
+
+        if pushed:
+            post.oneup_post_id = ",".join(oneup_ids)
             post.status = SocialPostStatus.QUEUED
-            self.status.showMessage(f"Pushed to OneUp — scheduled for {sched}", 5000)
+            self.status.showMessage(
+                f"Pushed {pushed}/{len(post.platforms)} to OneUp — {sched}", 5000)
         else:
             post.status = SocialPostStatus.FAILED
-            self.status.showMessage(f"OneUp push failed: {result.error[:80]}", 8000)
+            self.status.showMessage(f"All {failed} push(es) failed", 8000)
         self._dirty = True
 
     # ---- Dockable composer ----
@@ -2603,14 +2585,20 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._docked_composer = None
 
     def _on_docked_save(self, post):
-        """Handle save from docked composer."""
+        """Handle save from docked composer. Keep dock open at same position."""
         if self._docked_is_new:
             self.project.posts.append(post)
         self._dirty = True
         if post.status == "queued":
             self._push_post_to_oneup(post)
         self._refresh_social_panels()
-        self._undock_composer()
+        # Keep dock pane open — just clear the composer content for next use
+        if self._docked_composer:
+            self._docked_composer.disconnect_workers()
+            self._docked_composer.deleteLater()
+            self._docked_composer = None
+        # Show empty dock ready for next post
+        self._dock_composer(self.project, None, is_new=True)
 
     def _float_from_dock(self, post, is_new):
         """Undock and re-open as floating dialog."""
