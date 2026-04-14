@@ -1020,7 +1020,12 @@ class MainWindow(QMainWindow):
 
         split.addWidget(editor)
         split.addWidget(preview)
-        split.setSizes([500, 500])
+        # Restore saved split sizes or default 50/50
+        saved_splits = self._settings.value("notes_tab_splits", {})
+        if isinstance(saved_splits, dict) and name in saved_splits:
+            split.setSizes([int(s) for s in saved_splits[name]])
+        else:
+            split.setSizes([500, 500])
         split.setStretchFactor(0, 1)
         split.setStretchFactor(1, 1)
 
@@ -1342,20 +1347,20 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._tray_btn.setChecked(False)
         self._tray_btn.triggered.connect(lambda checked: self._toggle_work_tray())
 
-        # Canvas tools (active when on Canvas tab)
+        # Studio tools (active when on Studio tab)
+        from doxyedit.studio import StudioTool
         self._canvas_sep_before = tb.addSeparator()
         tools = [
-            ("Select", Tool.SELECT, "V"),
-            ("Text", Tool.TEXT, "T"),
-            ("Line", Tool.LINE, "L"),
-            ("Box", Tool.BOX, "B"),
-            ("Marker", Tool.TAG, "G"),
+            ("Select", StudioTool.SELECT, "V"),
+            ("Censor", StudioTool.CENSOR, "W"),
+            ("Watermark", StudioTool.WATERMARK, "E"),
+            ("Text", StudioTool.TEXT_OVERLAY, "T"),
         ]
         self._tool_actions = []
         for name, tool, shortcut in tools:
             action = QAction(name, self)
             action.setCheckable(True)
-            action.triggered.connect(lambda checked, t=tool: self._set_tool(t))
+            action.triggered.connect(lambda checked, t=tool: self._set_studio_tool(t))
             tb.addAction(action)
             self._tool_actions.append((action, tool))
         self._tool_actions[0][0].setChecked(True)
@@ -3296,10 +3301,14 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._canvas_sep_after.setVisible(on_canvas)
 
     def _set_tool(self, tool):
-        """Legacy canvas tool — Studio has its own toolbar."""
-        if hasattr(self, 'studio'):
+        """Legacy canvas tool — redirect to Studio."""
+        self._set_studio_tool(tool)
+
+    def _set_studio_tool(self, tool):
+        """Set the active tool in Studio and switch to the Studio tab."""
+        if hasattr(self, 'studio') and hasattr(self.studio, '_set_tool'):
+            self.studio._set_tool(tool)
             self.tabs.setCurrentWidget(self.studio)
-        self.status.showMessage("Use Studio tab tools")
 
     def _add_image_to_canvas(self):
         """Legacy — redirect to Studio tab."""
@@ -5681,6 +5690,14 @@ Ctrl+Click tag — Search by tag
         self._settings.setValue("social_left_splitter", self._social_left_split.sizes())
         self._settings.setValue("plat_full_splitter", self._plat_full.sizes())
         self._settings.setValue("tag_notes_splitter", self.tag_panel._tag_notes_split.sizes())
+        if hasattr(self, '_plat_top'):
+            self._settings.setValue("plat_top_splitter", self._plat_top.sizes())
+        # Save notes tab splitter sizes
+        if hasattr(self, '_notes_tab_widgets'):
+            notes_splits = {}
+            for tab_name, (preview, editor, split) in self._notes_tab_widgets.items():
+                notes_splits[tab_name] = split.sizes()
+            self._settings.setValue("notes_tab_splits", notes_splits)
         self._settings.setValue("collapsed_folders", sorted(self.browser._collapsed_folders))
         self._settings.setValue("hidden_folders", sorted(self.browser._hidden_folders))
         self._settings.setValue("collapsed_tag_sections", sorted(self.tag_panel._collapsed_sections))
