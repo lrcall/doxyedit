@@ -1149,7 +1149,7 @@ class MainWindow(QMainWindow):
                 border: 1px solid {t.border}; border-radius: {rad}px;
                 padding: {pad}px 0;
             }}
-            QMenu::item {{ padding: {pad}px {pad_lg * 3}px; }}
+            QMenu::item {{ padding: {pad}px {pad_lg * 3}px; color: {t.text_primary}; }}
             QMenu::item:selected {{ background: {t.accent_dim}; color: {t.text_on_accent}; }}
             QMenu::item:disabled {{ color: {t.text_muted}; }}
             QMenu::separator {{ background: {t.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
@@ -2681,16 +2681,15 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         direct_count = 0
         try:
             from doxyedit.directpost import push_to_direct
-            # Only push to direct platforms for posts that haven't been direct-posted yet
-            all_queued = [
-                p for p in self.project.posts
-                if p.status == SocialPostStatus.QUEUED
-                and not p.sub_platform_status.get("telegram", {}).get("status") == "posted"
-                and not p.sub_platform_status.get("discord", {}).get("status") == "posted"
-            ]
+            from datetime import datetime as _dt
+            all_queued = [p for p in self.project.posts if p.status == SocialPostStatus.QUEUED]
             for post in all_queued:
+                # Skip posts already posted to all direct platforms
+                tg_done = post.sub_platform_status.get("telegram", {}).get("status") == "posted"
+                dc_done = post.sub_platform_status.get("discord", {}).get("status") == "posted"
+                if tg_done and dc_done:
+                    continue
                 results = push_to_direct(post, self.project, project_dir)
-                from datetime import datetime as _dt
                 now_str = _dt.now().isoformat()
                 for r in results:
                     if r.success:

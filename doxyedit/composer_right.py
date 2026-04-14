@@ -269,6 +269,9 @@ class ContentPanel(QWidget):
         self._caption_edit = QTextEdit()
         self._caption_edit.setMaximumHeight(120)
         self._caption_edit.setPlaceholderText("Default caption for all platforms")
+        self._caption_edit.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._caption_edit.customContextMenuRequested.connect(
+            lambda pos: self._claude_context_menu(self._caption_edit, pos))
         caption_layout.addWidget(self._caption_edit)
 
         self._per_platform_toggle = QPushButton("Per-platform captions \u25bc")
@@ -373,6 +376,9 @@ class ContentPanel(QWidget):
         self._reply_edit = QTextEdit()
         self._reply_edit.setMaximumHeight(80)
         self._reply_edit.setPlaceholderText("One reply per line")
+        self._reply_edit.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._reply_edit.customContextMenuRequested.connect(
+            lambda pos: self._claude_context_menu(self._reply_edit, pos))
         reply_layout.addWidget(self._reply_edit)
         layout.addWidget(reply_box)
 
@@ -595,6 +601,9 @@ class ContentPanel(QWidget):
             te = QTextEdit()
             te.setMaximumHeight(100)
             te.setPlaceholderText(f"Caption for {pid} (leave blank to use default)")
+            te.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            te.customContextMenuRequested.connect(
+                lambda pos, _te=te: self._claude_context_menu(_te, pos))
             if pid in saved_captions and saved_captions[pid]:
                 te.setPlainText(saved_captions[pid])
             self._platform_captions[pid] = te
@@ -688,14 +697,146 @@ a {{ color: {theme.accent}; }}
         return self._strategy_raw or self._ai_strategy_cache or self._local_strategy_cache
 
     def _strategy_context_menu(self, pos) -> None:
-        """Custom right-click menu for strategy notes — adds AI actions."""
-        from PySide6.QtWidgets import QMenu
-        menu = self._strategy_edit.createStandardContextMenu()
-        menu.addSeparator()
-        menu.addAction("Generate Local Strategy", self._generate_local_strategy)
-        menu.addAction("AI Strategy (Claude)", self._generate_ai_strategy)
-        menu.addAction("Apply Strategy to Fields", self._apply_strategy)
-        menu.exec(self._strategy_edit.mapToGlobal(pos))
+        """Custom right-click menu for strategy notes — Claude actions + strategy helpers."""
+        self._claude_context_menu(self._strategy_edit, pos, extra_actions=[
+            ("Generate Local Strategy", self._generate_local_strategy),
+            ("AI Strategy (Claude)", self._generate_ai_strategy),
+            ("Apply Strategy to Fields", self._apply_strategy),
+        ])
+
+    # ------------------------------------------------------------------
+    # Claude right-click context menu (shared by all text editors)
+    # ------------------------------------------------------------------
+
+    def _claude_context_menu(self, editor: QTextEdit, pos, *,
+                             extra_actions: list | None = None) -> None:
+        """Show a themed right-click menu with Claude actions on any QTextEdit.
+
+        Parameters
+        ----------
+        editor : QTextEdit
+            The editor widget that was right-clicked.
+        pos : QPoint
+            Local position from customContextMenuRequested.
+        extra_actions : list[tuple[str, callable]] | None
+            Additional actions appended after the standard items but before
+            Claude actions (e.g. strategy-specific buttons).
+        """
+        from PySide6.QtCore import QSettings
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+
+        menu = editor.createStandardContextMenu()
+
+        # Theme the popup (top-level menus don't inherit QSS on Windows)
+        theme_id = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
+        t = THEMES.get(theme_id, THEMES[DEFAULT_THEME])
+        rad = max(3, t.font_size // 4)
+        pad = max(4, t.font_size // 3)
+        pad_lg = max(6, t.font_size // 2)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background: {t.bg_raised}; color: {t.text_primary};
+                border: 1px solid {t.border}; border-radius: {rad}px;
+                padding: {pad}px 0;
+            }}
+            QMenu::icon {{ padding-left: {pad}px; }}
+            QMenu::item {{ padding: {pad}px {pad_lg * 3}px; color: {t.text_primary}; }}
+            QMenu::item:selected {{ background: {t.accent_dim}; color: {t.text_on_accent}; }}
+            QMenu::item:disabled {{ color: {t.text_muted}; }}
+            QMenu::separator {{ background: {t.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
+            QMenu::separator {{ background: {t.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
+        """)
+
+        # Extra actions (strategy helpers, etc.)
+        if extra_actions:
+            menu.addSeparator()
+            for label, slot in extra_actions:
+                menu.addAction(label, slot)
+
+        # Claude actions when text is selected
+        selected = editor.textCursor().selectedText()
+        if selected.strip():
+            menu.addSeparator()
+
+            # Bracketed instruction shortcut  [do something]
+            import re
+            bracket_match = re.search(r'\[(.+?)\]', selected)
+            if bracket_match:
+                instruction = bracket_match.group(1)
+                act = menu.addAction(f"Claude: {instruction[:40]}")
+                act.triggered.connect(
+                    lambda _=False, e=editor, s=selected: self._refine_with_claude(e, s, "instruct"))
+                menu.addSeparator()
+
+            for label, mode in [
+                ("Refine with Claude",   "refine"),
+                ("Expand with Claude",   "expand"),
+                ("Research with Claude",  "research"),
+                ("Simplify with Claude",  "simplify"),
+            ]:
+                act = menu.addAction(label)
+                act.triggered.connect(
+                    lambda _=False, e=editor, s=selected, m=mode: self._refine_with_claude(e, s, m))
+
+        menu.exec(editor.mapToGlobal(pos))
+
+    def _refine_with_claude(self, editor: QTextEdit, selected: str, mode: str) -> None:
+        """Send selected text to Claude for refinement, replace in editor."""
+        import re
+        full_text = editor.toPlainText()
+
+        if mode == "instruct":
+            bracket_match = re.search(r'\[(.+?)\]', selected)
+            instruction = bracket_match.group(1) if bracket_match else selected
+            mode_desc = f"Follow this instruction: {instruction}"
+        else:
+            mode_desc = {
+                "refine": "Improve this text. Fix any issues, clarify wording, make it more actionable. Keep the same length and format.",
+                "expand": "Expand this into more detail. Add examples, edge cases, or specifics. Keep the same style.",
+                "research": "Research this topic using web search. Find current, accurate, actionable information. Replace the selected text with your findings formatted as concise bullet points. Cite no URLs, just the facts.",
+                "simplify": "Make this shorter and more direct. Remove fluff. Keep only what matters.",
+            }[mode]
+
+        prompt = f"""You are editing a document for a social media art posting pipeline.
+
+The user selected this text and wants you to act on it:
+
+SELECTED TEXT:
+{selected}
+
+FULL DOCUMENT CONTEXT (for reference, don't rewrite the whole thing):
+{full_text[:2000]}
+
+INSTRUCTION: {mode_desc}
+
+Return ONLY the replacement text. No explanation, no markdown fences, no preamble. Just the improved text that will replace the selection."""
+
+        from doxyedit.claude_modal import show_claude_modal
+        self._refine_progress, self._refine_worker = show_claude_modal(
+            self, f"Claude: {mode}...", prompt,
+            lambda result, _ed=editor, _sel=selected: self._on_refine_done(_ed, _sel, result),
+        )
+
+    def _on_refine_done(self, editor: QTextEdit, original: str, replacement: str) -> None:
+        """Replace selected text with Claude's refinement."""
+        if not replacement:
+            return
+
+        cursor = editor.textCursor()
+        if cursor.hasSelection():
+            cursor.insertText(replacement)
+        else:
+            current = editor.toPlainText()
+            original_normalized = original.replace("\u2029", "\n")
+            start = current.find(original_normalized)
+            if start >= 0:
+                cursor.setPosition(start)
+                cursor.setPosition(start + len(original_normalized),
+                                   cursor.MoveMode.KeepAnchor)
+                cursor.insertText(replacement)
+            else:
+                cursor.movePosition(cursor.MoveOperation.End)
+                cursor.insertText("\n" + replacement)
 
     def _toggle_strategy_edit(self, checked: bool) -> None:
         """Toggle between raw markdown (default) and rendered preview."""
