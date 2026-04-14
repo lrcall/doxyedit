@@ -1130,7 +1130,8 @@ class MainWindow(QMainWindow):
         widgets = self._notes_tab_widgets.get(tab_name)
         if widgets:
             _, _, stack = widgets
-            stack.setCurrentIndex(0)
+            if hasattr(stack, 'setCurrentIndex'):
+                stack.setCurrentIndex(0)
 
     def _show_notes_context_menu(self, pos, editor, tab_name: str):
         """Show right-click menu with Claude actions for notes editors."""
@@ -3199,12 +3200,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.browser.scroll_to_asset(asset_id)
 
     def _send_to_canvas(self, asset_id: str):
-        """Ctrl+click — load image onto canvas and switch to Canvas tab."""
+        """Load image into Studio editor and switch to Studio tab."""
         asset = self.project.get_asset(asset_id)
         if asset:
-            self.scene.add_image(asset.source_path)
-            self.tabs.setCurrentWidget(self.view)
-            self.status.showMessage(f"Sent to canvas: {Path(asset.source_path).name}")
+            self.studio.load_asset(asset)
+            self.tabs.setCurrentWidget(self.studio)
+            self.status.showMessage(f"Sent to Studio: {Path(asset.source_path).name}")
 
     def _send_to_censor(self, asset_id: str):
         """Alt+click — load image into censor editor and switch to Censor tab."""
