@@ -58,31 +58,33 @@ class ImagePreviewPanel(QWidget):
         self._order_container.setVisible(False)
         layout.addWidget(self._order_container)
 
-        # -- SFW / NSFW section --
-        nsfw_frame = QFrame()
-        nsfw_frame.setObjectName("composer_nsfw_frame")
-        nsfw_layout = QVBoxLayout(nsfw_frame)
+        # -- SFW / NSFW section (collapsed by default) --
+        self._nsfw_header_btn = QPushButton("Content Rating \u25bc")
+        self._nsfw_header_btn.setObjectName("composer_section_header")
+        self._nsfw_header_btn.setCheckable(True)
+        self._nsfw_header_btn.setChecked(False)
+        self._nsfw_header_btn.clicked.connect(self._toggle_nsfw_section)
+        layout.addWidget(self._nsfw_header_btn)
+
+        self._nsfw_body = QFrame()
+        self._nsfw_body.setObjectName("composer_nsfw_frame")
+        nsfw_layout = QVBoxLayout(self._nsfw_body)
         nsfw_layout.setContentsMargins(6, 6, 6, 6)
         nsfw_layout.setSpacing(4)
 
-        nsfw_header = QHBoxLayout()
-        nsfw_lbl = QLabel("Content Rating")
-        nsfw_lbl.setObjectName("composer_section_header")
-        nsfw_header.addWidget(nsfw_lbl)
-        nsfw_header.addStretch()
-
+        nsfw_row = QHBoxLayout()
         self._nsfw_toggle = QPushButton("Show Censored")
         self._nsfw_toggle.setObjectName("composer_nsfw_toggle")
         self._nsfw_toggle.setCheckable(True)
         self._nsfw_toggle.clicked.connect(self._toggle_censored_preview)
-        nsfw_header.addWidget(self._nsfw_toggle)
-        nsfw_layout.addLayout(nsfw_header)
+        nsfw_row.addWidget(self._nsfw_toggle)
+        nsfw_row.addStretch()
+        nsfw_layout.addLayout(nsfw_row)
 
         self._censor_info = QLabel("No censor regions defined")
         self._censor_info.setObjectName("composer_censor_info")
         nsfw_layout.addWidget(self._censor_info)
 
-        # Per-platform NSFW checkboxes (populated by set_platforms)
         self._nsfw_checks: dict[str, QCheckBox] = {}
         self._nsfw_platform_container = QWidget()
         self._nsfw_plat_layout = QHBoxLayout(self._nsfw_platform_container)
@@ -90,7 +92,8 @@ class ImagePreviewPanel(QWidget):
         self._nsfw_plat_layout.setSpacing(6)
         nsfw_layout.addWidget(self._nsfw_platform_container)
 
-        layout.addWidget(nsfw_frame)
+        self._nsfw_body.setVisible(False)
+        layout.addWidget(self._nsfw_body)
 
         # -- Platform crop status --
         crop_frame = QFrame()
@@ -110,6 +113,11 @@ class ImagePreviewPanel(QWidget):
         layout.addWidget(crop_frame)
 
     # -- Public API --
+
+    def _toggle_nsfw_section(self, checked: bool):
+        self._nsfw_body.setVisible(checked)
+        self._nsfw_header_btn.setText(
+            "Content Rating \u25b2" if checked else "Content Rating \u25bc")
 
     def set_assets(self, asset_ids: list[str]) -> None:
         """Load assets and update preview."""
