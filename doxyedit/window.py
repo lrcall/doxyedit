@@ -260,16 +260,16 @@ class MainWindow(QMainWindow):
 
         self.tabs.addTab(self._browse_split, "Assets")
 
-        # Tab 2: Canvas Editor
-        self.scene = CanvasScene()
-        self.view = CanvasView(self.scene)
-        self.tabs.addTab(self.view, "Canvas")
+        # Tab 2: Studio (merged Canvas + Censor + Overlay)
+        from doxyedit.studio import StudioEditor
+        self.studio = StudioEditor()
+        self.studio.set_project(self.project)
+        self.tabs.addTab(self.studio, "Studio")
 
-        # Tab 3: Censor Editor
-        self.censor_editor = CensorEditor()
-        self.tabs.addTab(self.censor_editor, "Censor")
+        # Keep old censor_editor reference for backward compat (load_asset calls)
+        self.censor_editor = self.studio
 
-        # Tab 4: Social — Calendar + Timeline + Checklist (posting pipeline)
+        # Tab 3: Social — Calendar + Timeline + Checklist (posting pipeline)
         self._timeline = TimelineStream()
         self._timeline.set_thumb_cache(self.browser._thumb_cache)
         self._timeline.set_project(self.project)
@@ -2681,7 +2681,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         direct_count = 0
         try:
             from doxyedit.directpost import push_to_direct
-            all_queued = [p for p in self.project.posts if p.status == SocialPostStatus.QUEUED]
+            # Only push to direct platforms for posts that haven't been direct-posted yet
+            all_queued = [
+                p for p in self.project.posts
+                if p.status == SocialPostStatus.QUEUED
+                and not p.sub_platform_status.get("telegram", {}).get("status") == "posted"
+                and not p.sub_platform_status.get("discord", {}).get("status") == "posted"
+            ]
             for post in all_queued:
                 results = push_to_direct(post, self.project, project_dir)
                 from datetime import datetime as _dt
@@ -4803,8 +4809,8 @@ Ctrl+Click tag — Search by tag
             self._calendar_pane.set_project(self.project)
         if hasattr(self, '_gantt_panel'):
             self._gantt_panel.set_project(self.project)
-        if hasattr(self, 'overlay_editor'):
-            self.overlay_editor.set_project(self.project)
+        if hasattr(self, 'studio'):
+            self.studio.set_project(self.project)
         if hasattr(self, '_smart_folder_menu'):
             self._rebuild_smart_folder_menu()
         if hasattr(self, '_info_panel'):
