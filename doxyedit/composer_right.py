@@ -129,6 +129,28 @@ class ContentPanel(QWidget):
         root.setSpacing(4)
         root.setContentsMargins(0, 0, 0, 0)
 
+        # --- Identity (top of composer — controls category + platform defaults) ---
+        identity_row = QHBoxLayout()
+        identity_row.setSpacing(4)
+        id_label = QLabel("Identity:")
+        id_label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        self._identity_combo = QComboBox()
+        self._identity_combo.setObjectName("composer_identity_combo")
+        self._identity_combo.addItem("(None)", "")
+        for name in self._project.identities:
+            self._identity_combo.addItem(name, name)
+        self._identity_combo.currentIndexChanged.connect(
+            lambda _: self._on_identity_changed(self._identity_combo.currentData())
+        )
+        edit_id_btn = QPushButton("Edit")
+        edit_id_btn.setObjectName("composer_edit_identity_btn")
+        edit_id_btn.setFixedWidth(40)
+        edit_id_btn.clicked.connect(self._edit_identity)
+        identity_row.addWidget(id_label)
+        identity_row.addWidget(self._identity_combo, 1)
+        identity_row.addWidget(edit_id_btn)
+        root.addLayout(identity_row)
+
         # --- Platforms: category dropdown → account checkboxes ---
         from doxyedit.oneup import get_categories, get_connected_platforms, get_active_account_label
         project_dir = self._project_dir or "."
@@ -319,21 +341,6 @@ class ContentPanel(QWidget):
         self._schedule_edit.dateTimeChanged.connect(lambda _: self._update_tz_display())
         schedule_layout.addWidget(self._tz_label)
         layout.addWidget(schedule_box)
-
-        # --- Identity ---
-        identity_box = QGroupBox("Identity")
-        identity_box.setObjectName("composer_identity_box")
-        identity_layout = QVBoxLayout(identity_box)
-        self._identity_combo = QComboBox()
-        self._identity_combo.setObjectName("composer_identity_combo")
-        self._identity_combo.addItem("(None)", "")
-        for name in self._project.identities:
-            self._identity_combo.addItem(name, name)
-        self._identity_combo.currentIndexChanged.connect(
-            lambda _: self._on_identity_changed(self._identity_combo.currentData())
-        )
-        identity_layout.addWidget(self._identity_combo)
-        layout.addWidget(identity_box)
 
         # --- Release Chain ---
         chain_box = QGroupBox("Release Chain")
@@ -1235,6 +1242,118 @@ RULES:
         # Reset combo to placeholder
         self._chain_template_combo.setCurrentIndex(0)
 
+    def _edit_identity(self) -> None:
+        """Open a dialog to create or edit the current identity."""
+        from PySide6.QtWidgets import (
+            QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
+            QPushButton, QFormLayout, QDialogButtonBox, QComboBox as _QCB,
+        )
+        current = self._identity_combo.currentData() or ""
+        identity = dict(self._project.identities.get(current, {})) if current else {}
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Edit Identity: {current}" if current else "New Identity")
+        dlg.setMinimumWidth(450)
+        layout = QVBoxLayout(dlg)
+
+        form = QFormLayout()
+        name_edit = QLineEdit(current)
+        name_edit.setPlaceholderText("Identity name (e.g. Doxy, Onta)")
+        if not current:
+            form.addRow("Name:", name_edit)
+        else:
+            name_edit.setReadOnly(True)
+            form.addRow("Name:", name_edit)
+
+        fields = {
+            "voice": ("Brand Voice", "e.g. Playful, energetic, slightly irreverent"),
+            "patreon_url": ("Patreon URL", "https://www.patreon.com/yourpage"),
+            "fanbox_url": ("Fanbox URL", "https://yourname.fanbox.cc"),
+            "fantia_url": ("Fantia URL", "https://fantia.jp/fanclubs/12345"),
+            "cien_url": ("Ci-en URL", "https://ci-en.dlsite.com/creator/12345"),
+            "gumroad_url": ("Gumroad URL", "https://yourname.gumroad.com"),
+            "kofi_url": ("Ko-fi URL", "https://ko-fi.com/yourname"),
+            "kickstarter_url": ("Kickstarter URL", ""),
+            "bio_blurb": ("Bio / Blurb", "Short artist bio"),
+        }
+        edits: dict[str, QLineEdit] = {}
+        for key, (label, placeholder) in fields.items():
+            e = QLineEdit(identity.get(key, ""))
+            e.setPlaceholderText(placeholder)
+            form.addRow(f"{label}:", e)
+            edits[key] = e
+
+        # Category mapping
+        cat_combo = _QCB()
+        cat_combo.addItem("(None)", "")
+        if self._categories:
+            for cat in self._categories:
+                cat_combo.addItem(cat["name"], str(cat["id"]))
+        cat_idx = cat_combo.findData(str(identity.get("category_id", "")))
+        if cat_idx >= 0:
+            cat_combo.setCurrentIndex(cat_idx)
+        form.addRow("OneUp Category:", cat_combo)
+
+        # Hashtags
+        hashtags_edit = QLineEdit(", ".join(identity.get("hashtags", [])))
+        hashtags_edit.setPlaceholderText("#art #illustration #commission")
+        form.addRow("Hashtags:", hashtags_edit)
+
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        if current:
+            del_btn = buttons.addButton("Delete", QDialogButtonBox.ButtonRole.DestructiveRole)
+            del_btn.clicked.connect(lambda: self._delete_identity(current, dlg))
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        layout.addWidget(buttons)
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            name = name_edit.text().strip()
+            if not name:
+                return
+            data = dict(identity)
+            for key, e in edits.items():
+                val = e.text().strip()
+                if val:
+                    data[key] = val
+                elif key in data:
+                    del data[key]
+            # Hashtags
+            ht = [t.strip() for t in hashtags_edit.text().split(",") if t.strip()]
+            if ht:
+                data["hashtags"] = ht
+            # Category
+            cat_val = cat_combo.currentData()
+            if cat_val:
+                data["category_id"] = cat_val
+            elif "category_id" in data:
+                del data["category_id"]
+
+            self._project.identities[name] = data
+            # Refresh combo
+            idx = self._identity_combo.findData(name)
+            if idx < 0:
+                self._identity_combo.addItem(name, name)
+                idx = self._identity_combo.count() - 1
+            self._identity_combo.setCurrentIndex(idx)
+
+    def _delete_identity(self, name: str, dlg) -> None:
+        """Remove an identity from the project."""
+        if name in self._project.identities:
+            del self._project.identities[name]
+        idx = self._identity_combo.findData(name)
+        if idx >= 0:
+            self._identity_combo.removeItem(idx)
+        self._identity_combo.setCurrentIndex(0)
+        dlg.reject()
+
+    def _edit_identity(self) -> None:
+        """Placeholder — identity editing not yet implemented."""
+        pass
+
     def _on_identity_changed(self, name: str) -> None:
         """Auto-fill defaults from the selected identity config."""
         if not name:
@@ -1242,6 +1361,13 @@ RULES:
         identity = self._project.identities.get(name, {})
         if not identity:
             return
+        # Auto-switch OneUp category if identity specifies one
+        cat_id = identity.get("category_id", "")
+        if cat_id and self._category_combo is not None:
+            for i in range(self._category_combo.count()):
+                if str(self._category_combo.itemData(i)) == str(cat_id):
+                    self._category_combo.setCurrentIndex(i)
+                    break
         # Auto-check default platforms from identity
         default_platforms = identity.get("default_platforms", [])
         if default_platforms:
