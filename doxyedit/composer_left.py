@@ -95,22 +95,26 @@ class ImagePreviewPanel(QWidget):
         self._nsfw_body.setVisible(False)
         layout.addWidget(self._nsfw_body)
 
-        # -- Platform crop status --
-        crop_frame = QFrame()
-        crop_frame.setObjectName("composer_crop_frame")
-        crop_layout = QVBoxLayout(crop_frame)
+        # -- Platform crop status (collapsed by default) --
+        self._crop_header_btn = QPushButton("Platform Crops \u25bc")
+        self._crop_header_btn.setObjectName("composer_section_header")
+        self._crop_header_btn.setCheckable(True)
+        self._crop_header_btn.setChecked(False)
+        self._crop_header_btn.clicked.connect(self._toggle_crop_section)
+        layout.addWidget(self._crop_header_btn)
+
+        self._crop_body = QFrame()
+        self._crop_body.setObjectName("composer_crop_frame")
+        crop_layout = QVBoxLayout(self._crop_body)
         crop_layout.setContentsMargins(6, 6, 6, 6)
         crop_layout.setSpacing(2)
-
-        crop_header = QLabel("Platform Crops")
-        crop_header.setObjectName("composer_section_header")
-        crop_layout.addWidget(crop_header)
 
         self._crop_status_layout = QVBoxLayout()
         self._crop_status_layout.setSpacing(2)
         crop_layout.addLayout(self._crop_status_layout)
 
-        layout.addWidget(crop_frame)
+        self._crop_body.setVisible(False)
+        layout.addWidget(self._crop_body)
 
     # -- Public API --
 
@@ -118,6 +122,11 @@ class ImagePreviewPanel(QWidget):
         self._nsfw_body.setVisible(checked)
         self._nsfw_header_btn.setText(
             "Content Rating \u25b2" if checked else "Content Rating \u25bc")
+
+    def _toggle_crop_section(self, checked: bool):
+        self._crop_body.setVisible(checked)
+        self._crop_header_btn.setText(
+            "Platform Crops \u25b2" if checked else "Platform Crops \u25bc")
 
     def set_assets(self, asset_ids: list[str]) -> None:
         """Load assets and update preview."""
