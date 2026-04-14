@@ -12,12 +12,12 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QTextEdit, QPushButton, QCheckBox, QDateTimeEdit, QFrame,
     QScrollArea, QGroupBox, QLayout, QStackedWidget, QTextBrowser,
-    QSizePolicy,
+    QSizePolicy, QComboBox, QSpinBox,
 )
 from PySide6.QtCore import Qt, QDateTime, QRect, QSize, Signal
 from PySide6.QtGui import QPixmap
 
-from doxyedit.models import Project, SocialPost, SocialPostStatus
+from doxyedit.models import Project, ReleaseStep, SocialPost, SocialPostStatus
 
 
 # ─── Flow layout ───────────────────────────────────────────────────
@@ -113,6 +113,7 @@ class ContentPanel(QWidget):
 
         self._connected: list[dict] = []
         self._acct_label: str = ""
+        self._release_steps: list[dict] = []
 
         self._build_ui()
 
@@ -315,6 +316,56 @@ class ContentPanel(QWidget):
         schedule_layout.addWidget(self._tz_label)
         layout.addWidget(schedule_box)
 
+        # --- Identity ---
+        identity_box = QGroupBox("Identity")
+        identity_box.setObjectName("composer_identity_box")
+        identity_layout = QVBoxLayout(identity_box)
+        self._identity_combo = QComboBox()
+        self._identity_combo.setObjectName("composer_identity_combo")
+        self._identity_combo.addItem("(None)", "")
+        for name in self._project.identities:
+            self._identity_combo.addItem(name, name)
+        self._identity_combo.currentIndexChanged.connect(
+            lambda _: self._on_identity_changed(self._identity_combo.currentData())
+        )
+        identity_layout.addWidget(self._identity_combo)
+        layout.addWidget(identity_box)
+
+        # --- Release Chain ---
+        chain_box = QGroupBox("Release Chain")
+        chain_box.setObjectName("composer_release_chain_box")
+        chain_layout = QVBoxLayout(chain_box)
+
+        chain_btn_row = QHBoxLayout()
+        self._chain_template_combo = QComboBox()
+        self._chain_template_combo.setObjectName("composer_chain_template_combo")
+        self._chain_template_combo.addItem("Load Template...")
+        for idx, tmpl in enumerate(self._project.release_templates):
+            label = tmpl.get("name", f"Template {idx + 1}")
+            self._chain_template_combo.addItem(label, idx)
+        self._chain_template_combo.currentIndexChanged.connect(
+            lambda i: self._load_release_template(i)
+        )
+        if not self._project.release_templates:
+            self._chain_template_combo.setVisible(False)
+        chain_btn_row.addWidget(self._chain_template_combo)
+
+        self._add_step_btn = QPushButton("+ Add Step")
+        self._add_step_btn.setObjectName("composer_add_step_btn")
+        self._add_step_btn.clicked.connect(self._add_release_step)
+        chain_btn_row.addWidget(self._add_step_btn)
+        chain_btn_row.addStretch()
+        chain_layout.addLayout(chain_btn_row)
+
+        self._chain_steps_container = QWidget()
+        self._chain_steps_container.setObjectName("composer_chain_steps")
+        self._chain_steps_layout = QVBoxLayout(self._chain_steps_container)
+        self._chain_steps_layout.setSpacing(4)
+        self._chain_steps_layout.setContentsMargins(0, 0, 0, 0)
+        chain_layout.addWidget(self._chain_steps_container)
+
+        layout.addWidget(chain_box)
+
         # --- Reply Templates ---
         reply_box = QGroupBox("Reply Templates")
         reply_layout = QVBoxLayout(reply_box)
@@ -367,6 +418,17 @@ class ContentPanel(QWidget):
         if post.reply_templates:
             self._reply_edit.setPlainText("\n".join(post.reply_templates))
 
+        # Identity
+        if post.collection:
+            idx = self._identity_combo.findData(post.collection)
+            if idx >= 0:
+                self._identity_combo.setCurrentIndex(idx)
+
+        # Release chain
+        if post.release_chain:
+            self._release_steps = [s.to_dict() for s in post.release_chain]
+            self._rebuild_chain_ui()
+
         # Strategy notes
         if post.strategy_notes:
             self._set_strategy_text(post.strategy_notes)
@@ -399,6 +461,12 @@ class ContentPanel(QWidget):
         reply_templates = [line for line in reply_text.splitlines() if line.strip()]
         strategy_notes = self._get_strategy_text()
 
+        # Release chain
+        release_chain = list(self._release_steps)
+
+        # Identity / collection
+        collection = self._identity_combo.currentData() or ""
+
         return {
             "platforms": platforms,
             "caption_default": caption_default,
@@ -407,6 +475,8 @@ class ContentPanel(QWidget):
             "scheduled_time": scheduled_time,
             "reply_templates": reply_templates,
             "strategy_notes": strategy_notes,
+            "release_chain": release_chain,
+            "collection": collection,
         }
 
     def get_splitter_sizes(self) -> list[int]:
@@ -790,6 +860,177 @@ RULES:
         for plat in data.get("platforms_remove", []):
             if plat in self._platform_checks:
                 self._platform_checks[plat].setChecked(False)
+
+    # ------------------------------------------------------------------
+    # Release chain
+    # ------------------------------------------------------------------
+
+    def _add_release_step(self) -> None:
+        """Add a new step to the release chain."""
+        # Default platform: first connected platform not already used
+        used = {s["platform"] for s in self._release_steps}
+        default_plat = ""
+        for p in self._connected:
+            if p["id"] not in used:
+                default_plat = p["id"]
+                break
+        if not default_plat and self._connected:
+            default_plat = self._connected[0]["id"]
+
+        # First step is anchor with delay=0
+        is_anchor = len(self._release_steps) == 0
+        step = {
+            "platform": default_plat,
+            "delay_hours": 0 if is_anchor else 24,
+            "account_id": "",
+            "caption_key": "",
+        }
+        self._release_steps.append(step)
+        self._rebuild_chain_ui()
+
+    def _remove_release_step(self, index: int) -> None:
+        """Remove a step from the release chain (step 0 / anchor is not removable)."""
+        if index <= 0 or index >= len(self._release_steps):
+            return
+        self._release_steps.pop(index)
+        self._rebuild_chain_ui()
+
+    def _load_release_template(self, combo_index: int) -> None:
+        """Populate release chain from a project template."""
+        if combo_index <= 0:
+            return  # "Load Template..." placeholder
+        tmpl_index = self._chain_template_combo.itemData(combo_index)
+        if tmpl_index is None or tmpl_index >= len(self._project.release_templates):
+            return
+        tmpl = self._project.release_templates[tmpl_index]
+        steps = tmpl.get("steps", [])
+        if not steps:
+            return
+        self._release_steps = [
+            {
+                "platform": s.get("platform", ""),
+                "delay_hours": s.get("delay_hours", 0),
+                "account_id": s.get("account_id", ""),
+                "caption_key": s.get("caption_key", ""),
+            }
+            for s in steps
+        ]
+        self._rebuild_chain_ui()
+        # Reset combo to placeholder
+        self._chain_template_combo.setCurrentIndex(0)
+
+    def _on_identity_changed(self, name: str) -> None:
+        """Auto-fill defaults from the selected identity config."""
+        if not name:
+            return
+        identity = self._project.identities.get(name, {})
+        if not identity:
+            return
+        # Auto-check default platforms from identity
+        default_platforms = identity.get("default_platforms", [])
+        if default_platforms:
+            for plat, cb in self._platform_checks.items():
+                cb.setChecked(plat in default_platforms)
+            self._on_platform_toggled()
+        # Auto-fill default release chain if present and chain is empty
+        default_chain = identity.get("release_chain", [])
+        if default_chain and not self._release_steps:
+            self._release_steps = [
+                {
+                    "platform": s.get("platform", ""),
+                    "delay_hours": s.get("delay_hours", 0),
+                    "account_id": s.get("account_id", ""),
+                    "caption_key": s.get("caption_key", ""),
+                }
+                for s in default_chain
+            ]
+            self._rebuild_chain_ui()
+
+    def _rebuild_chain_ui(self) -> None:
+        """Clear and rebuild the step rows from self._release_steps."""
+        # Clear existing widgets
+        while self._chain_steps_layout.count():
+            item = self._chain_steps_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        for idx, step in enumerate(self._release_steps):
+            row = QWidget()
+            row.setObjectName("composer_chain_step_row")
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(4)
+
+            # Step label
+            step_label = QLabel(f"Step {idx + 1}:")
+            step_label.setObjectName("composer_chain_step_label")
+            step_label.setFixedWidth(48)
+            row_layout.addWidget(step_label)
+
+            # Platform combo
+            plat_combo = QComboBox()
+            plat_combo.setObjectName("composer_chain_platform")
+            for p in self._connected:
+                plat_combo.addItem(p.get("name", p["id"]), p["id"])
+            # Set current
+            plat_idx = plat_combo.findData(step["platform"])
+            if plat_idx >= 0:
+                plat_combo.setCurrentIndex(plat_idx)
+            _idx = idx  # capture for closure
+            plat_combo.currentIndexChanged.connect(
+                lambda _, i=_idx, c=plat_combo: self._update_step_field(i, "platform", c.currentData())
+            )
+            row_layout.addWidget(plat_combo)
+
+            # Delay spinner
+            delay_spin = QSpinBox()
+            delay_spin.setObjectName("composer_chain_delay")
+            delay_spin.setRange(0, 720)
+            delay_spin.setSuffix("h")
+            delay_spin.setValue(step["delay_hours"])
+            if idx == 0:
+                delay_spin.setValue(0)
+                delay_spin.setEnabled(False)
+            delay_spin.valueChanged.connect(
+                lambda v, i=_idx: self._update_step_field(i, "delay_hours", v)
+            )
+            row_layout.addWidget(delay_spin)
+
+            # Anchor label for step 0
+            if idx == 0:
+                anchor_lbl = QLabel("(anchor)")
+                anchor_lbl.setObjectName("composer_chain_anchor_label")
+                row_layout.addWidget(anchor_lbl)
+
+            # Caption key
+            cap_key = QLineEdit()
+            cap_key.setObjectName("composer_chain_caption_key")
+            cap_key.setPlaceholderText("caption key")
+            cap_key.setMaximumWidth(100)
+            cap_key.setText(step.get("caption_key", ""))
+            cap_key.textChanged.connect(
+                lambda t, i=_idx: self._update_step_field(i, "caption_key", t)
+            )
+            row_layout.addWidget(cap_key)
+
+            # Remove button (not for anchor)
+            if idx > 0:
+                remove_btn = QPushButton("\u00d7")
+                remove_btn.setObjectName("composer_chain_remove_btn")
+                remove_btn.setFixedWidth(24)
+                remove_btn.setToolTip("Remove this step")
+                remove_btn.clicked.connect(
+                    lambda _, i=_idx: self._remove_release_step(i)
+                )
+                row_layout.addWidget(remove_btn)
+
+            self._chain_steps_layout.addWidget(row)
+
+    def _update_step_field(self, index: int, field: str, value) -> None:
+        """Update a single field in a release step."""
+        if 0 <= index < len(self._release_steps):
+            self._release_steps[index][field] = value
 
     # ------------------------------------------------------------------
     # Helpers
