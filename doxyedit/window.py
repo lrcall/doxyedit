@@ -881,6 +881,8 @@ class MainWindow(QMainWindow):
             self._preview_pane.update_theme(self._theme)
         if hasattr(self, '_gantt_panel'):
             self._gantt_panel.set_theme(self._theme)
+        if hasattr(self, 'studio'):
+            self.studio.set_theme(self._theme)
         # Re-render notes previews with new theme colors
         if hasattr(self, '_notes_tab_widgets'):
             for tab_name, (preview, editor, _) in self._notes_tab_widgets.items():
@@ -3236,12 +3238,21 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         dlg.finished.connect(self._on_preview_closed)
         dlg.navigated.connect(self._navigate_to_asset_in_browser)
+        dlg.dock_requested.connect(self._dock_preview_from_dialog)
         self._preview_dlg = dlg
         dlg.show()
         self._theme_dialog_titlebar(dlg)
 
     def _on_preview_closed(self):
         self._preview_dlg = None
+
+    def _dock_preview_from_dialog(self):
+        """Switch to docked preview mode when dock button is clicked in preview dialog."""
+        if not self._preview_pane.isVisible():
+            self._toggle_dock_preview()
+        # Load the current asset into the docked pane
+        if self._preview_dlg and self._preview_dlg._asset:
+            self._preview_pane.load_asset(self._preview_dlg._asset)
 
     def _on_fast_cache_toggled(self, on: bool):
         self._settings.setValue("fast_cache", int(on))

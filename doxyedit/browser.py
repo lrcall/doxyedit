@@ -1037,7 +1037,7 @@ class AssetBrowser(QWidget):
         _f = settings.value("font_size", 12, type=int)
         self._pad = max(4, _f // 3)
         self._pad_lg = max(6, _f // 2)
-        self.hover_preview_enabled = True
+        self.hover_preview_enabled = settings.value("hover_preview_enabled", "true") == "true"
         self._eye_hidden_tags: set[str] = set()
         self._temp_hidden_ids: set[str] = set()  # Alt+H temporary hide (not saved)
         self._bar_tag_filters: set[str] = set()  # tag bar filter toggles
@@ -1153,8 +1153,8 @@ class AssetBrowser(QWidget):
         toolbar.addWidget(self.recursive_check)
 
         self.hover_check = QCheckBox("Hover Preview")
-        self.hover_check.setChecked(True)
-        self.hover_check.toggled.connect(lambda v: setattr(self, 'hover_preview_enabled', v))
+        self.hover_check.setChecked(self.hover_preview_enabled)
+        self.hover_check.toggled.connect(self._on_hover_toggled)
         toolbar.addWidget(self.hover_check)
 
         self.cache_all_check = QCheckBox("Cache All")
@@ -1220,20 +1220,10 @@ class AssetBrowser(QWidget):
         self.search_tags_check.toggled.connect(self._on_search_mode_changed)
         row2.addWidget(self.search_tags_check)
 
-        self.filter_has_notes = QCheckBox("Notes")
-        self.filter_has_notes.setChecked(False)
-        self.filter_has_notes.toggled.connect(self._on_filter_changed)
-        row2.addWidget(self.filter_has_notes)
-
-        self.filter_studio_edited = QCheckBox("Studio")
-        self.filter_studio_edited.setChecked(False)
-        self.filter_studio_edited.setToolTip("Show only assets with censors or overlays")
-        self.filter_studio_edited.toggled.connect(self._on_filter_changed)
-        row2.addWidget(self.filter_studio_edited)
-
         self._format_filter = ""
         self._format_combo = QComboBox()
-        self._format_combo.addItems(["All", "PSD", "PNG", "JPG", "SAI", "WEBP", "CLIP", "Other", "Ignored"])
+        self._format_combo.addItems(["All", "PSD", "PNG", "JPG", "SAI", "WEBP", "CLIP", "Other", "Ignored",
+                                     "Has Notes", "Studio Edited"])
         self._format_combo.setToolTip("Filter by file format")
         self._format_combo.currentTextChanged.connect(self._on_format_filter_changed)
         row2.addWidget(self._format_combo)
@@ -1718,6 +1708,10 @@ class AssetBrowser(QWidget):
                 seen.add(a.id)
         return ordered
 
+    def _on_hover_toggled(self, checked):
+        self.hover_preview_enabled = checked
+        QSettings("DoxyEdit", "DoxyEdit").setValue("hover_preview_enabled", "true" if checked else "false")
+
     def _on_cache_all_toggled(self, checked):
         if not checked:
             # Pause: clear queue and remember remaining work
@@ -1815,8 +1809,6 @@ class AssetBrowser(QWidget):
             "posted": self.filter_posted.isChecked(),
             "needs_censor": self.filter_needs_censor.isChecked(),
             "show_ignored": self.filter_show_ignored.isChecked(),
-            "has_notes": self.filter_has_notes.isChecked(),
-            "studio_edited": self.filter_studio_edited.isChecked(),
             "format": self._format_filter,
             "tag_filters": sorted(self._bar_tag_filters),
             "folders": sorted(self._folder_filter) if self._folder_filter else None,
@@ -1833,14 +1825,13 @@ class AssetBrowser(QWidget):
         self.filter_posted.setChecked(state.get("posted", False))
         self.filter_needs_censor.setChecked(state.get("needs_censor", False))
         self.filter_show_ignored.setChecked(state.get("show_ignored", False))
-        self.filter_has_notes.setChecked(state.get("has_notes", False))
-        self.filter_studio_edited.setChecked(state.get("studio_edited", False))
         # Format filter
         fmt = state.get("format", "")
         self._format_filter = fmt
         if hasattr(self, '_format_combo'):
-            idx = self._format_combo.findText(fmt.upper() if fmt else "All",
-                                               Qt.MatchFlag.MatchFixedString)
+            # Match by case-insensitive search — handles "PSD", "Has Notes", etc.
+            lookup = "All" if not fmt else fmt
+            idx = self._format_combo.findText(lookup, Qt.MatchFlag.MatchFixedString)
             if idx >= 0:
                 self._format_combo.setCurrentIndex(idx)
             else:
@@ -1886,9 +1877,9 @@ class AssetBrowser(QWidget):
             preds.append(lambda a: "ignore" in a.tags)
         elif not self.filter_show_ignored.isChecked():
             preds.append(lambda a: "ignore" not in a.tags)
-        if self.filter_has_notes.isChecked():
+        if self._format_filter == "has notes":
             preds.append(lambda a: bool(a.notes and a.notes.strip()))
-        if self.filter_studio_edited.isChecked():
+        if self._format_filter == "studio edited":
             preds.append(lambda a: bool(a.censors or a.overlays))
         if self.filter_assigned.isChecked():
             preds.append(lambda a: bool(a.assignments))
@@ -1900,7 +1891,8 @@ class AssetBrowser(QWidget):
             preds.append(lambda a, cp=_cp:
                          any(pa.platform in cp for pa in a.assignments) and not a.censors)
 
-        if self._format_filter and self._format_filter != "ignored":
+        _special_filters = {"ignored", "has notes", "studio edited"}
+        if self._format_filter and self._format_filter not in _special_filters:
             _known = {".psd", ".png", ".jpg", ".jpeg", ".sai", ".sai2", ".webp", ".clip", ".csp"}
             _ff = self._format_filter
             if _ff == "other":
@@ -2058,8 +2050,7 @@ class AssetBrowser(QWidget):
                       or self.filter_starred.isChecked() or self.filter_untagged.isChecked()
                       or self.filter_tagged.isChecked() or self.filter_assigned.isChecked()
                       or self.filter_posted.isChecked() or self.filter_needs_censor.isChecked()
-                      or self.filter_has_notes.isChecked()
-                      or self.filter_studio_edited.isChecked())
+                      or self._format_filter in ("has notes", "studio edited"))
         filtered_marker = "  ⬡ FILTERED" if (any_filter and shown < total) else ""
         self.count_label.setText(f"{shown}/{total} shown, {starred}★, {tagged} tagged{filtered_marker}")
         self.page_label.setText(f"{shown} images")

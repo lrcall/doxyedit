@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal
 from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
-    QKeyEvent,
+    QKeyEvent, QTransform,
 )
 import copy
 from PIL import Image
@@ -216,6 +216,44 @@ class OverlayTextItem(QGraphicsTextItem):
         self.setTransformOriginPoint(br.center())
         self.setRotation(self.overlay.rotation)
 
+    def paint(self, painter, option, widget=None):
+        # Draw text outline if stroke is configured
+        if self.overlay.stroke_width > 0 and self.overlay.stroke_color:
+            from PySide6.QtGui import QPainterPath, QPainterPathStroker
+            painter.save()
+            doc = self.document()
+            ctx = doc.documentLayout()
+            # Build a path from all text in the document
+            path = QPainterPath()
+            block = doc.begin()
+            while block.isValid():
+                layout = block.layout()
+                if layout:
+                    for i in range(layout.lineCount()):
+                        line = layout.lineAt(i)
+                        for j in range(line.textStart(), line.textStart() + line.textLength()):
+                            pass  # We need a different approach
+                block = block.next()
+            # Simpler approach: draw the text twice — outline then fill
+            # Use QTextDocument rendering with a stroke pen
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            # Draw outline by rendering text offset in 8 directions
+            stroke_w = self.overlay.stroke_width
+            stroke_c = QColor(self.overlay.stroke_color)
+            orig_color = self.defaultTextColor()
+            self.setDefaultTextColor(stroke_c)
+            for dx in (-stroke_w, 0, stroke_w):
+                for dy in (-stroke_w, 0, stroke_w):
+                    if dx == 0 and dy == 0:
+                        continue
+                    painter.save()
+                    painter.translate(dx, dy)
+                    super().paint(painter, option, widget)
+                    painter.restore()
+            self.setDefaultTextColor(orig_color)
+            painter.restore()
+        super().paint(painter, option, widget)
+
     def itemChange(self, change, value):
         if change == QGraphicsTextItem.GraphicsItemChange.ItemPositionHasChanged:
             self.overlay.x = int(value.x())
@@ -304,6 +342,9 @@ class StudioScene(QGraphicsScene):
         self.on_censor_finished = None   # callable(CensorRectItem)
         self.on_annotation_placed = None  # callable(item)
 
+    def set_theme(self, theme):
+        self.setBackgroundBrush(QBrush(QColor(theme.bg_deep)))
+
     def set_tool(self, tool: StudioTool):
         self.current_tool = tool
 
@@ -316,7 +357,14 @@ class StudioScene(QGraphicsScene):
 
         pos = event.scenePos()
 
+        # Clear text editing focus when clicking on empty space
         if self.current_tool == StudioTool.SELECT:
+            item_under = self.itemAt(pos, self.views()[0].transform() if self.views() else QTransform())
+            if item_under is None:
+                focus = self.focusItem()
+                if focus and isinstance(focus, QGraphicsTextItem):
+                    focus.clearFocus()
+                    focus.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
             return super().mousePressEvent(event)
 
         if self.current_tool == StudioTool.CENSOR:
@@ -704,6 +752,23 @@ class StudioEditor(QWidget):
         self.btn_color.clicked.connect(self._on_color_pick)
         props.addWidget(self.btn_color)
 
+        self.btn_outline_color = QPushButton("◻")
+        self.btn_outline_color.setObjectName("studio_outline_btn")
+        self.btn_outline_color.setFixedWidth(28)
+        self.btn_outline_color.setToolTip("Outline color")
+        self.btn_outline_color.clicked.connect(self._on_outline_color_pick)
+        props.addWidget(self.btn_outline_color)
+
+        props.addWidget(QLabel("OL:"))
+        self.slider_outline = QSlider(Qt.Orientation.Horizontal)
+        self.slider_outline.setObjectName("studio_outline_slider")
+        self.slider_outline.setRange(0, 10)
+        self.slider_outline.setValue(0)
+        self.slider_outline.setFixedWidth(60)
+        self.slider_outline.setToolTip("Outline width")
+        self.slider_outline.valueChanged.connect(self._on_outline_changed)
+        props.addWidget(self.slider_outline)
+
         props.addWidget(QLabel("|"))
 
         props.addWidget(QLabel("Kern:"))
@@ -766,6 +831,11 @@ class StudioEditor(QWidget):
         self._scene.selectionChanged.connect(self._on_selection_changed)
 
     # ---- public API ----
+
+    def set_theme(self, theme):
+        """Update scene background to match current theme."""
+        self._theme = theme
+        self._scene.set_theme(theme)
 
     def set_project(self, project: Project):
         """Store project ref and populate template dropdown."""
@@ -982,7 +1052,7 @@ class StudioEditor(QWidget):
         for w in (self.slider_opacity, self.slider_scale, self.combo_position,
                   self.font_combo, self.slider_font_size, self.btn_bold,
                   self.btn_italic, self.slider_kerning, self.slider_line_height,
-                  self.slider_rotation, self.slider_text_width):
+                  self.slider_rotation, self.slider_text_width, self.slider_outline):
             w.blockSignals(True)
 
         self.slider_opacity.setValue(int(ov.opacity * 100))
@@ -999,11 +1069,12 @@ class StudioEditor(QWidget):
         self.slider_line_height.setValue(int(getattr(ov, 'line_height', 1.2) * 100))
         self.slider_rotation.setValue(int(ov.rotation))
         self.slider_text_width.setValue(ov.text_width)
+        self.slider_outline.setValue(ov.stroke_width)
 
         for w in (self.slider_opacity, self.slider_scale, self.combo_position,
                   self.font_combo, self.slider_font_size, self.btn_bold,
                   self.btn_italic, self.slider_kerning, self.slider_line_height,
-                  self.slider_rotation, self.slider_text_width):
+                  self.slider_rotation, self.slider_text_width, self.slider_outline):
             w.blockSignals(False)
 
     # ---- drag-drop from tray ----
@@ -1109,6 +1180,31 @@ class StudioEditor(QWidget):
                     item.overlay.color = color.name()
                     item._apply_font()
             self._sync_overlays_to_asset()
+
+    def _on_outline_color_pick(self):
+        items = self._selected_overlay_items()
+        if not items:
+            return
+        current = QColor(items[0].overlay.stroke_color or "#000000")
+        color = QColorDialog.getColor(current, self, "Outline Color")
+        if color.isValid():
+            for item in items:
+                if isinstance(item, OverlayTextItem):
+                    item.overlay.stroke_color = color.name()
+                    if item.overlay.stroke_width == 0:
+                        item.overlay.stroke_width = 2
+                        self.slider_outline.blockSignals(True)
+                        self.slider_outline.setValue(2)
+                        self.slider_outline.blockSignals(False)
+                    item.update()
+            self._sync_overlays_to_asset()
+
+    def _on_outline_changed(self, value: int):
+        for item in self._selected_overlay_items():
+            if isinstance(item, OverlayTextItem):
+                item.overlay.stroke_width = value
+                item.update()
+        self._sync_overlays_to_asset()
 
     def _on_kerning_changed(self, value: int):
         for item in self._selected_overlay_items():

@@ -648,6 +648,11 @@ def generate_stylesheet(theme: Theme) -> str:
             selection-background-color: {theme.selection_bg};
         }}
         QLineEdit:focus {{ border-color: {theme.accent_bright}; }}
+        QLineEdit QToolButton {{
+            border: none; padding: 0px; margin: 2px;
+            background: transparent;
+            min-width: 16px; min-height: 16px;
+        }}
 
         QComboBox {{
             background: {theme.bg_input}; color: {theme.text_primary};

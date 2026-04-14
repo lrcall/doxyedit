@@ -247,6 +247,7 @@ class ImagePreviewDialog(QDialog):
     """Full image preview — zoomable, with annotation notes and prev/next navigation."""
 
     navigated = Signal(str)   # emitted with asset_id when user navigates to a different asset
+    dock_requested = Signal()  # emitted when user clicks the Dock button
 
     def __init__(self, image_path: str, asset=None, parent=None,
                  assets: list = None, current_index: int = 0):
@@ -372,6 +373,12 @@ class ImagePreviewDialog(QDialog):
         self._pin_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._pin_btn.toggled.connect(self._toggle_always_on_top)
         info_bar.addWidget(self._pin_btn)
+
+        self._dock_btn = QPushButton("Dock")
+        self._dock_btn.setToolTip("Dock preview into main window (Ctrl+D)")
+        self._dock_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._dock_btn.clicked.connect(self._on_dock)
+        info_bar.addWidget(self._dock_btn)
 
         self._fs_btn = QPushButton("⛶")
         self._fs_btn.setFixedWidth(28)
@@ -778,6 +785,11 @@ class ImagePreviewDialog(QDialog):
             self.view.centerOn(self._pixmap_item)
         self._load_saved_notes()
         self._load_existing_crops()
+
+    def _on_dock(self):
+        """Request docking into main window and close this dialog."""
+        self.dock_requested.emit()
+        self.close()
 
     def _toggle_on_top(self, on: bool):
         """Stay above the DoxyEdit parent window but not other apps."""
