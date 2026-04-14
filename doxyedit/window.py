@@ -1534,6 +1534,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         importexport_menu.addSeparator()
         importexport_menu.addAction("Merge Project Into This...", self._merge_project)
 
+        # — Browser Automation submenu —
+        browser_menu = tools_menu.addMenu("Browser Posting")
+        browser_menu.addAction("Launch Debug Chrome", self._launch_debug_chrome)
+        browser_menu.addAction("Auto-Post to Subscriptions...", self._auto_post_subscriptions)
+
         # — Project Info submenu —
         projinfo_menu = tools_menu.addMenu("Project Info")
         projinfo_menu.addAction("Project &Summary (CLI)", self._show_summary)
@@ -2733,8 +2738,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     headers["MCP-Session-Id"] = sid
 
                 # Fetch scheduled, published, failed posts from OneUp
-                # Collect all OneUp posts by content fingerprint (content[:50] + scheduled_time)
-                oneup_fingerprints: dict[str, str] = {}  # fingerprint -> status
+                # Collect all OneUp post content fingerprints (content-only, first 40 chars)
+                oneup_contents: set[str] = set()
+                oneup_statuses: dict[str, str] = {}  # content_fp -> status
                 for tool, status_label in [
                     ("get-scheduled-posts-tool", "scheduled"),
                     ("get-published-posts-tool", "published"),
@@ -2749,24 +2755,23 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     try:
                         posts_data = _json.loads(text).get("posts", [])
                         for p in posts_data:
-                            content = (p.get("content") or "")[:50].strip()
-                            sched = (p.get("scheduled_date_time") or p.get("scheduled_time") or "")[:16]
-                            fp = f"{content}|{sched}"
-                            oneup_fingerprints[fp] = status_label
+                            content = (p.get("content") or "")[:40].strip()
+                            oneup_contents.add(content)
+                            oneup_statuses[content] = status_label
                         print(f"[OneUp Sync] {tool}: {len(posts_data)} posts")
                     except Exception:
                         print(f"[OneUp Sync] {tool}: parse error")
 
-                # Match local queued posts against OneUp fingerprints
-                print(f"[OneUp Sync] Checking {len(self.project.posts)} local posts...")
+                # Match local queued posts against OneUp by content prefix
+                from datetime import datetime as _sync_dt
+                now = _sync_dt.now()
+                print(f"[OneUp Sync] Checking {len(self.project.posts)} local posts against {len(oneup_contents)} OneUp entries...")
                 for post in self.project.posts:
                     if post.status != SocialPostStatus.QUEUED:
                         continue
-                    caption = (post.caption_default or "")[:50].strip()
-                    sched_local = (post.scheduled_time or "")[:16].replace("T", " ")
-                    fp = f"{caption}|{sched_local}"
+                    caption = (post.caption_default or "")[:40].strip()
+                    oneup_status = oneup_statuses.get(caption)
 
-                    oneup_status = oneup_fingerprints.get(fp)
                     if oneup_status == "published":
                         post.status = SocialPostStatus.POSTED
                         updated += 1
@@ -2775,12 +2780,28 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                         post.status = SocialPostStatus.FAILED
                         updated += 1
                         print(f"[OneUp Sync]   {post.id[:8]} → FAILED")
-                    elif oneup_status is None:
-                        # Not found in any OneUp list — deleted
-                        post.status = SocialPostStatus.DRAFT
-                        post.oneup_post_id = ""
-                        updated += 1
-                        print(f"[OneUp Sync]   {post.id[:8]} → DRAFT (not found on OneUp)")
+                    elif oneup_status == "scheduled":
+                        # Still scheduled on OneUp, leave as queued
+                        print(f"[OneUp Sync]   {post.id[:8]} = still scheduled")
+                    elif caption in oneup_contents:
+                        print(f"[OneUp Sync]   {post.id[:8]} = found on OneUp")
+                    else:
+                        # Not found — but only revert if pushed more than 5 min ago
+                        pushed_recently = False
+                        if post.updated_at:
+                            try:
+                                updated_dt = _sync_dt.fromisoformat(post.updated_at.rstrip("Z"))
+                                if (now - updated_dt).total_seconds() < 300:
+                                    pushed_recently = True
+                            except Exception:
+                                pass
+                        if pushed_recently:
+                            print(f"[OneUp Sync]   {post.id[:8]} = not found but pushed <5min ago, keeping queued")
+                        else:
+                            post.status = SocialPostStatus.DRAFT
+                            post.oneup_post_id = ""
+                            updated += 1
+                            print(f"[OneUp Sync]   {post.id[:8]} → DRAFT (not found on OneUp)")
             else:
                 print("[OneUp Sync] No API key — skipping post status check")
         except Exception as e:
@@ -3918,6 +3939,119 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._dirty = True
             self._rebind_project()
         self.status.showMessage(f"Expanded {expanded} folder(s) to nested structure", 4000)
+
+    def _launch_debug_chrome(self):
+        """Launch Chrome with --remote-debugging-port for browser automation."""
+        from doxyedit.browserpost import is_chrome_running, launch_debug_chrome
+        if is_chrome_running():
+            self.status.showMessage("Debug Chrome already running on port 9222", 3000)
+            return
+        # Check config for custom Chrome path
+        chrome_path = ""
+        from doxyedit.oneup import _find_config
+        project_dir = str(Path(self._project_path).parent) if self._project_path else "."
+        config_path = _find_config(project_dir)
+        if config_path.exists():
+            try:
+                import yaml
+                cfg = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+                chrome_path = cfg.get("browser_automation", {}).get("chrome_path", "")
+            except Exception:
+                pass
+        proc = launch_debug_chrome(chrome_path)
+        if proc:
+            self.status.showMessage("Debug Chrome launched — log into your platforms, then use Auto-Post", 5000)
+        else:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Chrome Not Found",
+                "Could not find Chrome. Set chrome_path in config.yaml under browser_automation:")
+
+    def _auto_post_subscriptions(self):
+        """Auto-post to all pending subscription platforms via Playwright."""
+        from PySide6.QtWidgets import QMessageBox
+        from doxyedit.browserpost import is_chrome_running, post_to_platform_sync
+        from doxyedit.quickpost import get_pending_sub_platforms
+        from doxyedit.models import SUB_PLATFORMS, SocialPostStatus
+
+        if not self._project_path:
+            self.status.showMessage("No project open", 3000)
+            return
+
+        # Find posts with pending sub-platform work
+        queued = [p for p in self.project.posts
+                  if p.status in (SocialPostStatus.QUEUED, "queued")]
+        pending_posts = []
+        for post in queued:
+            pending = get_pending_sub_platforms(post)
+            if pending:
+                pending_posts.append((post, pending))
+
+        if not pending_posts:
+            self.status.showMessage("No pending subscription platform posts", 3000)
+            return
+
+        if not is_chrome_running():
+            reply = QMessageBox.question(
+                self, "Debug Chrome Required",
+                "Browser automation requires Debug Chrome.\n"
+                "Launch it now? You'll need to log into your platforms first.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self._launch_debug_chrome()
+            return
+
+        project_dir = str(Path(self._project_path).parent)
+        identity = self.project.get_identity()
+        total = sum(len(p) for _, p in pending_posts)
+        done = 0
+
+        self.status.showMessage(f"Auto-posting to {total} platform(s)...", 0)
+        QApplication.processEvents()
+
+        for post, pending_plats in pending_posts:
+            for plat_id in pending_plats:
+                sub = SUB_PLATFORMS.get(plat_id)
+                if not sub:
+                    continue
+
+                # Get caption + image
+                caption = post.captions.get(plat_id, post.caption_default)
+                image_path = ""
+                if post.asset_ids:
+                    asset = self.project.get_asset(post.asset_ids[0])
+                    if asset and asset.source_path:
+                        from doxyedit.quickpost import _export_for_platform
+                        image_path = _export_for_platform(asset, sub, self.project)
+
+                # Get base URL from identity
+                base_url = getattr(identity, sub.url_field, "") if identity else ""
+
+                self.status.showMessage(f"Posting to {sub.name}... ({done+1}/{total})", 0)
+                QApplication.processEvents()
+
+                result = post_to_platform_sync(
+                    plat_id, caption, image_path,
+                    base_url=base_url,
+                    project_dir=project_dir,
+                )
+
+                from datetime import datetime as _dt
+                now = _dt.now().isoformat()
+                if result.success:
+                    post.sub_platform_status[plat_id] = {"status": "posted", "posted_at": now}
+                    done += 1
+                    print(f"[AutoPost] {sub.name}: OK")
+                else:
+                    post.sub_platform_status[plat_id] = {"status": "failed", "error": result.error}
+                    print(f"[AutoPost] {sub.name}: FAILED — {result.error}")
+
+                QApplication.processEvents()
+
+        if done:
+            self._dirty = True
+            self._refresh_social_panels()
+        self.status.showMessage(f"Auto-post complete: {done}/{total} platforms", 5000)
 
     def _merge_project(self):
         """Merge another project's assets and notes into the current one."""
