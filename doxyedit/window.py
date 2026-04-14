@@ -2470,26 +2470,18 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._theme_dialog_titlebar(dlg)
 
     def _cancel_oneup_if_demoted(self, post):
-        """If a post was queued on OneUp but is now draft, cancel it."""
+        """If a post was queued on OneUp but is now draft, clear local ref.
+
+        Note: OneUp API does not support deleting/moving posts.
+        The user must delete orphaned posts from oneupapp.io/queue manually.
+        """
         if post.status != "draft" or not post.oneup_post_id:
             return
-        from doxyedit.oneup import get_client_from_config
-        project_dir = str(Path(self._project_path).parent) if self._project_path else "."
-        client = get_client_from_config(project_dir)
-        if not client:
-            return
-        ids = [i.strip() for i in post.oneup_post_id.split(",") if i.strip()]
-        cancelled = 0
-        for oid in ids:
-            result = client.delete_post(oid)
-            if result.success:
-                cancelled += 1
-                print(f"[OneUp] Cancelled post {oid}")
-            else:
-                print(f"[OneUp] Failed to cancel {oid}: {result.error}")
-        if cancelled:
-            post.oneup_post_id = ""
-            self.status.showMessage(f"Cancelled {cancelled} post(s) on OneUp", 4000)
+        print(f"[OneUp] Post {post.id[:8]} demoted to draft — clearing OneUp ref")
+        print(f"[OneUp] Delete from OneUp dashboard: oneupapp.io/queue")
+        post.oneup_post_id = ""
+        self.status.showMessage(
+            "Post set to draft — delete from OneUp dashboard if still scheduled", 5000)
 
     def _on_composer_done(self, dlg, is_new: bool):
         """Handle composer close — add or update post."""
@@ -2539,12 +2531,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             post.status = SocialPostStatus.DRAFT
             return
 
-        # Filter to only OneUp-connected accounts (not subscription platforms)
-        from doxyedit.models import SUB_PLATFORMS
+        # Filter to only OneUp-connected accounts (not subscription or direct-post platforms)
+        from doxyedit.models import SUB_PLATFORMS, DIRECT_POST_PLATFORMS
         from doxyedit.oneup import get_connected_platforms
-        sub_ids = set(SUB_PLATFORMS.keys())
+        exclude_ids = set(SUB_PLATFORMS.keys()) | set(DIRECT_POST_PLATFORMS.keys())
         connected_ids = {p["id"] for p in get_connected_platforms(project_dir)}
-        oneup_platforms = [p for p in post.platforms if p not in sub_ids and p in connected_ids]
+        oneup_platforms = [p for p in post.platforms if p not in exclude_ids and p in connected_ids]
 
         if not oneup_platforms:
             print(f"[OneUp Push] No OneUp accounts in platforms: {post.platforms}")
@@ -2554,8 +2546,46 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         pushed = 0
         failed = 0
         oneup_ids = []
+
+        # Build Reddit subreddit list if any Reddit accounts are selected
+        reddit_subs = []
+        if hasattr(self.project, 'subreddits') and self.project.subreddits:
+            post_tags = set()
+            for aid in post.asset_ids:
+                asset = self.project.get_asset(aid)
+                if asset:
+                    post_tags.update(asset.tags)
+            for sub in self.project.subreddits:
+                if sub.tags_required:
+                    if post_tags & set(sub.tags_required):
+                        reddit_subs.append(sub)
+                else:
+                    reddit_subs.append(sub)
+
         for account_id in oneup_platforms:
             caption = post.captions.get(account_id, post.caption_default)
+            is_reddit = "reddit" in account_id.lower() or account_id.startswith("Virtual-") or account_id.startswith("YackyHP")
+
+            if is_reddit and reddit_subs:
+                # Push once per subreddit
+                for sub in reddit_subs:
+                    title = sub.title_template or caption[:100]
+                    print(f"[OneUp Push]   → {account_id} r/{sub.name}  sched={sched}")
+                    result = client.schedule_via_mcp(
+                        content=caption,
+                        social_network_id=account_id,
+                        scheduled_date_time=sched,
+                        reddit_options={"subreddit": sub.name},
+                        title=title,
+                    )
+                    if result.success:
+                        oneup_ids.append(str(result.data.get("id", "")))
+                        pushed += 1
+                    else:
+                        failed += 1
+                        post.platform_status[f"{account_id}:{sub.name}"] = f"failed: {result.error[:60]}"
+                continue
+
             print(f"[OneUp Push]   → {account_id}  sched={sched}  caption={caption[:40]!r}")
             result = client.schedule_via_mcp(
                 content=caption,
@@ -2699,56 +2729,15 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         label = get_active_account_label(project_dir)
         self._timeline.set_oneup_label(label)
 
-        # 2. Push locally-queued posts that haven't been sent yet
-        unpushed = [p for p in self.project.posts
-                    if p.status == SocialPostStatus.QUEUED and not p.oneup_post_id]
-        pushed_count = 0
-        if unpushed:
-            print(f"[OneUp Sync] Pushing {len(unpushed)} locally-queued post(s)...")
-            self.statusBar().showMessage(f"Pushing {len(unpushed)} queued post(s) to OneUp...", 0)
-            QApplication.processEvents()
-            for post in unpushed:
-                self._push_post_to_oneup(post)
-                if post.oneup_post_id:
-                    pushed_count += 1
-                QApplication.processEvents()
-            print(f"[OneUp Sync] Pushed {pushed_count}/{len(unpushed)}")
-
-        # 2.5 Push to direct-post platforms (Telegram, Discord webhooks)
-        direct_count = 0
-        try:
-            from doxyedit.directpost import push_to_direct
-            from datetime import datetime as _dt
-            all_queued = [p for p in self.project.posts if p.status == SocialPostStatus.QUEUED]
-            for post in all_queued:
-                # Skip posts already posted to all direct platforms
-                sp = post.sub_platform_status
-                all_direct_done = all(
-                    sp.get(p, {}).get("status") == "posted"
-                    for p in ("telegram", "discord", "bluesky")
-                    if sp.get(p)  # only check platforms that have been attempted
-                )
-                if sp and all_direct_done:
-                    continue
-                results = push_to_direct(post, self.project, project_dir)
-                now_str = _dt.now().isoformat()
-                for r in results:
-                    if r.success:
-                        post.sub_platform_status[r.platform] = {"status": "posted", "posted_at": now_str}
-                        direct_count += 1
-                    else:
-                        post.sub_platform_status[r.platform] = {"status": "failed", "error": r.error}
-                QApplication.processEvents()
-            if direct_count:
-                print(f"[OneUp Sync] Direct-posted to {direct_count} channel(s)")
-        except Exception as e:
-            print(f"[OneUp Sync] Direct-post error: {e}")
-
-        # 3. Sync post statuses via MCP (REST API is unreliable)
+        # 2. Fetch OneUp state, then push/pull/clean
         updated = 0
+        pushed_count = 0
+        cleaned_count = 0
+        direct_count = 0
         try:
             import json as _json
             from urllib.request import Request as _Req, urlopen as _urlopen
+            from datetime import datetime as _dt
 
             api_key = ""
             client = get_client_from_config(project_dir)
@@ -2759,8 +2748,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
             if api_key:
                 mcp_url = f"https://feed.oneupapp.io/mcp/oneup?apiKey={api_key}"
-
-                # Init MCP session
                 init = {"jsonrpc": "2.0", "id": 1, "method": "initialize",
                         "params": {"protocolVersion": "2024-11-05", "capabilities": {},
                                    "clientInfo": {"name": "doxyedit", "version": "2.3"}}}
@@ -2769,14 +2756,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 resp = _urlopen(req, timeout=15)
                 resp.read()
                 sid = resp.headers.get("MCP-Session-Id", "")
-                headers = {"Content-Type": "application/json"}
+                hdrs = {"Content-Type": "application/json"}
                 if sid:
-                    headers["MCP-Session-Id"] = sid
+                    hdrs["MCP-Session-Id"] = sid
 
-                # Fetch scheduled, published, failed posts from OneUp
-                # Collect all OneUp post content fingerprints (content-only, first 40 chars)
-                oneup_contents: set[str] = set()
-                oneup_statuses: dict[str, str] = {}  # content_fp -> status
+                # Fetch OneUp state: fingerprint → status + count
+                oneup_state: dict[str, str] = {}  # caption[:40] → scheduled|published|failed
+                oneup_counts: dict[str, int] = {}  # caption[:40] → count (for dupe detection)
                 for tool, status_label in [
                     ("get-scheduled-posts-tool", "scheduled"),
                     ("get-published-posts-tool", "published"),
@@ -2784,77 +2770,106 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 ]:
                     call = {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
                             "params": {"name": tool, "arguments": {}}}
-                    req2 = _Req(mcp_url, data=_json.dumps(call).encode(), headers=headers)
-                    resp2 = _urlopen(req2, timeout=15)
-                    data = _json.loads(resp2.read().decode())
-                    text = data.get("result", {}).get("content", [{}])[0].get("text", "")
+                    r2 = _Req(mcp_url, data=_json.dumps(call).encode(), headers=hdrs)
+                    rsp = _urlopen(r2, timeout=15)
+                    txt = _json.loads(rsp.read().decode()).get("result", {}).get("content", [{}])[0].get("text", "")
                     try:
-                        posts_data = _json.loads(text).get("posts", [])
-                        for p in posts_data:
-                            content = (p.get("content") or "")[:40].strip()
-                            oneup_contents.add(content)
-                            oneup_statuses[content] = status_label
-                        print(f"[OneUp Sync] {tool}: {len(posts_data)} posts")
+                        posts_list = _json.loads(txt).get("posts", [])
+                        for p in posts_list:
+                            fp = (p.get("content") or "")[:40].strip()
+                            oneup_state[fp] = status_label
+                            oneup_counts[fp] = oneup_counts.get(fp, 0) + 1
+                        print(f"[Sync] {tool}: {len(posts_list)} posts")
                     except Exception:
-                        print(f"[OneUp Sync] {tool}: parse error")
+                        pass
 
-                # Match local queued posts against OneUp by content prefix
-                from datetime import datetime as _sync_dt
-                now = _sync_dt.now()
-                print(f"[OneUp Sync] Checking {len(self.project.posts)} local posts against {len(oneup_contents)} OneUp entries...")
+                print(f"[Sync] OneUp has {len(oneup_state)} unique posts")
+
+                # Warn about duplicates on OneUp
+                dupes = {fp: cnt for fp, cnt in oneup_counts.items() if cnt > 1}
+                if dupes:
+                    from PySide6.QtWidgets import QMessageBox
+                    dupe_lines = [f"  '{fp}...' x{cnt}" for fp, cnt in dupes.items()]
+                    QMessageBox.warning(self, "Duplicate Posts on OneUp",
+                        f"Found {len(dupes)} duplicate post(s) on OneUp:\n\n"
+                        + "\n".join(dupe_lines[:10])
+                        + "\n\nDelete duplicates from oneupapp.io/queue"
+                    )
+                    print(f"[Sync] WARNING: {len(dupes)} duplicate(s) on OneUp")
+
+                # Process each local queued post
                 for post in self.project.posts:
-                    if post.status != SocialPostStatus.QUEUED:
+                    if post.status not in (SocialPostStatus.QUEUED, "queued"):
                         continue
-                    caption = (post.caption_default or "")[:40].strip()
-                    oneup_status = oneup_statuses.get(caption)
+                    fp = (post.caption_default or "")[:40].strip()
+                    remote = oneup_state.get(fp)
 
-                    if oneup_status == "published":
+                    if remote == "published":
+                        # PULL: OneUp published it
                         post.status = SocialPostStatus.POSTED
                         updated += 1
-                        print(f"[OneUp Sync]   {post.id[:8]} → POSTED")
-                    elif oneup_status == "failed":
+                        print(f"[Sync] {post.id[:8]} → POSTED")
+                    elif remote == "failed":
+                        # PULL: OneUp failed
                         post.status = SocialPostStatus.FAILED
                         updated += 1
-                        print(f"[OneUp Sync]   {post.id[:8]} → FAILED")
-                    elif oneup_status == "scheduled":
-                        # Still scheduled on OneUp, leave as queued
-                        print(f"[OneUp Sync]   {post.id[:8]} = still scheduled")
-                    elif caption in oneup_contents:
-                        print(f"[OneUp Sync]   {post.id[:8]} = found on OneUp")
+                        print(f"[Sync] {post.id[:8]} → FAILED")
+                    elif remote == "scheduled":
+                        # Already on OneUp — mark synced, don't re-push
+                        if not post.oneup_post_id:
+                            post.oneup_post_id = "synced"
+                        print(f"[Sync] {post.id[:8]} = scheduled (no action)")
+                    elif not post.oneup_post_id:
+                        # PUSH: not on OneUp, never pushed
+                        print(f"[Sync] {post.id[:8]} → pushing...")
+                        self._push_post_to_oneup(post)
+                        if post.oneup_post_id:
+                            pushed_count += 1
+                        QApplication.processEvents()
                     else:
-                        # Not found — but only revert if pushed more than 5 min ago
-                        pushed_recently = False
-                        if post.updated_at:
-                            try:
-                                updated_dt = _sync_dt.fromisoformat(post.updated_at.rstrip("Z"))
-                                if (now - updated_dt).total_seconds() < 300:
-                                    pushed_recently = True
-                            except Exception:
-                                pass
-                        if pushed_recently:
-                            print(f"[OneUp Sync]   {post.id[:8]} = not found but pushed <5min ago, keeping queued")
-                        else:
-                            post.status = SocialPostStatus.DRAFT
-                            post.oneup_post_id = ""
-                            updated += 1
-                            print(f"[OneUp Sync]   {post.id[:8]} → DRAFT (not found on OneUp)")
+                        # CLEAN: was pushed but gone from OneUp → back to draft
+                        post.status = SocialPostStatus.DRAFT
+                        post.oneup_post_id = ""
+                        cleaned_count += 1
+                        print(f"[Sync] {post.id[:8]} → DRAFT (gone from OneUp)")
             else:
-                print("[OneUp Sync] No API key — skipping post status check")
+                print("[Sync] No API key")
         except Exception as e:
-            print(f"[OneUp Sync] Error syncing posts: {e}")
+            print(f"[Sync] Error: {e}")
 
-        if updated or pushed_count or direct_count:
+        # 3. Direct-post (Telegram, Discord, Bluesky)
+        try:
+            from doxyedit.directpost import push_to_direct
+            from datetime import datetime as _dt
+            for post in self.project.posts:
+                if post.status not in (SocialPostStatus.QUEUED, "queued"):
+                    continue
+                results = push_to_direct(post, self.project, project_dir)
+                now_str = _dt.now().isoformat()
+                for r in results:
+                    if r.success:
+                        post.sub_platform_status[r.platform] = {"status": "posted", "posted_at": now_str}
+                        direct_count += 1
+                    else:
+                        post.sub_platform_status[r.platform] = {"status": "failed", "error": r.error}
+                QApplication.processEvents()
+        except Exception as e:
+            print(f"[Sync] Direct-post error: {e}")
+
+        if updated or pushed_count or cleaned_count or direct_count:
             self._dirty = True
         self._refresh_social_panels()
         parts = [acct_msg]
         if pushed_count:
-            parts.append(f"{pushed_count} pushed to OneUp")
-        if direct_count:
-            parts.append(f"{direct_count} direct-posted")
+            parts.append(f"{pushed_count} pushed")
         if updated:
-            parts.append(f"{updated} status updated")
+            parts.append(f"{updated} updated")
+        if cleaned_count:
+            parts.append(f"{cleaned_count} → draft")
+        if direct_count:
+            parts.append(f"{direct_count} direct")
         msg = f"Synced: {', '.join(parts)}"
-        print(f"[OneUp Sync] {msg}")
+        print(f"[Sync] {msg}")
         self.statusBar().showMessage(msg, 5000)
 
     def _on_calendar_day_selected(self, iso_date: str):

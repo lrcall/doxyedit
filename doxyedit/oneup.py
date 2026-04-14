@@ -126,7 +126,9 @@ class OneUpClient:
 
     def schedule_via_mcp(self, *, content: str, social_network_id: str = "ALL",
                          scheduled_date_time: str = "",
-                         category_id: int = 0) -> OneUpResult:
+                         category_id: int = 0,
+                         reddit_options: dict | None = None,
+                         title: str = "") -> OneUpResult:
         """Schedule a post via the OneUp MCP server (more reliable than REST)."""
         import json as _json
         mcp_url = f"https://feed.oneupapp.io/mcp/oneup?apiKey={self.api_key}"
@@ -153,6 +155,10 @@ class OneUpClient:
             }
             if cat:
                 args["category_id"] = cat
+            if reddit_options:
+                args["reddit"] = reddit_options
+            if title:
+                args["title"] = title
 
             call = {
                 "jsonrpc": "2.0", "id": 2, "method": "tools/call",

@@ -309,6 +309,8 @@ class CollectionIdentity:
     cien_url: str = ""          # Ci-en/DLsite creator page
     kofi_url: str = ""          # Ko-fi page
     subscribestar_url: str = "" # SubscribeStar page
+    kickstarter_url: str = ""   # Kickstarter project page
+    indiegogo_url: str = ""     # Indiegogo project page
     voice_ja: str = ""          # Japanese brand voice
     hashtags_ja: list[str] = field(default_factory=list)  # Japanese hashtags
     bio_blurb: str = ""
@@ -381,6 +383,8 @@ SUB_PLATFORMS: dict[str, SubPlatform] = {
     "gumroad": SubPlatform("gumroad", "Gumroad", "en", "https://gumroad.com/products/new", False, "product", False, "gumroad_url"),
     "kofi": SubPlatform("kofi", "Ko-fi", "en", "https://ko-fi.com/post/create", False, "tips", True, "kofi_url"),
     "subscribestar": SubPlatform("subscribestar", "SubscribeStar", "en", "{base_url}/posts/new", False, "subscription", True, "subscribestar_url"),
+    "kickstarter": SubPlatform("kickstarter", "Kickstarter", "en", "{base_url}/updates/new", False, "crowdfunding", False, "kickstarter_url"),
+    "indiegogo": SubPlatform("indiegogo", "Indiegogo", "en", "{base_url}/edit/updates/new", False, "crowdfunding", False, "indiegogo_url"),
 }
 
 

@@ -529,6 +529,9 @@ class ContentPanel(QWidget):
         if hasattr(self, '_sub_platform_checks'):
             platforms += [p for p, cb in self._sub_platform_checks.items() if cb.isChecked()]
         self.platforms_changed.emit(platforms)
+        # Rebuild per-platform captions if the toggle is expanded
+        if hasattr(self, '_per_platform_toggle') and self._per_platform_toggle.isChecked():
+            self._rebuild_per_platform_captions()
         # Rebuild per-platform captions if the section is open
         if hasattr(self, '_per_platform_toggle') and self._per_platform_toggle.isChecked():
             self._rebuild_per_platform_captions()
@@ -658,6 +661,8 @@ class ContentPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _toggle_per_platform(self, checked: bool) -> None:
+        if checked:
+            self._rebuild_per_platform_captions()
         self._per_platform_container.setVisible(checked)
         self._per_platform_toggle.setText(
             "Per-platform captions \u25b2" if checked else "Per-platform captions \u25bc"
@@ -1273,7 +1278,9 @@ RULES:
             "cien_url": ("Ci-en URL", "https://ci-en.dlsite.com/creator/12345"),
             "gumroad_url": ("Gumroad URL", "https://yourname.gumroad.com"),
             "kofi_url": ("Ko-fi URL", "https://ko-fi.com/yourname"),
+            "subscribestar_url": ("SubscribeStar URL", "https://subscribestar.adult/yourname"),
             "kickstarter_url": ("Kickstarter URL", ""),
+            "indiegogo_url": ("Indiegogo URL", ""),
             "bio_blurb": ("Bio / Blurb", "Short artist bio"),
         }
         edits: dict[str, QLineEdit] = {}

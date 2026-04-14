@@ -17,7 +17,9 @@ Commands:
     schedule <project.json>   Show upcoming post schedule
     gaps <project.json>       Find days with no scheduled posts
     suggest <project.json>    Suggest unposted assets to schedule
-    post create <project.json> [options]   Create a draft post
+    post list <project.json> [--status S]  List all posts
+    post show <project.json> <post-id>    Show all fields for a post
+    post create <project.json> [options]  Create a draft post
     post update <project.json> <post-id> [options]  Update a post
     post push <project.json> [post-id|--all-drafts]  Push to OneUp
     post sync <project.json>  Sync post statuses from OneUp
@@ -26,7 +28,7 @@ Commands:
     flatten <project.json> --asset <id>   Flatten PSD layers + optional crop extraction
     watermark <project.json> --asset <id> Apply watermark/text overlay to exported image
     reminders <project.json>  Show pending release chain steps and cadence reminders
-    transport <project.json> [--dry-run]  Copy all assets next to project file + enable local mode
+    transport <project.json> [--dry-run] [--compact]  Package assets + enable local mode
     untransport <project.json>            Restore original paths from transport metadata
 """
 import sys
@@ -505,6 +507,87 @@ def cmd_gaps(project_path: str, args: list):
     print(f"\n--- {len(gaps)} gap day(s) in {days}-day window from {from_date} ---")
 
 
+def cmd_post_list(project_path: str, args: list):
+    """List all posts with status, schedule, platforms, caption preview."""
+    from doxyedit.models import Project
+    proj = Project.load(project_path)
+
+    status_filter = None
+    fmt = "table"
+    i = 0
+    while i < len(args):
+        if args[i] == "--status" and i + 1 < len(args):
+            status_filter = args[i + 1]; i += 2
+        elif args[i] == "--format" and i + 1 < len(args):
+            fmt = args[i + 1]; i += 2
+        else:
+            i += 1
+
+    posts = proj.posts
+    if status_filter:
+        posts = [p for p in posts if p.status == status_filter]
+
+    if fmt == "json":
+        print(json.dumps([p.to_dict() for p in posts], indent=2))
+        return
+
+    if not posts:
+        print("No posts found.")
+        return
+
+    for p in posts:
+        sched = p.scheduled_time[:16] if p.scheduled_time else "(unscheduled)"
+        cap = p.caption_default[:50] if p.caption_default else "(no caption)"
+        plats = ",".join(p.platforms[:3]) if p.platforms else "(none)"
+        assets = ",".join(p.asset_ids[:2]) if p.asset_ids else "(none)"
+        status = p.status.upper() if isinstance(p.status, str) else p.status.value.upper()
+        print(f"  {p.id[:8]}  {status:<8}  {sched}  [{plats}]  {cap}")
+    print(f"\n--- {len(posts)} post(s) ---")
+
+
+def cmd_post_show(project_path: str, post_id: str):
+    """Show all fields for a single post."""
+    from doxyedit.models import Project
+    proj = Project.load(project_path)
+    post = proj.get_post(post_id)
+    if not post:
+        # Try partial match
+        matches = [p for p in proj.posts if p.id.startswith(post_id)]
+        if len(matches) == 1:
+            post = matches[0]
+        elif matches:
+            print(f"Ambiguous ID '{post_id}' — matches: {[p.id[:8] for p in matches]}")
+            sys.exit(1)
+        else:
+            print(f"Post '{post_id}' not found")
+            sys.exit(1)
+
+    print(f"ID:         {post.id}")
+    print(f"Status:     {post.status}")
+    print(f"Schedule:   {post.scheduled_time or '(unscheduled)'}")
+    print(f"Assets:     {', '.join(post.asset_ids) or '(none)'}")
+    print(f"Platforms:  {', '.join(post.platforms) or '(none)'}")
+    print(f"Caption:    {post.caption_default!r}")
+    if post.captions:
+        for plat, cap in post.captions.items():
+            print(f"  [{plat}]: {cap!r}")
+    print(f"Links:      {', '.join(post.links) or '(none)'}")
+    print(f"Collection: {post.collection or '(none)'}")
+    print(f"Campaign:   {post.campaign_id or '(none)'}")
+    print(f"Category:   {post.category_id or '(none)'}")
+    print(f"OneUp ID:   {post.oneup_post_id or '(none)'}")
+    if post.nsfw_platforms:
+        print(f"NSFW plats: {', '.join(post.nsfw_platforms)}")
+    if post.release_chain:
+        print(f"Chain:      {' > '.join(f'{s.platform} +{s.delay_hours}h' for s in post.release_chain)}")
+    if post.reply_templates:
+        print(f"Replies:    {len(post.reply_templates)} template(s)")
+    if post.strategy_notes:
+        print(f"Strategy:   {post.strategy_notes[:80]}...")
+    print(f"Created:    {post.created_at}")
+    print(f"Updated:    {post.updated_at}")
+
+
 def cmd_post_create(project_path: str, args: list):
     """Create a draft post."""
     from doxyedit.models import Project, SocialPost, SocialPostStatus
@@ -517,6 +600,10 @@ def cmd_post_create(project_path: str, args: list):
     scheduled_time = ""
     reply_templates = []
     strategy_notes = ""
+    collection = ""
+    category_id = ""
+    nsfw_platforms = []
+    campaign_id = ""
     fmt = None
 
     i = 0
@@ -538,6 +625,14 @@ def cmd_post_create(project_path: str, args: list):
             reply_templates.append(args[i + 1]); i += 2
         elif args[i] == "--strategy-notes" and i + 1 < len(args):
             strategy_notes = args[i + 1]; i += 2
+        elif args[i] == "--collection" and i + 1 < len(args):
+            collection = args[i + 1]; i += 2
+        elif args[i] == "--category" and i + 1 < len(args):
+            category_id = args[i + 1]; i += 2
+        elif args[i] == "--nsfw-platforms" and i + 1 < len(args):
+            nsfw_platforms = [x.strip() for x in args[i + 1].split(",")]; i += 2
+        elif args[i] == "--campaign" and i + 1 < len(args):
+            campaign_id = args[i + 1]; i += 2
         elif args[i] == "--format" and i + 1 < len(args):
             fmt = args[i + 1]; i += 2
         else:
@@ -584,6 +679,10 @@ def cmd_post_create(project_path: str, args: list):
         status=SocialPostStatus.DRAFT,
         reply_templates=reply_templates,
         strategy_notes=strategy_notes,
+        collection=collection,
+        category_id=category_id,
+        nsfw_platforms=nsfw_platforms,
+        campaign_id=campaign_id,
         created_at=now,
         updated_at=now,
     )
@@ -639,6 +738,18 @@ def cmd_post_update(project_path: str, post_id: str, args: list):
             post.reply_templates.append(args[i + 1]); i += 2
         elif args[i] == "--strategy-notes" and i + 1 < len(args):
             post.strategy_notes = args[i + 1]; i += 2
+        elif args[i] == "--collection" and i + 1 < len(args):
+            post.collection = args[i + 1]; i += 2
+        elif args[i] == "--category" and i + 1 < len(args):
+            post.category_id = args[i + 1]; i += 2
+        elif args[i] == "--nsfw-platforms" and i + 1 < len(args):
+            post.nsfw_platforms = [x.strip() for x in args[i + 1].split(",")]; i += 2
+        elif args[i] == "--campaign" and i + 1 < len(args):
+            post.campaign_id = args[i + 1]; i += 2
+        elif args[i] == "--assets" and i + 1 < len(args):
+            post.asset_ids = [x.strip() for x in args[i + 1].split(",")]; i += 2
+        elif args[i] == "--platforms" and i + 1 < len(args):
+            post.platforms = [x.strip() for x in args[i + 1].split(",")]; i += 2
         else:
             i += 1
 
@@ -1337,6 +1448,7 @@ def cmd_transport(project_path: str, args: list):
     from doxyedit.models import Project
 
     dry_run = "--dry-run" in args
+    compact = "--compact" in args
     proj = Project.load(project_path)
     proj_dir = Path(project_path).parent
     assets_dir = proj_dir / "_assets"
@@ -1428,6 +1540,52 @@ def cmd_transport(project_path: str, args: list):
         asset.source_folder = str(dest.parent)
         copied += 1
 
+    # Compact: collapse single-child folder chains (A/B/C → A_B_C)
+    compacted = 0
+    if compact and not dry_run and copied > 0:
+        # Build path index for updating asset refs
+        path_map: dict[str, str] = {}  # old_path → new_path
+
+        def _collapse_chain(d: Path) -> None:
+            """Walk bottom-up and collapse single-child directories."""
+            nonlocal compacted
+            if not d.is_dir():
+                return
+            children = list(d.iterdir())
+            # Recurse first
+            for c in children:
+                if c.is_dir():
+                    _collapse_chain(c)
+            # Re-check after recursion
+            children = list(d.iterdir())
+            if len(children) == 1 and children[0].is_dir() and d != assets_dir:
+                child = children[0]
+                merged_name = f"{d.name}_{child.name}"
+                merged = d.parent / merged_name
+                # Move child contents up into merged name
+                import shutil as _sh
+                child.rename(merged)
+                d.rmdir()  # now empty
+                compacted += 1
+
+        _collapse_chain(assets_dir)
+
+        # Update asset paths to match collapsed folders
+        if compacted:
+            for asset in proj.assets:
+                p = Path(asset.source_path)
+                try:
+                    p.relative_to(assets_dir)
+                except ValueError:
+                    continue
+                if not p.exists():
+                    # Path changed due to collapse — find the file
+                    fname = p.name
+                    for found in assets_dir.rglob(fname):
+                        asset.source_path = str(found)
+                        asset.source_folder = str(found.parent)
+                        break
+
     if not dry_run:
         # Store transport metadata on the project
         proj.local_mode = True
@@ -1437,12 +1595,15 @@ def cmd_transport(project_path: str, args: list):
             "transported_at": now,
             "known_roots": [str(r) for r in KNOWN_ROOTS],
             "assets_dir": "_assets",
+            "compact": compact,
         }
         proj.save(project_path)
 
     label = "DRY RUN — " if dry_run else ""
     print(f"\n{label}Transport complete:")
     print(f"  Copied:        {copied}")
+    if compacted:
+        print(f"  Compacted:     {compacted} folder chains collapsed")
     print(f"  Already local: {already_local}")
     print(f"  Skipped:       {skipped} (no source_path)")
     print(f"  Missing:       {missing} (file not found)")
@@ -1595,11 +1756,18 @@ def main():
         cmd_gaps(args[1], args[2:])
     elif cmd == "post":
         if len(args) < 3:
-            print("Usage: python -m doxyedit post <create|update|push|sync|delete> <project.json> [options]")
+            print("Usage: python -m doxyedit post <list|show|create|update|push|sync|delete> <project.json> [options]")
             sys.exit(1)
         subcmd = args[1]
         proj_path = args[2]
-        if subcmd == "create":
+        if subcmd == "list":
+            cmd_post_list(proj_path, args[3:])
+        elif subcmd == "show":
+            if len(args) < 4:
+                print("Usage: python -m doxyedit post show <project.json> <post-id>")
+                sys.exit(1)
+            cmd_post_show(proj_path, args[3])
+        elif subcmd == "create":
             cmd_post_create(proj_path, args[3:])
         elif subcmd == "update":
             if len(args) < 4:

@@ -1378,32 +1378,40 @@ def generate_stylesheet(theme: Theme) -> str:
         QFrame#timeline_post_card:hover {{
             border-color: {theme.accent_dim};
         }}
-        QLabel#post_status_badge {{
+        QLabel#post_badge_draft,
+        QLabel#post_badge_queued,
+        QLabel#post_badge_posted,
+        QLabel#post_badge_failed,
+        QLabel#post_badge_partial {{
             border-radius: {rad}px;
             padding: 2px {pad}px;
             font-size: {fs}px;
             font-weight: bold;
         }}
-        QLabel#post_status_badge[status="draft"] {{
+        QLabel#post_badge_draft {{
             background: {theme.bg_input};
             border: 1px solid {theme.border};
             color: {theme.text_secondary};
         }}
-        QLabel#post_status_badge[status="queued"] {{
+        QLabel#post_badge_queued {{
             background: {theme.post_queued}40;
             color: {theme.post_queued};
+            border: 1px solid {theme.post_queued}60;
         }}
-        QLabel#post_status_badge[status="posted"] {{
+        QLabel#post_badge_posted {{
             background: {theme.post_posted}40;
             color: {theme.post_posted};
+            border: 1px solid {theme.post_posted}60;
         }}
-        QLabel#post_status_badge[status="failed"] {{
+        QLabel#post_badge_failed {{
             background: {theme.post_failed}40;
             color: {theme.post_failed};
+            border: 1px solid {theme.post_failed}60;
         }}
-        QLabel#post_status_badge[status="partial"] {{
+        QLabel#post_badge_partial {{
             background: {theme.post_partial}40;
             color: {theme.post_partial};
+            border: 1px solid {theme.post_partial}60;
         }}
         QFrame#timeline_gap {{
             border: 1px dashed {theme.timeline_gap};
