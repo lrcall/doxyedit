@@ -1442,9 +1442,13 @@ def generate_stylesheet(theme: Theme) -> str:
             border-radius: {rad}px;
             padding: {pad}px;
         }}
+        QFrame#engagement_panel QLabel {{
+            color: {theme.text_primary};
+        }}
         QFrame#engagement_row {{
-            border: none;
-            padding: 2px 0;
+            background: {theme.bg_main};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
         }}
         QPushButton#engagement_open_btn {{
             background: {theme.accent_dim};
@@ -1452,33 +1456,31 @@ def generate_stylesheet(theme: Theme) -> str:
             border: none;
             border-radius: {rad}px;
             padding: {pad}px {pad_lg}px;
-            font-size: {fs}px;
         }}
         QPushButton#engagement_open_btn:hover {{
             background: {theme.accent};
         }}
         QPushButton#engagement_done_btn {{
-            background: {theme.post_posted}60;
+            background: {theme.bg_input};
             color: {theme.post_posted};
-            border: 1px solid {theme.post_posted}80;
+            border: 1px solid {theme.post_posted};
             border-radius: {rad}px;
             padding: {pad}px {pad_lg}px;
-            font-size: {fs}px;
         }}
         QPushButton#engagement_done_btn:hover {{
-            background: {theme.post_posted}90;
+            background: {theme.post_posted};
             color: {theme.text_on_accent};
         }}
         QPushButton#engagement_snooze_btn {{
-            background: {theme.warning}40;
+            background: {theme.bg_input};
             color: {theme.warning};
-            border: 1px solid {theme.warning}60;
+            border: 1px solid {theme.warning};
             border-radius: {rad}px;
             padding: {pad}px {pad_lg}px;
-            font-size: {fs}px;
         }}
         QPushButton#engagement_snooze_btn:hover {{
-            background: {theme.warning}70;
+            background: {theme.warning};
+            color: {theme.text_on_accent};
         }}
 
         /* ── Post composer (dialog + docked) ──────────────────────────── */
