@@ -68,15 +68,53 @@
 - **Queue to OneUp button** — Now pushes directly from GUI
 - **Subscription platforms filtered** — Subscription platforms use quick-post, filtered from OneUp push
 
+### Platforms Tab Upgrade
+- **Kanban removed** — replaced with full-width platform cards for cleaner layout
+- **Hive click bug fixed** — platform card clicks now register correctly
+- **Assignment notes** — PlatformAssignment.notes shown as tooltip on cards + Edit Note context menu
+- **Campaign filtering** — campaign selector properly filters platform cards
+
+### Tray Multi-Select
+- **Ctrl+Click / Shift+Click** in tray for multi-selection
+- **Group actions on right-click** — Copy All Paths, Quick Tag all, Send to Tray all, Remove all
+- **Quick Tag shows user tags only** — filters out built-in presets
+
+### Tray Right-Click Parity with Browser
+- **Open in Studio** — load tray asset into Studio tab
+- **Star/Unstar** — toggle star directly from tray context menu
+- **Open in Native Editor** — launch associated app for the file type
+- **Tags submenu** — shows applied tags, click to remove
+
+### Composer Preview Modes
+- **Raw / Studio / Platform** toggle buttons above image preview in composer
+- Raw shows the unmodified source, Studio shows with overlays/censors, Platform shows final export crop
+
+### Studio Fixes
+- **Props row always visible** — no layout shift when toggling tools
+- **Font size + text width as sliders** — replaces fixed increment buttons
+- **Rotation from center of mass** — text/overlay rotation pivots correctly
+- **Drag-drop from tray** — drag assets from tray into Studio scene
+
+### Engagement Panel Fix
+- **Properly embedded in timeline** — was floating as unparented window, now docked correctly
+
+### Identity Editor Rebuild
+- **5 tabs**: Profile, Platforms, Credentials, Chrome, Posting
+- **Chrome profile launcher** — per-account Chrome profiles for multi-identity browser sessions
+
+### CensorRegion Tolerance
+- **Unknown fields tolerated** — CensorRegion no longer crashes on unexpected keys (e.g. blur_radius from newer project files)
+
 ### Bug Fixes
 - **campaign_id preserved on composer save** — was silently dropped
 - **Notes custom tabs persist** across restarts
+- **Notes tab switch guard** — prevents stale content when switching tabs rapidly
+- **Notes preview re-renders on theme change**
 - **Identity manager dialog restored** — duplicate stub removed
 - **Per-platform captions** only show for checked platforms
 - **PST added to timeline** time display
 - **Context menu text** explicitly colored for readability
 - **Overlay editor tab removed** — absorbed into Studio
-- **Notes preview theme fix** — markdown preview re-renders on theme change
 - **Notes left padding** — 100px left padding on markdown editor for readability
 
 ### UI & Theming

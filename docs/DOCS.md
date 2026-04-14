@@ -180,6 +180,41 @@ Filter with the **Starred** button. Stars are saved with the project.
 
 ---
 
+## Work Tray
+
+A collapsible right-side panel for collecting assets you're actively working with. Toggle with **Ctrl+T**.
+
+**Adding items:**
+- Right-click any thumbnail in the browser and choose **Send to Tray**
+- Drag files from Windows Explorer into the tray
+
+**Selection:**
+- **Click** — select one item
+- **Ctrl+Click** — toggle multi-select
+- **Shift+Click** — range select
+
+**Right-click context menu** (applies to all selected items when multi-selecting):
+- **Preview** — open in preview window
+- **Open in Studio** — load into Studio tab
+- **Open in Native Editor** — launch the file's associated application
+- **Star / Unstar** — toggle star rating
+- **Copy Path / Copy All Paths** — copy file path(s) to clipboard
+- **Copy Filename** — copy just the filename
+- **Open in Explorer** — reveal in file manager
+- **Quick Tag** — submenu showing user-defined tags only, apply to all selected
+- **Tags** — submenu showing applied tags on selected items, click to remove
+- **Send to Tray all** — (from browser) send entire selection to tray
+- **Remove / Remove all** — remove from tray (does not delete from project)
+- **Move to Top / Bottom** — reorder within tray
+
+**View modes:**
+Click the column button (top of tray) to cycle: list view, 2-column grid, 3-column grid.
+
+**Drag out:**
+Drag items from the tray to external applications (Photoshop, Explorer, etc.) or into the Studio scene.
+
+---
+
 ## Studio Tab
 
 Unified editor combining canvas, censor, and overlay tools in a single layered scene.
@@ -201,13 +236,17 @@ A single toolbar provides access to all editing modes:
 ### Drag-Drop from Tray
 Drag any asset from the Work Tray directly into the Studio scene to load it as the base image.
 
+### Props Row
+The props row (font, size, color, rotation controls) is always visible below the toolbar — no layout shift when switching tools.
+
 ### Rich Text Editing
 Text overlays support full rich text controls:
-- **Font family** and **size** selection
+- **Font family** and **size** (slider control)
+- **Text width** (slider control)
 - **Bold** and **italic** formatting
 - **Color picker** for text color
 - **Kerning** adjustment (letter spacing)
-- **Rotation** for angled text placement
+- **Rotation** from center of mass (slider control)
 
 ### Watermark Templates
 Save and load watermark configurations as templates for batch application across assets. Templates store position, opacity, scale, and image path.
@@ -279,11 +318,11 @@ Shows target platforms with their required image slots and sizes.
 
 Each slot shows: name, target size, assigned asset, and status (pending/ready/posted/skip).
 
+**Platform Cards:**
+Full-width cards show each platform slot with name, target size, assigned asset, and status. Hover a card to see PlatformAssignment.notes as a tooltip. Right-click a card for an **Edit Note** option to add or update notes on that assignment.
+
 **Campaign UI:**
 The Platforms tab includes a campaign management panel with a campaign selector, CRUD dialog for creating/editing campaigns, and a milestone checklist. Platform cards can be filtered by campaign_id to focus on a specific launch. Platform assignments are linked to campaigns for coordinated milestone tracking and blackout period enforcement. See [Campaign System](#campaign-system) below.
-
-**Kanban Board:**
-The Platforms tab includes a kanban-style board view for tracking publish status across platforms. Each platform column shows cards for its image slots, which can be dragged between status columns (Backlog, Ready, Posted, Skip). The board and the slot list stay in sync — updating one updates the other.
 
 **Checklist:**
 Each platform slot has an optional checklist for tracking sub-tasks (e.g., "resize", "watermark", "upload"). Checklists are stored with the project.
@@ -411,9 +450,9 @@ The redesigned two-column composer for creating and scheduling social posts.
 
 ### Left Column — Image Preview
 - Large asset preview that fills available space, rescales on resize
+- **Preview mode toggle** — three buttons above the image: **Raw** (unmodified source), **Studio** (with overlays and censors applied), **Platform** (final export with crop)
 - **SFW/NSFW toggle** — switches between safe and explicit versions
 - **Crop status** — shows whether the asset has platform-specific crops defined
-- Censored preview toggle for platforms that require it
 
 ### Right Column — Content & Scheduling
 
@@ -466,6 +505,22 @@ Right-click selected text to invoke Claude actions:
 - **Research** — look up relevant context and add findings
 - **Simplify** — reduce complexity and jargon
 - **[Instruct]** — custom freeform instruction sent to Claude with the selection
+
+---
+
+## Identity Editor
+
+Manage multiple brand identities per project. Each identity has its own voice, hashtags, platform accounts, and posting preferences. Open via the identity selector in the Composer or Social tab.
+
+### 5 Tabs
+
+| Tab | Contents |
+|-----|----------|
+| **Profile** | Display name, avatar, bio, voice/tone description, default hashtags (EN + JA) |
+| **Platforms** | Per-platform usernames, URLs, Patreon schedule/cadence settings |
+| **Credentials** | API keys, tokens, and authentication details per service |
+| **Chrome** | Per-account Chrome profile paths for multi-identity browser sessions. Launch button opens Chrome with the selected profile. |
+| **Posting** | Default posting preferences: schedule offsets, tier defaults, content warnings |
 
 ---
 
