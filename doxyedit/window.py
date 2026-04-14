@@ -1275,7 +1275,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         bg_raised = self._theme.bg_raised
         html = f"""<html><head><style>
             body {{ background:{bg}; color:{fg}; font-family:'Segoe UI',sans-serif;
-                   padding:16px 40px; max-width:1200px; margin:0 auto;
+                   padding:16px 40px;
                    line-height:1.2; }}
             h1 {{ color:{accent}; margin:8px 0 2px 0; }}
             h2 {{ color:{accent}; margin:8px 0 2px 0; }}
@@ -2470,9 +2470,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             if is_new:
                 self.project.posts.append(dlg.result_post)
             self._dirty = True
-            if dlg.result_post.status == "queued":
-                self._push_post_to_oneup(dlg.result_post)
             self._refresh_social_panels()
+            if dlg.result_post.status == "queued":
+                self.status.showMessage("Queued locally — press Sync OneUp to push", 4000)
 
     def _push_post_to_oneup(self, post):
         """Push a single post to OneUp — one request per checked account."""
@@ -2595,9 +2595,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if self._docked_is_new:
             self.project.posts.append(post)
         self._dirty = True
-        if post.status == "queued":
-            self._push_post_to_oneup(post)
         self._refresh_social_panels()
+        if post.status == "queued":
+            self.status.showMessage("Queued locally — press Sync OneUp to push", 4000)
         # Save dock width so it persists
         sizes = self._social_top_split.sizes()
         if len(sizes) >= 3 and sizes[2] > 50:
@@ -2662,7 +2662,43 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         label = get_active_account_label(project_dir)
         self._timeline.set_oneup_label(label)
 
-        # 2. Sync post statuses via MCP (REST API is unreliable)
+        # 2. Push locally-queued posts that haven't been sent yet
+        unpushed = [p for p in self.project.posts
+                    if p.status == SocialPostStatus.QUEUED and not p.oneup_post_id]
+        pushed_count = 0
+        if unpushed:
+            print(f"[OneUp Sync] Pushing {len(unpushed)} locally-queued post(s)...")
+            self.statusBar().showMessage(f"Pushing {len(unpushed)} queued post(s) to OneUp...", 0)
+            QApplication.processEvents()
+            for post in unpushed:
+                self._push_post_to_oneup(post)
+                if post.oneup_post_id:
+                    pushed_count += 1
+                QApplication.processEvents()
+            print(f"[OneUp Sync] Pushed {pushed_count}/{len(unpushed)}")
+
+        # 2.5 Push to direct-post platforms (Telegram, Discord webhooks)
+        direct_count = 0
+        try:
+            from doxyedit.directpost import push_to_direct
+            all_queued = [p for p in self.project.posts if p.status == SocialPostStatus.QUEUED]
+            for post in all_queued:
+                results = push_to_direct(post, self.project, project_dir)
+                from datetime import datetime as _dt
+                now_str = _dt.now().isoformat()
+                for r in results:
+                    if r.success:
+                        post.sub_platform_status[r.platform] = {"status": "posted", "posted_at": now_str}
+                        direct_count += 1
+                    else:
+                        post.sub_platform_status[r.platform] = {"status": "failed", "error": r.error}
+                QApplication.processEvents()
+            if direct_count:
+                print(f"[OneUp Sync] Direct-posted to {direct_count} channel(s)")
+        except Exception as e:
+            print(f"[OneUp Sync] Direct-post error: {e}")
+
+        # 3. Sync post statuses via MCP (REST API is unreliable)
         updated = 0
         try:
             import json as _json
@@ -2745,10 +2781,17 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         except Exception as e:
             print(f"[OneUp Sync] Error syncing posts: {e}")
 
-        if updated:
+        if updated or pushed_count or direct_count:
             self._dirty = True
         self._refresh_social_panels()
-        msg = f"Synced: {acct_msg}, {updated} post(s) updated"
+        parts = [acct_msg]
+        if pushed_count:
+            parts.append(f"{pushed_count} pushed to OneUp")
+        if direct_count:
+            parts.append(f"{direct_count} direct-posted")
+        if updated:
+            parts.append(f"{updated} status updated")
+        msg = f"Synced: {', '.join(parts)}"
         print(f"[OneUp Sync] {msg}")
         self.statusBar().showMessage(msg, 5000)
 
