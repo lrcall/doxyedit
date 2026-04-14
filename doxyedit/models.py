@@ -176,6 +176,36 @@ class CensorRegion:
 
 
 @dataclass
+class CanvasOverlay:
+    """Non-destructive overlay (watermark, text, or logo) applied on export."""
+    type: str = "watermark"  # "watermark", "text", "logo"
+    label: str = ""
+    image_path: str = ""      # for watermark/logo
+    text: str = ""            # for text type
+    font_family: str = "Segoe UI"
+    font_size: int = 24
+    color: str = "#ffffff"
+    opacity: float = 0.3
+    position: str = "bottom-right"  # bottom-right, bottom-left, center, custom
+    x: int = 0
+    y: int = 0
+    scale: float = 0.2        # fraction of image width for watermark/logo
+    enabled: bool = True
+
+    def to_dict(self) -> dict:
+        return {
+            "type": self.type, "label": self.label, "image_path": self.image_path,
+            "text": self.text, "font_family": self.font_family, "font_size": self.font_size,
+            "color": self.color, "opacity": self.opacity, "position": self.position,
+            "x": self.x, "y": self.y, "scale": self.scale, "enabled": self.enabled,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "CanvasOverlay":
+        return cls(**{k: d[k] for k in cls.__dataclass_fields__ if k in d})
+
+
+@dataclass
 class PlatformAssignment:
     """Tracks an asset assigned to a specific platform slot."""
     platform: str = ""
@@ -260,6 +290,7 @@ class Asset:
     starred: int = 0  # 0=off, 1-5=color rating
     crops: list[CropRegion] = field(default_factory=list)
     censors: list[CensorRegion] = field(default_factory=list)
+    overlays: list[CanvasOverlay] = field(default_factory=list)
     assignments: list[PlatformAssignment] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     notes: str = ""
@@ -500,6 +531,7 @@ class Project:
     posts: list[SocialPost] = field(default_factory=list)
     identity: dict = field(default_factory=dict)
     oneup_config: dict = field(default_factory=dict)
+    default_overlays: list[dict] = field(default_factory=list)  # project-wide overlay presets
 
     def get_tags(self) -> dict[str, TagPreset]:
         """Get merged tag presets — defaults + tag_definitions + legacy custom_tags."""
@@ -554,6 +586,7 @@ class Project:
             if self.local_mode:
                 d["source_path"]   = self._to_rel(a.source_path, base)
                 d["source_folder"] = self._to_rel(a.source_folder, base) if a.source_folder else ""
+            d["overlays"] = [ov.to_dict() for ov in a.overlays]
             return d
 
         data = {
@@ -584,6 +617,7 @@ class Project:
             "posts": [p.to_dict() for p in self.posts],
             "identity": self.identity,
             "oneup_config": self.oneup_config,
+            "default_overlays": self.default_overlays,
             "assets": [_asset_dict(a) for a in self.assets],
         }
         Path(path).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
@@ -620,6 +654,7 @@ class Project:
         )
         proj.identity = raw.get("identity", {})
         proj.oneup_config = raw.get("oneup_config", {})
+        proj.default_overlays = raw.get("default_overlays", [])
         for p in raw.get("posts", []):
             proj.posts.append(SocialPost.from_dict(p))
 
@@ -664,6 +699,8 @@ class Project:
                 asset.crops.append(CropRegion(**c))
             for c in a.get("censors", []):
                 asset.censors.append(CensorRegion(**c))
+            for ov in a.get("overlays", []):
+                asset.overlays.append(CanvasOverlay.from_dict(ov))
             for p in a.get("assignments", []):
                 pa = PlatformAssignment(
                     platform=p.get("platform", ""),
