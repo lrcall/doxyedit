@@ -206,6 +206,28 @@ class CanvasOverlay:
 
 
 @dataclass
+class ReleaseStep:
+    """One step in a staggered release chain."""
+    platform: str = ""          # platform ID or account ID
+    delay_hours: int = 0        # hours after the anchor (first step)
+    account_id: str = ""        # specific OneUp connected account ID
+    caption_key: str = ""       # key into SocialPost.captions for this step
+    status: str = "pending"     # pending, posted, skipped
+    posted_at: str = ""         # ISO timestamp when actually posted
+
+    def to_dict(self) -> dict:
+        return {
+            "platform": self.platform, "delay_hours": self.delay_hours,
+            "account_id": self.account_id, "caption_key": self.caption_key,
+            "status": self.status, "posted_at": self.posted_at,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "ReleaseStep":
+        return cls(**{k: d[k] for k in cls.__dataclass_fields__ if k in d})
+
+
+@dataclass
 class PlatformAssignment:
     """Tracks an asset assigned to a specific platform slot."""
     platform: str = ""
@@ -247,6 +269,7 @@ class SocialPost:
     strategy_notes: str = ""  # AI-generated posting strategy, advice, long-term vision
     nsfw_platforms: list[str] = field(default_factory=list)  # platforms that get NSFW/uncensored version
     sfw_asset_ids: list[str] = field(default_factory=list)   # alternate censored asset IDs (empty = auto-censor)
+    release_chain: list[ReleaseStep] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -260,6 +283,7 @@ class SocialPost:
             "strategy_notes": self.strategy_notes,
             "nsfw_platforms": self.nsfw_platforms,
             "sfw_asset_ids": self.sfw_asset_ids,
+            "release_chain": [s.to_dict() for s in self.release_chain],
         }
 
     @classmethod
@@ -278,6 +302,7 @@ class SocialPost:
             strategy_notes=d.get("strategy_notes", ""),
             nsfw_platforms=d.get("nsfw_platforms", []),
             sfw_asset_ids=d.get("sfw_asset_ids", []),
+            release_chain=[ReleaseStep.from_dict(s) for s in d.get("release_chain", [])],
         )
 
 
@@ -532,6 +557,8 @@ class Project:
     identity: dict = field(default_factory=dict)
     oneup_config: dict = field(default_factory=dict)
     default_overlays: list[dict] = field(default_factory=list)  # project-wide overlay presets
+    release_templates: list[dict] = field(default_factory=list)  # reusable release chain templates
+    identities: dict = field(default_factory=dict)  # name -> CollectionIdentity dict + patreon_schedule
 
     def get_tags(self) -> dict[str, TagPreset]:
         """Get merged tag presets — defaults + tag_definitions + legacy custom_tags."""
@@ -618,6 +645,8 @@ class Project:
             "identity": self.identity,
             "oneup_config": self.oneup_config,
             "default_overlays": self.default_overlays,
+            "release_templates": self.release_templates,
+            "identities": self.identities,
             "assets": [_asset_dict(a) for a in self.assets],
         }
         Path(path).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
@@ -655,6 +684,8 @@ class Project:
         proj.identity = raw.get("identity", {})
         proj.oneup_config = raw.get("oneup_config", {})
         proj.default_overlays = raw.get("default_overlays", [])
+        proj.release_templates = raw.get("release_templates", [])
+        proj.identities = raw.get("identities", {})
         for p in raw.get("posts", []):
             proj.posts.append(SocialPost.from_dict(p))
 
