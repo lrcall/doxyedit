@@ -106,6 +106,10 @@ VINIK24 = Theme(
     selection_bg="#666092",
     selection_border="#7ca1c0",
     thumb_bg="#332845",
+    post_draft="#6f6776",
+    post_queued="#c28d75",
+    post_posted="#6eaa78",
+    post_failed="#9a4f50",
 )
 
 # ---------------------------------------------------------------------------
@@ -133,6 +137,10 @@ WARM_CHARCOAL = Theme(
     selection_bg="#5a4820",
     selection_border="#a08040",
     thumb_bg="#22201e",
+    post_draft="#6a6458",
+    post_queued="#c0a050",
+    post_posted="#6eaa78",
+    post_failed="#a04838",
 )
 
 # ---------------------------------------------------------------------------
@@ -160,6 +168,10 @@ SOOT = Theme(
     selection_bg="#483868",
     selection_border="#7868b0",
     thumb_bg="#1a181e",
+    post_draft="#585060",
+    post_queued="#9888d0",
+    post_posted="#6eaa78",
+    post_failed="#9a4f50",
 )
 
 # ---------------------------------------------------------------------------
@@ -191,6 +203,10 @@ BONE = Theme(
     warning="#a08040",
     error="#a04838",
     star="#8a6830",
+    post_draft="#908878",
+    post_queued="#c0a050",
+    post_posted="#5a8850",
+    post_failed="#a04838",
 )
 
 # ---------------------------------------------------------------------------
@@ -222,6 +238,10 @@ MILK_GLASS = Theme(
     warning="#808040",
     error="#a04848",
     star="#808040",
+    post_draft="#889898",
+    post_queued="#3a8888",
+    post_posted="#508060",
+    post_failed="#a04848",
 )
 
 # ---------------------------------------------------------------------------
@@ -249,6 +269,10 @@ FOREST = Theme(
     selection_bg="#387080",
     selection_border="#68aca9",
     thumb_bg="#1a2820",
+    post_draft="#557064",
+    post_queued="#68aca9",
+    post_posted="#6eaa78",
+    post_failed="#9a4f50",
 )
 
 # ---------------------------------------------------------------------------
@@ -267,6 +291,10 @@ DARK = Theme(
     accent_bright="#0078d4",
     text_primary="#cccccc",
     text_secondary="#888888",
+    post_draft="#666666",
+    post_queued="#0078d4",
+    post_posted="#6eaa78",
+    post_failed="#cc4444",
     text_muted="#555555",
     text_on_accent="#ffffff",
     statusbar_bg="#007acc",
@@ -308,6 +336,10 @@ NEON = Theme(
     warning="#ffea00",
     error="#ff1744",
     star="#ffea00",
+    post_draft="#505050",
+    post_queued="#00e676",
+    post_posted="#00c853",
+    post_failed="#ff1744",
 )
 
 # ---------------------------------------------------------------------------
@@ -335,6 +367,10 @@ EMBER = Theme(
     selection_bg="#5a3818",
     selection_border="#e68a30",
     thumb_bg="#1a1210",
+    post_draft="#6a5a48",
+    post_queued="#e68a30",
+    post_posted="#6eaa78",
+    post_failed="#cc4444",
 )
 
 # ---------------------------------------------------------------------------
@@ -362,6 +398,10 @@ MIDNIGHT = Theme(
     selection_bg="#1a3050",
     selection_border="#4488cc",
     thumb_bg="#0e1220",
+    post_draft="#405060",
+    post_queued="#4488cc",
+    post_posted="#6eaa78",
+    post_failed="#cc4444",
 )
 
 # ---------------------------------------------------------------------------
@@ -393,6 +433,10 @@ DAWN = Theme(
     warning="#b08030",
     error="#b04040",
     star="#c06048",
+    post_draft="#a08878",
+    post_queued="#c06048",
+    post_posted="#608850",
+    post_failed="#b04040",
 )
 
 # ---------------------------------------------------------------------------
@@ -424,6 +468,10 @@ CITRUS = Theme(
     warning="#a09020",
     error="#a04838",
     star="#a09020",
+    post_draft="#8a9878",
+    post_queued="#5a8828",
+    post_posted="#408018",
+    post_failed="#a04838",
 )
 
 # ---------------------------------------------------------------------------
@@ -455,6 +503,10 @@ CANDY = Theme(
     warning="#a08030",
     error="#b83848",
     star="#c04888",
+    post_draft="#a07888",
+    post_queued="#c87898",
+    post_posted="#58884a",
+    post_failed="#b83848",
 )
 
 
@@ -1373,15 +1425,21 @@ def generate_stylesheet(theme: Theme) -> str:
             font-size: {fxs}px;
         }}
 
-        /* ── Post composer dialog ─────────────────────────────────────── */
+        /* ── Post composer (dialog + docked) ──────────────────────────── */
         QDialog#post_composer,
         QDialog#post_composer QWidget,
         QDialog#post_composer QScrollArea,
-        QDialog#post_composer QScrollArea > QWidget {{
+        QDialog#post_composer QScrollArea > QWidget,
+        QWidget#post_composer_widget,
+        QWidget#post_composer_widget QWidget,
+        QWidget#post_composer_widget QScrollArea,
+        QWidget#post_composer_widget QScrollArea > QWidget,
+        QWidget#composer_dock {{
             background: {theme.bg_main};
             color: {theme.text_primary};
         }}
-        QDialog#post_composer QGroupBox {{
+        QDialog#post_composer QGroupBox,
+        QWidget#post_composer_widget QGroupBox {{
             color: {theme.text_primary};
             background: {theme.bg_main};
             border: 1px solid {theme.border};
@@ -1389,47 +1447,55 @@ def generate_stylesheet(theme: Theme) -> str:
             margin-top: {f}px;
             padding-top: {f}px;
         }}
-        QDialog#post_composer QGroupBox::title {{
+        QDialog#post_composer QGroupBox::title,
+        QWidget#post_composer_widget QGroupBox::title {{
             color: {theme.text_secondary};
             subcontrol-origin: margin;
             padding: 0 {pad}px;
         }}
-        QDialog#post_composer QLineEdit {{
+        QDialog#post_composer QLineEdit,
+        QWidget#post_composer_widget QLineEdit {{
             background: {theme.bg_input};
             color: {theme.text_primary};
             border: 1px solid {theme.border};
             border-radius: {rad}px;
             padding: {pad}px;
         }}
-        QDialog#post_composer QTextEdit {{
+        QDialog#post_composer QTextEdit,
+        QWidget#post_composer_widget QTextEdit {{
             background: {theme.bg_input};
             color: {theme.text_primary};
             border: 1px solid {theme.border};
             border-radius: {rad}px;
             padding: {pad}px;
         }}
-        QDialog#post_composer QDateTimeEdit {{
+        QDialog#post_composer QDateTimeEdit,
+        QWidget#post_composer_widget QDateTimeEdit {{
             background: {theme.bg_input};
             color: {theme.text_primary};
             border: 1px solid {theme.border};
             border-radius: {rad}px;
             padding: {pad}px;
         }}
-        QDialog#post_composer QCheckBox {{
+        QDialog#post_composer QCheckBox,
+        QWidget#post_composer_widget QCheckBox {{
             color: {theme.text_primary};
             spacing: {pad}px;
         }}
-        QDialog#post_composer QLabel {{
+        QDialog#post_composer QLabel,
+        QWidget#post_composer_widget QLabel {{
             color: {theme.text_primary};
         }}
-        QDialog#post_composer QPushButton {{
+        QDialog#post_composer QPushButton,
+        QWidget#post_composer_widget QPushButton {{
             background: {theme.bg_raised};
             color: {theme.text_primary};
             border: 1px solid {theme.border};
             border-radius: {rad}px;
             padding: {pad}px {pad_lg}px;
         }}
-        QDialog#post_composer QPushButton:hover {{
+        QDialog#post_composer QPushButton:hover,
+        QWidget#post_composer_widget QPushButton:hover {{
             background: {theme.bg_hover};
             border-color: {theme.accent_dim};
         }}
@@ -1659,6 +1725,15 @@ def generate_stylesheet(theme: Theme) -> str:
         /* ── Composer disabled platform ──────────────────────────────── */
         QCheckBox#composer_platform_disabled {{
             color: {theme.text_muted};
+        }}
+        QLabel#composer_sub_platform_label {{
+            color: {theme.text_secondary};
+            font-size: {fs}px;
+            font-weight: bold;
+            padding-top: {pad}px;
+        }}
+        QCheckBox#composer_sub_platform_check {{
+            color: {theme.text_primary};
         }}
 
         /* ── Composer left panel ─────────────────────────────────────── */

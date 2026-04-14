@@ -167,6 +167,27 @@ class ContentPanel(QWidget):
         # Populate with first category (or flat connected list)
         self._rebuild_account_checkboxes()
 
+        # --- Subscription platforms (Patreon, Fanbox, etc.) ---
+        from doxyedit.models import SUB_PLATFORMS
+        self._sub_platform_checks: dict[str, QCheckBox] = {}
+        sub_flow = _FlowLayout(hspacing=8, vspacing=4)
+        sub_container = QWidget()
+        sub_container.setLayout(sub_flow)
+
+        for sub in SUB_PLATFORMS.values():
+            cb = QCheckBox(sub.name)
+            cb.setProperty("platform_id", sub.id)
+            cb.setObjectName("composer_sub_platform_check")
+            cb.setToolTip(f"{sub.monetization_type} — {sub.locale.upper()} — quick-post (clipboard + browser)")
+            cb.clicked.connect(self._on_platform_toggled)
+            self._sub_platform_checks[sub.id] = cb
+            sub_flow.addWidget(cb)
+
+        sub_label = QLabel("Subscription:")
+        sub_label.setObjectName("composer_sub_platform_label")
+        platforms_layout.addWidget(sub_label)
+        platforms_layout.addWidget(sub_container)
+
         root.addWidget(platforms_box)
 
         # --- Splitter: strategy (top) / rest (bottom, scrollable) ---
@@ -212,6 +233,8 @@ class ContentPanel(QWidget):
 
         self._strategy_edit = QTextEdit()
         self._strategy_edit.setPlaceholderText("Strategy notes — raw markdown")
+        self._strategy_edit.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._strategy_edit.customContextMenuRequested.connect(self._strategy_context_menu)
         self._strategy_stack.addWidget(self._strategy_edit)  # index 0 = raw edit
 
         self._strategy_browser = QTextBrowser()
@@ -255,19 +278,10 @@ class ContentPanel(QWidget):
         caption_layout.addWidget(self._per_platform_toggle)
 
         self._per_platform_container = QWidget()
-        pp_layout = QVBoxLayout(self._per_platform_container)
-        pp_layout.setSpacing(4)
-        pp_layout.setContentsMargins(0, 0, 0, 0)
-        for plat_info in self._connected:
-            plat = plat_info["id"]
-            lbl = QLabel(plat_info.get("name", plat))
-            lbl.setObjectName("composer_platform_label")
-            te = QTextEdit()
-            te.setMaximumHeight(100)
-            te.setPlaceholderText(f"Caption for {plat} (leave blank to use default)")
-            self._platform_captions[plat] = te
-            pp_layout.addWidget(lbl)
-            pp_layout.addWidget(te)
+        self._pp_layout = QVBoxLayout(self._per_platform_container)
+        self._pp_layout.setSpacing(4)
+        self._pp_layout.setContentsMargins(0, 0, 0, 0)
+        self._rebuild_per_platform_captions()
 
         self._per_platform_container.setVisible(False)
         caption_layout.addWidget(self._per_platform_container)
@@ -380,8 +394,11 @@ class ContentPanel(QWidget):
                     self._category_combo.setCurrentIndex(i)
                     break
 
-        # Platforms
+        # Platforms (OneUp accounts)
         for plat, cb in self._platform_checks.items():
+            cb.setChecked(plat in post.platforms)
+        # Subscription platforms
+        for plat, cb in self._sub_platform_checks.items():
             cb.setChecked(plat in post.platforms)
 
         # Captions
@@ -434,10 +451,13 @@ class ContentPanel(QWidget):
         """Check the default platforms (used for new posts)."""
         for plat, cb in self._platform_checks.items():
             cb.setChecked(plat in defaults)
+        for plat, cb in self._sub_platform_checks.items():
+            cb.setChecked(plat in defaults)
 
     def get_post_data(self) -> dict:
         """Return all field values as a dict for building a SocialPost."""
         platforms = [p for p, cb in self._platform_checks.items() if cb.isChecked()]
+        platforms += [p for p, cb in self._sub_platform_checks.items() if cb.isChecked()]
         caption_default = self._caption_edit.toPlainText()
         captions = {
             plat: te.toPlainText()
@@ -493,11 +513,14 @@ class ContentPanel(QWidget):
 
     def _on_platform_toggled(self) -> None:
         platforms = [p for p, cb in self._platform_checks.items() if cb.isChecked()]
+        # Include checked subscription platforms
+        platforms += [p for p, cb in self._sub_platform_checks.items() if cb.isChecked()]
         self.platforms_changed.emit(platforms)
 
     def _on_category_changed(self, _index: int) -> None:
-        """Rebuild account checkboxes when category dropdown changes."""
+        """Rebuild account checkboxes and per-platform captions when category changes."""
         self._rebuild_account_checkboxes()
+        self._rebuild_per_platform_captions()
 
     def _rebuild_account_checkboxes(self) -> None:
         """Clear and rebuild the account checkboxes for the selected category."""
@@ -537,6 +560,43 @@ class ContentPanel(QWidget):
 
         # Emit updated platform list
         self._on_platform_toggled()
+
+    def _rebuild_per_platform_captions(self) -> None:
+        """Rebuild per-platform caption fields to match the selected category."""
+        # Save existing caption text
+        saved_captions = {
+            pid: te.toPlainText() for pid, te in self._platform_captions.items()
+        }
+
+        # Clear existing widgets
+        while self._pp_layout.count():
+            item = self._pp_layout.takeAt(0)
+            if item and item.widget():
+                item.widget().deleteLater()
+        self._platform_captions.clear()
+
+        # Determine which accounts to show
+        accounts = self._connected
+        if self._categories and self._category_combo is not None:
+            cat_id = self._category_combo.currentData()
+            for cat in self._categories:
+                if cat["id"] == cat_id:
+                    accounts = cat.get("accounts", [])
+                    break
+
+        for acct in accounts:
+            pid = acct["id"]
+            name = acct.get("name", pid)
+            lbl = QLabel(name)
+            lbl.setObjectName("composer_platform_label")
+            te = QTextEdit()
+            te.setMaximumHeight(100)
+            te.setPlaceholderText(f"Caption for {pid} (leave blank to use default)")
+            if pid in saved_captions and saved_captions[pid]:
+                te.setPlainText(saved_captions[pid])
+            self._platform_captions[pid] = te
+            self._pp_layout.addWidget(lbl)
+            self._pp_layout.addWidget(te)
 
     # ------------------------------------------------------------------
     # Timezone display
@@ -623,6 +683,16 @@ a {{ color: {theme.accent}; }}
             # Raw edit is showing — grab latest from editor
             self._strategy_raw = self._strategy_edit.toPlainText()
         return self._strategy_raw or self._ai_strategy_cache or self._local_strategy_cache
+
+    def _strategy_context_menu(self, pos) -> None:
+        """Custom right-click menu for strategy notes — adds AI actions."""
+        from PySide6.QtWidgets import QMenu
+        menu = self._strategy_edit.createStandardContextMenu()
+        menu.addSeparator()
+        menu.addAction("Generate Local Strategy", self._generate_local_strategy)
+        menu.addAction("AI Strategy (Claude)", self._generate_ai_strategy)
+        menu.addAction("Apply Strategy to Fields", self._apply_strategy)
+        menu.exec(self._strategy_edit.mapToGlobal(pos))
 
     def _toggle_strategy_edit(self, checked: bool) -> None:
         """Toggle between raw markdown (default) and rendered preview."""
