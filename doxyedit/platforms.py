@@ -262,14 +262,22 @@ class PlatformPanel(QWidget):
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(12, 8, 12, 8)
-        outer.setSpacing(_pad_lg)
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
-        # Campaign bar
+        # Campaign bar — left side
         self._campaign_bar = CampaignBar(self.project, self)
         self._campaign_bar.modified.connect(self._on_campaign_modified)
+        self._campaign_bar.setFixedWidth(280)
         outer.addWidget(self._campaign_bar)
+
+        # Right side — platform slots
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(12, 8, 12, 8)
+        right_layout.setSpacing(_pad_lg)
+        outer.addWidget(right, 1)
 
         # Top bar: summary + view toggle
         top_bar = QHBoxLayout()
@@ -282,10 +290,10 @@ class PlatformPanel(QWidget):
         self._view_toggle.setToolTip("Toggle between card and dashboard views")
         self._view_toggle.toggled.connect(self._on_view_toggled)
         top_bar.addWidget(self._view_toggle)
-        outer.addLayout(top_bar)
+        right_layout.addLayout(top_bar)
 
         self._stack = QStackedWidget()
-        outer.addWidget(self._stack, 1)
+        right_layout.addWidget(self._stack, 1)
 
         # ── Page 0: Cards view (existing) ─────────────────────────────────
         cards_page = QWidget()
