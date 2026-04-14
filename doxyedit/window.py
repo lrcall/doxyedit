@@ -1011,7 +1011,7 @@ class MainWindow(QMainWindow):
         editor = QPlainTextEdit()
         editor.setObjectName("project_notes_tab")
         editor.setPlainText(content)
-        editor.setStyleSheet("QPlainTextEdit { padding-left: 12px; }")
+        editor.setViewportMargins(16, 0, 0, 0)
         editor.textChanged.connect(lambda: self._on_sub_note_changed(name))
         editor.textChanged.connect(lambda: self._live_render_notes(name))
 
@@ -1022,7 +1022,7 @@ class MainWindow(QMainWindow):
         preview = QTextBrowser()
         preview.setObjectName("project_notes_preview")
         preview.setOpenExternalLinks(True)
-        preview.setStyleSheet("QTextBrowser { padding-left: 12px; }")
+        preview.setViewportMargins(16, 0, 0, 0)
 
         split.addWidget(editor)
         split.addWidget(preview)
