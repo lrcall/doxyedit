@@ -1204,27 +1204,28 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         bg_raised = self._theme.bg_raised
         html = f"""<html><head><style>
             body {{ background:{bg}; color:{fg}; font-family:'Segoe UI',sans-serif;
-                   padding:24px 36px; max-width:820px; margin:0 auto;
-                   line-height:1.35; }}
-            h1,h2,h3 {{ color:{accent}; border-bottom:1px solid {border};
-                        padding-bottom:2px; margin:10px 0 4px 0; }}
-            h4,h5,h6 {{ color:{accent}; margin:8px 0 2px 0; }}
+                   padding:16px 28px; max-width:820px; margin:0 auto;
+                   line-height:1.2; font-size:13px; }}
+            h1 {{ color:{accent}; margin:8px 0 2px 0; font-size:16px; }}
+            h2 {{ color:{accent}; margin:8px 0 2px 0; font-size:14px; }}
+            h3 {{ color:{accent}; margin:6px 0 1px 0; font-size:13px; }}
+            h4,h5,h6 {{ color:{accent}; margin:4px 0 1px 0; }}
             a {{ color:{accent}; }}
-            p {{ margin:4px 0; }}
-            ul, ol {{ padding-left:20px; margin:2px 0; }}
-            li {{ margin:0; padding:0; line-height:1.25; }}
+            p {{ margin:2px 0; }}
+            ul, ol {{ padding-left:16px; margin:1px 0; }}
+            li {{ margin:0; padding:0; line-height:1.15; }}
             img {{ max-width:100%; border-radius:4px; }}
-            code {{ background:{bg_raised}; padding:1px 5px;
-                    border-radius:3px; font-family:Consolas,monospace; }}
-            pre {{ background:{bg_raised}; padding:12px 16px;
-                   border-radius:5px; overflow-x:auto; }}
+            code {{ background:{bg_raised}; padding:1px 4px;
+                    border-radius:3px; font-family:Consolas,monospace; font-size:12px; }}
+            pre {{ background:{bg_raised}; padding:8px 12px;
+                   border-radius:4px; overflow-x:auto; }}
             pre code {{ background:transparent; padding:0; }}
-            blockquote {{ border-left:3px solid {accent}; margin:0; padding:4px 16px;
+            blockquote {{ border-left:3px solid {accent}; margin:0; padding:2px 12px;
                           color:{fg2}; }}
             table {{ border-collapse:collapse; width:100%; }}
-            th,td {{ border:1px solid {border}; padding:6px 10px; text-align:left; }}
+            th,td {{ border:1px solid {border}; padding:4px 8px; text-align:left; }}
             th {{ background:{bg_raised}; }}
-            hr {{ border:none; height:2px; background: linear-gradient(to right, transparent, {accent}40, transparent); margin:12px 0; }}
+            hr {{ border:none; height:2px; background:{accent}30; margin:8px 0; }}
         </style></head><body>{html_body}</body></html>"""
         widget.setHtml(html)
 
