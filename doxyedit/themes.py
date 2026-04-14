@@ -1532,6 +1532,29 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
         QWidget#gantt_toolbar {{
             background: {theme.bg_raised};
+            color: {theme.text_primary};
+        }}
+        QWidget#gantt_toolbar QLabel {{
+            color: {theme.text_secondary};
+        }}
+        QWidget#gantt_toolbar QDateEdit {{
+            background: {theme.bg_input};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            padding: {pad}px;
+        }}
+        QWidget#gantt_toolbar QSlider::groove:horizontal {{
+            background: {theme.bg_input};
+            height: 4px;
+            border-radius: 2px;
+        }}
+        QWidget#gantt_toolbar QSlider::handle:horizontal {{
+            background: {theme.accent};
+            width: 12px;
+            height: 12px;
+            margin: -4px 0;
+            border-radius: 6px;
         }}
         QGraphicsView#gantt_view {{
             background: {theme.bg_deep};
@@ -1540,6 +1563,9 @@ def generate_stylesheet(theme: Theme) -> str:
         QScrollArea#gantt_label_area {{
             background: {theme.bg_main};
             border: none;
+        }}
+        QScrollArea#gantt_label_area > QWidget {{
+            background: {theme.bg_main};
         }}
         QLabel#gantt_row_label {{
             color: {theme.text_secondary};

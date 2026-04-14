@@ -303,12 +303,14 @@ class ThumbnailModel(QAbstractListModel):
     StarRole = Qt.ItemDataRole.UserRole + 4
     TagsRole = Qt.ItemDataRole.UserRole + 5
     AssignmentsRole = Qt.ItemDataRole.UserRole + 6  # list of (platform, status) tuples
+    PostStatusRole = Qt.ItemDataRole.UserRole + 7   # social post status: "draft"|"queued"|"posted"|None
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._assets: list[Asset] = []
         self._pixmaps: dict[str, QPixmap] = {}
         self._id_to_row: dict[str, int] = {}  # O(1) lookup for update_pixmap
+        self._post_status_map: dict[str, str] = {}  # asset_id -> best social post status
 
     def rowCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self._assets)
@@ -332,7 +334,20 @@ class ThumbnailModel(QAbstractListModel):
             return asset.tags
         elif role == self.AssignmentsRole:
             return [(pa.platform, pa.status) for pa in asset.assignments] if asset.assignments else []
+        elif role == self.PostStatusRole:
+            return self._post_status_map.get(asset.id)
         return None
+
+    def update_post_status(self, posts):
+        """Build asset_id -> best social post status map from project posts."""
+        self._post_status_map.clear()
+        priority = {"posted": 3, "queued": 2, "draft": 1}
+        for p in posts:
+            status = p.status if isinstance(p.status, str) else str(p.status)
+            for aid in p.asset_ids:
+                existing = self._post_status_map.get(aid)
+                if not existing or priority.get(status, 0) > priority.get(existing, 0):
+                    self._post_status_map[aid] = status
 
     def set_assets(self, assets: list[Asset]):
         self.beginResetModel()
@@ -504,6 +519,30 @@ class ThumbnailDelegate(QStyledItemDelegate):
                 self._fonts[(_bdg_sz, "bold")] = _bf
             painter.setFont(self._fonts.get((_bdg_sz, "bold"), self._font(_bdg_sz)))
             painter.drawText(QRect(bx, by, 16, 16), Qt.AlignmentFlag.AlignCenter, badge_char)
+
+        # Social post status badge (below platform badge, top-right)
+        post_status = index.data(ThumbnailModel.PostStatusRole)
+        if post_status:
+            _ps_colors = {
+                "draft": (QColor(136, 136, 136, 200), "D"),
+                "queued": (QColor(232, 168, 124, 220), "Q"),
+                "posted": (QColor(110, 170, 120, 220), "P"),
+                "failed": (QColor(200, 68, 68, 220), "!"),
+            }
+            ps_color, ps_char = _ps_colors.get(post_status, (QColor(136, 136, 136, 200), "?"))
+            ps_x = rect.x() + rect.width() - self.PADDING - 18
+            ps_y = rect.y() + self.PADDING + (22 if assignments else 2)
+            painter.setBrush(ps_color)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(ps_x, ps_y, 16, 16, 4, 4)
+            painter.setPen(QColor(255, 255, 255, 230))
+            _ps_sz = max(6, self.font_size - 4)
+            if (_ps_sz, "bold") not in self._fonts:
+                self._fonts[(_ps_sz, "bold")] = QFont(
+                    self._theme.font_family if self._theme else "Segoe UI",
+                    _ps_sz, QFont.Weight.Bold)
+            painter.setFont(self._fonts[(_ps_sz, "bold")])
+            painter.drawText(QRect(ps_x, ps_y, 16, 16), Qt.AlignmentFlag.AlignCenter, ps_char)
 
         # Dimensions text
         fs = self.font_size

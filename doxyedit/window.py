@@ -2478,6 +2478,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._calendar_pane.refresh()
             if hasattr(self, '_gantt_panel'):
                 self._gantt_panel.refresh()
+            self.browser._model.update_post_status(self.project.posts)
+            self.browser.active_view.viewport().update()
             self.platform_panel.refresh()
 
     def _check_reminders(self):
@@ -4083,6 +4085,7 @@ Ctrl+Click tag — Search by tag
         self.browser.project = self.project
         self.work_tray._project = self.project
         self.browser.rebuild_tag_bar()
+        self.browser._model.update_post_status(self.project.posts)
         self.browser.refresh()
         self.platform_panel.project = self.project
         self.platform_panel.refresh()
