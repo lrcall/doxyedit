@@ -458,9 +458,9 @@ class ThumbnailDelegate(QStyledItemDelegate):
         READINESS_DOT_SPACING_MULT = 3.0 # readiness dot spacing = radius * this
         FOLDER_LABEL_FONT_RATIO = 0.75   # folder group label font
         DIMS_FONT_RATIO        = 0.75    # dimensions text font
-        DIMS_HEIGHT_RATIO      = 1.3     # dimensions line height
+        DIMS_HEIGHT_RATIO      = 1.0     # dimensions line height
         NAME_FONT_RATIO        = 0.85    # filename font
-        NAME_HEIGHT_RATIO      = 1.5     # filename line height
+        NAME_HEIGHT_RATIO      = 1.2     # filename line height
         STAR_FONT_RATIO        = 1.3     # star icon font
         STAR_SIZE_RATIO        = 1.7     # star hit area
         GROUP_DOT_RATIO        = 0.45
@@ -497,7 +497,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self.readiness_dot_spacing = int(self.readiness_dot_radius * READINESS_DOT_SPACING_MULT)
 
         # Below-thumbnail text area
-        self.below_dots_offset = self.cell_padding + self.tag_dot_radius * 2 + self.cell_padding
+        self.below_dots_offset = self.cell_padding + self.tag_dot_radius * 2
         self.folder_label_font_size = max(MIN_FONT, int(font_size * FOLDER_LABEL_FONT_RATIO))
         self.dims_font_size = max(MIN_FONT, int(font_size * DIMS_FONT_RATIO))
         self.dims_line_height = int(font_size * DIMS_HEIGHT_RATIO)
