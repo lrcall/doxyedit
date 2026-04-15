@@ -1006,10 +1006,13 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
 
         QWidget#info_panel {{
-            background: {theme.bg_main};
+            background: {theme.bg_raised};
         }}
         QWidget#info_panel QLabel {{
             color: {theme.text_primary};
+        }}
+        QLabel#info_section_header {{
+            color: {theme.accent_bright};
         }}
         QWidget#info_panel QPushButton {{
             background: {theme.bg_input};

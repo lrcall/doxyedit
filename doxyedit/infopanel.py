@@ -89,6 +89,7 @@ class InfoPanel(QWidget):
 
         # Palette section
         self._palette_header = QLabel("Palette")
+        self._palette_header.setObjectName("info_section_header")
         _bold = self._palette_header.font(); _bold.setBold(True); self._palette_header.setFont(_bold)
         self._layout.addWidget(self._palette_header)
         self._palette_row = QHBoxLayout()
@@ -103,6 +104,7 @@ class InfoPanel(QWidget):
 
         # Tags section (editable)
         self._tags_header = QLabel("Tags")
+        self._tags_header.setObjectName("info_section_header")
         _bold = self._tags_header.font(); _bold.setBold(True); self._tags_header.setFont(_bold)
         self._layout.addWidget(self._tags_header)
         self._tag_flow_widget = QWidget()
@@ -133,6 +135,7 @@ class InfoPanel(QWidget):
 
         # Assignments section
         self._assign_header = QLabel("Platforms")
+        self._assign_header.setObjectName("info_section_header")
         _bold = self._assign_header.font(); _bold.setBold(True); self._assign_header.setFont(_bold)
         self._layout.addWidget(self._assign_header)
         self._assign_label = QLabel()
@@ -144,6 +147,7 @@ class InfoPanel(QWidget):
 
         # Notes section (editable)
         self._notes_header = QLabel("Notes")
+        self._notes_header.setObjectName("info_section_header")
         _bold = self._notes_header.font(); _bold.setBold(True); self._notes_header.setFont(_bold)
         self._layout.addWidget(self._notes_header)
         self._notes_edit = QTextEdit()

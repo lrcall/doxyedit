@@ -1593,7 +1593,12 @@ class AssetBrowser(QWidget):
     def _add_custom_tag(self):
         from PySide6.QtWidgets import QInputDialog, QMessageBox
         parent = self.window()
-        name, ok = QInputDialog.getText(parent, "New Tag", "Enter tag name:")
+        dlg = QInputDialog(parent)
+        dlg.setWindowTitle("New Tag")
+        dlg.setLabelText("Enter tag name:")
+        dlg.setStyleSheet(parent.styleSheet())
+        ok = dlg.exec()
+        name = dlg.textValue()
         if not ok or not name.strip():
             return
         name = name.strip()
@@ -3163,11 +3168,16 @@ class AssetBrowser(QWidget):
             menu.addAction(f"Star All ({n})", self._star_all_selected)
             menu.addAction(f"Unstar All ({n})", self._unstar_all_selected)
             menu.addSeparator()
-        # Quick Tag submenu — project custom tags first, then system presets in columns
+        # Quick Tag submenu — used/custom tags flat at top, unused presets in "More Tags"
         all_tags_map = self.project.get_tags()
         custom_tag_ids = set(self.project.tag_definitions.keys())
-        custom_tags = [t for t in all_tags_map.values() if t.id in custom_tag_ids]
-        preset_tags  = [t for t in all_tags_map.values() if t.id not in custom_tag_ids]
+        used_tag_ids = {t for a in self.project.assets for t in a.tags}
+        # "Active" = custom-defined OR actually used on assets — shown flat
+        active_tags = [t for t in all_tags_map.values()
+                       if t.id in custom_tag_ids or t.id in used_tag_ids]
+        # "Other" = preset tags not used and not custom — buried in More Tags
+        other_tags = [t for t in all_tags_map.values()
+                      if t.id not in custom_tag_ids and t.id not in used_tag_ids]
         if all_tags_map:
             qt_menu = menu.addMenu("Quick Tag")
             MAX_PER_COL = 10
@@ -3177,22 +3187,21 @@ class AssetBrowser(QWidget):
                 a = parent_menu.addAction(f"{'✓ ' if checked else '   '}{tag.label}")
                 a.triggered.connect(lambda _, tid=tag.id: self._toggle_tag_multi(asset, tid))
 
-            # Project custom tags — always flat, always first
-            if custom_tags:
-                for tag in custom_tags:
-                    _add_tag_action(qt_menu, tag)
-                if preset_tags:
-                    qt_menu.addSeparator()
+            # Active tags — flat, always first
+            for tag in active_tags:
+                _add_tag_action(qt_menu, tag)
 
-            # System preset tags — flat if few, column submenus if many
-            if preset_tags:
-                if len(preset_tags) <= MAX_PER_COL:
-                    for tag in preset_tags:
+            # Unused preset tags — in "More Tags" submenu if any
+            if other_tags:
+                if active_tags:
+                    qt_menu.addSeparator()
+                if len(other_tags) <= MAX_PER_COL:
+                    for tag in other_tags:
                         _add_tag_action(qt_menu, tag)
                 else:
                     presets_menu = qt_menu.addMenu("More Tags")
-                    for col_start in range(0, len(preset_tags), MAX_PER_COL):
-                        chunk = preset_tags[col_start:col_start + MAX_PER_COL]
+                    for col_start in range(0, len(other_tags), MAX_PER_COL):
+                        chunk = other_tags[col_start:col_start + MAX_PER_COL]
                         first, last = chunk[0].label, chunk[-1].label
                         col_menu = presets_menu.addMenu(f"{first} – {last}")
                         for tag in chunk:
@@ -3201,7 +3210,11 @@ class AssetBrowser(QWidget):
         # --- Group / Variant linking ---
         menu.addSeparator()
         if n_sel > 1:
-            menu.addAction(f"Link {n_sel} as Variants", self._link_selected_as_variants)
+            # Check if any selected asset already has a variant set
+            sel_assets = self.get_selected_assets()
+            has_set = any(a.specs.get("variant_set") for a in sel_assets)
+            label = f"Add {n_sel} to Variant Set" if has_set else f"Link {n_sel} as Variants"
+            menu.addAction(label, self._link_selected_as_variants)
 
         dup_grp = asset.specs.get("duplicate_group")
         var_set = asset.specs.get("variant_set")
@@ -3334,7 +3347,12 @@ class AssetBrowser(QWidget):
 
     def _add_tag_dialog(self, asset):
         from PySide6.QtWidgets import QInputDialog
-        tag, ok = QInputDialog.getText(self.window(), "Add Tag", "Tag to add:")
+        dlg = QInputDialog(self.window())
+        dlg.setWindowTitle("Add Tag")
+        dlg.setLabelText("Tag to add:")
+        dlg.setStyleSheet(self.window().styleSheet())
+        ok = dlg.exec()
+        tag = dlg.textValue()
         if ok and tag.strip():
             tag_id = tag.strip()  # preserve user's casing and spaces
             # Apply to all selected if multiple selected

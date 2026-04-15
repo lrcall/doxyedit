@@ -531,11 +531,17 @@ class MainWindow(QMainWindow):
         self.browser._tags_btn.toggled.connect(self._toggle_tag_panel_btn)
         self._tags_toolbar_btn = self.browser._tags_btn
 
-        # Sync toolbar button states with actual panel visibility
-        self.browser._tags_btn.setChecked(self.tag_panel.isVisible())
-        self.browser._tray_btn.setChecked(self._tray_open)
+        # Sync toolbar button states with saved visibility (not widget.isVisible which is unreliable before show)
+        self.browser._tags_btn.blockSignals(True)
+        self.browser._tags_btn.setChecked(self._settings.value("tags_panel_visible", True, type=bool))
+        self.browser._tags_btn.blockSignals(False)
+        self.browser._tray_btn.blockSignals(True)
+        self.browser._tray_btn.setChecked(self._settings.value("tray_visible", False, type=bool))
+        self.browser._tray_btn.blockSignals(False)
         if hasattr(self.browser, '_files_btn'):
-            self.browser._files_btn.setChecked(self._file_browser.isVisible())
+            self.browser._files_btn.blockSignals(True)
+            self.browser._files_btn.setChecked(self._settings.value("file_browser_visible", False, type=bool))
+            self.browser._files_btn.blockSignals(False)
 
         # Tab key — toggle all side panels (hide/restore)
         QShortcut(QKeySequence(Qt.Key.Key_Tab), self).activated.connect(self._toggle_all_panels)
@@ -2031,11 +2037,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._toggle_tags_action.setText("Show Tag Panel")
             if hasattr(self, '_tags_toolbar_btn'):
                 self._tags_toolbar_btn.setChecked(False)
+            self._settings.setValue("tags_panel_visible", False)
         else:
             self.tag_panel.show()
             self._toggle_tags_action.setText("Hide Tag Panel")
             if hasattr(self, '_tags_toolbar_btn'):
                 self._tags_toolbar_btn.setChecked(True)
+            self._settings.setValue("tags_panel_visible", True)
 
     def _toggle_tag_panel_btn(self, checked):
         if checked != self.tag_panel.isVisible():
@@ -2331,6 +2339,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 self._tray_toolbar_btn.blockSignals(False)
             if hasattr(self, '_menubar_tray_btn'):
                 self._menubar_tray_btn.setChecked(False)
+            self._settings.setValue("tray_visible", False)
         else:
             self._tray_open = True
             self.work_tray.setMinimumWidth(int(self._font_size * self.WORK_TRAY_MIN_WIDTH_RATIO))
@@ -2352,6 +2361,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 self._tray_toolbar_btn.blockSignals(False)
             if hasattr(self, '_menubar_tray_btn'):
                 self._menubar_tray_btn.setChecked(True)
+            self._settings.setValue("tray_visible", True)
 
     def _toggle_dock_preview(self):
         vis = not self._preview_pane.isVisible()
