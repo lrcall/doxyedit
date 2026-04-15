@@ -309,6 +309,7 @@ class ThumbnailModel(QAbstractListModel):
     PostStatusRole = Qt.ItemDataRole.UserRole + 7   # social post status: "draft"|"queued"|"posted"|None
     StudioEditedRole = Qt.ItemDataRole.UserRole + 8  # bool: has censors or overlays
     ReadinessRole = Qt.ItemDataRole.UserRole + 9  # dict[str, str] platform_id -> status
+    GroupInfoRole = Qt.ItemDataRole.UserRole + 10
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -346,6 +347,10 @@ class ThumbnailModel(QAbstractListModel):
             return bool(asset.censors or asset.overlays)
         elif role == self.ReadinessRole:
             return self._readiness_cache.get(asset.id)
+        elif role == self.GroupInfoRole:
+            return (asset.specs.get("duplicate_group", ""),
+                    asset.specs.get("variant_set", ""),
+                    asset.id)
         return None
 
     def update_post_status(self, posts):
@@ -458,6 +463,8 @@ class ThumbnailDelegate(QStyledItemDelegate):
         NAME_HEIGHT_RATIO      = 1.5     # filename line height
         STAR_FONT_RATIO        = 1.3     # star icon font
         STAR_SIZE_RATIO        = 1.7     # star hit area
+        GROUP_DOT_RATIO        = 0.45
+        LINK_BORDER_RATIO      = 0.2
 
         # ── Derived measurements ──────────────────────────────────────
         # Layout spacing
@@ -502,6 +509,10 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self.star_font_size = int(font_size * STAR_FONT_RATIO)
         self.star_size = int(font_size * STAR_SIZE_RATIO)
         self.star_empty_alpha = self._theme.grid_star_empty_alpha
+
+        # Group/variant indicators
+        self.group_dot_radius = max(3, int(font_size * GROUP_DOT_RATIO))
+        self.link_border_width = max(2, int(font_size * LINK_BORDER_RATIO))
 
         # Placeholder (no thumbnail loaded)
         self.placeholder_bg_alpha = self._theme.grid_placeholder_bg_alpha
@@ -746,6 +757,40 @@ class ThumbnailDelegate(QStyledItemDelegate):
                           rect.y() + ts + self.below_dots_offset + self.dims_line_height,
                           self.star_size, self.star_size)
         painter.drawText(star_rect, Qt.AlignmentFlag.AlignCenter, star_char)
+
+        # Group/variant corner dots (always visible)
+        group_info = index.data(ThumbnailModel.GroupInfoRole)
+        if group_info:
+            dup_group, var_set, asset_id = group_info
+            dot_r = self.group_dot_radius
+            if dup_group:
+                dx = rect.x() + rect.width() - self.cell_padding - dot_r - 1
+                dy = rect.y() + self.cell_padding + dot_r + 1
+                painter.setBrush(QColor("#e06c6c"))
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawEllipse(QPoint(dx, dy), dot_r, dot_r)
+            if var_set:
+                vx = rect.x() + self.cell_padding + dot_r + 1
+                vy = rect.y() + self.cell_padding + dot_r + 1
+                painter.setBrush(QColor("#5ca8b8"))
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawEllipse(QPoint(vx, vy), dot_r, dot_r)
+
+            browser = self.parent()
+            if browser and getattr(browser, '_link_mode', False):
+                bw = self.link_border_width
+                thumb_rect = QRect(rect.x() + self.cell_padding,
+                                   rect.y() + self.cell_padding, ts, ts)
+                if asset_id in getattr(browser, '_link_highlight_dupes', set()):
+                    painter.setPen(QPen(QColor("#e06c6c"), bw))
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRoundedRect(thumb_rect.adjusted(bw//2, bw//2, -bw//2, -bw//2),
+                                            self.thumb_corner, self.thumb_corner)
+                if asset_id in getattr(browser, '_link_highlight_variants', set()):
+                    painter.setPen(QPen(QColor("#5ca8b8"), bw))
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRoundedRect(thumb_rect.adjusted(bw//2, bw//2, -bw//2, -bw//2),
+                                            self.thumb_corner, self.thumb_corner)
 
         painter.restore()
 
@@ -1127,6 +1172,12 @@ class AssetBrowser(QWidget):
         self.setObjectName("doxyedit_browser")
         self.project = project
         self._selected_ids: set[str] = set()
+        # Link Mode — highlight duplicate/variant groups
+        self._link_mode = False
+        self._link_highlight_dupes: set[str] = set()
+        self._link_highlight_variants: set[str] = set()
+        self._duplicate_groups: dict[str, list[str]] = {}
+        self._variant_sets: dict[str, list[str]] = {}
         self._thumb_cache = ThumbCache()
         self._thumb_cache.connect_ready(self._on_thumb_ready)
         self._thumb_cache.connect_visual_tags(self._on_visual_tags)
@@ -1242,6 +1293,13 @@ class AssetBrowser(QWidget):
         self.filter_show_ignored.setStyleSheet(self._btn_style())
         self.filter_show_ignored.toggled.connect(self._on_filter_changed)
         toolbar.addWidget(self.filter_show_ignored)
+
+        self._link_mode_btn = QPushButton("Link Mode")
+        self._link_mode_btn.setCheckable(True)
+        self._link_mode_btn.setToolTip("Highlight duplicate groups and variant sets on click")
+        self._link_mode_btn.setStyleSheet(self._btn_style())
+        self._link_mode_btn.toggled.connect(self._on_link_mode_toggled)
+        toolbar.addWidget(self._link_mode_btn)
 
         for _fb in [self.filter_starred, self.filter_untagged, self.filter_tagged,
                     self.filter_assigned, self.filter_posted, self.filter_needs_censor]:
@@ -1727,6 +1785,36 @@ class AssetBrowser(QWidget):
     def toggle_tag_bar(self):
         self._tag_bar_toggle_btn.setChecked(not self._tag_bar_toggle_btn.isChecked())
 
+    def _on_link_mode_toggled(self, checked: bool):
+        self._link_mode = checked
+        if not checked:
+            self._link_highlight_dupes.clear()
+            self._link_highlight_variants.clear()
+        self._list_view.viewport().update()
+        for section in self._folder_sections:
+            section.view.viewport().update()
+
+    def _update_link_highlights(self):
+        """When link mode is active, find groups/variants of selected assets."""
+        self._link_highlight_dupes.clear()
+        self._link_highlight_variants.clear()
+        if not self._link_mode or not self._selected_ids:
+            return
+        for aid in self._selected_ids:
+            asset = self.project.get_asset(aid)
+            if not asset:
+                continue
+            dg = asset.specs.get("duplicate_group")
+            if dg and dg in self._duplicate_groups:
+                for sibling_id in self._duplicate_groups[dg]:
+                    if sibling_id != aid:
+                        self._link_highlight_dupes.add(sibling_id)
+            vs = asset.specs.get("variant_set")
+            if vs and vs in self._variant_sets:
+                for sibling_id in self._variant_sets[vs]:
+                    if sibling_id != aid:
+                        self._link_highlight_variants.add(sibling_id)
+
     def _on_scroll_idle(self):
         """400ms after scrolling stops — promote visible items to front of queue."""
         self._thumb_cache.reprioritize(self._visible_asset_ids())
@@ -2156,6 +2244,17 @@ class AssetBrowser(QWidget):
         self.count_label.setText(f"{shown}/{total} shown, {starred}★, {tagged} tagged{filtered_marker}")
         self.page_label.setText(f"{shown} images")
 
+        # Rebuild group/variant lookup indexes
+        self._duplicate_groups.clear()
+        self._variant_sets.clear()
+        for a in self.project.assets:
+            dg = a.specs.get("duplicate_group")
+            if dg:
+                self._duplicate_groups.setdefault(dg, []).append(a.id)
+            vs = a.specs.get("variant_set")
+            if vs:
+                self._variant_sets.setdefault(vs, []).append(a.id)
+
     def _rebuild_folder_sections(self, saved_ids=None):
         """Rebuild per-folder QListView sections, grouped under import-source roots."""
         from collections import defaultdict
@@ -2463,6 +2562,7 @@ class AssetBrowser(QWidget):
         self.selection_changed.emit(id_list)
         if len(id_list) == 1:
             self.asset_selected.emit(id_list[0])
+        self._update_link_highlights()
 
     def _on_folder_double_click(self, index: QModelIndex, section: "FolderSection"):
         asset = section.folder_model.get_asset(index)
@@ -2540,6 +2640,7 @@ class AssetBrowser(QWidget):
             self.asset_selected.emit(next(iter(self._selected_ids)))
         else:
             self._selection_emit_timer.start()
+        self._update_link_highlights()
 
     def _on_double_click(self, index: QModelIndex):
         asset = self._model.get_asset(index)
