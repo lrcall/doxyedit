@@ -138,7 +138,10 @@ class CampaignBar(QWidget):
         row.addWidget(QLabel("Campaign:"))
         self._combo = QComboBox()
         self._combo.setObjectName("campaign_combo")
-        self._combo.setMinimumWidth(140)
+        from PySide6.QtCore import QSettings
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        COMBO_MIN_WIDTH_RATIO = 11.7       # campaign combo minimum width
+        self._combo.setMinimumWidth(int(_f * COMBO_MIN_WIDTH_RATIO))
         self._combo.currentIndexChanged.connect(self._on_campaign_changed)
         row.addWidget(self._combo)
 

@@ -864,6 +864,7 @@ class StudioEditor(QWidget):
         ICON_BUTTON_WIDTH_RATIO = 2.3          # icon buttons (B, I, ■, ◻)
         ZOOM_BUTTON_WIDTH_RATIO = 3.0          # zoom preset buttons (Fit, 50%, etc.)
         ZOOM_LABEL_WIDTH_RATIO = 3.3           # zoom percentage label
+        LAYER_PANEL_MAX_WIDTH_RATIO = 16.7     # layer panel max width
 
         _pad = max(4, _dt.font_size // 3)
         _pad_lg = max(6, _dt.font_size // 2)
@@ -1151,7 +1152,7 @@ class StudioEditor(QWidget):
         # Layer panel (right sidebar, collapsible)
         self._layer_panel = QListWidget()
         self._layer_panel.setObjectName("studio_layer_panel")
-        self._layer_panel.setMaximumWidth(200)
+        self._layer_panel.setMaximumWidth(int(_dt.font_size * LAYER_PANEL_MAX_WIDTH_RATIO))
         self._layer_panel.setDragDropMode(QListWidget.DragDropMode.InternalMove)
         self._layer_panel.itemClicked.connect(self._on_layer_clicked)
 

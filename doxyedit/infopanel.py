@@ -116,7 +116,8 @@ class InfoPanel(QWidget):
         # Tag add inline editor (hidden by default)
         self._tag_add_edit = QLineEdit()
         self._tag_add_edit.setFixedHeight(_cb)
-        self._tag_add_edit.setMaximumWidth(120)
+        TAG_ADD_MAX_WIDTH_RATIO = 10.0     # tag add editor max width
+        self._tag_add_edit.setMaximumWidth(int(_f * TAG_ADD_MAX_WIDTH_RATIO))
         self._tag_add_edit.setPlaceholderText("tag name...")
         self._tag_add_edit.returnPressed.connect(self._finish_add_tag)
         self._tag_add_edit.hide()
@@ -157,7 +158,8 @@ class InfoPanel(QWidget):
         scroll.setWidget(content)
         outer.addWidget(scroll, 1)
 
-        self.setMinimumWidth(100)
+        PANEL_MIN_WIDTH_RATIO = 8.3        # info panel min width
+        self.setMinimumWidth(int(_f * PANEL_MIN_WIDTH_RATIO))
 
     def _render_palette(self, colors: list):
         """Render color swatches from hex color list."""

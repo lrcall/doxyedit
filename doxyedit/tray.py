@@ -110,7 +110,10 @@ class WorkTray(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("doxyedit_tray")
-        self.setMinimumWidth(150)
+        from PySide6.QtCore import QSettings
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        TRAY_MIN_WIDTH_RATIO = 12.5        # work tray minimum width
+        self.setMinimumWidth(int(_f * TRAY_MIN_WIDTH_RATIO))
         self._asset_ids: list[str] = []
         self._id_to_row: dict[str, int] = {}  # asset_id → list row index for O(1) lookup
         self._pixmaps: dict[str, QPixmap] = {}

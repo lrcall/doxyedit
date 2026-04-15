@@ -1115,6 +1115,7 @@ class AssetBrowser(QWidget):
     # ── Layout ratios (change here to rescale browser toolbar) ──
     ZOOM_SLIDER_WIDTH_RATIO = 9.0      # thumbnail size slider
     ZOOM_LABEL_WIDTH_RATIO = 2.8       # "NNpx" label next to slider
+    SEARCH_MIN_WIDTH_RATIO = 10.0      # search box minimum width
     files_toggled = Signal(bool)
 
     def __init__(self, project: Project, parent=None):
@@ -1281,8 +1282,9 @@ class AssetBrowser(QWidget):
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Search...")
         self.search_box.setClearButtonEnabled(True)
-        self.search_box.setMinimumWidth(120)
-        self.search_box.setMaximumWidth(16777215)
+        self.search_box.setMinimumWidth(int(_f * self.SEARCH_MIN_WIDTH_RATIO))
+        QWIDGETSIZE_MAX = 16777215
+        self.search_box.setMaximumWidth(QWIDGETSIZE_MAX)
         self.search_box.textChanged.connect(self._on_filter_changed)
         self.search_box.installEventFilter(self)
         row2.addWidget(self.search_box)

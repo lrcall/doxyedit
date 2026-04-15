@@ -158,6 +158,12 @@ class ContentPanel(QWidget):
     EDIT_BUTTON_WIDTH_RATIO = 3.3      # identity "Edit" button
     STEP_LABEL_WIDTH_RATIO = 4.0       # release chain "Step N:" label
     REMOVE_BUTTON_WIDTH_RATIO = 2.0    # release chain "×" remove button
+    CAPTION_MAX_HEIGHT_RATIO = 10.0    # default caption box max height
+    REPLY_MAX_HEIGHT_RATIO = 6.7       # reply template box max height
+    PLATFORM_CAPTION_MAX_HEIGHT_RATIO = 8.3  # per-platform caption max height
+    AI_PROGRESS_MIN_WIDTH_RATIO = 26.7  # AI strategy progress dialog min width
+    PROFILE_LIST_MAX_HEIGHT_RATIO = 10.0  # chrome profile list max height
+    CAPTION_KEY_MAX_WIDTH_RATIO = 8.3  # release chain caption key max width
 
     platforms_changed = Signal(list)
 
@@ -189,6 +195,8 @@ class ContentPanel(QWidget):
 
     def _build_ui(self) -> None:
         from PySide6.QtWidgets import QSplitter
+        from PySide6.QtCore import QSettings as _QS
+        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
 
         root = QVBoxLayout(self)
         root.setSpacing(4)
@@ -429,7 +437,7 @@ class ContentPanel(QWidget):
         caption_box = QGroupBox("Caption")
         caption_layout = QVBoxLayout(caption_box)
         self._caption_edit = QTextEdit()
-        self._caption_edit.setMaximumHeight(120)
+        self._caption_edit.setMaximumHeight(int(_f * self.CAPTION_MAX_HEIGHT_RATIO))
         self._caption_edit.setPlaceholderText("Default caption for all platforms")
         self._caption_edit.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._caption_edit.customContextMenuRequested.connect(
@@ -512,7 +520,7 @@ class ContentPanel(QWidget):
         reply_box = QGroupBox("Reply Templates")
         reply_layout = QVBoxLayout(reply_box)
         self._reply_edit = QTextEdit()
-        self._reply_edit.setMaximumHeight(80)
+        self._reply_edit.setMaximumHeight(int(_f * self.REPLY_MAX_HEIGHT_RATIO))
         self._reply_edit.setPlaceholderText("One reply per line")
         self._reply_edit.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._reply_edit.customContextMenuRequested.connect(
@@ -742,6 +750,8 @@ class ContentPanel(QWidget):
 
     def _rebuild_per_platform_captions(self) -> None:
         """Rebuild per-platform caption fields for CHECKED platforms only."""
+        from PySide6.QtCore import QSettings as _QS
+        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         # Save existing caption text
         saved_captions = {
             pid: te.toPlainText() for pid, te in self._platform_captions.items()
@@ -762,7 +772,7 @@ class ContentPanel(QWidget):
             lbl = QLabel(name)
             lbl.setObjectName("composer_platform_label")
             te = QTextEdit()
-            te.setMaximumHeight(100)
+            te.setMaximumHeight(int(_f * self.PLATFORM_CAPTION_MAX_HEIGHT_RATIO))
             te.setPlaceholderText(f"Caption for {name} (leave blank to use default)")
             te.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             te.customContextMenuRequested.connect(
@@ -785,7 +795,7 @@ class ContentPanel(QWidget):
                 lbl = QLabel(name)
                 lbl.setObjectName("composer_platform_label")
                 te = QTextEdit()
-                te.setMaximumHeight(100)
+                te.setMaximumHeight(int(_f * self.PLATFORM_CAPTION_MAX_HEIGHT_RATIO))
                 te.setPlaceholderText(f"Caption for {name} (leave blank to use default)")
                 if pid in saved_captions and saved_captions[pid]:
                     te.setPlainText(saved_captions[pid])
@@ -1114,7 +1124,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._ai_progress.setWindowModality(Qt.WindowModality.ApplicationModal)
         self._ai_progress.setCancelButton(None)
         self._ai_progress.setMinimumDuration(0)
-        self._ai_progress.setMinimumWidth(320)
+        from PySide6.QtCore import QSettings as _QS_ai
+        _f_ai = _QS_ai("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        self._ai_progress.setMinimumWidth(int(_f_ai * self.AI_PROGRESS_MIN_WIDTH_RATIO))
         self._ai_progress.show()
 
         class _StrategyWorker(QThread):
@@ -1549,7 +1561,9 @@ RULES:
 
         # Detect Profiles button
         profile_list = QListWidget()
-        profile_list.setMaximumHeight(120)
+        from PySide6.QtCore import QSettings as _QS_prof
+        _f_prof = _QS_prof("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        profile_list.setMaximumHeight(int(_f_prof * self.PROFILE_LIST_MAX_HEIGHT_RATIO))
         profile_list.hide()
 
         def _detect_profiles():
@@ -1819,7 +1833,7 @@ RULES:
             cap_key = QLineEdit()
             cap_key.setObjectName("composer_chain_caption_key")
             cap_key.setPlaceholderText("caption key")
-            cap_key.setMaximumWidth(100)
+            cap_key.setMaximumWidth(int(_f2 * self.CAPTION_KEY_MAX_WIDTH_RATIO))
             cap_key.setText(step.get("caption_key", ""))
             cap_key.textChanged.connect(
                 lambda t, i=_idx: self._update_step_field(i, "caption_key", t)

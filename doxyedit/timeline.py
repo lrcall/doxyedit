@@ -343,7 +343,10 @@ class PostCard(QFrame):
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Post Metrics")
-        dlg.setMinimumWidth(300)
+        from PySide6.QtCore import QSettings
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        DIALOG_MIN_WIDTH_RATIO = 25.0      # metrics dialog minimum width
+        dlg.setMinimumWidth(int(_f * DIALOG_MIN_WIDTH_RATIO))
         layout = QVBoxLayout(dlg)
 
         # Platform selector

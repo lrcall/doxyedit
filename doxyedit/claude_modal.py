@@ -53,7 +53,10 @@ def show_claude_modal(
     dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
     dlg.setCancelButton(None)
     dlg.setMinimumDuration(0)
-    dlg.setMinimumWidth(320)
+    from PySide6.QtCore import QSettings
+    _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+    DIALOG_MIN_WIDTH_RATIO = 26.7      # progress dialog minimum width
+    dlg.setMinimumWidth(int(_f * DIALOG_MIN_WIDTH_RATIO))
     dlg.show()
 
     # Theme the title bar on Windows
