@@ -504,7 +504,7 @@ class MainWindow(QMainWindow):
             btn.setCheckable(True)
             btn.clicked.connect(lambda _, idx=i: self.tabs.setCurrentIndex(idx))
             btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-            btn.setMinimumWidth(int(self._font_size * self.MENU_BUTTON_MIN_WIDTH_RATIO))
+            btn.setMinimumWidth(0)
             self._tab_toolbar.addWidget(btn)
             self._menubar_tab_btns.append(btn)
 
