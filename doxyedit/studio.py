@@ -949,7 +949,8 @@ class StudioEditor(QWidget):
         toolbar.addWidget(QLabel("|"))
         for label, factor in [("Fit", 0), ("50%", 0.5), ("100%", 1.0), ("200%", 2.0)]:
             btn = QPushButton(label)
-            btn.setFixedWidth(36)
+            ZOOM_BUTTON_WIDTH_RATIO = 3.0
+            btn.setFixedWidth(int(_dt.font_size * ZOOM_BUTTON_WIDTH_RATIO))
             btn.setObjectName("studio_zoom_btn")
             if factor == 0:
                 btn.clicked.connect(lambda: self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio))
@@ -958,7 +959,8 @@ class StudioEditor(QWidget):
             toolbar.addWidget(btn)
 
         self._zoom_label = QLabel("100%")
-        self._zoom_label.setFixedWidth(40)
+        ZOOM_LABEL_WIDTH_RATIO = 3.3
+        self._zoom_label.setFixedWidth(int(_dt.font_size * ZOOM_LABEL_WIDTH_RATIO))
         toolbar.addWidget(self._zoom_label)
 
         # Asset info

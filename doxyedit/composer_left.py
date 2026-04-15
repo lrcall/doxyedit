@@ -30,6 +30,10 @@ class ImagePreviewPanel(QWidget):
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
         self.setObjectName("composer_preview_panel")
+        from PySide6.QtCore import QSettings as _QS
+        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _cb = max(14, int(_f * 1.17))
+        self._f = _f  # stash for methods
         self._project = project
         self._assets: list[Asset] = []
         self._censored_pm: QPixmap | None = None
@@ -63,7 +67,8 @@ class ImagePreviewPanel(QWidget):
         self._mode_platform.clicked.connect(lambda: self._set_preview_mode("platform"))
 
         for btn in (self._mode_raw, self._mode_studio, self._mode_platform):
-            btn.setFixedHeight(22)
+            MODE_BUTTON_HEIGHT_RATIO = 1.8
+            btn.setFixedHeight(int(_f * MODE_BUTTON_HEIGHT_RATIO))
             mode_row.addWidget(btn)
         mode_row.addStretch()
         layout.addLayout(mode_row)
@@ -198,7 +203,8 @@ class ImagePreviewPanel(QWidget):
             dot_colors = {"green": _dt.success, "yellow": _dt.warning, "red": _dt.error}
             dot = QLabel("●")
             dot.setStyleSheet(f"color: {dot_colors.get(status, _dt.text_muted)};")
-            dot.setFixedWidth(14)
+            STATUS_DOT_WIDTH_RATIO = 1.17
+            dot.setFixedWidth(int(self._f * STATUS_DOT_WIDTH_RATIO))
             row.addWidget(dot)
 
             lbl = QLabel(platform.name)
@@ -468,7 +474,9 @@ class ImagePreviewPanel(QWidget):
                 cell.setPixmap(scaled)
             else:
                 cell.setText("?")
-            cell.setFixedSize(48, 48)
+            ORDER_CELL_SIZE_RATIO = 4.0
+            _cell_size = int(self._f * ORDER_CELL_SIZE_RATIO)
+            cell.setFixedSize(_cell_size, _cell_size)
             cell.setAlignment(Qt.AlignmentFlag.AlignCenter)
             cell.setObjectName("composer_order_thumb")
             cell.setToolTip(f"#{i+1}" + (" (hero)" if i == 0 else ""))
@@ -527,7 +535,8 @@ class ImagePreviewPanel(QWidget):
             row = QHBoxLayout()
             icon = QLabel("\u2713" if has_crop else "\u25CB")
             icon.setObjectName("composer_crop_icon")
-            icon.setFixedWidth(16)
+            CROP_ICON_WIDTH_RATIO = 1.33
+            icon.setFixedWidth(int(self._f * CROP_ICON_WIDTH_RATIO))
             row.addWidget(icon)
 
             label = QLabel(f"{plat.name}: {post_slot.width}x{post_slot.height}")

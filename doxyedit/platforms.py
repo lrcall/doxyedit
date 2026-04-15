@@ -586,19 +586,19 @@ class PlatformPanel(QWidget):
         if total_required > 0:
             if filled_required == total_required:
                 badge_text = f"● {filled_required}/{total_required}"
-                badge_color = "#6eaa78"
+                badge_name = "platform_badge_green"
             elif filled_required > 0:
                 badge_text = f"◑ {filled_required}/{total_required}"
-                badge_color = "#be955c"
+                badge_name = "platform_badge_yellow"
             else:
                 badge_text = f"○ 0/{total_required}"
-                badge_color = "#9a4f50"
+                badge_name = "platform_badge_red"
             badge = QLabel(badge_text)
-            badge.setStyleSheet(f"color: {badge_color}; font-weight: bold;")
+            badge.setObjectName(badge_name)
             header.addWidget(badge)
 
         autofill_btn = QPushButton("Auto-Fill")
-        autofill_btn.setFixedWidth(60)
+        autofill_btn.setFixedWidth(int(_f * 5))
         autofill_btn.setObjectName("platform_action_btn")
         autofill_btn.setToolTip("Auto-assign best matching assets to empty slots")
         autofill_btn.clicked.connect(lambda _, p=pid: self._auto_fill_platform(p))
@@ -669,16 +669,15 @@ class PlatformPanel(QWidget):
                 preview.setPixmap(cropped)
             else:
                 preview.setText("?")
-                preview.setStyleSheet("background: rgba(128,128,128,30); border: 1px dashed gray;")
-            h.insertWidget(1, preview)  # after slot label, before asset name
+                preview.setObjectName("slot_preview_empty")
+            h.insertWidget(1, preview)
         elif slot.width and slot.height:
-            # Empty slot — show dashed box at ratio
             thumb_w = int(60 * slot.width / slot.height) if slot.height else 60
             empty_prev = QLabel()
             empty_prev.setFixedSize(thumb_w, 60)
             empty_prev.setAlignment(Qt.AlignmentFlag.AlignCenter)
             empty_prev.setText(f"{slot.width}×{slot.height}")
-            empty_prev.setStyleSheet("border: 1px dashed gray; color: gray; font-size: 9px;")
+            empty_prev.setObjectName("slot_preview_dims")
             h.insertWidget(1, empty_prev)
 
         # Asset name label
@@ -728,7 +727,7 @@ class PlatformPanel(QWidget):
         for asset, pa in entries:
             if pa.notes:
                 note_lbl = QLabel(pa.notes)
-                note_lbl.setStyleSheet("color: gray; font-size: 10px; font-style: italic;")
+                note_lbl.setObjectName("slot_note_label")
                 note_lbl.setWordWrap(True)
                 h.addWidget(note_lbl)
                 break  # only show first note
@@ -879,7 +878,7 @@ class PlatformPanel(QWidget):
             if filled_required == len(required_slots) and required_slots:
                 export_btn = QPushButton("Export All")
                 export_btn.setObjectName("platform_action_btn")
-                export_btn.setFixedWidth(70)
+                export_btn.setFixedWidth(int(_f * 5.5))
                 export_btn.clicked.connect(lambda _, p=pid: self._export_platform(p))
                 header_row.addWidget(export_btn)
 

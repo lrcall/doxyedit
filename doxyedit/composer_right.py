@@ -161,6 +161,9 @@ class ContentPanel(QWidget):
         self.setObjectName("composer_content_panel")
         self._project = project
         self._project_dir = project_dir
+        from PySide6.QtCore import QSettings as _QS
+        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _cb = max(14, int(_f * 1.17))
 
         self._platform_checks: dict[str, QCheckBox] = {}
         self._platform_captions: dict[str, QTextEdit] = {}
@@ -201,7 +204,8 @@ class ContentPanel(QWidget):
         )
         edit_id_btn = QPushButton("Edit")
         edit_id_btn.setObjectName("composer_edit_identity_btn")
-        edit_id_btn.setFixedWidth(40)
+        EDIT_BUTTON_WIDTH_RATIO = 3.3
+        edit_id_btn.setFixedWidth(int(_f * EDIT_BUTTON_WIDTH_RATIO))
         edit_id_btn.clicked.connect(self._edit_identity)
         identity_row.addWidget(id_label)
         identity_row.addWidget(self._identity_combo, 1)
@@ -1767,7 +1771,10 @@ RULES:
             # Step label
             step_label = QLabel(f"Step {idx + 1}:")
             step_label.setObjectName("composer_chain_step_label")
-            step_label.setFixedWidth(48)
+            from PySide6.QtCore import QSettings as _QS2
+            _f2 = _QS2("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+            STEP_LABEL_WIDTH_RATIO = 4.0
+            step_label.setFixedWidth(int(_f2 * STEP_LABEL_WIDTH_RATIO))
             row_layout.addWidget(step_label)
 
             # Platform combo
@@ -1820,7 +1827,8 @@ RULES:
             if idx > 0:
                 remove_btn = QPushButton("\u00d7")
                 remove_btn.setObjectName("composer_chain_remove_btn")
-                remove_btn.setFixedWidth(24)
+                REMOVE_BUTTON_WIDTH_RATIO = 2.0
+                remove_btn.setFixedWidth(int(_f2 * REMOVE_BUTTON_WIDTH_RATIO))
                 remove_btn.setToolTip("Remove this step")
                 remove_btn.clicked.connect(
                     lambda _, i=_idx: self._remove_release_step(i)
