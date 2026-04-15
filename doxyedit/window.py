@@ -813,10 +813,31 @@ class MainWindow(QMainWindow):
         elif to_idx <= self._current_slot < from_idx:
             self._current_slot += 1
 
-    def _rename_proj_tab(self, label: str):
-        if 0 <= self._current_slot < len(self._project_slots):
-            self._project_slots[self._current_slot]["label"] = label
-            self._proj_tab_bar.setTabText(self._current_slot, label)
+    def _preset_context_menu(self, idx: int, global_pos):
+        """Right-click menu on project tab bar."""
+        if idx < 0 or idx >= len(self._project_slots):
+            return
+        from PySide6.QtWidgets import QMenu, QInputDialog
+        menu = QMenu(self)
+        slot = self._project_slots[idx]
+        menu.addAction("Rename Tab…", lambda: self._rename_proj_tab_dialog(idx))
+        menu.addSeparator()
+        menu.addAction("Close Tab", lambda: self._close_proj_tab(idx))
+        menu.exec(global_pos)
+
+    def _rename_proj_tab_dialog(self, idx: int):
+        """Prompt user to rename a project tab."""
+        from PySide6.QtWidgets import QInputDialog
+        slot = self._project_slots[idx]
+        new_label, ok = QInputDialog.getText(
+            self, "Rename Tab", "Tab label:", text=slot["label"])
+        if ok and new_label.strip():
+            self._rename_proj_tab(idx, new_label.strip())
+
+    def _rename_proj_tab(self, idx: int, label: str):
+        if 0 <= idx < len(self._project_slots):
+            self._project_slots[idx]["label"] = label
+            self._proj_tab_bar.setTabText(idx, label)
 
     def _add_folder_preset_dialog(self):
         """+ button or Ctrl+T: open a project or folder in a new tab."""
@@ -2220,7 +2241,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._add_recent_project(path)
         label = Path(path).stem
         self.setWindowTitle(f"DoxyEdit — {Path(path).name}")
-        self._rename_proj_tab(label)
+        self._rename_proj_tab(self._current_slot, label)
         if 0 <= self._current_slot < len(self._project_slots):
             self._project_slots[self._current_slot]["project"] = self.project
             self._project_slots[self._current_slot]["path"] = path
