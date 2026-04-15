@@ -254,7 +254,7 @@ class MainWindow(QMainWindow):
         from PySide6.QtWidgets import QTextEdit
         self._notes_edit = QTextEdit()
         self._notes_edit.setPlaceholderText("Project notes…")
-        self._notes_edit.setMaximumHeight(120)
+        self._notes_edit.setMaximumHeight(_f * 10)
         self._notes_edit.setVisible(False)
         self._notes_edit.textChanged.connect(self._on_project_notes_changed)
 
@@ -381,14 +381,14 @@ class MainWindow(QMainWindow):
         # Corner buttons: Preview/Edit toggle + Add tab
         _corner = QWidget()
         _corner_layout = QHBoxLayout(_corner)
-        _corner_layout.setContentsMargins(0, 0, 4, 0)
-        _corner_layout.setSpacing(4)
+        _corner_layout.setContentsMargins(0, 0, _pad, 0)
+        _corner_layout.setSpacing(_pad)
 
         # Preview button removed — live side-by-side editor + preview
 
         _add_tab_btn = QPushButton("+")
         _add_tab_btn.setObjectName("notes_add_tab_btn")
-        _add_tab_btn.setFixedSize(24, 24)
+        _add_tab_btn.setFixedSize(_cb, _cb)
         _add_tab_btn.setToolTip("Add new notes tab")
         _add_tab_btn.clicked.connect(self._on_add_notes_tab)
         _corner_layout.addWidget(_add_tab_btn)
@@ -1006,7 +1006,8 @@ class MainWindow(QMainWindow):
         editor = QPlainTextEdit()
         editor.setObjectName("project_notes_tab")
         editor.setPlainText(content)
-        editor.setViewportMargins(16, 0, 0, 0)
+        notes_margin = max(12, self._theme.font_size * 2)
+        editor.setViewportMargins(notes_margin, 0, 0, 0)
         editor.textChanged.connect(lambda: self._on_sub_note_changed(name))
         editor.textChanged.connect(lambda: self._live_render_notes(name))
 
@@ -1017,7 +1018,7 @@ class MainWindow(QMainWindow):
         preview = QTextBrowser()
         preview.setObjectName("project_notes_preview")
         preview.setOpenExternalLinks(True)
-        preview.setViewportMargins(16, 0, 0, 0)
+        preview.setViewportMargins(notes_margin, 0, 0, 0)
 
         split.addWidget(editor)
         split.addWidget(preview)
@@ -1258,36 +1259,56 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             html_body = _md.markdown(text, extensions=["tables", "fenced_code", "nl2br"])
         except Exception:
             html_body = f"<pre>{text}</pre>"
-        bg = self._theme.bg_deep
-        fg = self._theme.text_primary
-        fg2 = self._theme.text_secondary
-        accent = self._theme.accent
-        border = self._theme.border_light
-        bg_raised = self._theme.bg_raised
+        theme = self._theme
+        font_size = theme.font_size
+        notes_pad = max(12, font_size * 2)
+        notes_pad_wide = max(20, font_size * 3)
+        notes_line_height = 1.2
+        heading_margin_top = max(4, font_size // 2)
+        heading_margin_bottom = max(1, font_size // 8)
+        paragraph_margin = max(1, font_size // 6)
+        list_indent = max(12, font_size + 4)
+        list_line_height = 1.15
+        code_pad_v = max(1, font_size // 10)
+        code_pad_h = max(3, font_size // 3)
+        code_border_radius = max(2, font_size // 4)
+        pre_pad_v = max(6, font_size // 2)
+        pre_pad_h = max(8, int(font_size * 0.8))
+        pre_border_radius = max(3, font_size // 3)
+        blockquote_border = max(2, font_size // 4)
+        blockquote_pad_h = max(8, font_size)
+        table_pad_v = max(3, font_size // 3)
+        table_pad_h = max(6, font_size // 2)
+        hr_height = max(1, font_size // 6)
+        hr_margin = max(4, font_size // 2)
+        img_border_radius = max(3, font_size // 3)
+
         html = f"""<html><head><style>
-            body {{ background:{bg}; color:{fg}; font-family:'Segoe UI',sans-serif;
-                   padding:16px 40px;
-                   line-height:1.2; }}
-            h1 {{ color:{accent}; margin:8px 0 2px 0; }}
-            h2 {{ color:{accent}; margin:8px 0 2px 0; }}
-            h3 {{ color:{accent}; margin:6px 0 1px 0; }}
-            h4,h5,h6 {{ color:{accent}; margin:4px 0 1px 0; }}
-            a {{ color:{accent}; }}
-            p {{ margin:2px 0; }}
-            ul, ol {{ padding-left:16px; margin:1px 0; }}
-            li {{ margin:0; padding:0; line-height:1.15; }}
-            img {{ max-width:100%; border-radius:4px; }}
-            code {{ background:{bg_raised}; padding:1px 4px;
-                    border-radius:3px; font-family:Consolas,monospace; }}
-            pre {{ background:{bg_raised}; padding:8px 12px;
-                   border-radius:4px; overflow-x:auto; }}
+            body {{ background:{theme.bg_deep}; color:{theme.text_primary};
+                   font-family:'{theme.font_family}',sans-serif;
+                   padding:{notes_pad}px {notes_pad_wide}px;
+                   line-height:{notes_line_height}; }}
+            h1 {{ color:{theme.accent}; margin:{heading_margin_top}px 0 {heading_margin_bottom}px 0; }}
+            h2 {{ color:{theme.accent}; margin:{heading_margin_top}px 0 {heading_margin_bottom}px 0; }}
+            h3 {{ color:{theme.accent}; margin:{heading_margin_top - 1}px 0 {heading_margin_bottom}px 0; }}
+            h4,h5,h6 {{ color:{theme.accent}; margin:{paragraph_margin * 2}px 0 {heading_margin_bottom}px 0; }}
+            a {{ color:{theme.accent}; }}
+            p {{ margin:{paragraph_margin}px 0; }}
+            ul, ol {{ padding-left:{list_indent}px; margin:{heading_margin_bottom}px 0; }}
+            li {{ margin:0; padding:0; line-height:{list_line_height}; }}
+            img {{ max-width:100%; border-radius:{img_border_radius}px; }}
+            code {{ background:{theme.bg_raised}; padding:{code_pad_v}px {code_pad_h}px;
+                    border-radius:{code_border_radius}px; font-family:Consolas,monospace; }}
+            pre {{ background:{theme.bg_raised}; padding:{pre_pad_v}px {pre_pad_h}px;
+                   border-radius:{pre_border_radius}px; overflow-x:auto; }}
             pre code {{ background:transparent; padding:0; }}
-            blockquote {{ border-left:3px solid {accent}; margin:0; padding:2px 12px;
-                          color:{fg2}; }}
+            blockquote {{ border-left:{blockquote_border}px solid {theme.accent}; margin:0;
+                          padding:{paragraph_margin}px {blockquote_pad_h}px;
+                          color:{theme.text_secondary}; }}
             table {{ border-collapse:collapse; width:100%; }}
-            th,td {{ border:1px solid {border}; padding:4px 8px; text-align:left; }}
-            th {{ background:{bg_raised}; }}
-            hr {{ border:none; height:2px; background:{accent}30; margin:8px 0; }}
+            th,td {{ border:1px solid {theme.border_light}; padding:{table_pad_v}px {table_pad_h}px; text-align:left; }}
+            th {{ background:{theme.bg_raised}; }}
+            hr {{ border:none; height:{hr_height}px; background:{theme.accent}30; margin:{hr_margin}px 0; }}
         </style></head><body>{html_body}</body></html>"""
         widget.setHtml(html)
 

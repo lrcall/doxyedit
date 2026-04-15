@@ -757,8 +757,8 @@ def generate_stylesheet(theme: Theme) -> str:
             border: none;
             font-family: Consolas, monospace;
             font-size: {f}px;
-            padding-left: 100px;
-            padding-top: 16px;
+            padding-left: {f * 8}px;
+            padding-top: {pad_lg}px;
         }}
         QWidget#notes_editor_wrapper {{
             background: {theme.bg_deep};
