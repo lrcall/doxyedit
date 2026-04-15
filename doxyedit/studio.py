@@ -697,7 +697,7 @@ class StudioEditor(QWidget):
 
         self._crop_combo = QComboBox()
         self._crop_combo.setObjectName("studio_crop_combo")
-        self._crop_combo.setFixedWidth(180)
+        self._crop_combo.setMinimumWidth(260)
         self._crop_combo.addItem("Free crop", None)
         for pid, platform in PLATFORMS.items():
             self._crop_combo.insertSeparator(self._crop_combo.count())
