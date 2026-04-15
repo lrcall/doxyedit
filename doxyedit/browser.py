@@ -3209,15 +3209,9 @@ class AssetBrowser(QWidget):
 
         # --- Group / Variant linking ---
         menu.addSeparator()
-        if n_sel > 1:
-            # Check if any selected asset already has a variant set
-            sel_assets = self.get_selected_assets()
-            has_set = any(a.specs.get("variant_set") for a in sel_assets)
-            label = f"Add {n_sel} to Variant Set" if has_set else f"Link {n_sel} as Variants"
-            menu.addAction(label, self._link_selected_as_variants)
-
         dup_grp = asset.specs.get("duplicate_group")
         var_set = asset.specs.get("variant_set")
+
         if dup_grp and dup_grp in self._duplicate_groups:
             grp_ids = self._duplicate_groups[dup_grp]
             dup_menu = menu.addMenu(f"Duplicate Group ({len(grp_ids)})")
@@ -3232,8 +3226,14 @@ class AssetBrowser(QWidget):
             set_ids = self._variant_sets[var_set]
             var_menu = menu.addMenu(f"Variant Set ({len(set_ids)})")
             var_menu.addAction(f"Select All ({len(set_ids)})", lambda: self._select_ids(set_ids))
+            if n_sel > 1:
+                var_menu.addAction(f"Add {n_sel} Selected to This Set", self._link_selected_as_variants)
+            var_menu.addSeparator()
             var_menu.addAction("Remove from Set", lambda a=asset: self._unlink_variant(a))
             var_menu.addAction("Dissolve Set", lambda sid=var_set: self._dissolve_variant_set(sid))
+        elif n_sel > 1:
+            # No existing set — offer to create one
+            menu.addAction(f"Link {n_sel} as Variants", self._link_selected_as_variants)
 
         menu.addAction("Add Tag...", lambda: self._add_tag_dialog(asset))
         if asset.tags:
