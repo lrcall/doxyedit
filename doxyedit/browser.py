@@ -463,21 +463,21 @@ class ThumbnailDelegate(QStyledItemDelegate):
 
         # Selection highlight
         self.selection_border_width = max(1, int(fs * SELECT_BORDER_RATIO))  # min 1px always visible
-        self.selection_fill_alpha = 80
-        self.selection_border_alpha = 180
-        self.hover_fill_alpha = 30
+        self.selection_fill_alpha = self._theme.grid_selection_alpha
+        self.selection_border_alpha = self._theme.grid_selection_border_alpha
+        self.hover_fill_alpha = self._theme.grid_hover_alpha
 
         # Tag dots (colored circles below thumbnail)
         self.tag_dot_radius = max(MIN_DOT, int(fs * TAG_DOT_RATIO))
         self.tag_dot_spacing = self.tag_dot_radius * 2 + self.tag_dot_radius // 2
-        self.tag_dot_outline_width = 1
-        self.dot_outline_alpha = 80
+        self.tag_dot_outline_width = self._theme.grid_dot_outline_width
+        self.dot_outline_alpha = self._theme.grid_dot_outline_alpha
 
         # Status badges (top corners of thumbnail)
         self.badge_size = max(MIN_BADGE, int(fs * BADGE_RATIO))
         self.badge_corner = max(MIN_CORNER, int(fs * BADGE_CORNER_RATIO))
         self.badge_font_size = max(MIN_FONT, int(fs * BADGE_FONT_RATIO))
-        self.badge_bg_alpha = 220
+        self.badge_bg_alpha = self._theme.grid_badge_alpha
 
         # Readiness dots (tiny platform status indicators)
         self.readiness_dot_radius = max(MIN_READINESS_DOT, int(fs * READINESS_DOT_RATIO))
@@ -493,11 +493,11 @@ class ThumbnailDelegate(QStyledItemDelegate):
         # Star icon
         self.star_font_size = int(fs * STAR_FONT_RATIO)
         self.star_size = int(fs * STAR_SIZE_RATIO)
-        self.star_empty_alpha = 100
+        self.star_empty_alpha = self._theme.grid_star_empty_alpha
 
         # Placeholder (no thumbnail loaded)
-        self.placeholder_bg_alpha = 20
-        self.placeholder_text_alpha = 50
+        self.placeholder_bg_alpha = self._theme.grid_placeholder_bg_alpha
+        self.placeholder_text_alpha = self._theme.grid_placeholder_text_alpha
 
     def _font(self, size: int) -> QFont:
         if size not in self._fonts:

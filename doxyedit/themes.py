@@ -71,6 +71,16 @@ class Theme:
     crop_border: str = "#ffc850"       # crop rect border color
     crop_border_width: int = 3         # crop rect pen width in px
     note_border: str = "#be955c"       # note rect border color
+    # Thumbnail grid
+    grid_selection_alpha: int = 80         # selection fill opacity
+    grid_selection_border_alpha: int = 180 # selection border opacity
+    grid_hover_alpha: int = 30            # hover highlight opacity
+    grid_badge_alpha: int = 220           # status badge bg opacity
+    grid_dot_outline_alpha: int = 80      # tag dot outline opacity
+    grid_placeholder_bg_alpha: int = 20   # placeholder fill opacity
+    grid_placeholder_text_alpha: int = 50 # placeholder text opacity
+    grid_star_empty_alpha: int = 100      # empty star opacity
+    grid_dot_outline_width: int = 1       # tag dot outline pen width
     # Timeline
     timeline_gap: str = "#664444"
     timeline_day_header: str = ""  # defaults to text_secondary
