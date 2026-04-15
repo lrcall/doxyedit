@@ -5308,7 +5308,19 @@ Ctrl+Click tag — Search by tag
             self._notes_edit.blockSignals(True)
             self._notes_edit.setPlainText(self.project.notes)
             self._notes_edit.blockSignals(False)
-        # Refresh existing notes tabs + create new ones from sub_notes
+        # Rebuild notes tabs to match the new project's sub_notes
+        # Remove tabs that don't belong to this project (skip General + Agent Primer)
+        stale = [
+            name for name in list(self._notes_tab_widgets)
+            if name not in ("General", "Agent Primer")
+            and name not in self.project.sub_notes
+        ]
+        for name in stale:
+            _, _, split = self._notes_tab_widgets.pop(name)
+            idx = self._notes_tabs.indexOf(split)
+            if idx >= 0:
+                self._notes_tabs.removeTab(idx)
+        # Refresh existing tabs + create new ones from sub_notes
         for tab_name, (preview, editor, _) in self._notes_tab_widgets.items():
             if tab_name == "General":
                 text = self.project.notes
@@ -5318,7 +5330,6 @@ Ctrl+Click tag — Search by tag
             editor.setPlainText(text)
             editor.blockSignals(False)
             self._render_notes_preview_to(preview, text)
-        # Create tabs for sub_notes that don't have widgets yet
         for tab_name, content in self.project.sub_notes.items():
             if tab_name not in self._notes_tab_widgets:
                 self._build_notes_tab(tab_name, content, closable=(tab_name != "Agent Primer"))
