@@ -155,7 +155,13 @@ class MainWindow(QMainWindow):
         _proj_bar_row.addWidget(self._new_tab_btn)
 
         # --- Main layout: tabs + tray splitter ---
-        self.tabs = QTabWidget()
+        # Subclass QTabWidget so minimumSizeHint only considers the active tab,
+        # not the max of all tabs (which blocks narrowing for vertical screens).
+        class _NarrowTabWidget(QTabWidget):
+            def minimumSizeHint(self):
+                from PySide6.QtCore import QSize
+                return QSize(200, 200)
+        self.tabs = _NarrowTabWidget()
         self.work_tray = WorkTray()
         self._tray_open = False
         self._saved_tray_sizes = None
@@ -578,7 +584,9 @@ class MainWindow(QMainWindow):
 
         self._progress_label = QLabel()
         self._progress_label.setStyleSheet("padding-right: 12px;")
+        self._progress_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.status.addPermanentWidget(self._progress_label)
+        self.browser.count_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.status.addPermanentWidget(self.browser.count_label)
         self._update_progress()
         self.status.showMessage("Ready — open a folder or drag images in")
