@@ -529,14 +529,21 @@ class ThumbnailDelegate(QStyledItemDelegate):
             self._font(size)
         return self._fms[size]
 
+    def _below_height(self) -> int:
+        """Total height needed below the thumbnail (dots + dims + name + margins)."""
+        return (self.below_dots_offset       # tag dots row
+                + self.dims_line_height      # dimensions text
+                + self.cell_padding          # gap
+                + self.name_line_height      # filename
+                + self.cell_padding)         # bottom margin
+
+    def grid_size_for(self, thumb_size: int) -> QSize:
+        """Return the proper grid cell size for a given thumbnail size."""
+        return QSize(thumb_size + 2 * self.cell_padding,
+                     thumb_size + self._below_height())
+
     def sizeHint(self, option, index):
-        below = (self.below_dots_offset       # tag dots row
-                 + self.dims_line_height       # dimensions text
-                 + self.cell_padding           # gap
-                 + self.name_line_height       # filename
-                 + self.cell_padding)          # bottom margin
-        return QSize(self.thumb_size + 2 * self.cell_padding,
-                     self.thumb_size + below)
+        return self.grid_size_for(self.thumb_size)
 
     def paint(self, painter, option, index):
         painter.save()
@@ -955,7 +962,8 @@ class FolderSection(QWidget):
         self._view.setResizeMode(QListView.ResizeMode.Adjust)
         self._view.setMovement(QListView.Movement.Static)
         self._view.setUniformItemSizes(False)
-        self._view.setGridSize(QSize(thumb_size + 16, thumb_size + 70))
+        self._delegate = delegate
+        self._view.setGridSize(delegate.grid_size_for(thumb_size))
         self._view.setSpacing(_pad)
         self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -1139,7 +1147,7 @@ class FolderSection(QWidget):
 
     def update_grid_size(self, thumb_size: int):
         self._thumb_size = thumb_size
-        self._view.setGridSize(QSize(thumb_size + 16, thumb_size + 70))
+        self._view.setGridSize(self._delegate.grid_size_for(thumb_size))
         self.update_view_height()
         self._view.updateGeometry()
 
@@ -1439,7 +1447,7 @@ class AssetBrowser(QWidget):
         self._list_view.setResizeMode(QListView.ResizeMode.Adjust)
         self._list_view.setMovement(QListView.Movement.Static)
         self._list_view.setUniformItemSizes(False)  # True causes paint artifacts in IconMode
-        self._list_view.setGridSize(QSize(self._thumb_size + 16, self._thumb_size + 70))
+        self._list_view.setGridSize(self._delegate.grid_size_for(self._thumb_size))
         self._list_view.setSpacing(_pad)
         self._list_view.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
         self._list_view.setHorizontalScrollMode(QListView.ScrollMode.ScrollPerPixel)
@@ -1635,7 +1643,7 @@ class AssetBrowser(QWidget):
         self._thumb_size = sz
         self._delegate.thumb_size = sz
         self._delegate.invalidate_cache()
-        self._list_view.setGridSize(QSize(sz + 16, sz + 70))
+        self._list_view.setGridSize(self._delegate.grid_size_for(sz))
         for section in self._folder_sections:
             section.update_grid_size(sz)
         s = QSettings("DoxyEdit", "DoxyEdit")
@@ -2283,7 +2291,7 @@ class AssetBrowser(QWidget):
                 self._thumb_size = 64
                 self._delegate.thumb_size = 64
                 self._delegate.invalidate_cache()
-                self._list_view.setGridSize(QSize(64 + 16, 64 + 70))
+                self._list_view.setGridSize(self._delegate.grid_size_for(64))
                 for section in self._folder_sections:
                     section.update_grid_size(64)
 
