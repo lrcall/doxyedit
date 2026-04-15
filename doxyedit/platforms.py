@@ -311,6 +311,27 @@ class PlatformPanel(QWidget):
         right_layout.setSpacing(_pad_lg)
         outer.addWidget(right, 1)
 
+        # Quick-actions toolbar
+        actions_bar = QHBoxLayout()
+        actions_bar.setSpacing(6)
+
+        self._search_platforms = QLineEdit()
+        self._search_platforms.setPlaceholderText("Filter platforms...")
+        self._search_platforms.setFixedWidth(150)
+        self._search_platforms.setObjectName("platform_search")
+        self._search_platforms.textChanged.connect(lambda _: self.refresh())
+        actions_bar.addWidget(self._search_platforms)
+
+        actions_bar.addStretch()
+
+        btn_export_ready = QPushButton("Export Ready")
+        btn_export_ready.setObjectName("platform_action_btn")
+        btn_export_ready.setToolTip("Export all platforms with required slots filled")
+        btn_export_ready.clicked.connect(self._export_ready_platforms)
+        actions_bar.addWidget(btn_export_ready)
+
+        right_layout.addLayout(actions_bar)
+
         # Top bar: summary + view toggle
         top_bar = QHBoxLayout()
         self.summary_label = QLabel()
@@ -417,6 +438,11 @@ class PlatformPanel(QWidget):
                             campaign_platforms.add(c.platform_id)
                     break
 
+        # Search filter
+        search_text = ""
+        if hasattr(self, '_search_platforms'):
+            search_text = self._search_platforms.text().strip().lower()
+
         total_slots = filled_slots = posted_slots = 0
 
         placed = 0
@@ -424,6 +450,8 @@ class PlatformPanel(QWidget):
             (pid, PLATFORMS[pid]) for pid in self.project.platforms if pid in PLATFORMS
         ):
             if campaign_platforms and pid not in campaign_platforms:
+                continue
+            if search_text and search_text not in platform.name.lower() and search_text not in pid.lower():
                 continue
             col = self._col0 if placed % 2 == 0 else self._col1
             placed += 1
@@ -608,6 +636,42 @@ class PlatformPanel(QWidget):
         size_lbl.setObjectName("size_badge")
         size_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         h.addWidget(size_lbl)
+
+        # Slot preview thumbnail at platform aspect ratio
+        if entries and slot.width and slot.height:
+            asset, _ = entries[0]
+            thumb_w = int(60 * slot.width / slot.height) if slot.height else 60
+            thumb_h = 60
+            preview = QLabel()
+            preview.setFixedSize(thumb_w, thumb_h)
+            preview.setObjectName("slot_preview")
+            preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            # Try to load thumbnail
+            pm = None
+            if self._thumb_cache:
+                pm = self._thumb_cache.get(asset.id)
+            if pm and not pm.isNull():
+                scaled = pm.scaled(thumb_w, thumb_h,
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation)
+                # Center crop
+                cx = (scaled.width() - thumb_w) // 2
+                cy = (scaled.height() - thumb_h) // 2
+                cropped = scaled.copy(cx, cy, thumb_w, thumb_h)
+                preview.setPixmap(cropped)
+            else:
+                preview.setText("?")
+                preview.setStyleSheet("background: rgba(128,128,128,30); border: 1px dashed gray;")
+            h.insertWidget(1, preview)  # after slot label, before asset name
+        elif slot.width and slot.height:
+            # Empty slot — show dashed box at ratio
+            thumb_w = int(60 * slot.width / slot.height) if slot.height else 60
+            empty_prev = QLabel()
+            empty_prev.setFixedSize(thumb_w, 60)
+            empty_prev.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty_prev.setText(f"{slot.width}×{slot.height}")
+            empty_prev.setStyleSheet("border: 1px dashed gray; color: gray; font-size: 9px;")
+            h.insertWidget(1, empty_prev)
 
         # Asset name label
         if len(entries) == 0:
@@ -900,6 +964,28 @@ class PlatformPanel(QWidget):
         btn.setProperty("status", new_status)
         btn.style().unpolish(btn)
         btn.style().polish(btn)
+
+    def _export_ready_platforms(self):
+        """Export all platforms that have all required slots filled."""
+        from doxyedit.pipeline import prepare_for_platform
+        exported = 0
+        for pid in self.project.platforms:
+            platform = PLATFORMS.get(pid)
+            if not platform:
+                continue
+            required = [s for s in platform.slots if s.required]
+            all_filled = all((pid, s.name) in self._assign_map for s in required)
+            if not all_filled:
+                continue
+            for slot in platform.slots:
+                entries = self._assign_map.get((pid, slot.name), [])
+                if entries:
+                    asset, _ = entries[0]
+                    result = prepare_for_platform(asset, pid, self.project, slot_name=slot.name)
+                    if result.success:
+                        exported += 1
+                        print(f"[Export] {pid}/{slot.name}: {result.output_path}")
+        print(f"[Export] Done: {exported} slot(s) exported")
 
     def assign_asset(self, asset: Asset, platform_id: str, slot_name: str):
         """Add asset to slot without clearing existing — skip if already assigned."""
