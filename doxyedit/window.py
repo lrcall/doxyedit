@@ -384,6 +384,12 @@ class MainWindow(QMainWindow):
 
         self.tabs.addTab(self._social_split, "Social")
 
+        # Auto-refresh social tab every 60s (moves "now" markers, updates post statuses)
+        self._social_tick = QTimer(self)
+        self._social_tick.setInterval(60_000)
+        self._social_tick.timeout.connect(self._on_social_tick)
+        self._social_tick.start()
+
         # Tab 5: Platforms — slot assignments
         self.platform_panel = PlatformPanel(self.project)
         self.platform_panel.set_thumb_cache(self.browser._thumb_cache)
@@ -3542,6 +3548,15 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             if asset:
                 self.censor_editor.load_asset(asset)
 
+    def _on_social_tick(self):
+        """Auto-refresh social tab components every 60s if visible."""
+        if self.tabs.currentWidget() is not self._social_split:
+            return
+        if hasattr(self, '_timeline'):
+            self._timeline.refresh()
+        if hasattr(self, '_gantt_panel'):
+            self._gantt_panel.refresh()
+
     def _set_tool(self, tool):
         """Legacy canvas tool — redirect to Studio."""
         self._set_studio_tool(tool)
@@ -6091,6 +6106,8 @@ Ctrl+Click tag — Search by tag
         self._settings.setValue("social_top_splitter", self._social_top_split.sizes())
         self._settings.setValue("social_left_splitter", self._social_left_split.sizes())
         self._settings.setValue("plat_full_splitter", self._plat_full.sizes())
+        if hasattr(self.platform_panel, '_plat_hsplit'):
+            self._settings.setValue("plat_hsplit_sizes", self.platform_panel._plat_hsplit.sizes())
         self._settings.setValue("tag_notes_splitter", self.tag_panel._tag_notes_split.sizes())
         if hasattr(self, '_plat_top'):
             self._settings.setValue("plat_top_splitter", self._plat_top.sizes())

@@ -406,8 +406,12 @@ class PlatformPanel(QWidget):
         dash_outer.addWidget(self._dash_scroll, 1)
         self._plat_hsplit.addWidget(dash_container)
 
-        # Default split: 60% cards, 40% dashboard
-        self._plat_hsplit.setSizes([600, 400])
+        # Restore or default split
+        saved_hsplit = QSettings("DoxyEdit", "DoxyEdit").value("plat_hsplit_sizes", None)
+        if saved_hsplit:
+            self._plat_hsplit.setSizes([int(s) for s in saved_hsplit])
+        else:
+            self._plat_hsplit.setSizes([500, 500])
 
         self.refresh()
 
