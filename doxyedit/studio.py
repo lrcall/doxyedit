@@ -75,6 +75,28 @@ class StudioTool(Enum):
 # Graphics items
 # ---------------------------------------------------------------------------
 
+class _ResizeHandle(QGraphicsRectItem):
+    """Small square handle for resizing a CensorRectItem."""
+
+    def __init__(self, parent_censor, position: str):
+        super().__init__(-3, -3, 6, 6, parent_censor)
+        self._parent = parent_censor
+        self._position = position  # "tl", "tr", "bl", "br", "t", "b", "l", "r"
+        self.setBrush(QBrush(QColor(255, 255, 255)))
+        self.setPen(QPen(QColor(0, 0, 0), 1))
+        self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable, True)
+        self.setCursor(Qt.CursorShape.SizeFDiagCursor if position in ("tl", "br")
+                       else Qt.CursorShape.SizeBDiagCursor if position in ("tr", "bl")
+                       else Qt.CursorShape.SizeVerCursor if position in ("t", "b")
+                       else Qt.CursorShape.SizeHorCursor)
+        self.setZValue(1000)
+        self.setVisible(False)
+
+    def mouseMoveEvent(self, event):
+        self._parent._on_handle_moved(self._position, event.scenePos())
+        super().mouseMoveEvent(event)
+
+
 class CensorRectItem(QGraphicsRectItem):
     """Draggable censor rectangle — overlay exception: hardcoded colors OK."""
 
@@ -85,8 +107,15 @@ class CensorRectItem(QGraphicsRectItem):
         self.setFlags(
             QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable
+            | QGraphicsRectItem.GraphicsItemFlag.ItemSendsGeometryChanges
         )
         self._apply_style()
+        # Resize handles (8-point)
+        self._handles = {}
+        for pos in ("tl", "t", "tr", "l", "r", "bl", "b", "br"):
+            h = _ResizeHandle(self, pos)
+            self._handles[pos] = h
+        self._update_handle_positions()
 
     def _apply_style(self):
         if self.style == "black":
@@ -98,6 +127,44 @@ class CensorRectItem(QGraphicsRectItem):
         elif self.style == "pixelate":
             self.setBrush(QBrush(QColor(100, 255, 100, 80)))
             self.setPen(QPen(QColor("#66ff66"), 1.5, Qt.PenStyle.DashLine))
+
+    def _update_handle_positions(self):
+        r = self.rect()
+        positions = {
+            "tl": (r.left(), r.top()),
+            "t": (r.center().x(), r.top()),
+            "tr": (r.right(), r.top()),
+            "l": (r.left(), r.center().y()),
+            "r": (r.right(), r.center().y()),
+            "bl": (r.left(), r.bottom()),
+            "b": (r.center().x(), r.bottom()),
+            "br": (r.right(), r.bottom()),
+        }
+        for pos, (x, y) in positions.items():
+            self._handles[pos].setPos(x, y)
+
+    def _on_handle_moved(self, position: str, scene_pos):
+        local = self.mapFromScene(scene_pos)
+        r = self.rect()
+        if "l" in position:
+            r.setLeft(min(local.x(), r.right() - 10))
+        if "r" in position:
+            r.setRight(max(local.x(), r.left() + 10))
+        if "t" in position:
+            r.setTop(min(local.y(), r.bottom() - 10))
+        if "b" in position:
+            r.setBottom(max(local.y(), r.top() + 10))
+        self.setRect(r)
+        self._update_handle_positions()
+        # Update model
+        if self._editor:
+            self._editor._sync_censors_to_asset()
+
+    def itemChange(self, change, value):
+        if change == QGraphicsRectItem.GraphicsItemChange.ItemSelectedHasChanged:
+            for h in self._handles.values():
+                h.setVisible(bool(value))
+        return super().itemChange(change, value)
 
     def contextMenuEvent(self, event):
         menu = _themed_menu()
@@ -749,6 +816,10 @@ class StudioEditor(QWidget):
                 vis = self._layer_panel.isVisible()
                 self._layer_panel.setVisible(not vis)
                 return
+            elif key == Qt.Key.Key_G:
+                self._grid_visible = not getattr(self, '_grid_visible', False)
+                self._scene.update()  # triggers repaint
+                return
 
         super().keyPressEvent(event)
 
@@ -1033,6 +1104,29 @@ class StudioEditor(QWidget):
         self._scene.get_crop_aspect = self._get_crop_aspect
         self._view = StudioView(self._scene)
         self._view.on_file_dropped = self._on_file_dropped
+
+        # Snap grid overlay
+        self._grid_visible = False
+        self._grid_spacing = 50
+        original_draw = self._scene.drawBackground
+        editor_ref = self  # prevent closure over self directly
+        def _draw_bg_with_grid(painter, rect):
+            original_draw(painter, rect)
+            if editor_ref._grid_visible:
+                pen = QPen(QColor(128, 128, 128, 40), 0.5)
+                painter.setPen(pen)
+                gs = editor_ref._grid_spacing
+                left = int(rect.left()) - (int(rect.left()) % gs)
+                top = int(rect.top()) - (int(rect.top()) % gs)
+                x = left
+                while x < rect.right():
+                    painter.drawLine(int(x), int(rect.top()), int(x), int(rect.bottom()))
+                    x += gs
+                y = top
+                while y < rect.bottom():
+                    painter.drawLine(int(rect.left()), int(y), int(rect.right()), int(y))
+                    y += gs
+        self._scene.drawBackground = _draw_bg_with_grid
 
         # Layer panel (right sidebar, collapsible)
         self._layer_panel = QListWidget()
