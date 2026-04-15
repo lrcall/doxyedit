@@ -906,7 +906,7 @@ class StudioEditor(QWidget):
         self._crop_combo.setObjectName("studio_crop_combo")
         from doxyedit.themes import THEMES, DEFAULT_THEME as _DT
         _t = THEMES[_DT]
-        self._crop_combo.setMinimumWidth(_t.font_size * 20)
+        self._crop_combo.setMinimumWidth(0)
         self._crop_combo.addItem("Free crop", None)
         for pid, platform in PLATFORMS.items():
             self._crop_combo.insertSeparator(self._crop_combo.count())

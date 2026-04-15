@@ -2344,7 +2344,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._settings.setValue("tray_visible", False)
         else:
             self._tray_open = True
-            self.work_tray.setMinimumWidth(int(self._font_size * self.WORK_TRAY_MIN_WIDTH_RATIO))
+            self.work_tray.setMinimumWidth(0)
             self.work_tray.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX — no limit
             self.work_tray._content.show()
             self.work_tray.show()

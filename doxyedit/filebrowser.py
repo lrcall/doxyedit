@@ -199,8 +199,7 @@ class FileBrowserPanel(QWidget):
 
         layout.addWidget(self._tree, 1)
 
-        PANEL_MIN_WIDTH_RATIO = 15.0       # file browser panel min width
-        self.setMinimumWidth(int(_f * PANEL_MIN_WIDTH_RATIO))
+        self.setMinimumWidth(0)  # splitter handles collapsing
 
     def _rebuild_pin_bar(self):
         while self._pin_bar.count():

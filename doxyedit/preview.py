@@ -929,8 +929,7 @@ class PreviewPane(QWidget):
 
         from PySide6.QtCore import QSettings
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
-        PANE_MIN_WIDTH_RATIO = 16.7        # preview pane minimum width
-        self.setMinimumWidth(int(_f * PANE_MIN_WIDTH_RATIO))
+        self.setMinimumWidth(0)  # browse splitter handles collapsing
 
     def update_theme(self, theme):
         """Update QGraphicsScene background from theme (can't use QSS for scenes)."""

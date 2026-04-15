@@ -162,8 +162,7 @@ class InfoPanel(QWidget):
         scroll.setWidget(content)
         outer.addWidget(scroll, 1)
 
-        PANEL_MIN_WIDTH_RATIO = 8.3        # info panel min width
-        self.setMinimumWidth(int(_f * PANEL_MIN_WIDTH_RATIO))
+        self.setMinimumWidth(0)  # parent splitter handles collapsing
 
     def _render_palette(self, colors: list):
         """Render color swatches from hex color list."""
