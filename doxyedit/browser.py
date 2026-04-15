@@ -34,6 +34,9 @@ IMAGE_EXTS = {
 }
 THUMB_GEN_SIZE = 512
 DEFAULT_PAGE_SIZE = 100
+MIN_THUMB_SIZE = 80
+MAX_THUMB_SIZE = 512
+DEFAULT_FONT_SIZE = 12
 
 AUTO_TAG_PATTERNS = {
     "cover": "cover", "banner": "banner", "hero": "hero",
@@ -556,16 +559,16 @@ class ThumbnailDelegate(QStyledItemDelegate):
         # Selection / hover background
         if option.state & QStyle.StateFlag.State_Selected:
             _sel_fill = QColor(self._theme.selection_bg)
-            _sel_fill.setAlpha(self._sel_alpha)
+            _sel_fill.setAlpha(self.selection_fill_alpha)
             painter.fillRect(rect, _sel_fill)
             _sel_border = QColor(self._theme.selection_border)
-            _sel_border.setAlpha(self.selection_border_width_alpha)
+            _sel_border.setAlpha(self.selection_border_alpha)
             painter.setPen(QPen(_sel_border, self.selection_border_width))
             _sb = self.selection_border_width
             painter.drawRect(rect.adjusted(_sb, _sb, -_sb, -_sb))
         elif option.state & QStyle.StateFlag.State_MouseOver:
             _hover = QColor(self._theme.border)
-            _hover.setAlpha(self._hover_alpha)
+            _hover.setAlpha(self.hover_fill_alpha)
             painter.fillRect(rect, _hover)
 
         # Thumbnail
@@ -1131,10 +1134,10 @@ class AssetBrowser(QWidget):
         self._thumb_cache.connect_phash(self._on_phash_ready)
         self._filtered_assets: list[Asset] = []
         settings = QSettings("DoxyEdit", "DoxyEdit")
-        self._thumb_size = max(80, min(512, int(settings.value("thumb_size", THUMB_SIZE))))
-        _f = settings.value("font_size", 12, type=int)
-        self.cell_padding = max(4, _f // 3)
-        self.cell_padding_lg = max(6, _f // 2)
+        self._thumb_size = max(MIN_THUMB_SIZE, min(MAX_THUMB_SIZE, int(settings.value("thumb_size", THUMB_SIZE))))
+        self._font_size = settings.value("font_size", DEFAULT_FONT_SIZE, type=int)
+        self.cell_padding = max(4, self._font_size // 3)
+        self.cell_padding_lg = max(6, self._font_size // 2)
         self.hover_preview_enabled = settings.value("hover_preview_enabled", "true") == "true"
         self._eye_hidden_tags: set[str] = set()
         self._temp_hidden_ids: set[str] = set()  # Alt+H temporary hide (not saved)
@@ -1283,9 +1286,7 @@ class AssetBrowser(QWidget):
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Search...")
         self.search_box.setClearButtonEnabled(True)
-        self.search_box.setMinimumWidth(int(_f * self.SEARCH_MIN_WIDTH_RATIO))
-        QWIDGETSIZE_MAX = 16777215
-        self.search_box.setMaximumWidth(QWIDGETSIZE_MAX)
+        self.search_box.setMinimumWidth(int(self._font_size * self.SEARCH_MIN_WIDTH_RATIO))
         self.search_box.textChanged.connect(self._on_filter_changed)
         self.search_box.installEventFilter(self)
         row2.addWidget(self.search_box)
