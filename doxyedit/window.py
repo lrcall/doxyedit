@@ -1737,6 +1737,70 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if mime.hasText():
             print(f"[Paste] Text: {mime.text()[:200]!r}")
 
+        # Rich paste — full asset metadata from another DoxyEdit project tab
+        if mime.hasFormat("application/x-doxyedit-assets"):
+            raw = bytes(mime.data("application/x-doxyedit-assets")).decode("utf-8")
+            try:
+                asset_dicts = json.loads(raw)
+            except Exception:
+                asset_dicts = []
+            if asset_dicts:
+                from doxyedit.models import (
+                    Asset, CropRegion, CensorRegion, CanvasOverlay,
+                    PlatformAssignment, PostStatus,
+                )
+                existing_paths = {
+                    os.path.normpath(a.source_path).lower()
+                    for a in self.project.assets if a.source_path
+                }
+                added = 0
+                for ad in asset_dicts:
+                    sp = ad.get("source_path", "")
+                    if sp and os.path.normpath(sp).lower() in existing_paths:
+                        continue  # skip duplicates
+                    asset = Asset(
+                        id=ad.get("id", ""),
+                        source_path=sp,
+                        source_folder=ad.get("source_folder", ""),
+                        starred=int(ad.get("starred", 0)),
+                        tags=list(ad.get("tags", [])),
+                        notes=ad.get("notes", ""),
+                        specs=dict(ad.get("specs", {})),
+                    )
+                    for c in ad.get("crops", []):
+                        asset.crops.append(CropRegion(**c))
+                    for c in ad.get("censors", []):
+                        asset.censors.append(CensorRegion(
+                            **{k: v for k, v in c.items()
+                               if k in CensorRegion.__dataclass_fields__}))
+                    for ov in ad.get("overlays", []):
+                        asset.overlays.append(CanvasOverlay.from_dict(ov))
+                    for p in ad.get("assignments", []):
+                        pa = PlatformAssignment(
+                            platform=p.get("platform", ""),
+                            slot=p.get("slot", ""),
+                            status=p.get("status", PostStatus.PENDING),
+                            notes=p.get("notes", ""),
+                            campaign_id=p.get("campaign_id", ""),
+                        )
+                        if p.get("crop"):
+                            pa.crop = CropRegion(**p["crop"])
+                        asset.assignments.append(pa)
+                    self.project.assets.append(asset)
+                    added += 1
+                if added:
+                    self.browser.refresh()
+                    self._dirty = True
+                    self.status.showMessage(
+                        f"Pasted {added} asset(s) with metadata"
+                        f" ({len(asset_dicts) - added} duplicates skipped)"
+                        if len(asset_dicts) > added else
+                        f"Pasted {added} asset(s) with metadata")
+                    return
+                else:
+                    self.status.showMessage("All pasted assets already in project", 2000)
+                    return
+
         # Try image data first
         if mime.hasImage():
             image = clipboard.image()
@@ -3455,14 +3519,19 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self.browser.active_view.selectAll()
 
     def _copy_as_files(self):
-        """Ctrl+C — copy selected assets as file objects (Explorer-compatible)."""
+        """Ctrl+C — copy selected assets as file objects (Explorer-compatible)
+        plus full asset metadata for cross-project paste."""
         if self.tabs.currentIndex() != 0:
             return
         assets = self.browser.get_selected_assets()
         if not assets:
             return
+        from dataclasses import asdict
         mime = QMimeData()
         mime.setUrls([QUrl.fromLocalFile(a.source_path) for a in assets])
+        # Embed full asset metadata for rich paste into another project tab
+        payload = json.dumps([asdict(a) for a in assets], ensure_ascii=False)
+        mime.setData("application/x-doxyedit-assets", payload.encode("utf-8"))
         QApplication.clipboard().setMimeData(mime)
         n = len(assets)
         self.status.showMessage(f"Copied {n} file{'s' if n != 1 else ''}", 2000)

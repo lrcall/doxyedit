@@ -75,7 +75,7 @@ class ImagePreviewPanel(QWidget):
         self._mode_platform.clicked.connect(lambda: self._set_preview_mode("platform"))
 
         for btn in (self._mode_raw, self._mode_studio, self._mode_platform):
-            btn.setFixedHeight(int(_f * self.MODE_BUTTON_HEIGHT_RATIO))
+            btn.setFixedHeight(int(self._f * self.MODE_BUTTON_HEIGHT_RATIO))
             mode_row.addWidget(btn)
         mode_row.addStretch()
         layout.addLayout(mode_row)
