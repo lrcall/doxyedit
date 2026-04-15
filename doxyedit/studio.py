@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal
 from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
-    QKeyEvent, QTransform,
+    QKeyEvent, QTransform, QUndoCommand, QUndoStack,
 )
 import copy
 from PIL import Image
@@ -326,6 +326,62 @@ class AnnotationTextItem(QGraphicsTextItem):
 
 
 # ---------------------------------------------------------------------------
+# Undo commands
+# ---------------------------------------------------------------------------
+
+class AddCensorCmd(QUndoCommand):
+    def __init__(self, editor, censor_region, scene_item):
+        super().__init__("Add Censor")
+        self._editor = editor
+        self._region = censor_region
+        self._item = scene_item
+
+    def redo(self):
+        if self._region not in self._editor._asset.censors:
+            self._editor._asset.censors.append(self._region)
+        if self._item.scene() is None:
+            self._editor._scene.addItem(self._item)
+
+    def undo(self):
+        if self._region in self._editor._asset.censors:
+            self._editor._asset.censors.remove(self._region)
+        if self._item.scene() is not None:
+            self._editor._scene.removeItem(self._item)
+
+
+class DeleteItemCmd(QUndoCommand):
+    def __init__(self, editor, description="Delete"):
+        super().__init__(description)
+        self._editor = editor
+        self._censors = []  # (region, item) pairs
+        self._overlays = []  # (overlay, item) pairs
+
+    def redo(self):
+        for region, item in self._censors:
+            if region in self._editor._asset.censors:
+                self._editor._asset.censors.remove(region)
+            if item.scene():
+                self._editor._scene.removeItem(item)
+        for overlay, item in self._overlays:
+            if overlay in self._editor._asset.overlays:
+                self._editor._asset.overlays.remove(overlay)
+            if item.scene():
+                self._editor._scene.removeItem(item)
+
+    def undo(self):
+        for region, item in self._censors:
+            if region not in self._editor._asset.censors:
+                self._editor._asset.censors.append(region)
+            if item.scene() is None:
+                self._editor._scene.addItem(item)
+        for overlay, item in self._overlays:
+            if overlay not in self._editor._asset.overlays:
+                self._editor._asset.overlays.append(overlay)
+            if item.scene() is None:
+                self._editor._scene.addItem(item)
+
+
+# ---------------------------------------------------------------------------
 # Scene
 # ---------------------------------------------------------------------------
 
@@ -584,6 +640,8 @@ class StudioEditor(QWidget):
         self._note_start: QPointF | None = None
         self._note_temp: NoteRectItem | None = None
         self._build()
+        self._undo_stack = QUndoStack(self)
+        self._undo_stack.setUndoLimit(50)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     # ---- keyboard shortcuts ----
@@ -596,10 +654,10 @@ class StudioEditor(QWidget):
 
         # Ctrl combos
         if ctrl and key == Qt.Key.Key_Z:
-            print("[Studio] Undo not yet implemented")
+            self._undo_stack.undo()
             return
         if ctrl and key == Qt.Key.Key_Y:
-            print("[Studio] Redo not yet implemented")
+            self._undo_stack.redo()
             return
         if ctrl and key == Qt.Key.Key_D:
             self._duplicate_selected()
@@ -808,6 +866,28 @@ class StudioEditor(QWidget):
         btn_queue.setObjectName("studio_queue_btn")
         btn_queue.clicked.connect(self._queue_current)
         toolbar.addWidget(btn_queue)
+
+        # Zoom presets
+        toolbar.addWidget(QLabel("|"))
+        for label, factor in [("Fit", 0), ("50%", 0.5), ("100%", 1.0), ("200%", 2.0)]:
+            btn = QPushButton(label)
+            btn.setFixedWidth(36)
+            btn.setObjectName("studio_zoom_btn")
+            if factor == 0:
+                btn.clicked.connect(lambda: self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio))
+            else:
+                btn.clicked.connect(lambda _, f=factor: self._set_zoom(f))
+            toolbar.addWidget(btn)
+
+        self._zoom_label = QLabel("100%")
+        self._zoom_label.setFixedWidth(40)
+        toolbar.addWidget(self._zoom_label)
+
+        # Asset info
+        toolbar.addWidget(QLabel("|"))
+        self._asset_info = QLabel("")
+        self._asset_info.setObjectName("studio_asset_info")
+        toolbar.addWidget(self._asset_info)
 
         toolbar.addStretch()
 
@@ -1024,6 +1104,16 @@ class StudioEditor(QWidget):
         self._load_saved_notes()
 
         self._update_info()
+
+        # Update asset info
+        if hasattr(self, '_asset_info'):
+            size_mb = src.stat().st_size / (1024*1024) if src.exists() else 0
+            self._asset_info.setText(f"{pm.width()}\u00d7{pm.height()} \u00b7 {src.suffix.upper().lstrip('.')} \u00b7 {size_mb:.1f}MB")
+
+    def _set_zoom(self, factor: float):
+        self._view.resetTransform()
+        self._view.scale(factor, factor)
+        self._zoom_label.setText(f"{int(factor * 100)}%")
 
     # ---- tool management ----
 
@@ -1606,15 +1696,27 @@ class StudioEditor(QWidget):
 
     def _delete_selected(self):
         """Remove selected censors/overlays/crops/notes from scene and model."""
+        cmd = DeleteItemCmd(self)
+        has_undoable = False
         for item in self._scene.selectedItems():
             if isinstance(item, CensorRectItem):
-                self._scene.removeItem(item)
+                # Build CensorRegion from current item state for undo
+                r = item.rect()
+                pos = item.pos()
+                region = CensorRegion(
+                    x=int(pos.x() + r.x()), y=int(pos.y() + r.y()),
+                    w=int(r.width()), h=int(r.height()),
+                    style=item.style,
+                )
+                cmd._censors.append((region, item))
                 if item in self._censor_items:
                     self._censor_items.remove(item)
+                has_undoable = True
             elif isinstance(item, (OverlayImageItem, OverlayTextItem)):
-                self._scene.removeItem(item)
+                cmd._overlays.append((item.overlay, item))
                 if item in self._overlay_items:
                     self._overlay_items.remove(item)
+                has_undoable = True
             elif isinstance(item, ResizableCropItem):
                 self._scene.removeItem(item)
                 if item in self._crop_items:
@@ -1628,6 +1730,8 @@ class StudioEditor(QWidget):
                 self._save_notes_to_asset()
             elif isinstance(item, (AnnotationTextItem, QGraphicsRectItem, QGraphicsLineItem)):
                 self._scene.removeItem(item)
+        if has_undoable:
+            self._undo_stack.push(cmd)
         self._sync_censors_to_asset()
         self._sync_overlays_to_asset()
         self._update_info()
