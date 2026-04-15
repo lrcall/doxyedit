@@ -559,6 +559,11 @@ class MainWindow(QMainWindow):
         self._reminder_timer.timeout.connect(self._check_reminders)
         self._reminder_timer.start(300_000)  # 5 minutes
 
+        # --- Auto-post timer (scans every 5 minutes) ---
+        self._autopost_timer = QTimer(self)
+        self._autopost_timer.timeout.connect(self._check_autopost)
+        self._autopost_timer.start(300_000)  # every 5 minutes
+
         # --- File watcher for external changes (Claude CLI) ---
         from PySide6.QtCore import QFileSystemWatcher
         self._file_watcher = QFileSystemWatcher(self)
@@ -2806,6 +2811,32 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 self.status.showMessage(" | ".join(msgs), 10000)
         except Exception:
             pass
+
+    def _check_autopost(self):
+        """Auto-push queued posts whose scheduled_time has passed."""
+        from datetime import datetime
+        from doxyedit.models import SocialPostStatus
+        now = datetime.now()
+        pushed = 0
+        for post in self.project.posts:
+            if post.status != SocialPostStatus.QUEUED:
+                continue
+            if not post.scheduled_time:
+                continue
+            if post.oneup_post_id:
+                continue  # already pushed
+            try:
+                sched = datetime.fromisoformat(post.scheduled_time)
+                if sched <= now:
+                    print(f"[AutoPost] Post {post.id[:8]} is due ({post.scheduled_time}), pushing...")
+                    self._push_post_to_oneup(post)
+                    pushed += 1
+            except (ValueError, TypeError):
+                continue
+        if pushed:
+            self._dirty = True
+            self._refresh_social_panels()
+            self.status.showMessage(f"Auto-posted {pushed} due post(s)", 5000)
 
     def _on_sync_oneup(self):
         """Sync accounts, categories, and post statuses from OneUp."""

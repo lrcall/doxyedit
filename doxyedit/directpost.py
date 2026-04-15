@@ -109,6 +109,52 @@ class TelegramBotClient:
         )
         return self._execute(req)
 
+    def send_media_group(self, caption: str, image_paths: list[str]) -> DirectPostResult:
+        """Send multiple photos as an album."""
+        if len(image_paths) <= 1:
+            return self.send_photo(caption, image_paths[0]) if image_paths else self.send_message(caption)
+
+        import uuid as _uuid
+        boundary = _uuid.uuid4().hex
+        lines: list[bytes] = []
+
+        media = []
+        for i, path in enumerate(image_paths[:10]):
+            media.append({
+                "type": "photo",
+                "media": f"attach://photo{i}",
+                "caption": caption if i == 0 else "",
+            })
+
+        # Add media JSON field
+        lines.append(f"--{boundary}".encode())
+        lines.append(b'Content-Disposition: form-data; name="chat_id"')
+        lines.append(b"")
+        lines.append(self.chat_id.encode())
+
+        lines.append(f"--{boundary}".encode())
+        lines.append(b'Content-Disposition: form-data; name="media"')
+        lines.append(b"Content-Type: application/json")
+        lines.append(b"")
+        lines.append(json.dumps(media).encode())
+
+        # Add each photo file
+        for i, path in enumerate(image_paths[:10]):
+            p = Path(path)
+            lines.append(f"--{boundary}".encode())
+            lines.append(f'Content-Disposition: form-data; name="photo{i}"; filename="{p.name}"'.encode())
+            lines.append(b"Content-Type: image/png")
+            lines.append(b"")
+            lines.append(p.read_bytes())
+
+        lines.append(f"--{boundary}--".encode())
+        lines.append(b"")
+
+        body = b"\r\n".join(lines)
+        ct = f"multipart/form-data; boundary={boundary}"
+        req = Request(self._url("sendMediaGroup"), data=body, headers={"Content-Type": ct}, method="POST")
+        return self._execute(req)
+
     def _execute(self, req: Request) -> DirectPostResult:
         try:
             with urlopen(req, timeout=30) as resp:
@@ -256,8 +302,8 @@ class BlueskyClient:
             print(f"[Bluesky] Image upload failed: {e}")
             return None
 
-    def send_post(self, text: str, image_path: str = "") -> DirectPostResult:
-        """Create a post on Bluesky with optional image."""
+    def send_post(self, text: str, image_path: str | list[str] = "") -> DirectPostResult:
+        """Create a post on Bluesky with optional image(s)."""
         if not self._login():
             return DirectPostResult(
                 success=False, platform="bluesky", data={},
@@ -272,13 +318,18 @@ class BlueskyClient:
             "createdAt": datetime.now(timezone.utc).isoformat(),
         }
 
-        # Upload and attach image if provided
-        if image_path:
-            blob = self._upload_image(image_path)
-            if blob:
+        # Upload and attach image(s) if provided
+        image_paths = image_path if isinstance(image_path, list) else ([image_path] if image_path else [])
+        if image_paths:
+            images = []
+            for ip in image_paths:
+                blob = self._upload_image(ip)
+                if blob:
+                    images.append({"alt": text[:100], "image": blob})
+            if images:
                 record["embed"] = {
                     "$type": "app.bsky.embed.images",
-                    "images": [{"alt": text[:100], "image": blob}],
+                    "images": images[:4],  # Bluesky max 4
                 }
 
         payload = json.dumps({
@@ -377,22 +428,24 @@ def get_direct_clients(project_dir: str) -> dict[str, list]:
 # High-level dispatch
 # ---------------------------------------------------------------------------
 
-def _export_first_asset(post, project) -> str:
-    """Export first asset using quickpost's export pipeline (censors + overlays)."""
-    if not post.asset_ids:
-        return ""
-    asset = project.get_asset(post.asset_ids[0])
-    if not asset or not asset.source_path:
-        return ""
-    try:
-        from doxyedit.quickpost import _export_for_platform
-        from doxyedit.models import SubPlatform
-        # Use a generic sub-platform with censors always on
-        stub = SubPlatform(id="direct", name="Direct", needs_censor=True)
-        return _export_for_platform(asset, stub, project)
-    except Exception as e:
-        print(f"[DirectPost] Export failed: {e}")
-        return ""
+def _export_assets(post, project, max_images: int = 4) -> list[str]:
+    """Export assets from a SocialPost with censors + overlays.
+    Returns list of temp file paths (up to max_images)."""
+    paths = []
+    for aid in post.asset_ids[:max_images]:
+        asset = project.get_asset(aid)
+        if not asset or not asset.source_path:
+            continue
+        try:
+            from doxyedit.quickpost import _export_for_platform
+            from doxyedit.models import SubPlatform
+            stub = SubPlatform(id="direct", name="Direct", needs_censor=True)
+            path = _export_for_platform(asset, stub, project)
+            if path:
+                paths.append(path)
+        except Exception as e:
+            print(f"[DirectPost] Export failed for {aid}: {e}")
+    return paths
 
 
 def push_to_direct(
@@ -454,13 +507,16 @@ def push_to_direct(
         return results
 
     # Export image only if we have something to send to
-    image_path = _export_first_asset(post, project)
+    image_paths = _export_assets(post, project)
+    image_path = image_paths[0] if image_paths else ""
 
     # Telegram
     if has_tg:
         tg_caption = post.captions.get("telegram", post.caption_default)
         for tg in clients["telegram"]:
-            if image_path:
+            if len(image_paths) > 1:
+                r = tg.send_media_group(tg_caption, image_paths)
+            elif image_path:
                 r = tg.send_photo(tg_caption, image_path)
             else:
                 r = tg.send_message(tg_caption)
@@ -477,7 +533,7 @@ def push_to_direct(
     if has_bs:
         bs_caption = post.captions.get("bluesky", post.caption_default)
         for bs in clients["bluesky"]:
-            r = bs.send_post(bs_caption, image_path=image_path)
+            r = bs.send_post(bs_caption, image_path=image_paths if len(image_paths) > 1 else image_path)
             results.append(r)
 
     return results
