@@ -74,6 +74,14 @@ class MainWindow(QMainWindow):
     NOTES_CORNER_MARGIN_LEFT = 0      # notes tab corner: left margin
     NOTES_CORNER_MARGIN_TOP = 0       # notes tab corner: top margin
     NOTES_CORNER_MARGIN_BOTTOM = 0    # notes tab corner: bottom margin
+    TAG_PANEL_MIN_WIDTH_RATIO = 18.3  # tag panel minimum width
+    TAG_PANEL_MAX_WIDTH_RATIO = 33.3  # tag panel maximum width
+    MENU_BUTTON_MIN_WIDTH_RATIO = 5.0 # view menu button minimum
+    PROGRESS_BAR_MIN_WIDTH_RATIO = 20.8  # progress bar minimum
+    PROGRESS_BAR_MAX_WIDTH_RATIO = 33.3  # progress bar maximum
+    WORK_TRAY_MIN_WIDTH_RATIO = 12.5  # work tray minimum width
+    DIALOG_MIN_WIDTH_RATIO = 35.0     # standard dialog minimum width
+    DIALOG_WIDE_MIN_WIDTH_RATIO = 37.5  # wide dialog minimum width
 
     def __init__(self, _skip_autoload: bool = False):
         super().__init__()
@@ -170,8 +178,8 @@ class MainWindow(QMainWindow):
         # Tab 1: Left Sidebar (tags+info) | Asset Browser grid
         self.browser = AssetBrowser(self.project)
         self.tag_panel = TagPanel()
-        self.tag_panel.setMinimumWidth(220)
-        self.tag_panel.setMaximumWidth(400)
+        self.tag_panel.setMinimumWidth(int(self._font_size * self.TAG_PANEL_MIN_WIDTH_RATIO))
+        self.tag_panel.setMaximumWidth(int(self._font_size * self.TAG_PANEL_MAX_WIDTH_RATIO))
         self.tag_panel.tags_changed.connect(self._on_data_changed)
         self.tag_panel.tags_changed.connect(lambda: self.browser.refresh())
         self.tag_panel.tag_deleted.connect(self._on_tag_deleted)
@@ -494,7 +502,7 @@ class MainWindow(QMainWindow):
             btn.setCheckable(True)
             btn.clicked.connect(lambda _, idx=i: self.tabs.setCurrentIndex(idx))
             btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-            btn.setMinimumWidth(60)
+            btn.setMinimumWidth(int(self._font_size * self.MENU_BUTTON_MIN_WIDTH_RATIO))
             self._tab_toolbar.addWidget(btn)
             self._menubar_tab_btns.append(btn)
 
@@ -553,8 +561,8 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status)
 
         self._progress_bar = QProgressBar()
-        self._progress_bar.setMinimumWidth(250)
-        self._progress_bar.setMaximumWidth(400)
+        self._progress_bar.setMinimumWidth(int(self._font_size * self.PROGRESS_BAR_MIN_WIDTH_RATIO))
+        self._progress_bar.setMaximumWidth(int(self._font_size * self.PROGRESS_BAR_MAX_WIDTH_RATIO))
         self._progress_bar.setFixedHeight(max(self.MIN_PROGRESS_HEIGHT, self._font_size))
         self._progress_bar.setTextVisible(True)
         self._progress_bar.setVisible(False)
@@ -2240,7 +2248,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 self._menubar_tray_btn.setChecked(False)
         else:
             self._tray_open = True
-            self.work_tray.setMinimumWidth(150)
+            self.work_tray.setMinimumWidth(int(self._font_size * self.WORK_TRAY_MIN_WIDTH_RATIO))
             self.work_tray.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX — no limit
             self.work_tray._content.show()
             self.work_tray.show()
@@ -3899,7 +3907,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # --- Options dialog ---
         dlg = QDialog(self)
         dlg.setWindowTitle("Package Project")
-        dlg.setMinimumWidth(420)
+        dlg.setMinimumWidth(int(self._font_size * self.DIALOG_MIN_WIDTH_RATIO))
         layout = QVBoxLayout(dlg)
 
         layout.addWidget(QLabel(f"Copy <b>{total}</b> asset files into:<br><code>{assets_dir}</code>"))
@@ -4341,7 +4349,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # --- Confirmation dialog ---
         dlg = QDialog(self)
         dlg.setWindowTitle(f"Merge: {Path(path).stem} → {self.project.name}")
-        dlg.setMinimumWidth(450)
+        dlg.setMinimumWidth(int(self._font_size * self.DIALOG_WIDE_MIN_WIDTH_RATIO))
         layout = QVBoxLayout(dlg)
 
         layout.addWidget(QLabel(
