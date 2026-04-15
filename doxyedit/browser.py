@@ -543,7 +543,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
     def grid_size_for(self, thumb_size: int) -> QSize:
         """Return the proper grid cell size for a given thumbnail size."""
         return QSize(thumb_size + 2 * self.cell_padding,
-                     thumb_size + self._below_height())
+                     self.cell_padding + thumb_size + self._below_height())
 
     def sizeHint(self, option, index):
         return self.grid_size_for(self.thumb_size)
