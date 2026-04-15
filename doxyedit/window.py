@@ -4579,8 +4579,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             hashes.setdefault(h, []).append(asset)
         progress.close()
 
-        dupe_groups = [assets for assets in hashes.values() if len(assets) > 1]
-        total_dupes = sum(len(g) - 1 for g in dupe_groups)  # extras beyond the first in each group
+        dupe_groups = [(h, assets) for h, assets in hashes.items() if len(assets) > 1]
+        total_dupes = sum(len(assets) - 1 for _, assets in dupe_groups)
         self.status.showMessage(
             f"Found {len(dupe_groups)} duplicate group(s) ({total_dupes} extras)"
             if dupe_groups else "No duplicates found", 3000)
@@ -4600,7 +4600,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         text.setReadOnly(True)
         if dupe_groups:
             lines = []
-            for i, group in enumerate(dupe_groups, 1):
+            for i, (_, group) in enumerate(dupe_groups, 1):
                 lines.append(f"Group {i}  (keep: {Path(group[0].source_path).name})")
                 for j, asset in enumerate(group):
                     marker = "  ✓ keep" if j == 0 else "  ✗ dupe"
@@ -4625,7 +4625,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 if "duplicate" not in self.project.tag_definitions:
                     self.project.tag_definitions["duplicate"] = {"label": "Duplicate", "color": "#e06c6c"}
                 n = 0
-                for group in dupe_groups:
+                for _, group in dupe_groups:
                     for asset in group[1:]:
                         if "duplicate" not in asset.tags:
                             asset.tags.append("duplicate")
@@ -4641,7 +4641,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             remove_btn = QPushButton("Remove Extras from Project")
             remove_btn.setToolTip("Remove all but the first copy of each duplicate from the project (files stay on disk)")
             def _remove_dupes():
-                extra_ids = {asset.id for group in dupe_groups for asset in group[1:]}
+                extra_ids = {asset.id for _, group in dupe_groups for asset in group[1:]}
                 reply = QMessageBox.question(
                     dlg, "Remove Duplicates",
                     f"Remove {len(extra_ids)} extra asset record(s) from the project?\n\n"
@@ -4661,8 +4661,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             link_btn = QPushButton("Link as Duplicate Groups")
             link_btn.setToolTip("Write duplicate_group IDs to asset specs for Link Mode highlighting")
             def _link_dupes():
-                for group in dupe_groups:
-                    h = hashlib.md5(Path(group[0].source_path).read_bytes()).hexdigest()
+                for h, group in dupe_groups:
                     for i, asset in enumerate(group):
                         asset.specs["duplicate_group"] = h
                         if i == 0:
