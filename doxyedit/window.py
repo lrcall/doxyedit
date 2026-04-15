@@ -4539,14 +4539,24 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _find_duplicates(self):
         """Hash all project assets and show a dialog of duplicate groups with action options."""
         import hashlib
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel
+        from PySide6.QtWidgets import (
+            QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel,
+            QProgressDialog,
+        )
 
-        self.status.showMessage("Scanning for duplicates...", 0)
-        QApplication.processEvents()
+        n_assets = len(self.project.assets)
+        progress = QProgressDialog("Scanning for duplicates...", "Cancel", 0, n_assets, self)
+        progress.setWindowTitle("Find Duplicates")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
 
         # Build hash → [asset] map
         hashes: dict[str, list] = {}
-        for asset in self.project.assets:
+        for i, asset in enumerate(self.project.assets):
+            if progress.wasCanceled():
+                return
+            progress.setValue(i)
             p = Path(asset.source_path)
             if not p.exists():
                 continue
@@ -4555,6 +4565,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             except OSError:
                 continue
             hashes.setdefault(h, []).append(asset)
+        progress.close()
 
         dupe_groups = [assets for assets in hashes.values() if len(assets) > 1]
         total_dupes = sum(len(g) - 1 for g in dupe_groups)  # extras beyond the first in each group
@@ -4663,7 +4674,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _find_similar(self):
         """Find visually similar images using perceptual hash comparison."""
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel, QMessageBox
+        from PySide6.QtWidgets import (
+            QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel,
+            QMessageBox, QProgressDialog,
+        )
 
         # Collect phash values
         hashmap = []  # (asset, phash_int)
@@ -4700,10 +4714,20 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             if a != b:
                 parent[a] = b
 
+        progress = QProgressDialog("Comparing perceptual hashes...", "Cancel", 0, n, self)
+        progress.setWindowTitle("Find Similar Images")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+
         for i in range(n):
+            if progress.wasCanceled():
+                return
+            progress.setValue(i)
             for j in range(i + 1, n):
                 if hamming(hashmap[i][1], hashmap[j][1]) <= threshold:
                     union(i, j)
+        progress.close()
 
         # Collect groups
         groups_dict = {}
