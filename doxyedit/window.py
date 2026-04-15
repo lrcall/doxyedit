@@ -773,9 +773,6 @@ class MainWindow(QMainWindow):
         self._rebind_project(clear_folder_state=True)
         self.setWindowTitle(f"DoxyEdit — {slot['label']}")
         self._proj_tab_bar.setTabText(idx, slot["label"])
-        # Apply per-project theme
-        if self.project.theme_id and self.project.theme_id in THEMES:
-            self._apply_theme(self.project.theme_id)
 
     def _close_proj_tab(self, idx: int):
         if len(self._project_slots) <= 1:
@@ -5257,9 +5254,9 @@ Ctrl+Click tag — Search by tag
             self._project_slots[self._current_slot]["project"] = self.project
 
         # Re-apply theme so project accent color takes effect
-        # Always read from settings in case it was changed externally
-        self._current_theme_id = self._settings.value("theme", DEFAULT_THEME)
-        self._apply_theme(self._current_theme_id)
+        tid = self.project.theme_id if (self.project.theme_id and self.project.theme_id in THEMES) \
+            else self._settings.value("theme", DEFAULT_THEME)
+        self._apply_theme(tid)
         shared = self._settings.value("shared_cache", "true") == "true"
         cache_name = "shared" if shared else self.project.name
         self.browser._thumb_cache.set_project(cache_name)
@@ -5267,6 +5264,15 @@ Ctrl+Click tag — Search by tag
         self.work_tray._project = self.project
         self.browser.rebuild_tag_bar()
         self.browser._model.update_post_status(self.project.posts)
+        # Restore eye-hidden tags + sort mode BEFORE refresh so we only refresh once
+        if self.project.eye_hidden_tags:
+            self.browser._eye_hidden_tags = set(self.project.eye_hidden_tags)
+        if self.project.sort_mode:
+            idx = self.browser.sort_combo.findText(self.project.sort_mode)
+            if idx >= 0:
+                self.browser.sort_combo.blockSignals(True)
+                self.browser.sort_combo.setCurrentIndex(idx)
+                self.browser.sort_combo.blockSignals(False)
         self.browser.refresh()
         self.platform_panel.project = self.project
         self.platform_panel.refresh()
@@ -5279,21 +5285,10 @@ Ctrl+Click tag — Search by tag
         self._file_browser.set_project(self.project)
         if hasattr(self, '_timeline'):
             self._timeline.set_project(self.project)
-        # Cross-project: register and refresh cache
-        _excl = str(self._project_path) if self._project_path else ""
-        if hasattr(self, '_cross_cache'):
-            self._cross_cache.refresh()
-            if self._project_path:
-                from doxyedit.crossproject import register_project
-                register_project(str(self._project_path), self.project.name)
         if hasattr(self, '_calendar_pane'):
             self._calendar_pane.set_project(self.project)
-            if hasattr(self, '_cross_cache'):
-                self._calendar_pane.set_cross_project(self._cross_cache, _excl)
         if hasattr(self, '_gantt_panel'):
             self._gantt_panel.set_project(self.project)
-            if hasattr(self, '_cross_cache'):
-                self._gantt_panel.set_cross_project(self._cross_cache, _excl)
         if hasattr(self, 'studio'):
             self.studio.set_project(self.project)
         if hasattr(self, '_smart_folder_menu'):
@@ -5329,13 +5324,12 @@ Ctrl+Click tag — Search by tag
             editor.blockSignals(True)
             editor.setPlainText(text)
             editor.blockSignals(False)
-            self._render_notes_preview_to(preview, text)
         for tab_name, content in self.project.sub_notes.items():
             if tab_name not in self._notes_tab_widgets:
                 self._build_notes_tab(tab_name, content, closable=(tab_name != "Agent Primer"))
         self._update_progress()
-        self._watch_asset_files()
-        self._watch_import_folders()
+        # Defer heavy I/O to after the UI paints
+        QTimer.singleShot(0, self._deferred_rebind)
         # Restore work tray
         if self.project.tray_items:
             self.work_tray.load_state(self.project.tray_items, self.project)
@@ -5356,17 +5350,9 @@ Ctrl+Click tag — Search by tag
                 self.work_tray.show()
                 self._toggle_tray_action.setText("Hide Work Tray")
 
-        # Restore sort mode
-        if self.project.sort_mode:
-            idx = self.browser.sort_combo.findText(self.project.sort_mode)
-            if idx >= 0:
-                self.browser.sort_combo.setCurrentIndex(idx)
-
-        # Restore eye-hidden tags (grid filter)
+        # Update tag panel eye buttons to match restored eye_hidden_tags
         if self.project.eye_hidden_tags:
-            self.browser._eye_hidden_tags = set(self.project.eye_hidden_tags)
             self.tag_panel._eye_hidden = set(self.project.eye_hidden_tags)
-            # Update eye buttons on tag rows
             for tag_id in self.project.eye_hidden_tags:
                 if tag_id in self.tag_panel._rows:
                     row = self.tag_panel._rows[tag_id]
@@ -5374,7 +5360,6 @@ Ctrl+Click tag — Search by tag
                     row.eye_btn.setChecked(False)
                     row.eye_btn.setText("\u25CB")
                     row.eye_btn.blockSignals(False)
-            self.browser.refresh()
 
         # Restore hidden tags
         if self.project.hidden_tags:
@@ -5388,6 +5373,27 @@ Ctrl+Click tag — Search by tag
             if tag_id in self.tag_panel._rows:
                 row = self.tag_panel._rows[tag_id]
                 row.checkbox.setText(f"{row.tag.label} [{key}]")
+
+    def _deferred_rebind(self):
+        """Heavy I/O deferred from _rebind_project — runs after the UI paints."""
+        self._watch_asset_files()
+        self._watch_import_folders()
+        # Render notes markdown previews
+        for tab_name, (preview, editor, _) in self._notes_tab_widgets.items():
+            text = editor.toPlainText()
+            if text:
+                self._render_notes_preview_to(preview, text)
+        # Cross-project cache refresh
+        _excl = str(self._project_path) if self._project_path else ""
+        if hasattr(self, '_cross_cache'):
+            self._cross_cache.refresh()
+            if self._project_path:
+                from doxyedit.crossproject import register_project
+                register_project(str(self._project_path), self.project.name)
+        if hasattr(self, '_calendar_pane') and hasattr(self, '_cross_cache'):
+            self._calendar_pane.set_cross_project(self._cross_cache, _excl)
+        if hasattr(self, '_gantt_panel') and hasattr(self, '_cross_cache'):
+            self._gantt_panel.set_cross_project(self._cross_cache, _excl)
 
     def _open_project(self):
         path, _ = QFileDialog.getOpenFileName(
