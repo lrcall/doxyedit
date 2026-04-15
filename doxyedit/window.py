@@ -3139,7 +3139,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _on_asset_selected(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
         if asset:
-            self.censor_editor.load_asset(asset)
+            # Only load full image into censor editor when its tab is active
+            if self.tabs.currentWidget() is self.censor_editor:
+                self.censor_editor.load_asset(asset)
             self.tag_panel.set_assets([asset])
             # Update docked preview if visible
             if self._preview_pane.isVisible():
@@ -3468,6 +3470,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             action.setVisible(on_canvas)
         self._color_action.setVisible(on_canvas)
         self._canvas_sep_after.setVisible(on_canvas)
+        # Lazy-load censor editor when its tab becomes active
+        widget = self.tabs.widget(index)
+        if widget is self.censor_editor and self.browser._selected_ids:
+            aid = next(iter(self.browser._selected_ids))
+            asset = self.project.get_asset(aid)
+            if asset:
+                self.censor_editor.load_asset(asset)
 
     def _set_tool(self, tool):
         """Legacy canvas tool — redirect to Studio."""
