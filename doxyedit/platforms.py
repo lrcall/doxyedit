@@ -25,12 +25,21 @@ STATUS_ICONS = {
 STATUS_CYCLE = ["pending", "ready", "posted", "skip"]
 
 # ── Layout ratios (multiply by font_size to get pixel values) ──
-PLATFORM_SEARCH_WIDTH_RATIO = 12.5   # search field width
-PLATFORM_VIEW_TOGGLE_RATIO = 6.7     # Dashboard toggle button
-PLATFORM_BTN_RATIO = 5.0             # compact action buttons (Auto-Fill, Export)
-PLATFORM_EXPORT_BTN_RATIO = 5.5      # Export All button
+PLATFORM_SEARCH_WIDTH_RATIO = 12.5    # search field width
+PLATFORM_VIEW_TOGGLE_RATIO = 6.7      # Dashboard toggle button
+PLATFORM_BTN_RATIO = 5.0              # compact action buttons (Auto-Fill, Export)
+PLATFORM_EXPORT_BTN_RATIO = 5.5       # Export All button
 PLATFORM_PROGRESS_WIDTH_RATIO = 16.7  # dashboard progress bar
 PLATFORM_SLOT_PREVIEW_HEIGHT = 60     # slot preview thumbnail height (px)
+CARD_MARGIN_RATIO = 1.0               # card internal margin
+CARD_SPACING_RATIO = 0.33             # card internal spacing
+COL_SPACING_RATIO = 1.0               # spacing between cards in a column
+SLOT_ROW_MARGIN_V = 1                 # slot row vertical margin (px, intentionally small)
+STATUS_BTN_PAD_W = 10                 # status button extra width (px)
+STATUS_BTN_PAD_H = 6                  # status button extra height (px)
+DASH_CELL_THUMB = 80                  # dashboard cell thumbnail size (px)
+DASH_CELL_PAD = 4                     # dashboard cell internal padding (px)
+DASH_CELL_EXTRA_W = 16                # dashboard cell extra width beyond thumb
 
 
 class _DroppableSlotRow(QWidget):
@@ -129,11 +138,14 @@ class CampaignBar(QWidget):
     def _build(self):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(4)
+        from PySide6.QtCore import QSettings
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        outer.setSpacing(_pad)
 
         # ── Top row: combo + status + launch + milestones summary ──
         row = QHBoxLayout()
-        row.setSpacing(8)
+        row.setSpacing(_pad * 2)
 
         row.addWidget(QLabel("Campaign:"))
         self._combo = QComboBox()
@@ -362,18 +374,18 @@ class PlatformPanel(QWidget):
 
         self._col_split = QSplitter(Qt.Orientation.Horizontal)
         _cards_inner = QVBoxLayout(self._cards_widget)
-        _cards_inner.setContentsMargins(0, 4, 0, 4)
+        _cards_inner.setContentsMargins(0, _pad, 0, _pad)
         _cards_inner.addWidget(self._col_split)
 
         self._col0_widget = QWidget()
         self._col0 = QVBoxLayout(self._col0_widget)
         self._col0.setContentsMargins(0, 0, 0, 0)
-        self._col0.setSpacing(_pad_lg * 2)
+        self._col0.setSpacing(int(_f * COL_SPACING_RATIO))
 
         self._col1_widget = QWidget()
         self._col1 = QVBoxLayout(self._col1_widget)
         self._col1.setContentsMargins(0, 0, 0, 0)
-        self._col1.setSpacing(_pad_lg * 2)
+        self._col1.setSpacing(int(_f * COL_SPACING_RATIO))
 
         self._col_split.addWidget(self._col0_widget)
         self._col_split.addWidget(self._col1_widget)
@@ -399,8 +411,8 @@ class PlatformPanel(QWidget):
         self._dash_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._dash_widget = QWidget()
         self._dash_layout = QVBoxLayout(self._dash_widget)
-        self._dash_layout.setContentsMargins(4, 4, 4, 4)
-        self._dash_layout.setSpacing(_pad_lg * 2)
+        self._dash_layout.setContentsMargins(_pad, _pad, _pad, _pad)
+        self._dash_layout.setSpacing(int(_f * COL_SPACING_RATIO))
         self._dash_layout.addStretch()
         self._dash_scroll.setWidget(self._dash_widget)
         dash_outer.addWidget(self._dash_scroll, 1)
@@ -496,8 +508,9 @@ class PlatformPanel(QWidget):
         card = QFrame()
         card.setObjectName("platform_card")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(12, 10, 12, 12)
-        layout.setSpacing(max(2, _pad // 2))
+        _card_m = int(_f * CARD_MARGIN_RATIO)
+        layout.setContentsMargins(_card_m, _card_m, _card_m, _card_m)
+        layout.setSpacing(max(2, int(_f * CARD_SPACING_RATIO)))
 
         # ── Card header ──────────────────────────────────────────────────
         header = QHBoxLayout()
@@ -646,14 +659,14 @@ class PlatformPanel(QWidget):
         if entries:
             first_status = str(entries[0][1].status)
             status_btn = QPushButton(STATUS_ICONS.get(first_status, "·"))
-            status_btn.setFixedSize(_cb + 10, _cb + 6)
+            status_btn.setFixedSize(_cb + STATUS_BTN_PAD_W, _cb + STATUS_BTN_PAD_H)
             status_btn.setToolTip(f"{first_status} — click to cycle")
             self._style_status_btn(status_btn, first_status)
             status_btn.clicked.connect(
                 lambda _, p=pid, s=slot.name, b=status_btn: self._cycle_status(p, s, b))
         else:
             status_btn = QPushButton("·")
-            status_btn.setFixedSize(_cb + 10, _cb + 6)
+            status_btn.setFixedSize(_cb + STATUS_BTN_PAD_W, _cb + STATUS_BTN_PAD_H)
             status_btn.setToolTip("right-click row to assign")
             self._style_status_btn(status_btn, "pending")
             status_btn.setEnabled(False)
@@ -848,16 +861,15 @@ class PlatformPanel(QWidget):
         """One slot cell in the dashboard grid."""
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _cb = max(14, _f + 2)
-        THUMB = 80
         cell = QWidget()
-        cell.setFixedWidth(THUMB + 16)
+        cell.setFixedWidth(DASH_CELL_THUMB + DASH_CELL_EXTRA_W)
         v = QVBoxLayout(cell)
-        v.setContentsMargins(4, 4, 4, 4)
+        v.setContentsMargins(DASH_CELL_PAD, DASH_CELL_PAD, DASH_CELL_PAD, DASH_CELL_PAD)
         v.setSpacing(2)
 
         # Thumbnail
         thumb_lbl = QLabel()
-        thumb_lbl.setFixedSize(THUMB, THUMB)
+        thumb_lbl.setFixedSize(DASH_CELL_THUMB, DASH_CELL_THUMB)
         thumb_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         thumb_lbl.setObjectName("dash_thumb")
 
@@ -865,7 +877,7 @@ class PlatformPanel(QWidget):
             asset, pa = entries[0]
             pm = self._thumb_cache.get(asset.id) if self._thumb_cache else None
             if pm and not pm.isNull():
-                pm = pm.scaled(THUMB, THUMB, Qt.AspectRatioMode.KeepAspectRatio,
+                pm = pm.scaled(DASH_CELL_THUMB, DASH_CELL_THUMB, Qt.AspectRatioMode.KeepAspectRatio,
                                Qt.TransformationMode.SmoothTransformation)
                 thumb_lbl.setPixmap(pm)
             elif self._thumb_cache and asset.source_path:
@@ -886,7 +898,7 @@ class PlatformPanel(QWidget):
         slot_lbl = QLabel(slot.label)
         slot_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         slot_lbl.setWordWrap(True)
-        slot_lbl.setMaximumWidth(THUMB + 16)
+        slot_lbl.setMaximumWidth(DASH_CELL_THUMB + DASH_CELL_EXTRA_W)
         slot_lbl.setObjectName("dash_slot_label")
         v.addWidget(slot_lbl)
 
