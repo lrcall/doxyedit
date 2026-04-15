@@ -205,6 +205,8 @@ class OverlayTextItem(QGraphicsTextItem):
         from PySide6.QtGui import QTextBlockFormat, QTextCursor
         fmt = QTextBlockFormat()
         fmt.setLineHeight(lh * 100, 1)  # 1 = ProportionalHeight (percentage)
+        # Add bottom margin to prevent last line from being clipped
+        fmt.setBottomMargin(self.overlay.font_size * 0.3)
         cursor = self.textCursor()
         cursor.select(QTextCursor.SelectionType.Document)
         cursor.mergeBlockFormat(fmt)
@@ -416,14 +418,16 @@ class StudioScene(QGraphicsScene):
             self._draw_start = pos
             from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
-            pen = QPen(QColor(_dt.accent_bright), 2)
+            pen = QPen(QColor(_dt.accent_bright), _dt.crop_border_width - 1)
             if self.current_tool == StudioTool.ANNOTATE_LINE:
                 self._temp_item = QGraphicsLineItem(QLineF(pos, pos))
                 self._temp_item.setPen(pen)
             else:
                 self._temp_item = QGraphicsRectItem(QRectF(pos, pos))
                 self._temp_item.setPen(pen)
-                self._temp_item.setBrush(QBrush(QColor(79, 195, 247, 30)))
+                _abf = QColor(_dt.accent_bright)
+                _abf.setAlpha(30)
+                self._temp_item.setBrush(QBrush(_abf))
             self._temp_item.setZValue(300)
             self._temp_item.setFlags(
                 QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
@@ -501,7 +505,8 @@ class StudioView(QGraphicsView):
         self.on_file_dropped = None  # callback(path, scene_pos)
 
     def wheelEvent(self, event: QWheelEvent):
-        factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
+        _zoom = 1.15
+        factor = _zoom if event.angleDelta().y() > 0 else 1 / _zoom
         self.setTransform(self.transform().scale(factor, factor))
 
     def mousePressEvent(self, event):
@@ -686,8 +691,16 @@ class StudioEditor(QWidget):
     # ---- construction ----
 
     def _build(self):
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
+        _pad = max(4, _dt.font_size // 3)
+        _pad_lg = max(6, _dt.font_size // 2)
+        _slider_w = _dt.font_size * 7          # slider track width
+        _slider_sm = _dt.font_size * 5         # narrow slider
+        _icon_btn_w = _dt.font_size * 2 + 4    # icon button width (B, I, ■, ◻)
+
         root = QVBoxLayout(self)
-        root.setContentsMargins(8, 8, 8, 8)
+        root.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
 
         toolbar = QHBoxLayout()
 
@@ -770,7 +783,7 @@ class StudioEditor(QWidget):
         self.slider_opacity.setObjectName("studio_opacity_slider")
         self.slider_opacity.setRange(0, 100)
         self.slider_opacity.setValue(30)
-        self.slider_opacity.setFixedWidth(100)
+        self.slider_opacity.setFixedWidth(_slider_w)
         self.slider_opacity.valueChanged.connect(self._on_opacity_changed)
         toolbar.addWidget(self.slider_opacity)
 
@@ -779,7 +792,7 @@ class StudioEditor(QWidget):
         self.slider_scale.setObjectName("studio_scale_slider")
         self.slider_scale.setRange(5, 100)
         self.slider_scale.setValue(20)
-        self.slider_scale.setFixedWidth(100)
+        self.slider_scale.setFixedWidth(_slider_w)
         self.slider_scale.valueChanged.connect(self._on_scale_changed)
         toolbar.addWidget(self.slider_scale)
 
@@ -808,7 +821,7 @@ class StudioEditor(QWidget):
         self._props_row = QWidget()
         self._props_row.setObjectName("studio_props_row")
         props = QHBoxLayout(self._props_row)
-        props.setContentsMargins(0, 2, 0, 2)
+        props.setContentsMargins(0, _pad // 2, 0, _pad // 2)
 
         props.addWidget(QLabel("Pos:"))
         self.combo_position = QComboBox()
@@ -832,7 +845,7 @@ class StudioEditor(QWidget):
         self.slider_font_size.setObjectName("studio_font_size")
         self.slider_font_size.setRange(8, 200)
         self.slider_font_size.setValue(24)
-        self.slider_font_size.setFixedWidth(80)
+        self.slider_font_size.setFixedWidth(_slider_sm)
         self.slider_font_size.valueChanged.connect(self._on_font_size_changed)
         props.addWidget(self.slider_font_size)
         self._font_size_label = QLabel("24")
@@ -841,26 +854,26 @@ class StudioEditor(QWidget):
         self.btn_bold = QPushButton("B")
         self.btn_bold.setObjectName("studio_bold_btn")
         self.btn_bold.setCheckable(True)
-        self.btn_bold.setFixedWidth(28)
+        self.btn_bold.setFixedWidth(_icon_btn_w)
         self.btn_bold.clicked.connect(self._on_bold_changed)
         props.addWidget(self.btn_bold)
 
         self.btn_italic = QPushButton("I")
         self.btn_italic.setObjectName("studio_italic_btn")
         self.btn_italic.setCheckable(True)
-        self.btn_italic.setFixedWidth(28)
+        self.btn_italic.setFixedWidth(_icon_btn_w)
         self.btn_italic.clicked.connect(self._on_italic_changed)
         props.addWidget(self.btn_italic)
 
         self.btn_color = QPushButton("■")
         self.btn_color.setObjectName("studio_color_btn")
-        self.btn_color.setFixedWidth(28)
+        self.btn_color.setFixedWidth(_icon_btn_w)
         self.btn_color.clicked.connect(self._on_color_pick)
         props.addWidget(self.btn_color)
 
         self.btn_outline_color = QPushButton("◻")
         self.btn_outline_color.setObjectName("studio_outline_btn")
-        self.btn_outline_color.setFixedWidth(28)
+        self.btn_outline_color.setFixedWidth(_icon_btn_w)
         self.btn_outline_color.setToolTip("Outline color")
         self.btn_outline_color.clicked.connect(self._on_outline_color_pick)
         props.addWidget(self.btn_outline_color)
@@ -870,7 +883,7 @@ class StudioEditor(QWidget):
         self.slider_outline.setObjectName("studio_outline_slider")
         self.slider_outline.setRange(0, 10)
         self.slider_outline.setValue(0)
-        self.slider_outline.setFixedWidth(60)
+        self.slider_outline.setFixedWidth(_slider_sm)
         self.slider_outline.setToolTip("Outline width")
         self.slider_outline.valueChanged.connect(self._on_outline_changed)
         props.addWidget(self.slider_outline)
@@ -882,7 +895,7 @@ class StudioEditor(QWidget):
         self.slider_kerning.setObjectName("studio_kerning_slider")
         self.slider_kerning.setRange(-20, 20)
         self.slider_kerning.setValue(0)
-        self.slider_kerning.setFixedWidth(80)
+        self.slider_kerning.setFixedWidth(_slider_sm)
         self.slider_kerning.valueChanged.connect(self._on_kerning_changed)
         props.addWidget(self.slider_kerning)
 
@@ -891,7 +904,7 @@ class StudioEditor(QWidget):
         self.slider_line_height.setObjectName("studio_line_height_slider")
         self.slider_line_height.setRange(50, 300)  # 0.5x to 3.0x (stored as int * 100)
         self.slider_line_height.setValue(120)       # default 1.2
-        self.slider_line_height.setFixedWidth(80)
+        self.slider_line_height.setFixedWidth(_slider_sm)
         self.slider_line_height.setToolTip("Line height (1.0 = tight, 1.5 = loose, 2.0 = double)")
         self.slider_line_height.valueChanged.connect(self._on_line_height_changed)
         props.addWidget(self.slider_line_height)
@@ -901,7 +914,7 @@ class StudioEditor(QWidget):
         self.slider_rotation.setObjectName("studio_rotation_slider")
         self.slider_rotation.setRange(-180, 180)
         self.slider_rotation.setValue(0)
-        self.slider_rotation.setFixedWidth(80)
+        self.slider_rotation.setFixedWidth(_slider_sm)
         self.slider_rotation.valueChanged.connect(self._on_rotation_changed)
         props.addWidget(self.slider_rotation)
 
@@ -910,7 +923,7 @@ class StudioEditor(QWidget):
         self.slider_text_width.setObjectName("studio_text_width")
         self.slider_text_width.setRange(0, 2000)
         self.slider_text_width.setValue(0)
-        self.slider_text_width.setFixedWidth(80)
+        self.slider_text_width.setFixedWidth(_slider_sm)
         self.slider_text_width.valueChanged.connect(self._on_text_width_changed)
         props.addWidget(self.slider_text_width)
 
