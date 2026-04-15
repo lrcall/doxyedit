@@ -1815,6 +1815,91 @@ class AssetBrowser(QWidget):
                     if sibling_id != aid:
                         self._link_highlight_variants.add(sibling_id)
 
+    # --- Group / Variant handler methods ---
+
+    def _link_selected_as_variants(self):
+        """Link all selected assets as a variant set."""
+        import uuid
+        assets = self.get_selected_assets()
+        if len(assets) < 2:
+            return
+        existing_set = None
+        for a in assets:
+            vs = a.specs.get("variant_set")
+            if vs:
+                existing_set = vs
+                break
+        set_id = existing_set or ("vs_" + uuid.uuid4().hex[:8])
+        for a in assets:
+            a.specs["variant_set"] = set_id
+        self._refresh_grid()
+        try:
+            self.window()._dirty = True
+        except Exception:
+            pass
+
+    def _select_ids(self, ids: list[str]):
+        """Hard-select a list of asset IDs in the grid."""
+        sel = self._list_view.selectionModel()
+        sel.clearSelection()
+        for i in range(self._model.rowCount()):
+            idx = self._model.index(i)
+            asset = self._model.get_asset(idx)
+            if asset and asset.id in ids:
+                sel.select(idx, sel.SelectionFlag.Select)
+
+    def _mark_as_keeper(self, asset):
+        dg = asset.specs.get("duplicate_group")
+        if not dg:
+            return
+        for a in self.project.assets:
+            if a.specs.get("duplicate_group") == dg:
+                a.specs.pop("duplicate_keep", None)
+        asset.specs["duplicate_keep"] = True
+        self._refresh_grid()
+        try:
+            self.window()._dirty = True
+        except Exception:
+            pass
+
+    def _unlink_duplicate(self, asset):
+        asset.specs.pop("duplicate_group", None)
+        asset.specs.pop("duplicate_keep", None)
+        self._refresh_grid()
+        try:
+            self.window()._dirty = True
+        except Exception:
+            pass
+
+    def _dissolve_duplicate_group(self, group_id: str):
+        for a in self.project.assets:
+            if a.specs.get("duplicate_group") == group_id:
+                a.specs.pop("duplicate_group", None)
+                a.specs.pop("duplicate_keep", None)
+        self._refresh_grid()
+        try:
+            self.window()._dirty = True
+        except Exception:
+            pass
+
+    def _unlink_variant(self, asset):
+        asset.specs.pop("variant_set", None)
+        self._refresh_grid()
+        try:
+            self.window()._dirty = True
+        except Exception:
+            pass
+
+    def _dissolve_variant_set(self, set_id: str):
+        for a in self.project.assets:
+            if a.specs.get("variant_set") == set_id:
+                a.specs.pop("variant_set", None)
+        self._refresh_grid()
+        try:
+            self.window()._dirty = True
+        except Exception:
+            pass
+
     def _on_scroll_idle(self):
         """400ms after scrolling stops — promote visible items to front of queue."""
         self._thumb_cache.reprioritize(self._visible_asset_ids())
@@ -3096,6 +3181,30 @@ class AssetBrowser(QWidget):
                         col_menu = presets_menu.addMenu(f"{first} – {last}")
                         for tag in chunk:
                             _add_tag_action(col_menu, tag)
+
+        # --- Group / Variant linking ---
+        menu.addSeparator()
+        if n_sel > 1:
+            menu.addAction(f"Link {n_sel} as Variants", self._link_selected_as_variants)
+
+        dup_grp = asset.specs.get("duplicate_group")
+        var_set = asset.specs.get("variant_set")
+        if dup_grp and dup_grp in self._duplicate_groups:
+            grp_ids = self._duplicate_groups[dup_grp]
+            dup_menu = menu.addMenu(f"Duplicate Group ({len(grp_ids)})")
+            dup_menu.addAction(f"Select All ({len(grp_ids)})", lambda: self._select_ids(grp_ids))
+            is_keeper = asset.specs.get("duplicate_keep", False)
+            if not is_keeper:
+                dup_menu.addAction("Mark as Keeper", lambda a=asset: self._mark_as_keeper(a))
+            dup_menu.addAction("Remove from Group", lambda a=asset: self._unlink_duplicate(a))
+            dup_menu.addAction("Dissolve Group", lambda gid=dup_grp: self._dissolve_duplicate_group(gid))
+
+        if var_set and var_set in self._variant_sets:
+            set_ids = self._variant_sets[var_set]
+            var_menu = menu.addMenu(f"Variant Set ({len(set_ids)})")
+            var_menu.addAction(f"Select All ({len(set_ids)})", lambda: self._select_ids(set_ids))
+            var_menu.addAction("Remove from Set", lambda a=asset: self._unlink_variant(a))
+            var_menu.addAction("Dissolve Set", lambda sid=var_set: self._dissolve_variant_set(sid))
 
         menu.addAction("Add Tag...", lambda: self._add_tag_dialog(asset))
         if asset.tags:
