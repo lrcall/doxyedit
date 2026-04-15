@@ -65,6 +65,16 @@ class _RemovableMenu(QMenu):
 class MainWindow(QMainWindow):
     _open_windows: list["MainWindow"] = []  # keep extra windows alive (prevent GC)
 
+    # ── Layout tokens (change here to rescale all MainWindow widgets) ──
+    MIN_CONTROL_SIZE = 14              # smallest clickable button/checkbox
+    CONTROL_SIZE_RATIO = 1.17         # control size relative to font
+    PADDING_RATIO = 0.33              # standard padding relative to font
+    NOTES_PANEL_HEIGHT_RATIO = 10     # collapsed notes panel max height
+    MIN_PROGRESS_HEIGHT = 12          # progress bar minimum visible height
+    NOTES_CORNER_MARGIN_LEFT = 0      # notes tab corner: left margin
+    NOTES_CORNER_MARGIN_TOP = 0       # notes tab corner: top margin
+    NOTES_CORNER_MARGIN_BOTTOM = 0    # notes tab corner: bottom margin
+
     def __init__(self, _skip_autoload: bool = False):
         super().__init__()
         self.setWindowTitle("DoxyEdit")
@@ -81,8 +91,9 @@ class MainWindow(QMainWindow):
         self._project_path = None
         self.project = Project(name="Untitled")
         self._settings = QSettings("DoxyEdit", "DoxyEdit")
-        _f = self._settings.value("font_size", 12, type=int)
-        _cb = max(14, _f + 2)
+        self._font_size = self._settings.value("font_size", 12, type=int)
+        self._control_size = max(self.MIN_CONTROL_SIZE, int(self._font_size * self.CONTROL_SIZE_RATIO))
+        self._ui_padding = max(4, int(self._font_size * self.PADDING_RATIO))
         self._current_theme_id = self._settings.value("theme", DEFAULT_THEME)
         self._apply_theme(self._current_theme_id)
 
@@ -116,7 +127,7 @@ class MainWindow(QMainWindow):
 
         # + button to open a new folder tab
         self._new_tab_btn = QPushButton("+")
-        self._new_tab_btn.setFixedSize(_cb, _cb)
+        self._new_tab_btn.setFixedSize(self._control_size, self._control_size)
         self._new_tab_btn.setToolTip("New tab — open project, folder, or new project (Ctrl+T)")
         self._new_tab_btn.setStyleSheet(
             "QPushButton { font-size: 16px; font-weight: bold; border-radius: 4px;"
@@ -254,7 +265,7 @@ class MainWindow(QMainWindow):
         from PySide6.QtWidgets import QTextEdit
         self._notes_edit = QTextEdit()
         self._notes_edit.setPlaceholderText("Project notes…")
-        self._notes_edit.setMaximumHeight(_f * 10)
+        self._notes_edit.setMaximumHeight(self._font_size * self.NOTES_PANEL_HEIGHT_RATIO)
         self._notes_edit.setVisible(False)
         self._notes_edit.textChanged.connect(self._on_project_notes_changed)
 
@@ -381,15 +392,16 @@ class MainWindow(QMainWindow):
         # Corner buttons: Preview/Edit toggle + Add tab
         _corner = QWidget()
         _corner_layout = QHBoxLayout(_corner)
-        _notes_pad = max(4, _f // 3)
-        _corner_layout.setContentsMargins(0, 0, _notes_pad, 0)
-        _corner_layout.setSpacing(_notes_pad)
+        _corner_layout.setContentsMargins(
+            self.NOTES_CORNER_MARGIN_LEFT, self.NOTES_CORNER_MARGIN_TOP,
+            self._ui_padding, self.NOTES_CORNER_MARGIN_BOTTOM)
+        _corner_layout.setSpacing(self._ui_padding)
 
         # Preview button removed — live side-by-side editor + preview
 
         _add_tab_btn = QPushButton("+")
         _add_tab_btn.setObjectName("notes_add_tab_btn")
-        _add_tab_btn.setFixedSize(_cb, _cb)
+        _add_tab_btn.setFixedSize(self._control_size, self._control_size)
         _add_tab_btn.setToolTip("Add new notes tab")
         _add_tab_btn.clicked.connect(self._on_add_notes_tab)
         _corner_layout.addWidget(_add_tab_btn)
@@ -543,7 +555,7 @@ class MainWindow(QMainWindow):
         self._progress_bar = QProgressBar()
         self._progress_bar.setMinimumWidth(250)
         self._progress_bar.setMaximumWidth(400)
-        self._progress_bar.setFixedHeight(max(12, _f))
+        self._progress_bar.setFixedHeight(max(self.MIN_PROGRESS_HEIGHT, self._font_size))
         self._progress_bar.setTextVisible(True)
         self._progress_bar.setVisible(False)
         self.status.addPermanentWidget(self._progress_bar)
