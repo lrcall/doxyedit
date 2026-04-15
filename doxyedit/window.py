@@ -77,7 +77,7 @@ class MainWindow(QMainWindow):
     TAG_PANEL_MIN_WIDTH_RATIO = 18.3  # tag panel minimum width
     TAG_PANEL_MAX_WIDTH_RATIO = 33.3  # tag panel maximum width
     MENU_BUTTON_MIN_WIDTH_RATIO = 5.0 # view menu button minimum
-    PROGRESS_BAR_MIN_WIDTH_RATIO = 20.8  # progress bar minimum
+    PROGRESS_BAR_MIN_WIDTH_RATIO = 8.0   # progress bar minimum
     PROGRESS_BAR_MAX_WIDTH_RATIO = 33.3  # progress bar maximum
     WORK_TRAY_MIN_WIDTH_RATIO = 12.5  # work tray minimum width
     DIALOG_MIN_WIDTH_RATIO = 35.0     # standard dialog minimum width
@@ -162,6 +162,7 @@ class MainWindow(QMainWindow):
         self.work_tray.hide()
 
         self._main_split = QSplitter(Qt.Orientation.Horizontal)
+        self._main_split.setChildrenCollapsible(True)
         self._main_split.addWidget(self.tabs)
         self._main_split.addWidget(self.work_tray)
         self._main_split.setStretchFactor(0, 1)
@@ -178,7 +179,7 @@ class MainWindow(QMainWindow):
         # Tab 1: Left Sidebar (tags+info) | Asset Browser grid
         self.browser = AssetBrowser(self.project)
         self.tag_panel = TagPanel()
-        self.tag_panel.setMinimumWidth(int(self._font_size * self.TAG_PANEL_MIN_WIDTH_RATIO))
+        self.tag_panel.setMinimumWidth(0)
         self.tag_panel.setMaximumWidth(int(self._font_size * self.TAG_PANEL_MAX_WIDTH_RATIO))
         self.tag_panel.tags_changed.connect(self._on_data_changed)
         self.tag_panel.tags_changed.connect(lambda: self.browser.refresh())
@@ -204,6 +205,7 @@ class MainWindow(QMainWindow):
         self.work_tray.pixmaps_needed.connect(self._feed_tray_pixmaps)
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
+        self._browse_split.setChildrenCollapsible(True)
         # File browser (left, hidden by default)
         self._file_browser = FileBrowserPanel()
         self._file_browser.folder_selected.connect(self._on_file_browser_folder)
