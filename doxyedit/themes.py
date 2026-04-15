@@ -1201,6 +1201,21 @@ def generate_stylesheet(theme: Theme) -> str:
             font-size: {fxs}px;
             font-style: italic;
         }}
+        QPushButton#platform_action_btn {{
+            background: {theme.bg_raised};
+            color: {theme.text_primary};
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+            padding: {pad}px {pad_lg}px;
+        }}
+        QPushButton#platform_action_btn:hover {{
+            background: {theme.bg_hover};
+            border-color: {theme.accent_dim};
+        }}
+        QLabel#post_metrics_label {{
+            color: {theme.text_secondary};
+            font-size: {fxs}px;
+        }}
         QPushButton#status_btn {{
             background: transparent;
             border: 1px solid {theme.text_muted};

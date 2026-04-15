@@ -29,6 +29,15 @@ from doxyedit.exporter import apply_censors, apply_overlays
 from doxyedit.preview import NoteRectItem, ResizableCropItem
 
 
+# ── Layout constants ──────────────────────────────────────────────
+STUDIO_GRID_SPACING = 50          # snap grid spacing in pixels
+STUDIO_GRID_PEN_ALPHA = 40        # grid line opacity
+STUDIO_GRID_PEN_WIDTH = 0.5       # grid line thickness
+STUDIO_RESIZE_HANDLE_SIZE = 6     # resize handle square size
+STUDIO_ZOOM_BTN_WIDTH_RATIO = 3.0  # zoom button width × font_size
+STUDIO_ZOOM_LABEL_WIDTH_RATIO = 3.3  # zoom % label width × font_size
+STUDIO_LAYER_PANEL_WIDTH = 200    # layer panel max width
+
 # ---------------------------------------------------------------------------
 # Context menu theming helper
 # ---------------------------------------------------------------------------
@@ -458,6 +467,8 @@ class StudioScene(QGraphicsScene):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._grid_visible = False
+        self._grid_spacing = STUDIO_GRID_SPACING
         from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         self.setBackgroundBrush(QBrush(QColor(_dt.bg_deep)))
@@ -479,6 +490,25 @@ class StudioScene(QGraphicsScene):
 
     def set_tool(self, tool: StudioTool):
         self.current_tool = tool
+
+    def drawForeground(self, painter, rect):
+        """Draw snap grid overlay when visible."""
+        super().drawForeground(painter, rect)
+        if not self._grid_visible:
+            return
+        pen = QPen(QColor(128, 128, 128, STUDIO_GRID_PEN_ALPHA), STUDIO_GRID_PEN_WIDTH)
+        painter.setPen(pen)
+        gs = self._grid_spacing
+        left = int(rect.left()) - (int(rect.left()) % gs)
+        top = int(rect.top()) - (int(rect.top()) % gs)
+        x = left
+        while x < rect.right():
+            painter.drawLine(int(x), int(rect.top()), int(x), int(rect.bottom()))
+            x += gs
+        y = top
+        while y < rect.bottom():
+            painter.drawLine(int(rect.left()), int(y), int(rect.right()), int(y))
+            y += gs
 
     def set_censor_style(self, style: str):
         self._censor_style = style
@@ -817,8 +847,8 @@ class StudioEditor(QWidget):
                 self._layer_panel.setVisible(not vis)
                 return
             elif key == Qt.Key.Key_G:
-                self._grid_visible = not getattr(self, '_grid_visible', False)
-                self._scene.update()  # triggers repaint
+                self._scene._grid_visible = not self._scene._grid_visible
+                self._scene.update()
                 return
 
         super().keyPressEvent(event)
@@ -1112,28 +1142,11 @@ class StudioEditor(QWidget):
         self._view = StudioView(self._scene)
         self._view.on_file_dropped = self._on_file_dropped
 
-        # Snap grid overlay
+        # Snap grid overlay — flag on the scene, drawn via foreground
         self._grid_visible = False
-        self._grid_spacing = 50
-        original_draw = self._scene.drawBackground
-        editor_ref = self  # prevent closure over self directly
-        def _draw_bg_with_grid(painter, rect):
-            original_draw(painter, rect)
-            if editor_ref._grid_visible:
-                pen = QPen(QColor(128, 128, 128, 40), 0.5)
-                painter.setPen(pen)
-                gs = editor_ref._grid_spacing
-                left = int(rect.left()) - (int(rect.left()) % gs)
-                top = int(rect.top()) - (int(rect.top()) % gs)
-                x = left
-                while x < rect.right():
-                    painter.drawLine(int(x), int(rect.top()), int(x), int(rect.bottom()))
-                    x += gs
-                y = top
-                while y < rect.bottom():
-                    painter.drawLine(int(rect.left()), int(y), int(rect.right()), int(y))
-                    y += gs
-        self._scene.drawBackground = _draw_bg_with_grid
+        self._grid_spacing = STUDIO_GRID_SPACING
+        self._scene._grid_visible = False
+        self._scene._grid_spacing = 50
 
         # Layer panel (right sidebar, collapsible)
         self._layer_panel = QListWidget()
