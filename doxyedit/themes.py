@@ -1175,6 +1175,32 @@ def generate_stylesheet(theme: Theme) -> str:
             border: 1px dashed {theme.accent};
             border-radius: 3px;
         }}
+        QLabel#platform_badge_green {{
+            color: {theme.success};
+            font-weight: bold;
+        }}
+        QLabel#platform_badge_yellow {{
+            color: {theme.warning};
+            font-weight: bold;
+        }}
+        QLabel#platform_badge_red {{
+            color: {theme.error};
+            font-weight: bold;
+        }}
+        QLabel#slot_preview_empty {{
+            background: rgba(128, 128, 128, 30);
+            border: 1px dashed {theme.border};
+        }}
+        QLabel#slot_preview_dims {{
+            border: 1px dashed {theme.border};
+            color: {theme.text_muted};
+            font-size: {fxs}px;
+        }}
+        QLabel#slot_note_label {{
+            color: {theme.text_muted};
+            font-size: {fxs}px;
+            font-style: italic;
+        }}
         QPushButton#status_btn {{
             background: transparent;
             border: 1px solid {theme.text_muted};
