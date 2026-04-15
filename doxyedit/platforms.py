@@ -25,6 +25,39 @@ STATUS_ICONS = {
 STATUS_CYCLE = ["pending", "ready", "posted", "skip"]
 
 
+class _DroppableSlotRow(QWidget):
+    """Slot row that accepts file drops from the browser grid or tray."""
+
+    dropped = Signal(str)  # emits file path
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            self.setObjectName("slot_row_drag_hover")
+            self.style().unpolish(self)
+            self.style().polish(self)
+
+    def dragLeaveEvent(self, event):
+        self.setObjectName("")
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def dropEvent(self, event):
+        self.setObjectName("")
+        self.style().unpolish(self)
+        self.style().polish(self)
+        for url in event.mimeData().urls():
+            path = url.toLocalFile()
+            if path:
+                self.dropped.emit(path)
+                event.acceptProposedAction()
+                return
+
+
 class NewCampaignDialog(QDialog):
     """Simple dialog to create a new Campaign."""
 
@@ -322,34 +355,7 @@ class PlatformPanel(QWidget):
 
         self._vsplit.addWidget(scroll)
 
-        # Image hive
-        hive_container = QWidget()
-        hive_container.setObjectName("hive_container")
-        hive_v = QVBoxLayout(hive_container)
-        hive_v.setContentsMargins(0, 4, 0, 0)
-        hive_v.setSpacing(_pad)
-
-        hive_header = QLabel("Assigned Art")
-        _bold = hive_header.font(); _bold.setBold(True); hive_header.setFont(_bold)
-        hive_header.setProperty("role", "secondary")
-        hive_v.addWidget(hive_header)
-
-        hive_scroll = QScrollArea()
-        hive_scroll.setWidgetResizable(True)
-        hive_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        hive_scroll.setMinimumHeight(80)
-        hive_v.addWidget(hive_scroll)
-
-        self._hive_widget = QWidget()
-        self._hive_layout = QHBoxLayout(self._hive_widget)
-        self._hive_layout.setContentsMargins(4, 4, 4, 4)
-        self._hive_layout.setSpacing(_pad_lg)
-        self._hive_layout.addStretch()
-        hive_scroll.setWidget(self._hive_widget)
-
-        self._hive_container = hive_container  # exposed for reparenting by window.py
-        self._vsplit.addWidget(hive_container)
-        self._vsplit.setSizes([600, 180])
+        # Hive removed — drag-drop onto slot rows replaces it
         self._vsplit.setStretchFactor(0, 1)
         self._vsplit.setStretchFactor(1, 0)
 
@@ -441,7 +447,7 @@ class PlatformPanel(QWidget):
             f"{posted_slots} posted  ·  "
             f"{empty} empty"
         )
-        self._rebuild_hive(assign_map)
+        # Hive removed
 
     def _rebuild_hive(self, assign_map: dict):
         """Rebuild the thumbnail hive from current assignments."""
@@ -582,7 +588,8 @@ class PlatformPanel(QWidget):
     def _slot_row(self, slot, pid: str, entries: list) -> QWidget:
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _pad_lg = max(6, _f // 2)
-        row = QWidget()
+        row = _DroppableSlotRow()
+        row.dropped.connect(lambda path, p=pid, s=slot: self._on_file_dropped(path, p, s))
         row.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         row.customContextMenuRequested.connect(
             lambda pos, p=pid, s=slot, e=entries: self._slot_context_menu(row, pos, p, s, e))
@@ -604,7 +611,7 @@ class PlatformPanel(QWidget):
 
         # Asset name label
         if len(entries) == 0:
-            asset_lbl = QLabel("empty — right-click to assign")
+            asset_lbl = QLabel("drop image here")
             if slot.required:
                 asset_lbl.setObjectName("slot_empty_required")
             else:
@@ -654,39 +661,17 @@ class PlatformPanel(QWidget):
                 h.addWidget(note_lbl)
                 break  # only show first note
 
-        # Drag-drop support
-        row.setAcceptDrops(True)
-        def _drag_enter(e, r=row):
-            if e.mimeData().hasUrls():
-                e.acceptProposedAction()
-                r.setProperty("drag_hover", True)
-                r.style().unpolish(r)
-                r.style().polish(r)
-        def _drag_leave(e, r=row):
-            r.setProperty("drag_hover", False)
-            r.style().unpolish(r)
-            r.style().polish(r)
-        row.dragEnterEvent = _drag_enter
-        row.dragLeaveEvent = _drag_leave
-        row.dropEvent = lambda e, p=pid, s=slot, r=row: self._on_slot_drop(e, p, s, r)
-
         return row
 
-    def _on_slot_drop(self, event, platform_id, slot, row):
-        """Handle drag-drop of asset onto a slot."""
-        row.setStyleSheet("")
-        for url in event.mimeData().urls():
-            path = url.toLocalFile()
-            if not path:
-                continue
-            # Find asset by source_path
-            import os
-            norm = os.path.normpath(path).lower()
-            for asset in self.project.assets:
-                if os.path.normpath(asset.source_path).lower() == norm:
-                    self.assign_asset(asset, platform_id, slot.name)
-                    self.refresh()
-                    return
+    def _on_file_dropped(self, path: str, platform_id: str, slot):
+        """Handle drag-drop of asset file onto a slot."""
+        import os
+        norm = os.path.normpath(path).lower()
+        for asset in self.project.assets:
+            if os.path.normpath(asset.source_path).lower() == norm:
+                self.assign_asset(asset, platform_id, slot.name)
+                self.refresh()
+                return
         event.acceptProposedAction()
 
     def _slot_context_menu(self, row, pos, pid: str, slot, entries: list):

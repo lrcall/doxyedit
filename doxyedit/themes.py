@@ -1149,6 +1149,11 @@ def generate_stylesheet(theme: Theme) -> str:
             color: {theme.text_muted};
             font-style: italic;
         }}
+        QWidget#slot_row_drag_hover {{
+            background: {theme.accent_dim};
+            border: 1px dashed {theme.accent};
+            border-radius: 3px;
+        }}
         QPushButton#status_btn {{
             background: transparent;
             border: 1px solid {theme.text_muted};

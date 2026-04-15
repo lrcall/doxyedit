@@ -362,8 +362,7 @@ class MainWindow(QMainWindow):
 
         self._plat_full = QSplitter(Qt.Orientation.Vertical)
         self._plat_full.addWidget(self.platform_panel)
-        if hasattr(self.platform_panel, '_hive_container'):
-            self._plat_full.addWidget(self.platform_panel._hive_container)
+        # Hive removed — drag-drop onto slot rows replaces it
         saved_pf = self._settings_early.value("plat_full_splitter", None)
         if saved_pf:
             self._plat_full.setSizes([int(s) for s in saved_pf])
