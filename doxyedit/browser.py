@@ -1636,8 +1636,11 @@ class AssetBrowser(QWidget):
     def update_font_size(self, font_size: int):
         self._apply_tag_button_styles(font_size)
         self._delegate.font_size = font_size
+        self._delegate._update_metrics()
+        self._list_view.setGridSize(self._delegate.grid_size_for(self._thumb_size))
         self._list_view.viewport().update()
         for section in self._folder_sections:
+            section.update_grid_size(self._thumb_size)
             section.view.viewport().update()
         style = self._btn_style()
         for btn in self._toolbar_plain_btns:
