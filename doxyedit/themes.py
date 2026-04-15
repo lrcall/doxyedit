@@ -92,6 +92,10 @@ class Theme:
     grid_placeholder_text_alpha: int = 50 # placeholder text opacity
     grid_star_empty_alpha: int = 100      # empty star opacity
     grid_dot_outline_width: int = 1       # tag dot outline pen width
+    # Asset group / variant indicators
+    group_duplicate_color: str = "#e06c6c"    # red dot/border for duplicate groups
+    group_variant_color: str = "#5ca8b8"      # teal dot/border for variant sets
+    group_dot_inset: int = 1                  # corner dot inset from thumbnail edge
     # Timeline
     timeline_gap: str = "#664444"
     timeline_day_header: str = ""  # defaults to text_secondary

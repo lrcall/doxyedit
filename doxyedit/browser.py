@@ -511,8 +511,11 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self.star_empty_alpha = self._theme.grid_star_empty_alpha
 
         # Group/variant indicators
-        self.group_dot_radius = max(3, int(font_size * GROUP_DOT_RATIO))
-        self.link_border_width = max(2, int(font_size * LINK_BORDER_RATIO))
+        MIN_GROUP_DOT        = 3       # smallest group indicator dot
+        MIN_LINK_BORDER      = 2       # smallest link mode border
+        self.group_dot_radius = max(MIN_GROUP_DOT, int(font_size * GROUP_DOT_RATIO))
+        self.link_border_width = max(MIN_LINK_BORDER, int(font_size * LINK_BORDER_RATIO))
+        self.group_dot_inset = self._theme.group_dot_inset
 
         # Placeholder (no thumbnail loaded)
         self.placeholder_bg_alpha = self._theme.grid_placeholder_bg_alpha
@@ -770,16 +773,19 @@ class ThumbnailDelegate(QStyledItemDelegate):
         if group_info:
             dup_group, var_set, asset_id = group_info
             dot_r = self.group_dot_radius
+            inset = self.group_dot_inset
+            dup_color = QColor(self._theme.group_duplicate_color)
+            var_color = QColor(self._theme.group_variant_color)
             if dup_group:
-                dx = rect.x() + rect.width() - self.cell_padding - dot_r - 1
-                dy = rect.y() + self.cell_padding + dot_r + 1
-                painter.setBrush(QColor("#e06c6c"))
+                dx = rect.x() + rect.width() - self.cell_padding - dot_r - inset
+                dy = rect.y() + self.cell_padding + dot_r + inset
+                painter.setBrush(dup_color)
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.drawEllipse(QPoint(dx, dy), dot_r, dot_r)
             if var_set:
-                vx = rect.x() + self.cell_padding + dot_r + 1
-                vy = rect.y() + self.cell_padding + dot_r + 1
-                painter.setBrush(QColor("#5ca8b8"))
+                vx = rect.x() + self.cell_padding + dot_r + inset
+                vy = rect.y() + self.cell_padding + dot_r + inset
+                painter.setBrush(var_color)
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.drawEllipse(QPoint(vx, vy), dot_r, dot_r)
 
@@ -789,12 +795,12 @@ class ThumbnailDelegate(QStyledItemDelegate):
                 thumb_rect = QRect(rect.x() + self.cell_padding,
                                    rect.y() + self.cell_padding, ts, ts)
                 if asset_id in getattr(browser, '_link_highlight_dupes', set()):
-                    painter.setPen(QPen(QColor("#e06c6c"), bw))
+                    painter.setPen(QPen(dup_color, bw))
                     painter.setBrush(Qt.BrushStyle.NoBrush)
                     painter.drawRoundedRect(thumb_rect.adjusted(bw//2, bw//2, -bw//2, -bw//2),
                                             self.thumb_corner, self.thumb_corner)
                 if asset_id in getattr(browser, '_link_highlight_variants', set()):
-                    painter.setPen(QPen(QColor("#5ca8b8"), bw))
+                    painter.setPen(QPen(var_color, bw))
                     painter.setBrush(Qt.BrushStyle.NoBrush)
                     painter.drawRoundedRect(thumb_rect.adjusted(bw//2, bw//2, -bw//2, -bw//2),
                                             self.thumb_corner, self.thumb_corner)
