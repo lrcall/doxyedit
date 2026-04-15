@@ -401,7 +401,6 @@ class ThumbnailModel(QAbstractListModel):
 # ---------------------------------------------------------------------------
 
 class ThumbnailDelegate(QStyledItemDelegate):
-    PADDING = 6
 
     def __init__(self, thumb_size=THUMB_SIZE, parent=None):
         super().__init__(parent)
@@ -414,14 +413,95 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self._scaled_cache: dict[tuple, QPixmap] = {}
         self._fonts: dict[int, QFont] = {}       # size → QFont (cached to avoid per-paint allocs)
         self._fms: dict[int, QFontMetrics] = {}  # size → QFontMetrics
-        self._theme = None
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        self._theme = THEMES[DEFAULT_THEME]
+        self._update_metrics()
 
     def set_theme(self, theme):
         self._theme = theme
+        self._update_metrics()
+
+    def _update_metrics(self):
+        """Derive all layout measurements from font_size.
+
+        Every visual measurement in the thumbnail grid comes from here.
+        Changing font_size rescales the entire layout proportionally.
+        """
+        fs = self.font_size
+
+        # ── Minimums (prevent unreadable UI at tiny font sizes) ────────
+        MIN_PADDING            = 4       # smallest cell padding in px
+        MIN_CORNER             = 2       # smallest rounded corner in px
+        MIN_DOT                = 3       # smallest tag dot radius in px
+        MIN_READINESS_DOT      = 2       # smallest readiness dot in px
+        MIN_FONT               = 6       # smallest font size in px
+        MIN_BADGE              = 12      # smallest badge square in px
+
+        # ── Ratios (change these to rescale proportionally) ───────────
+        PADDING_RATIO          = 0.5     # cell_padding = fs * this
+        THUMB_CORNER_RATIO     = 0.25    # thumbnail rounded corner
+        SELECT_BORDER_RATIO    = 0.17    # selection highlight thickness
+        TAG_DOT_RATIO          = 0.5     # tag dot radius
+        BADGE_RATIO            = 1.2     # badge square size
+        BADGE_CORNER_RATIO     = 0.33    # badge rounded corner
+        BADGE_FONT_RATIO       = 0.7     # badge label font
+        READINESS_DOT_RATIO    = 0.25    # readiness indicator radius
+        DIMS_FONT_RATIO        = 0.75    # dimensions text font
+        DIMS_HEIGHT_RATIO      = 1.3     # dimensions line height
+        NAME_FONT_RATIO        = 0.85    # filename font
+        NAME_HEIGHT_RATIO      = 1.5     # filename line height
+        STAR_FONT_RATIO        = 1.3     # star icon font
+        STAR_SIZE_RATIO        = 1.7     # star hit area
+
+        # ── Derived measurements ──────────────────────────────────────
+        # Layout spacing
+        self.cell_padding = max(MIN_PADDING, int(fs * PADDING_RATIO))
+        self.badge_corner_inset = self.cell_padding // 2
+
+        # Thumbnail
+        self.thumb_corner = max(MIN_CORNER, int(fs * THUMB_CORNER_RATIO))
+
+        # Selection highlight
+        self.selection_border_width = max(1, int(fs * SELECT_BORDER_RATIO))  # min 1px always visible
+        self.selection_fill_alpha = 80
+        self.selection_border_alpha = 180
+        self.hover_fill_alpha = 30
+
+        # Tag dots (colored circles below thumbnail)
+        self.tag_dot_radius = max(MIN_DOT, int(fs * TAG_DOT_RATIO))
+        self.tag_dot_spacing = self.tag_dot_radius * 2 + self.tag_dot_radius // 2
+        self.tag_dot_outline_width = 1
+        self.dot_outline_alpha = 80
+
+        # Status badges (top corners of thumbnail)
+        self.badge_size = max(MIN_BADGE, int(fs * BADGE_RATIO))
+        self.badge_corner = max(MIN_CORNER, int(fs * BADGE_CORNER_RATIO))
+        self.badge_font_size = max(MIN_FONT, int(fs * BADGE_FONT_RATIO))
+        self.badge_bg_alpha = 220
+
+        # Readiness dots (tiny platform status indicators)
+        self.readiness_dot_radius = max(MIN_READINESS_DOT, int(fs * READINESS_DOT_RATIO))
+        self.readiness_dot_spacing = self.readiness_dot_radius * 3
+
+        # Below-thumbnail text area
+        self.below_dots_offset = self.cell_padding + self.tag_dot_radius * 2 + self.cell_padding
+        self.dims_font_size = max(MIN_FONT, int(fs * DIMS_FONT_RATIO))
+        self.dims_line_height = int(fs * DIMS_HEIGHT_RATIO)
+        self.name_font_size = max(MIN_FONT + 1, int(fs * NAME_FONT_RATIO))
+        self.name_line_height = int(fs * NAME_HEIGHT_RATIO)
+
+        # Star icon
+        self.star_font_size = int(fs * STAR_FONT_RATIO)
+        self.star_size = int(fs * STAR_SIZE_RATIO)
+        self.star_empty_alpha = 100
+
+        # Placeholder (no thumbnail loaded)
+        self.placeholder_bg_alpha = 20
+        self.placeholder_text_alpha = 50
 
     def _font(self, size: int) -> QFont:
         if size not in self._fonts:
-            self._fonts[size] = QFont(self._theme.font_family if self._theme else "Segoe UI", size)
+            self._fonts[size] = QFont(self._theme.font_family, size)
             self._fms[size] = QFontMetrics(self._fonts[size])
         return self._fonts[size]
 
@@ -431,8 +511,10 @@ class ThumbnailDelegate(QStyledItemDelegate):
         return self._fms[size]
 
     def sizeHint(self, option, index):
-        return QSize(self.thumb_size + 2 * self.PADDING,
-                     self.thumb_size + 70)
+        # Below-thumb area: tag dots + dims + filename + star = ~5x font_size
+        below = max(50, self.font_size * 5)
+        return QSize(self.thumb_size + 2 * self.cell_padding,
+                     self.thumb_size + below)
 
     def paint(self, painter, option, index):
         painter.save()
@@ -449,13 +531,14 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.save()
             _fld_sz = max(6, self.font_size - 3)
             painter.setFont(self._font(_fld_sz))
-            text_w = self._fm(_fld_sz).horizontalAdvance(short) + 10
-            tag_rect = QRect(rect.x(), rect.y(), min(text_w, rect.width()), 16)
-            _bg = QColor(self._theme.bg_hover) if self._theme else QColor(128, 128, 128, 60)
+            text_w = self._fm(_fld_sz).horizontalAdvance(short) + self.cell_padding * 2
+            _tag_h = max(14, self.font_size + 4)
+            tag_rect = QRect(rect.x(), rect.y(), min(text_w, rect.width()), _tag_h)
+            _bg = QColor(self._theme.bg_hover)
             _bg.setAlpha(60)
             painter.fillRect(tag_rect, _bg)
-            painter.setPen(QColor(self._theme.text_primary) if self._theme else QColor(200, 200, 200, 200))
-            painter.drawText(tag_rect.adjusted(4, 0, -4, 0),
+            painter.setPen(QColor(self._theme.text_primary))
+            painter.drawText(tag_rect.adjusted(self.cell_padding, 0, -self.cell_padding, 0),
                              Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                              short)
             painter.restore()
@@ -464,16 +547,17 @@ class ThumbnailDelegate(QStyledItemDelegate):
 
         # Selection / hover background
         if option.state & QStyle.StateFlag.State_Selected:
-            _sel_fill = QColor(self._theme.selection_bg) if self._theme else QColor(100, 150, 200, 80)
-            _sel_fill.setAlpha(80)
+            _sel_fill = QColor(self._theme.selection_bg)
+            _sel_fill.setAlpha(self._sel_alpha)
             painter.fillRect(rect, _sel_fill)
-            _sel_border = QColor(self._theme.selection_border) if self._theme else QColor(100, 150, 200, 180)
-            _sel_border.setAlpha(180)
-            painter.setPen(QPen(_sel_border, 2))
-            painter.drawRect(rect.adjusted(1, 1, -1, -1))
+            _sel_border = QColor(self._theme.selection_border)
+            _sel_border.setAlpha(self.selection_border_width_alpha)
+            painter.setPen(QPen(_sel_border, self.selection_border_width))
+            _sb = self.selection_border_width
+            painter.drawRect(rect.adjusted(_sb, _sb, -_sb, -_sb))
         elif option.state & QStyle.StateFlag.State_MouseOver:
             _hover = QColor(self._theme.border)
-            _hover.setAlpha(30)
+            _hover.setAlpha(self._hover_alpha)
             painter.fillRect(rect, _hover)
 
         # Thumbnail
@@ -497,37 +581,38 @@ class ThumbnailDelegate(QStyledItemDelegate):
                 self._scaled_cache[cache_key] = scaled
             scaled = self._scaled_cache[cache_key]
             x = rect.x() + (rect.width() - scaled.width()) // 2
-            y = rect.y() + self.PADDING + (ts - scaled.height()) // 2
+            y = rect.y() + self.cell_padding + (ts - scaled.height()) // 2
             # Rounded corners
             path = QPainterPath()
-            path.addRoundedRect(float(x), float(y), float(scaled.width()), float(scaled.height()), 3, 3)
+            path.addRoundedRect(float(x), float(y), float(scaled.width()), float(scaled.height()),
+                                self.thumb_corner, self.thumb_corner)
             painter.setClipPath(path)
             painter.drawPixmap(x, y, scaled)
             painter.setClipping(False)
         else:
             # Placeholder
-            ph_rect = QRect(rect.x() + self.PADDING, rect.y() + self.PADDING, ts, ts)
+            ph_rect = QRect(rect.x() + self.cell_padding, rect.y() + self.cell_padding, ts, ts)
             _ph_fill = QColor(self._theme.text_muted)
-            _ph_fill.setAlpha(25)
+            _ph_fill.setAlpha(20)  # very faint placeholder bg
             painter.fillRect(ph_rect, _ph_fill)
             _ph_text = QColor(self._theme.text_muted)
-            _ph_text.setAlpha(60)
+            _ph_text.setAlpha(50)
             painter.setPen(_ph_text)
             painter.drawText(ph_rect, Qt.AlignmentFlag.AlignCenter, "...")
 
         # Tag dots
         tags = index.data(ThumbnailModel.TagsRole) or []
-        dot_y = rect.y() + self.PADDING + ts + 4
-        dot_x = rect.x() + self.PADDING + 2
+        dot_y = rect.y() + self.cell_padding + ts + self.tag_dot_radius
+        dot_x = rect.x() + self.cell_padding + self.tag_dot_radius
         for tag_id in tags[:10]:
             preset = TAG_ALL.get(tag_id)
             color = QColor(preset.color) if preset else QColor(VINIK_COLORS[hash(tag_id) % len(VINIK_COLORS)])
             painter.setBrush(color)
-            _dot_outline = QColor(self._theme.bg_deep)
-            _dot_outline.setAlpha(80)
-            painter.setPen(QPen(_dot_outline, 1))
-            painter.drawEllipse(QPoint(dot_x + 5, dot_y + 5), 5, 5)
-            dot_x += 13
+            dot_outline = QColor(self._theme.bg_deep)
+            dot_outline.setAlpha(self.dot_outline_alpha)
+            painter.setPen(QPen(dot_outline, self.tag_dot_outline_width))
+            painter.drawEllipse(QPoint(dot_x, dot_y), self.tag_dot_radius, self.tag_dot_radius)
+            dot_x += self.tag_dot_spacing
 
         # Platform assignment status badge (top-right corner of thumbnail)
         assignments = index.data(ThumbnailModel.AssignmentsRole) or []
@@ -541,19 +626,17 @@ class ThumbnailDelegate(QStyledItemDelegate):
             else:
                 badge_hex, badge_char = t.warning, "…"
             badge_color = QColor(badge_hex)
-            badge_color.setAlpha(220)
-            _bdg_size = max(12, self.font_size + 2)
-            bx = rect.x() + rect.width() - self.PADDING - _bdg_size - 2
-            by = rect.y() + self.PADDING + 2
+            badge_color.setAlpha(self.badge_bg_alpha)
+            bx = rect.x() + rect.width() - self.cell_padding - self.badge_size - self.badge_corner_inset
+            by = rect.y() + self.cell_padding + self.badge_corner_inset
             painter.setBrush(badge_color)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(bx, by, _bdg_size, _bdg_size, 4, 4)
+            painter.drawRoundedRect(bx, by, self.badge_size, self.badge_size, self.badge_corner, self.badge_corner)
             painter.setPen(QColor(t.text_on_accent))
-            _bdg_sz = max(6, self.font_size - 4)
-            if (_bdg_sz, "bold") not in self._fonts:
-                self._fonts[(_bdg_sz, "bold")] = QFont(t.font_family, _bdg_sz, QFont.Weight.Bold)
-            painter.setFont(self._fonts[(_bdg_sz, "bold")])
-            painter.drawText(QRect(bx, by, _bdg_size, _bdg_size), Qt.AlignmentFlag.AlignCenter, badge_char)
+            if (self.badge_font_size, "bold") not in self._fonts:
+                self._fonts[(self.badge_font_size, "bold")] = QFont(t.font_family, self.badge_font_size, QFont.Weight.Bold)
+            painter.setFont(self._fonts[(self.badge_font_size, "bold")])
+            painter.drawText(QRect(bx, by, self.badge_size, self.badge_size), Qt.AlignmentFlag.AlignCenter, badge_char)
 
         # Social post status badge (below platform badge, top-right)
         post_status = index.data(ThumbnailModel.PostStatusRole)
@@ -567,60 +650,61 @@ class ThumbnailDelegate(QStyledItemDelegate):
             }
             ps_hex, ps_char = _ps_token_map.get(post_status, (t.post_draft, "?"))
             ps_color = QColor(ps_hex)
-            ps_color.setAlpha(220)
-            _bdg_size = max(12, self.font_size + 2)
-            ps_x = rect.x() + rect.width() - self.PADDING - _bdg_size - 2
-            ps_y = rect.y() + self.PADDING + (_bdg_size + 6 if assignments else 2)
+            ps_color.setAlpha(self.badge_bg_alpha)
+            ps_x = rect.x() + rect.width() - self.cell_padding - self.badge_size - self.badge_corner_inset
+            ps_y = rect.y() + self.cell_padding + (self.badge_size + self.cell_padding if assignments else self.badge_corner_inset)
             painter.setBrush(ps_color)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(ps_x, ps_y, _bdg_size, _bdg_size, 4, 4)
+            painter.drawRoundedRect(ps_x, ps_y, self.badge_size, self.badge_size, self.badge_corner, self.badge_corner)
             painter.setPen(QColor(t.text_on_accent))
-            _ps_sz = max(6, self.font_size - 4)
-            if (_ps_sz, "bold") not in self._fonts:
-                self._fonts[(_ps_sz, "bold")] = QFont(t.font_family, _ps_sz, QFont.Weight.Bold)
-            painter.setFont(self._fonts[(_ps_sz, "bold")])
-            painter.drawText(QRect(ps_x, ps_y, _bdg_size, _bdg_size), Qt.AlignmentFlag.AlignCenter, ps_char)
+            if (self.badge_font_size, "bold") not in self._fonts:
+                self._fonts[(self.badge_font_size, "bold")] = QFont(t.font_family, self.badge_font_size, QFont.Weight.Bold)
+            painter.setFont(self._fonts[(self.badge_font_size, "bold")])
+            painter.drawText(QRect(ps_x, ps_y, self.badge_size, self.badge_size), Qt.AlignmentFlag.AlignCenter, ps_char)
 
         # Studio-edited badge (top-left, pencil icon)
         studio_edited = index.data(ThumbnailModel.StudioEditedRole)
         if studio_edited and self._theme:
             t = self._theme
-            _bdg_size = max(12, self.font_size + 2)
-            se_x = rect.x() + self.PADDING + 2
-            se_y = rect.y() + self.PADDING + 2
-            se_color = QColor(t.accent)
-            se_color.setAlpha(220)
-            painter.setBrush(se_color)
+            studio_badge_x = rect.x() + self.cell_padding + self.badge_corner_inset
+            studio_badge_y = rect.y() + self.cell_padding + self.badge_corner_inset
+            studio_color = QColor(t.accent)
+            studio_color.setAlpha(self.badge_bg_alpha)
+            painter.setBrush(studio_color)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(se_x, se_y, _bdg_size, _bdg_size, 4, 4)
+            painter.drawRoundedRect(studio_badge_x, studio_badge_y,
+                                    self.badge_size, self.badge_size, self.badge_corner, self.badge_corner)
             painter.setPen(QColor(t.text_on_accent))
-            _se_sz = max(6, self.font_size - 4)
-            if (_se_sz, "bold") not in self._fonts:
-                self._fonts[(_se_sz, "bold")] = QFont(t.font_family, _se_sz, QFont.Weight.Bold)
-            painter.setFont(self._fonts[(_se_sz, "bold")])
-            painter.drawText(QRect(se_x, se_y, _bdg_size, _bdg_size), Qt.AlignmentFlag.AlignCenter, "S")
+            if (self.badge_font_size, "bold") not in self._fonts:
+                self._fonts[(self.badge_font_size, "bold")] = QFont(t.font_family, self.badge_font_size, QFont.Weight.Bold)
+            painter.setFont(self._fonts[(self.badge_font_size, "bold")])
+            painter.drawText(QRect(studio_badge_x, studio_badge_y,
+                                   self.badge_size, self.badge_size), Qt.AlignmentFlag.AlignCenter, "S")
 
         # Readiness dots (tiny colored dots below studio badge area)
         readiness = index.data(ThumbnailModel.ReadinessRole)
         if readiness and self._theme:
-            _r_colors = {"green": "#6eaa78", "yellow": "#be955c", "red": "#9a4f50"}
-            r_y = rect.y() + self.PADDING + ts - 8
-            r_x = rect.x() + self.PADDING + 2
+            t = self._theme
+            readiness_colors = {"green": t.success, "yellow": t.warning, "red": t.error}
+            readiness_y = rect.y() + self.cell_padding + ts - self.readiness_dot_radius * 2
+            readiness_x = rect.x() + self.cell_padding + self.readiness_dot_radius
             for pid, status in list(readiness.items())[:6]:
-                c = QColor(_r_colors.get(status, "#888"))
-                painter.setBrush(c)
+                dot_color = QColor(readiness_colors.get(status, t.text_muted))
+                painter.setBrush(dot_color)
                 painter.setPen(Qt.PenStyle.NoPen)
-                painter.drawEllipse(QPoint(r_x + 3, r_y + 3), 3, 3)
-                r_x += 9
+                painter.drawEllipse(QPoint(readiness_x, readiness_y),
+                                    self.readiness_dot_radius, self.readiness_dot_radius)
+                readiness_x += self.readiness_dot_spacing
 
         # Dimensions text
         fs = self.font_size
         if self.show_dims:
             dims = index.data(ThumbnailModel.DimsRole)
             dim_text = f"{dims[0]}x{dims[1]}" if dims else ""
-            dim_rect = QRect(rect.x(), rect.y() + ts + 22, rect.width(), 16)
-            painter.setPen(QColor(self._theme.text_muted) if self._theme else QColor(128, 128, 128, 150))
-            painter.setFont(self._font(max(6, fs - 3)))
+            dim_rect = QRect(rect.x(), rect.y() + ts + self.below_dots_offset,
+                            rect.width(), self.dims_line_height)
+            painter.setPen(QColor(self._theme.text_muted))
+            painter.setFont(self._font(self.dims_font_size))
             painter.drawText(dim_rect, Qt.AlignmentFlag.AlignHCenter, dim_text)
 
         # Filename
@@ -630,12 +714,12 @@ class ThumbnailDelegate(QStyledItemDelegate):
                       option.state & QStyle.StateFlag.State_Selected)
         if _show_name:
             name = index.data(Qt.ItemDataRole.DisplayRole) or ""
-            _nm_sz = max(7, fs - 2)
-            name_rect = QRect(rect.x() + self.PADDING, rect.y() + ts + 38,
-                              rect.width() - 30, 18)
+            name_top = self.below_dots_offset + fs + self.cell_padding
+            name_rect = QRect(rect.x() + self.cell_padding, rect.y() + ts + name_top,
+                              rect.width() - self.cell_padding * 2 - self.star_size, self.name_line_height)
             painter.setPen(option.palette.text().color())
-            painter.setFont(self._font(_nm_sz))
-            elided = self._fm(_nm_sz).elidedText(name, Qt.TextElideMode.ElideRight, name_rect.width())
+            painter.setFont(self._font(self.name_font_size))
+            elided = self._fm(self.name_font_size).elidedText(name, Qt.TextElideMode.ElideRight, name_rect.width())
             painter.drawText(name_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided)
 
         # Star
@@ -645,10 +729,12 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.setPen(QColor(STAR_COLORS[star_val]))
         else:
             _star_empty = QColor(self._theme.text_muted)
-            _star_empty.setAlpha(100)
+            _star_empty.setAlpha(self.star_empty_alpha)
             painter.setPen(_star_empty)
-        painter.setFont(self._font(fs + 4))
-        star_rect = QRect(rect.right() - 24, rect.y() + ts + 34, 22, 22)
+        painter.setFont(self._font(self.star_font_size))
+        star_rect = QRect(rect.right() - self.star_size - self.cell_padding,
+                          rect.y() + ts + self.below_dots_offset + fs,
+                          self.star_size, self.star_size)
         painter.drawText(star_rect, Qt.AlignmentFlag.AlignCenter, star_char)
 
         painter.restore()
@@ -1035,8 +1121,8 @@ class AssetBrowser(QWidget):
         settings = QSettings("DoxyEdit", "DoxyEdit")
         self._thumb_size = max(80, min(512, int(settings.value("thumb_size", THUMB_SIZE))))
         _f = settings.value("font_size", 12, type=int)
-        self._pad = max(4, _f // 3)
-        self._pad_lg = max(6, _f // 2)
+        self.cell_padding = max(4, _f // 3)
+        self.cell_padding_lg = max(6, _f // 2)
         self.hover_preview_enabled = settings.value("hover_preview_enabled", "true") == "true"
         self._eye_hidden_tags: set[str] = set()
         self._temp_hidden_ids: set[str] = set()  # Alt+H temporary hide (not saved)
@@ -1075,8 +1161,8 @@ class AssetBrowser(QWidget):
         self._build()
 
     def _build(self):
-        _pad = self._pad
-        _pad_lg = self._pad_lg
+        _pad = self.cell_padding
+        _pad_lg = self.cell_padding_lg
         root = QVBoxLayout(self)
         root.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
 
