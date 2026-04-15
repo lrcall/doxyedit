@@ -388,18 +388,23 @@ class ImagePreviewPanel(QWidget):
             painter = QPainter(result)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             # Draw crops
-            crop_pen = QPen(QColor(255, 200, 80, 200), 2)
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            _dt = THEMES[DEFAULT_THEME]
+            _cc = QColor(_dt.crop_border); _cc.setAlpha(200)
+            crop_pen = QPen(_cc, max(1, _dt.crop_border_width - 1))
             for crop in asset.crops:
                 r = QRectF(crop.x * sx, crop.y * sy, crop.w * sx, crop.h * sy)
                 painter.setPen(crop_pen)
                 painter.drawRect(r)
-                painter.setPen(QColor(255, 200, 80, 160))
+                _lc = QColor(_dt.crop_border); _lc.setAlpha(160)
+                painter.setPen(_lc)
                 font = painter.font()
-                font.setPointSize(8)
+                font.setPointSize(max(7, _dt.font_size - 2))
                 painter.setFont(font)
                 painter.drawText(r.adjusted(3, 2, 0, 0), Qt.AlignmentFlag.AlignTop, crop.label)
             # Draw note markers
-            note_pen = QPen(QColor(190, 149, 92, 180), 2)
+            _nc = QColor(_dt.note_border); _nc.setAlpha(180)
+            note_pen = QPen(_nc, max(1, _dt.crop_border_width - 1))
             import re
             pattern = re.compile(r'\[(\d+),(\d+)\s+(\d+)x(\d+)\]\s*(.*)')
             for line in (asset.notes or "").split("\n"):

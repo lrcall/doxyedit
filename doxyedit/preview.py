@@ -87,8 +87,14 @@ class NoteRectItem(QGraphicsRectItem):
 
     def __init__(self, rect: QRectF, text: str = ""):
         super().__init__(rect)
-        self.setPen(QPen(QColor(190, 149, 92, 220), 3))
-        self.setBrush(QBrush(QColor(190, 149, 92, 50)))
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
+        _nc = QColor(_dt.note_border)
+        _nc.setAlpha(220)
+        self.setPen(QPen(_nc, _dt.crop_border_width))
+        _nf = QColor(_dt.note_border)
+        _nf.setAlpha(50)
+        self.setBrush(QBrush(_nf))
         self.setFlags(
             QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable
@@ -131,7 +137,7 @@ class NoteRectItem(QGraphicsRectItem):
 class ResizableCropItem(QGraphicsRectItem):
     """Crop rectangle with 8 resize handles and drag-to-move."""
 
-    HANDLE_SIZE = 6
+    HANDLE_SIZE = 14
 
     def __init__(self, rect: QRectF, label: str = "", aspect: float | None = None, parent=None):
         super().__init__(rect, parent)
@@ -143,7 +149,11 @@ class ResizableCropItem(QGraphicsRectItem):
             QGraphicsItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
-        self.setPen(QPen(QColor(255, 200, 80, 220), 2))
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
+        _cc = QColor(_dt.crop_border)
+        _cc.setAlpha(220)
+        self.setPen(QPen(_cc, _dt.crop_border_width))
         self.setBrush(Qt.BrushStyle.NoBrush)
         self.setZValue(101)
         self.setCursor(Qt.CursorShape.SizeAllCursor)
@@ -156,15 +166,21 @@ class ResizableCropItem(QGraphicsRectItem):
         painter.drawRect(self.rect())
         # Draw label
         if self.label:
-            painter.setPen(QColor(255, 200, 80, 180))
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            _dt = THEMES[DEFAULT_THEME]
+            _lc = QColor(_dt.crop_border)
+            _lc.setAlpha(200)
+            painter.setPen(_lc)
             font = painter.font()
-            font.setPointSize(8)
+            font.setPointSize(_dt.font_size * 2)
             painter.setFont(font)
-            painter.drawText(self.rect().adjusted(4, 2, 0, 0), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, self.label)
+            painter.drawText(self.rect().adjusted(6, 4, 0, 0), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, self.label)
         # Draw handles if selected
         if self.isSelected():
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            _dt2 = THEMES[DEFAULT_THEME]
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(255, 200, 80, 255))
+            painter.setBrush(QColor(_dt2.crop_border))
             for hr in self._handle_rects():
                 painter.drawRect(hr)
 
@@ -646,7 +662,10 @@ class ImagePreviewDialog(QDialog):
             self._crop_start = self.view.mapToScene(event.position().toPoint())
             self._clear_crop_visuals()
             self._crop_rect_item = QGraphicsRectItem()
-            self._crop_rect_item.setPen(QPen(QColor(255, 200, 80, 220), 2))
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            _dt = THEMES[DEFAULT_THEME]
+            _cc = QColor(_dt.crop_border); _cc.setAlpha(220)
+            self._crop_rect_item.setPen(QPen(_cc, _dt.crop_border_width))
             self._crop_rect_item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
             self._crop_rect_item.setZValue(101)
             self.scene.addItem(self._crop_rect_item)

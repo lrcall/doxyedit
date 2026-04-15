@@ -67,6 +67,10 @@ class Theme:
     gantt_today: str = ""         # defaults to accent
     gantt_gap: str = ""           # defaults to error
     gantt_stagger: str = ""       # defaults to accent_dim
+    # Crop / note overlays
+    crop_border: str = "#ffc850"       # crop rect border color
+    crop_border_width: int = 3         # crop rect pen width in px
+    note_border: str = "#be955c"       # note rect border color
     # Timeline
     timeline_gap: str = "#664444"
     timeline_day_header: str = ""  # defaults to text_secondary

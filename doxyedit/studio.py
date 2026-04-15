@@ -385,7 +385,11 @@ class StudioScene(QGraphicsScene):
         if self.current_tool == StudioTool.CROP:
             self._draw_start = pos
             self._temp_item = QGraphicsRectItem(QRectF(pos, pos))
-            self._temp_item.setPen(QPen(QColor(255, 200, 80, 220), 2))
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            _dt = THEMES[DEFAULT_THEME]
+            _cc = QColor(_dt.crop_border)
+            _cc.setAlpha(220)
+            self._temp_item.setPen(QPen(_cc, _dt.crop_border_width))
             self._temp_item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
             self._temp_item.setZValue(400)
             self.addItem(self._temp_item)
@@ -632,6 +636,23 @@ class StudioEditor(QWidget):
                 self._sync_overlays_to_asset()
             return
 
+        # Escape — deselect everything, clear crop mask, reset tool
+        if key == Qt.Key.Key_Escape:
+            # Clear text editing focus
+            focus = self._scene.focusItem()
+            if focus and isinstance(focus, QGraphicsTextItem):
+                focus.clearFocus()
+                focus.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+            # Deselect all
+            self._scene.clearSelection()
+            # Clear crop mask
+            if self._crop_mask_item and self._crop_mask_item.scene():
+                self._scene.removeItem(self._crop_mask_item)
+                self._crop_mask_item = None
+            # Reset to select tool
+            self._set_tool(StudioTool.SELECT)
+            return
+
         # Tool shortcuts (only when no modifier)
         if not ctrl and not shift:
             if key == Qt.Key.Key_Q:
@@ -697,7 +718,9 @@ class StudioEditor(QWidget):
 
         self._crop_combo = QComboBox()
         self._crop_combo.setObjectName("studio_crop_combo")
-        self._crop_combo.setMinimumWidth(260)
+        from doxyedit.themes import THEMES, DEFAULT_THEME as _DT
+        _t = THEMES[_DT]
+        self._crop_combo.setMinimumWidth(_t.font_size * 20)
         self._crop_combo.addItem("Free crop", None)
         for pid, platform in PLATFORMS.items():
             self._crop_combo.insertSeparator(self._crop_combo.count())
