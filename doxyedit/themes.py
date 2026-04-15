@@ -67,6 +67,17 @@ class Theme:
     gantt_today: str = ""         # defaults to accent
     gantt_gap: str = ""           # defaults to error
     gantt_stagger: str = ""       # defaults to accent_dim
+    gantt_today_pen_width: float = 2.0      # today vertical line
+    gantt_bar_pen_width: float = 1.0        # bar border
+    gantt_bar_hover_pen_width: float = 2.0  # bar border on hover
+    gantt_row_separator_width: float = 0.5  # horizontal row lines
+    gantt_grid_thin_width: float = 0.3      # daily grid lines
+    gantt_grid_week_width: float = 1.0      # weekly grid lines
+    gantt_campaign_alpha: int = 180         # campaign marker line opacity
+    gantt_campaign_span_alpha: int = 20     # campaign span shading opacity
+    gantt_milestone_alpha: int = 200        # milestone label opacity
+    gantt_ghost_alpha: int = 60             # cross-project ghost bar opacity
+    gantt_gap_alpha: int = 25              # gap region shading opacity
     # Crop / note overlays
     crop_border: str = "#ffc850"       # crop rect border color
     crop_border_width: int = 3         # crop rect pen width in px

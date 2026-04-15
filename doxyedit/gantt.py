@@ -66,7 +66,11 @@ class _GanttBar(QGraphicsRectItem):
         self._platform = platform
         self._base_color = color
         self.setBrush(QBrush(color))
-        self.setPen(QPen(color.darker(120), 1))
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = theme or THEMES[DEFAULT_THEME]
+        self._bar_pen_width = _dt.gantt_bar_pen_width
+        self._bar_hover_pen_width = _dt.gantt_bar_hover_pen_width
+        self.setPen(QPen(color.darker(120), self._bar_pen_width))
         self.setAcceptHoverEvents(True)
         self.setCursor(Qt.PointingHandCursor)
         self.setFlag(QGraphicsItem.ItemIsSelectable, False)
@@ -133,13 +137,13 @@ class _GanttBar(QGraphicsRectItem):
 
     def hoverEnterEvent(self, event):
         self.setBrush(QBrush(self._base_color.lighter(140)))
-        self.setPen(QPen(self._base_color.lighter(160), 2))
+        self.setPen(QPen(self._base_color.lighter(160), self._bar_hover_pen_width))
         self.update()
         super().hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event):
         self.setBrush(QBrush(self._base_color))
-        self.setPen(QPen(self._base_color.darker(120), 1))
+        self.setPen(QPen(self._base_color.darker(120), self._bar_pen_width))
         self.update()
         super().hoverLeaveEvent(event)
 
@@ -236,7 +240,10 @@ class GanttPanel(QWidget):
         self._zoom_slider.setObjectName("gantt_zoom")
         self._zoom_slider.setRange(20, 200)
         self._zoom_slider.setValue(self._px_per_day)
-        self._zoom_slider.setFixedWidth(120)
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _gantt_theme = THEMES[DEFAULT_THEME]
+        ZOOM_SLIDER_WIDTH_RATIO = 10.0  # zoom slider width relative to font
+        self._zoom_slider.setFixedWidth(int(_gantt_theme.font_size * ZOOM_SLIDER_WIDTH_RATIO))
         self._zoom_slider.valueChanged.connect(self._on_zoom)
         tb_lay.addWidget(self._zoom_slider)
 
@@ -360,11 +367,11 @@ class GanttPanel(QWidget):
         today = date.today()
         if d_start <= today <= d_end:
             tx = (today - d_start).days * ppd
-            pen = QPen(_theme_color(theme, "accent"), 2)
+            pen = QPen(_theme_color(theme, "accent"), theme.gantt_today_pen_width)
             self._scene.addLine(tx, 0, tx, chart_h, pen)
 
         # Draw row separators
-        border_pen = QPen(_theme_color(theme, "border"), 0.5)
+        border_pen = QPen(_theme_color(theme, "border"), theme.gantt_row_separator_width)
         for i in range(num_rows + 1):
             y = _HEADER_HEIGHT + i * _ROW_HEIGHT
             self._scene.addLine(0, y, chart_w, y, border_pen)
@@ -447,7 +454,7 @@ class GanttPanel(QWidget):
 
                 # Draw stagger dashed lines connecting the bars
                 if len(anchor_bars) >= 2:
-                    dash_pen = QPen(_theme_color(theme, "accent_dim"), 1, Qt.DashLine)
+                    dash_pen = QPen(_theme_color(theme, "accent_dim"), theme.gantt_bar_pen_width, Qt.DashLine)
                     for i in range(len(anchor_bars) - 1):
                         x1, y1_top, y1_bot = anchor_bars[i]
                         x2, y2_top, y2_bot = anchor_bars[i + 1]
@@ -479,7 +486,7 @@ class GanttPanel(QWidget):
         if self._project and self._project.campaigns:
             for campaign in self._project.campaigns:
                 cam_color = QColor(campaign.color) if campaign.color else _theme_color(theme, "warning")
-                cam_color.setAlpha(180)
+                cam_color.setAlpha(theme.gantt_campaign_alpha)
                 # Campaign span bar (if launch_date and end_date)
                 if campaign.launch_date and campaign.end_date:
                     try:
@@ -493,7 +500,7 @@ class GanttPanel(QWidget):
                             span_brush.color().setAlpha(30)
                             span_rect = self._scene.addRect(
                                 cx, _HEADER_HEIGHT, cx2 - cx, chart_h - _HEADER_HEIGHT - 20,
-                                QPen(Qt.NoPen), QBrush(QColor(cam_color.red(), cam_color.green(), cam_color.blue(), 20))
+                                QPen(Qt.NoPen), QBrush(QColor(cam_color.red(), cam_color.green(), cam_color.blue(), theme.gantt_campaign_span_alpha))
                             )
                             span_rect.setToolTip(f"Campaign: {campaign.name}")
                     except (ValueError, TypeError):
@@ -504,7 +511,7 @@ class GanttPanel(QWidget):
                         launch = date.fromisoformat(campaign.launch_date)
                         if d_start <= launch <= d_end:
                             lx = (launch - d_start).days * ppd
-                            launch_pen = QPen(cam_color, 2, Qt.DashDotLine)
+                            launch_pen = QPen(cam_color, theme.gantt_today_pen_width, Qt.DashDotLine)
                             self._scene.addLine(lx, _HEADER_HEIGHT, lx, chart_h - 20, launch_pen)
                             launch_lbl = self._scene.addSimpleText(f"🚀 {campaign.name}", self._view.font())
                             launch_lbl.setPos(lx + 3, _HEADER_HEIGHT + 2)
@@ -521,19 +528,19 @@ class GanttPanel(QWidget):
                         continue
                     if d_start <= ms_date <= d_end:
                         mx = (ms_date - d_start).days * ppd
-                        ms_pen = QPen(cam_color, 1, Qt.DotLine)
+                        ms_pen = QPen(cam_color, theme.gantt_bar_pen_width, Qt.DotLine)
                         self._scene.addLine(mx, _HEADER_HEIGHT, mx, chart_h - 20, ms_pen)
                         ms_lbl = self._scene.addSimpleText(ms.label, self._view.font())
                         ms_lbl.setPos(mx + 3, _HEADER_HEIGHT + 14)
                         ms_color = QColor(cam_color)
-                        ms_color.setAlpha(200)
+                        ms_color.setAlpha(theme.gantt_milestone_alpha)
                         ms_lbl.setBrush(QBrush(ms_color))
 
         # Cross-project ghost bars (muted, translucent)
         if self._cross_cache:
             xp_posts = self._cross_cache.get_all_schedules(exclude_path=self._cross_exclude)
             ghost_color = _theme_color(theme, "text_muted")
-            ghost_color.setAlpha(60)
+            ghost_color.setAlpha(theme.gantt_ghost_alpha)
             ghost_pen = QPen(ghost_color, 0)
             ghost_brush = QBrush(ghost_color)
             for xp in xp_posts:
@@ -563,7 +570,7 @@ class GanttPanel(QWidget):
 
         # Gap detection — hatched regions for 7+ day gaps
         gap_color = _theme_color(theme, "post_failed")
-        gap_color.setAlpha(25)
+        gap_color.setAlpha(theme.gantt_gap_alpha)
         gap_pen = QPen(gap_color, 0)
         gap_brush = QBrush(gap_color)
 
@@ -590,8 +597,8 @@ class GanttPanel(QWidget):
                    total_days: int, d_start: date, theme) -> None:
         """Draw vertical day/week grid lines and date header labels."""
         ppd = self._px_per_day
-        thin_pen = QPen(_theme_color(theme, "border"), 0.3)
-        week_pen = QPen(_theme_color(theme, "border"), 1.0)
+        thin_pen = QPen(_theme_color(theme, "border"), theme.gantt_grid_thin_width)
+        week_pen = QPen(_theme_color(theme, "border"), theme.gantt_grid_week_width)
         text_color = _theme_color(theme, "text_muted")
 
         for d in range(total_days + 1):
