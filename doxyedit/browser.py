@@ -489,7 +489,8 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self.below_dots_offset = self.cell_padding + self.tag_dot_radius * 2 + self.cell_padding
         self.dims_font_size = max(MIN_FONT, int(font_size * DIMS_FONT_RATIO))
         self.dims_line_height = int(font_size * DIMS_HEIGHT_RATIO)
-        self.name_font_size = max(MIN_FONT + 1, int(font_size * NAME_FONT_RATIO))
+        MIN_NAME_FONT          = 7       # filename needs slightly larger min than badges
+        self.name_font_size = max(MIN_NAME_FONT, int(font_size * NAME_FONT_RATIO))
         self.name_line_height = int(font_size * NAME_HEIGHT_RATIO)
 
         # Star icon
@@ -537,7 +538,8 @@ class ThumbnailDelegate(QStyledItemDelegate):
             _fld_sz = max(6, self.font_size - 3)
             painter.setFont(self._font(_fld_sz))
             text_w = self._fm(_fld_sz).horizontalAdvance(short) + self.cell_padding * 2
-            _tag_h = max(14, self.font_size + 4)
+            FOLDER_TAG_HEIGHT_RATIO = 1.3   # folder label tag height
+            _tag_h = max(14, int(self.font_size * FOLDER_TAG_HEIGHT_RATIO))
             tag_rect = QRect(rect.x(), rect.y(), min(text_w, rect.width()), _tag_h)
             _bg = QColor(self._theme.bg_hover)
             _bg.setAlpha(60)
@@ -1536,7 +1538,8 @@ class AssetBrowser(QWidget):
         if font_size is not None:
             self._current_font_size = font_size
         font_size = self._current_font_size
-        h = font_size + 14
+        TAG_BUTTON_HEIGHT_RATIO = 2.2   # tag bar button height
+        h = int(font_size * TAG_BUTTON_HEIGHT_RATIO)
         for btn, color in self._tag_buttons:
             btn.setFixedHeight(h)
             btn.setStyleSheet(
