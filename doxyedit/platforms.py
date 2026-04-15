@@ -24,6 +24,14 @@ STATUS_ICONS = {
 }
 STATUS_CYCLE = ["pending", "ready", "posted", "skip"]
 
+# ── Layout ratios (multiply by font_size to get pixel values) ──
+PLATFORM_SEARCH_WIDTH_RATIO = 12.5   # search field width
+PLATFORM_VIEW_TOGGLE_RATIO = 6.7     # Dashboard toggle button
+PLATFORM_BTN_RATIO = 5.0             # compact action buttons (Auto-Fill, Export)
+PLATFORM_EXPORT_BTN_RATIO = 5.5      # Export All button
+PLATFORM_PROGRESS_WIDTH_RATIO = 16.7  # dashboard progress bar
+PLATFORM_SLOT_PREVIEW_HEIGHT = 60     # slot preview thumbnail height (px)
+
 
 class _DroppableSlotRow(QWidget):
     """Slot row that accepts file drops from the browser grid or tray."""
@@ -317,7 +325,7 @@ class PlatformPanel(QWidget):
 
         self._search_platforms = QLineEdit()
         self._search_platforms.setPlaceholderText("Filter platforms...")
-        self._search_platforms.setFixedWidth(int(_f * 12.5))
+        self._search_platforms.setFixedWidth(int(_f * PLATFORM_SEARCH_WIDTH_RATIO))
         self._search_platforms.setObjectName("platform_search")
         self._search_platforms.textChanged.connect(lambda _: self.refresh())
         actions_bar.addWidget(self._search_platforms)
@@ -338,7 +346,7 @@ class PlatformPanel(QWidget):
         self.summary_label.setProperty("role", "muted")
         top_bar.addWidget(self.summary_label, 1)
         self._view_toggle = QPushButton("Dashboard")
-        self._view_toggle.setFixedWidth(int(_f * 6.7))
+        self._view_toggle.setFixedWidth(int(_f * PLATFORM_VIEW_TOGGLE_RATIO))
         self._view_toggle.setCheckable(True)
         self._view_toggle.setToolTip("Toggle between card and dashboard views")
         self._view_toggle.toggled.connect(self._on_view_toggled)
@@ -598,7 +606,7 @@ class PlatformPanel(QWidget):
             header.addWidget(badge)
 
         autofill_btn = QPushButton("Auto-Fill")
-        autofill_btn.setFixedWidth(int(_f * 5))
+        autofill_btn.setFixedWidth(int(_f * PLATFORM_BTN_RATIO))
         autofill_btn.setObjectName("platform_action_btn")
         autofill_btn.setToolTip("Auto-assign best matching assets to empty slots")
         autofill_btn.clicked.connect(lambda _, p=pid: self._auto_fill_platform(p))
@@ -869,7 +877,7 @@ class PlatformPanel(QWidget):
             progress.setValue(filled)
             progress.setFormat(f"{filled}/{total} filled · {posted} posted")
             progress.setFixedHeight(max(14, _f))
-            progress.setFixedWidth(int(_f * 16.7))
+            progress.setFixedWidth(int(_f * PLATFORM_PROGRESS_WIDTH_RATIO))
             header_row.addWidget(progress)
 
             # Export button — shown when all required slots are filled
@@ -878,7 +886,7 @@ class PlatformPanel(QWidget):
             if filled_required == len(required_slots) and required_slots:
                 export_btn = QPushButton("Export All")
                 export_btn.setObjectName("platform_action_btn")
-                export_btn.setFixedWidth(int(_f * 5.5))
+                export_btn.setFixedWidth(int(_f * PLATFORM_EXPORT_BTN_RATIO))
                 export_btn.clicked.connect(lambda _, p=pid: self._export_platform(p))
                 header_row.addWidget(export_btn)
 
