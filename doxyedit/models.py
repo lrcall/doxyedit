@@ -404,6 +404,24 @@ SUB_PLATFORMS: dict[str, SubPlatform] = {
 
 
 @dataclass
+class PostMetrics:
+    """Engagement metrics for a posted social media post."""
+    likes: int = 0
+    retweets: int = 0
+    replies: int = 0
+    views: int = 0
+    clicks: int = 0
+    last_checked: str = ""
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "PostMetrics":
+        return cls(**{k: d.get(k, getattr(cls, k, 0) if k != "last_checked" else "") for k in cls.__dataclass_fields__})
+
+
+@dataclass
 class SocialPost:
     id: str = ""
     asset_ids: list[str] = field(default_factory=list)
@@ -432,6 +450,7 @@ class SocialPost:
     engagement_checks: list[dict] = field(default_factory=list)  # list of EngagementWindow dicts
     censor_mode: str = "auto"  # "auto" | "uncensored" | "custom"
     platform_censor: dict[str, bool] = field(default_factory=dict)  # platform_id -> should_censor
+    platform_metrics: dict[str, dict] = field(default_factory=dict)  # platform_id -> PostMetrics dict
 
     def to_dict(self) -> dict:
         return {
@@ -454,6 +473,7 @@ class SocialPost:
             "engagement_checks": self.engagement_checks,
             "censor_mode": self.censor_mode,
             "platform_censor": self.platform_censor,
+            "platform_metrics": self.platform_metrics,
         }
 
     @classmethod
@@ -481,6 +501,7 @@ class SocialPost:
             engagement_checks=d.get("engagement_checks", []),
             censor_mode=d.get("censor_mode", "auto"),
             platform_censor=d.get("platform_censor", {}),
+            platform_metrics=d.get("platform_metrics", {}),
         )
 
 

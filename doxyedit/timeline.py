@@ -169,6 +169,23 @@ class PostCard(QFrame):
             cap_label.setFont(font)
             info.addWidget(cap_label)
 
+        # Row 5: metrics summary (if posted)
+        if post.status in ("posted", SocialPostStatus.POSTED) and getattr(post, 'platform_metrics', {}):
+            metrics_parts = []
+            total_likes = sum(m.get("likes", 0) for m in post.platform_metrics.values())
+            total_views = sum(m.get("views", 0) for m in post.platform_metrics.values())
+            total_replies = sum(m.get("replies", 0) for m in post.platform_metrics.values())
+            if total_likes:
+                metrics_parts.append(f"♥ {total_likes}")
+            if total_views:
+                metrics_parts.append(f"👁 {total_views}")
+            if total_replies:
+                metrics_parts.append(f"💬 {total_replies}")
+            if metrics_parts:
+                metrics_label = QLabel("  ".join(metrics_parts))
+                metrics_label.setObjectName("post_metrics_label")
+                info.addWidget(metrics_label)
+
         # Row 4: links
         if post.links:
             links_label = QLabel("  ".join(post.links))
@@ -308,6 +325,58 @@ class PostCard(QFrame):
             # Fallback: use raw id
             names.append(aid)
         return names
+
+    def contextMenuEvent(self, event):
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(self)
+        if self._post and self._post.status in ("posted", SocialPostStatus.POSTED):
+            edit_action = menu.addAction("Edit Metrics...")
+            edit_action.triggered.connect(self._edit_metrics)
+        menu.exec(event.globalPos())
+
+    def _edit_metrics(self):
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QSpinBox, QDialogButtonBox, QComboBox
+        if not self._post:
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Post Metrics")
+        dlg.setMinimumWidth(300)
+        layout = QVBoxLayout(dlg)
+
+        # Platform selector
+        plat_combo = QComboBox()
+        plat_combo.addItem("All Platforms", "")
+        for pid in self._post.platforms:
+            plat_combo.addItem(pid, pid)
+        layout.addWidget(plat_combo)
+
+        form = QFormLayout()
+        spins = {}
+        for field_name, label in [("likes", "Likes"), ("retweets", "Retweets/Shares"),
+                                    ("replies", "Replies"), ("views", "Views"), ("clicks", "Clicks")]:
+            spin = QSpinBox()
+            spin.setRange(0, 999999999)
+            # Load existing
+            pid = plat_combo.currentData() or (self._post.platforms[0] if self._post.platforms else "")
+            existing = self._post.platform_metrics.get(pid, {})
+            spin.setValue(existing.get(field_name, 0))
+            form.addRow(f"{label}:", spin)
+            spins[field_name] = spin
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        layout.addWidget(buttons)
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            from datetime import datetime
+            pid = plat_combo.currentData() or "all"
+            metrics = {k: s.value() for k, s in spins.items()}
+            metrics["last_checked"] = datetime.now().isoformat()
+            self._post.platform_metrics[pid] = metrics
+            self.engagement_changed.emit()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
