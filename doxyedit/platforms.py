@@ -262,17 +262,16 @@ class PlatformPanel(QWidget):
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
-        outer = QHBoxLayout(self)
+        outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # Campaign bar — left side
+        # Campaign bar — top row, collapsible
         self._campaign_bar = CampaignBar(self.project, self)
         self._campaign_bar.modified.connect(self._on_campaign_modified)
-        self._campaign_bar.setFixedWidth(280)
         outer.addWidget(self._campaign_bar)
 
-        # Right side — platform slots
+        # Platform slots — full width below
         right = QWidget()
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(12, 8, 12, 8)
@@ -398,12 +397,18 @@ class PlatformPanel(QWidget):
                 self._assign_map.setdefault((pa.platform, pa.slot), []).append((asset, pa))
         assign_map = self._assign_map
 
-        # Campaign platform filter
-        campaign_platform = ""
+        # Campaign platform filter — match exact ID or by name prefix
+        campaign_platforms: set[str] = set()
         if cid:
             for c in self.project.campaigns:
-                if c.id == cid and c.platform_id:
-                    campaign_platform = c.platform_id
+                if c.id == cid:
+                    if c.platform_id:
+                        # Match exact + variants (e.g., "kickstarter" matches "kickstarter_jp")
+                        for pid_key in PLATFORMS:
+                            if pid_key == c.platform_id or pid_key.startswith(c.platform_id + "_"):
+                                campaign_platforms.add(pid_key)
+                        if not campaign_platforms:
+                            campaign_platforms.add(c.platform_id)
                     break
 
         total_slots = filled_slots = posted_slots = 0
@@ -412,7 +417,7 @@ class PlatformPanel(QWidget):
         for pid, platform in (
             (pid, PLATFORMS[pid]) for pid in self.project.platforms if pid in PLATFORMS
         ):
-            if campaign_platform and pid != campaign_platform:
+            if campaign_platforms and pid not in campaign_platforms:
                 continue
             col = self._col0 if placed % 2 == 0 else self._col1
             placed += 1
