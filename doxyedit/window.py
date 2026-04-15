@@ -110,6 +110,7 @@ class MainWindow(QMainWindow):
         self._ui_padding = max(4, int(self._font_size * self.PADDING_RATIO))
         self._current_theme_id = self._settings.value("theme", DEFAULT_THEME)
         self._apply_theme(self._current_theme_id)
+        self.setAcceptDrops(True)
 
         # --- Cross-project schedule awareness ---
         from doxyedit.crossproject import CrossProjectCache, sync_registry_from_settings, register_project
@@ -2242,6 +2243,47 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         btns.rejected.connect(dlg.accept)
         layout.addWidget(btns)
         dlg.exec()
+
+    # --- Drag-drop project/collection files onto window ---
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                p = url.toLocalFile().lower()
+                if p.endswith(".doxyproj.json") or p.endswith(".doxycoll.json"):
+                    event.acceptProposedAction()
+                    return
+        # Let browser handle image drops
+        super().dragEnterEvent(event)
+
+    def dropEvent(self, event):
+        if not event.mimeData().hasUrls():
+            super().dropEvent(event)
+            return
+        for url in event.mimeData().urls():
+            path = url.toLocalFile()
+            lp = path.lower()
+            if lp.endswith(".doxycoll.json"):
+                self._restore_collection(path)
+                event.acceptProposedAction()
+                return
+            elif lp.endswith(".doxyproj.json"):
+                # Check if already open in a tab
+                for i, slot in enumerate(self._project_slots):
+                    if slot["path"] == path:
+                        self._proj_tab_bar.setCurrentIndex(i)
+                        event.acceptProposedAction()
+                        return
+                # Open in new tab
+                try:
+                    project = Project.load(path)
+                    self._add_project_tab(project, path, Path(path).stem.replace(".doxyproj", ""))
+                    self._remember_dir(path)
+                    event.acceptProposedAction()
+                except Exception as e:
+                    self.status.showMessage(f"Failed to load: {e}", 4000)
+                return
+        super().dropEvent(event)
 
     def _load_project_from(self, path: str):
         # Create backup before loading
