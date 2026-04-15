@@ -163,6 +163,8 @@ class ContentPanel(QWidget):
     PLATFORM_CAPTION_MAX_HEIGHT_RATIO = 8.3  # per-platform caption max height
     AI_PROGRESS_MIN_WIDTH_RATIO = 26.7  # AI strategy progress dialog min width
     PROFILE_LIST_MAX_HEIGHT_RATIO = 10.0  # chrome profile list max height
+    IDENTITY_DIALOG_MIN_WIDTH_RATIO = 41.7   # identity editor dialog
+    IDENTITY_DIALOG_MIN_HEIGHT_RATIO = 33.3  # identity editor dialog
     CAPTION_KEY_MAX_WIDTH_RATIO = 8.3  # release chain caption key max width
 
     platforms_changed = Signal(list)
@@ -1436,7 +1438,9 @@ RULES:
         dlg = QDialog(self)
         dlg.setObjectName("identity_editor")
         dlg.setWindowTitle(f"Edit Identity: {current}" if current else "New Identity")
-        dlg.setMinimumSize(500, 400)
+        _f_dlg = _settings.value("font_size", 12, type=int)
+        dlg.setMinimumSize(int(_f_dlg * self.IDENTITY_DIALOG_MIN_WIDTH_RATIO),
+                           int(_f_dlg * self.IDENTITY_DIALOG_MIN_HEIGHT_RATIO))
 
         # Restore saved geometry
         geo = _settings.value("identity_editor_geometry")

@@ -448,6 +448,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
         BADGE_FONT_RATIO       = 0.7     # badge label font
         READINESS_DOT_RATIO    = 0.25    # readiness indicator radius
         READINESS_DOT_SPACING_MULT = 3.0 # readiness dot spacing = radius * this
+        FOLDER_LABEL_FONT_RATIO = 0.75   # folder group label font
         DIMS_FONT_RATIO        = 0.75    # dimensions text font
         DIMS_HEIGHT_RATIO      = 1.3     # dimensions line height
         NAME_FONT_RATIO        = 0.85    # filename font
@@ -487,6 +488,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
 
         # Below-thumbnail text area
         self.below_dots_offset = self.cell_padding + self.tag_dot_radius * 2 + self.cell_padding
+        self.folder_label_font_size = max(MIN_FONT, int(font_size * FOLDER_LABEL_FONT_RATIO))
         self.dims_font_size = max(MIN_FONT, int(font_size * DIMS_FONT_RATIO))
         self.dims_line_height = int(font_size * DIMS_HEIGHT_RATIO)
         MIN_NAME_FONT          = 7       # filename needs slightly larger min than badges
@@ -535,9 +537,8 @@ class ThumbnailDelegate(QStyledItemDelegate):
             parts = Path(folder).parts
             short = str(Path(*parts[-2:])) if len(parts) >= 2 else folder
             painter.save()
-            _fld_sz = max(6, self.font_size - 3)
-            painter.setFont(self._font(_fld_sz))
-            text_w = self._fm(_fld_sz).horizontalAdvance(short) + self.cell_padding * 2
+            painter.setFont(self._font(self.folder_label_font_size))
+            text_w = self._fm(self.folder_label_font_size).horizontalAdvance(short) + self.cell_padding * 2
             FOLDER_TAG_HEIGHT_RATIO = 1.3   # folder label tag height
             _tag_h = max(14, int(self.font_size * FOLDER_TAG_HEIGHT_RATIO))
             tag_rect = QRect(rect.x(), rect.y(), min(text_w, rect.width()), _tag_h)

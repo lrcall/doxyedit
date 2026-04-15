@@ -47,6 +47,8 @@ class ImagePreviewPanel(QWidget):
     STATUS_DOT_WIDTH_RATIO = 1.17      # readiness dot width
     ORDER_CELL_SIZE_RATIO = 4.0        # image order strip cell
     CROP_ICON_WIDTH_RATIO = 1.33       # crop status checkmark icon
+    CROP_LABEL_FONT_RATIO = 0.83      # crop label text on preview
+    MIN_CROP_LABEL_FONT = 7           # crop label minimum readable size
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -409,7 +411,7 @@ class ImagePreviewPanel(QWidget):
                 _lc = QColor(_dt.crop_border); _lc.setAlpha(160)
                 painter.setPen(_lc)
                 font = painter.font()
-                font.setPointSize(max(7, _dt.font_size - 2))
+                font.setPointSize(max(self.MIN_CROP_LABEL_FONT, int(_dt.font_size * self.CROP_LABEL_FONT_RATIO)))
                 painter.setFont(font)
                 painter.drawText(r.adjusted(3, 2, 0, 0), Qt.AlignmentFlag.AlignTop, crop.label)
             # Draw note markers

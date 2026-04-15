@@ -265,6 +265,9 @@ class ImagePreviewDialog(QDialog):
     navigated = Signal(str)   # emitted with asset_id when user navigates to a different asset
     dock_requested = Signal()  # emitted when user clicks the Dock button
 
+    DIALOG_MIN_WIDTH_RATIO = 66.7      # preview dialog minimum width
+    DIALOG_MIN_HEIGHT_RATIO = 50.0     # preview dialog minimum height
+
     def __init__(self, image_path: str, asset=None, parent=None,
                  assets: list = None, current_index: int = 0):
         super().__init__(parent)
@@ -278,9 +281,10 @@ class ImagePreviewDialog(QDialog):
         self._nav_index = current_index
         self._is_fullscreen = False
         self.setWindowTitle(f"Preview — {Path(image_path).name}")
-        self.setMinimumSize(800, 600)
         settings = QSettings("DoxyEdit", "DoxyEdit")
         _f = settings.value("font_size", 12, type=int)
+        self.setMinimumSize(int(_f * self.DIALOG_MIN_WIDTH_RATIO),
+                            int(_f * self.DIALOG_MIN_HEIGHT_RATIO))
         _cb = max(14, _f + 2)
         w_size = settings.value("preview_width", 1100, type=int)
         h_size = settings.value("preview_height", 800, type=int)

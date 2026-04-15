@@ -458,13 +458,17 @@ class PostComposerWidget(QWidget):
 class PostComposer(QDialog):
     """Two-column post composer dialog (floating window)."""
 
+    DIALOG_MIN_WIDTH_RATIO = 75.0
+    DIALOG_MIN_HEIGHT_RATIO = 50.0
+
     def __init__(self, project: Project, post: SocialPost | None = None,
                  project_dir: str = "", parent=None):
         super().__init__(parent)
         self.setObjectName("post_composer")
         self.setWindowTitle("Edit Post" if post else "New Post")
         self.setWindowModality(Qt.WindowModality.NonModal)
-        self.setMinimumSize(900, 600)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        self.setMinimumSize(int(_f * self.DIALOG_MIN_WIDTH_RATIO), int(_f * self.DIALOG_MIN_HEIGHT_RATIO))
 
         # Restore saved geometry
         self._settings = QSettings("DoxyEdit", "DoxyEdit")
