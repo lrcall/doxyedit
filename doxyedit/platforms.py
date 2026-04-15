@@ -369,16 +369,25 @@ class PlatformPanel(QWidget):
         self._cards_widget = QWidget()
         scroll.setWidget(self._cards_widget)
 
-        self._col_layout = QHBoxLayout(self._cards_widget)
-        self._col_layout.setContentsMargins(0, 4, 0, 4)
-        self._col_layout.setSpacing(_pad_lg * 2)
+        self._col_split = QSplitter(Qt.Orientation.Horizontal)
+        _cards_inner = QVBoxLayout(self._cards_widget)
+        _cards_inner.setContentsMargins(0, 4, 0, 4)
+        _cards_inner.addWidget(self._col_split)
 
-        self._col0 = QVBoxLayout()
-        self._col1 = QVBoxLayout()
+        self._col0_widget = QWidget()
+        self._col0 = QVBoxLayout(self._col0_widget)
+        self._col0.setContentsMargins(0, 0, 0, 0)
         self._col0.setSpacing(_pad_lg * 2)
+
+        self._col1_widget = QWidget()
+        self._col1 = QVBoxLayout(self._col1_widget)
+        self._col1.setContentsMargins(0, 0, 0, 0)
         self._col1.setSpacing(_pad_lg * 2)
-        self._col_layout.addLayout(self._col0)
-        self._col_layout.addLayout(self._col1)
+
+        self._col_split.addWidget(self._col0_widget)
+        self._col_split.addWidget(self._col1_widget)
+        self._col_split.setSizes([500, 500])
+        self._col_split.setChildrenCollapsible(False)
 
         self._vsplit.addWidget(scroll)
 
