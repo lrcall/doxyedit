@@ -1111,6 +1111,10 @@ class AssetBrowser(QWidget):
     tags_modified = Signal()
     selection_changed = Signal(list)
     tag_bar_toggled = Signal(bool)  # emitted when toolbar filter btn changes
+
+    # ── Layout ratios (change here to rescale browser toolbar) ──
+    ZOOM_SLIDER_WIDTH_RATIO = 9.0      # thumbnail size slider
+    ZOOM_LABEL_WIDTH_RATIO = 2.8       # "NNpx" label next to slider
     files_toggled = Signal(bool)
 
     def __init__(self, project: Project, parent=None):
@@ -1422,13 +1426,11 @@ class AssetBrowser(QWidget):
         self._zoom_slider = QSlider(Qt.Orientation.Horizontal)
         self._zoom_slider.setRange(80, 512)
         self._zoom_slider.setValue(self._thumb_size)
-        ZOOM_SLIDER_WIDTH_RATIO = 9.0
-        self._zoom_slider.setFixedWidth(int(self._current_font_size * ZOOM_SLIDER_WIDTH_RATIO))
+        self._zoom_slider.setFixedWidth(int(self._current_font_size * self.ZOOM_SLIDER_WIDTH_RATIO))
         self._zoom_slider.setToolTip("Thumbnail size (80–512px)  ·  Ctrl+Scroll")
         self._zoom_slider.valueChanged.connect(self._on_zoom_slider)
         self._zoom_label = QLabel(f"{self._thumb_size}px")
-        ZOOM_LABEL_WIDTH_RATIO = 2.8
-        self._zoom_label.setFixedWidth(int(self._current_font_size * ZOOM_LABEL_WIDTH_RATIO))
+        self._zoom_label.setFixedWidth(int(self._current_font_size * self.ZOOM_LABEL_WIDTH_RATIO))
         self._zoom_label.setProperty("role", "muted")
         status.addWidget(self._zoom_slider)
         status.addWidget(self._zoom_label)

@@ -828,11 +828,17 @@ class StudioEditor(QWidget):
     def _build(self):
         from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
+        # ── Layout ratios (change here to rescale all Studio widgets) ──
+        SLIDER_WIDTH_RATIO = 7.0               # standard slider track
+        SLIDER_NARROW_RATIO = 5.0              # narrow slider (kerning, outline)
+        ICON_BUTTON_WIDTH_RATIO = 2.3          # icon buttons (B, I, ■, ◻)
+        ZOOM_BUTTON_WIDTH_RATIO = 3.0          # zoom preset buttons (Fit, 50%, etc.)
+        ZOOM_LABEL_WIDTH_RATIO = 3.3           # zoom percentage label
+
         _pad = max(4, _dt.font_size // 3)
         _pad_lg = max(6, _dt.font_size // 2)
-        _slider_w = _dt.font_size * 7          # slider track width
-        _slider_sm = _dt.font_size * 5         # narrow slider
-        ICON_BUTTON_WIDTH_RATIO = 2.3            # icon button width (B, I, ■, ◻)
+        _slider_w = int(_dt.font_size * SLIDER_WIDTH_RATIO)
+        _slider_sm = int(_dt.font_size * SLIDER_NARROW_RATIO)
         _icon_btn_w = int(_dt.font_size * ICON_BUTTON_WIDTH_RATIO)
 
         root = QVBoxLayout(self)
@@ -949,7 +955,6 @@ class StudioEditor(QWidget):
         toolbar.addWidget(QLabel("|"))
         for label, factor in [("Fit", 0), ("50%", 0.5), ("100%", 1.0), ("200%", 2.0)]:
             btn = QPushButton(label)
-            ZOOM_BUTTON_WIDTH_RATIO = 3.0
             btn.setFixedWidth(int(_dt.font_size * ZOOM_BUTTON_WIDTH_RATIO))
             btn.setObjectName("studio_zoom_btn")
             if factor == 0:
@@ -959,7 +964,6 @@ class StudioEditor(QWidget):
             toolbar.addWidget(btn)
 
         self._zoom_label = QLabel("100%")
-        ZOOM_LABEL_WIDTH_RATIO = 3.3
         self._zoom_label.setFixedWidth(int(_dt.font_size * ZOOM_LABEL_WIDTH_RATIO))
         toolbar.addWidget(self._zoom_label)
 

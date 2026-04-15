@@ -42,6 +42,12 @@ class ImagePreviewPanel(QWidget):
 
         self._build_ui()
 
+    # ── Layout ratios (change here to rescale all composer-left widgets) ──
+    MODE_BUTTON_HEIGHT_RATIO = 1.8     # Raw/Studio/Platform toggle height
+    STATUS_DOT_WIDTH_RATIO = 1.17      # readiness dot width
+    ORDER_CELL_SIZE_RATIO = 4.0        # image order strip cell
+    CROP_ICON_WIDTH_RATIO = 1.33       # crop status checkmark icon
+
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -67,8 +73,7 @@ class ImagePreviewPanel(QWidget):
         self._mode_platform.clicked.connect(lambda: self._set_preview_mode("platform"))
 
         for btn in (self._mode_raw, self._mode_studio, self._mode_platform):
-            MODE_BUTTON_HEIGHT_RATIO = 1.8
-            btn.setFixedHeight(int(_f * MODE_BUTTON_HEIGHT_RATIO))
+            btn.setFixedHeight(int(_f * self.MODE_BUTTON_HEIGHT_RATIO))
             mode_row.addWidget(btn)
         mode_row.addStretch()
         layout.addLayout(mode_row)
@@ -203,8 +208,7 @@ class ImagePreviewPanel(QWidget):
             dot_colors = {"green": _dt.success, "yellow": _dt.warning, "red": _dt.error}
             dot = QLabel("●")
             dot.setStyleSheet(f"color: {dot_colors.get(status, _dt.text_muted)};")
-            STATUS_DOT_WIDTH_RATIO = 1.17
-            dot.setFixedWidth(int(self._f * STATUS_DOT_WIDTH_RATIO))
+            dot.setFixedWidth(int(self._f * self.STATUS_DOT_WIDTH_RATIO))
             row.addWidget(dot)
 
             lbl = QLabel(platform.name)
@@ -474,8 +478,7 @@ class ImagePreviewPanel(QWidget):
                 cell.setPixmap(scaled)
             else:
                 cell.setText("?")
-            ORDER_CELL_SIZE_RATIO = 4.0
-            _cell_size = int(self._f * ORDER_CELL_SIZE_RATIO)
+            _cell_size = int(self._f * self.ORDER_CELL_SIZE_RATIO)
             cell.setFixedSize(_cell_size, _cell_size)
             cell.setAlignment(Qt.AlignmentFlag.AlignCenter)
             cell.setObjectName("composer_order_thumb")
@@ -535,8 +538,7 @@ class ImagePreviewPanel(QWidget):
             row = QHBoxLayout()
             icon = QLabel("\u2713" if has_crop else "\u25CB")
             icon.setObjectName("composer_crop_icon")
-            CROP_ICON_WIDTH_RATIO = 1.33
-            icon.setFixedWidth(int(self._f * CROP_ICON_WIDTH_RATIO))
+            icon.setFixedWidth(int(self._f * self.CROP_ICON_WIDTH_RATIO))
             row.addWidget(icon)
 
             label = QLabel(f"{plat.name}: {post_slot.width}x{post_slot.height}")

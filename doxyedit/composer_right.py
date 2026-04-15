@@ -154,6 +154,11 @@ class _FlowLayout(QLayout):
 class ContentPanel(QWidget):
     """Right column: platforms, strategy, captions, links, schedule, replies."""
 
+    # ── Layout ratios (change here to rescale all composer-right widgets) ──
+    EDIT_BUTTON_WIDTH_RATIO = 3.3      # identity "Edit" button
+    STEP_LABEL_WIDTH_RATIO = 4.0       # release chain "Step N:" label
+    REMOVE_BUTTON_WIDTH_RATIO = 2.0    # release chain "×" remove button
+
     platforms_changed = Signal(list)
 
     def __init__(self, project: Project, project_dir: str = "", parent=None):
@@ -204,8 +209,7 @@ class ContentPanel(QWidget):
         )
         edit_id_btn = QPushButton("Edit")
         edit_id_btn.setObjectName("composer_edit_identity_btn")
-        EDIT_BUTTON_WIDTH_RATIO = 3.3
-        edit_id_btn.setFixedWidth(int(_f * EDIT_BUTTON_WIDTH_RATIO))
+        edit_id_btn.setFixedWidth(int(_f * self.EDIT_BUTTON_WIDTH_RATIO))
         edit_id_btn.clicked.connect(self._edit_identity)
         identity_row.addWidget(id_label)
         identity_row.addWidget(self._identity_combo, 1)
@@ -1773,8 +1777,7 @@ RULES:
             step_label.setObjectName("composer_chain_step_label")
             from PySide6.QtCore import QSettings as _QS2
             _f2 = _QS2("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
-            STEP_LABEL_WIDTH_RATIO = 4.0
-            step_label.setFixedWidth(int(_f2 * STEP_LABEL_WIDTH_RATIO))
+            step_label.setFixedWidth(int(_f2 * self.STEP_LABEL_WIDTH_RATIO))
             row_layout.addWidget(step_label)
 
             # Platform combo
@@ -1827,8 +1830,7 @@ RULES:
             if idx > 0:
                 remove_btn = QPushButton("\u00d7")
                 remove_btn.setObjectName("composer_chain_remove_btn")
-                REMOVE_BUTTON_WIDTH_RATIO = 2.0
-                remove_btn.setFixedWidth(int(_f2 * REMOVE_BUTTON_WIDTH_RATIO))
+                remove_btn.setFixedWidth(int(_f2 * self.REMOVE_BUTTON_WIDTH_RATIO))
                 remove_btn.setToolTip("Remove this step")
                 remove_btn.clicked.connect(
                     lambda _, i=_idx: self._remove_release_step(i)
