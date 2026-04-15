@@ -597,6 +597,13 @@ class PlatformPanel(QWidget):
             badge.setStyleSheet(f"color: {badge_color}; font-weight: bold;")
             header.addWidget(badge)
 
+        autofill_btn = QPushButton("Auto-Fill")
+        autofill_btn.setFixedWidth(60)
+        autofill_btn.setObjectName("platform_action_btn")
+        autofill_btn.setToolTip("Auto-assign best matching assets to empty slots")
+        autofill_btn.clicked.connect(lambda _, p=pid: self._auto_fill_platform(p))
+        header.addWidget(autofill_btn)
+
         layout.addLayout(header)
 
         # Divider
@@ -864,6 +871,17 @@ class PlatformPanel(QWidget):
             progress.setFixedHeight(max(14, _f))
             progress.setFixedWidth(200)
             header_row.addWidget(progress)
+
+            # Export button — shown when all required slots are filled
+            required_slots = [s for s in platform.slots if s.required]
+            filled_required = sum(1 for s in required_slots if assign_map.get((pid, s.name)))
+            if filled_required == len(required_slots) and required_slots:
+                export_btn = QPushButton("Export All")
+                export_btn.setObjectName("platform_action_btn")
+                export_btn.setFixedWidth(70)
+                export_btn.clicked.connect(lambda _, p=pid: self._export_platform(p))
+                header_row.addWidget(export_btn)
+
             header_row.addStretch()
             section_layout.addLayout(header_row)
 
@@ -986,6 +1004,80 @@ class PlatformPanel(QWidget):
                         exported += 1
                         print(f"[Export] {pid}/{slot.name}: {result.output_path}")
         print(f"[Export] Done: {exported} slot(s) exported")
+
+    def _export_platform(self, platform_id: str):
+        """Export all assigned slots for a platform."""
+        from doxyedit.pipeline import prepare_for_platform
+        platform = PLATFORMS.get(platform_id)
+        if not platform:
+            return
+        exported = 0
+        for slot in platform.slots:
+            entries = self._assign_map.get((platform_id, slot.name), [])
+            if entries:
+                asset, _ = entries[0]
+                result = prepare_for_platform(asset, platform_id, self.project, slot_name=slot.name)
+                if result.success:
+                    exported += 1
+                    print(f"[Export] {platform_id}/{slot.name}: {result.output_path}")
+        print(f"[Export] {platform_id}: {exported} slot(s) exported")
+
+    def _auto_fill_platform(self, platform_id: str):
+        """Auto-assign best matching assets to empty slots."""
+        platform = PLATFORMS.get(platform_id)
+        if not platform:
+            return
+
+        filled = 0
+        for slot in platform.slots:
+            key = (platform_id, slot.name)
+            if key in self._assign_map:
+                continue  # already assigned
+
+            # Find best matching asset
+            best_asset = None
+            best_score = -1
+
+            for asset in self.project.assets:
+                # Skip already-assigned-to-this-platform assets
+                if any(pa.platform == platform_id for pa in asset.assignments):
+                    continue
+
+                score = 0
+                # Star rating bonus
+                score += asset.starred * 2
+
+                # Tag match bonus
+                if asset.tags:
+                    score += 1
+
+                # Aspect ratio fitness
+                if slot.width and slot.height and asset.source_path:
+                    try:
+                        from PIL import Image
+                        with Image.open(asset.source_path) as img:
+                            iw, ih = img.size
+                            target_ratio = slot.width / slot.height
+                            img_ratio = iw / ih
+                            ratio_diff = abs(target_ratio - img_ratio) / target_ratio
+                            score += max(0, 5 * (1 - ratio_diff))  # 0-5 points for ratio match
+                            # Resolution bonus
+                            if iw >= slot.width and ih >= slot.height:
+                                score += 3
+                    except Exception:
+                        pass
+
+                if score > best_score:
+                    best_score = score
+                    best_asset = asset
+
+            if best_asset:
+                self.assign_asset(best_asset, platform_id, slot.name)
+                filled += 1
+
+        if filled:
+            self.refresh()
+            print(f"[Auto-Fill] Filled {filled} slot(s) for {platform_id}")
 
     def assign_asset(self, asset: Asset, platform_id: str, slot_name: str):
         """Add asset to slot without clearing existing — skip if already assigned."""
