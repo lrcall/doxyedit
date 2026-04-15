@@ -306,53 +306,44 @@ class PlatformPanel(QWidget):
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
-        outer = QVBoxLayout(self)
+        outer = QHBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # Campaign bar — top row, collapsible
+        # ── Left sidebar: campaign, filter, summary, actions ─────────────
+        sidebar = QWidget()
+        sidebar.setObjectName("platform_sidebar")
+        sb_layout = QVBoxLayout(sidebar)
+        sb_layout.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
+        sb_layout.setSpacing(_pad_lg)
+
         self._campaign_bar = CampaignBar(self.project, self)
         self._campaign_bar.modified.connect(self._on_campaign_modified)
-        outer.addWidget(self._campaign_bar)
-
-        # Platform slots — full width below
-        right = QWidget()
-        right_layout = QVBoxLayout(right)
-        right_layout.setContentsMargins(12, 8, 12, 8)
-        right_layout.setSpacing(_pad_lg)
-        outer.addWidget(right, 1)
-
-        # Quick-actions toolbar
-        actions_bar = QHBoxLayout()
-        actions_bar.setSpacing(6)
+        sb_layout.addWidget(self._campaign_bar)
 
         self._search_platforms = QLineEdit()
         self._search_platforms.setPlaceholderText("Filter platforms...")
-        self._search_platforms.setFixedWidth(int(_f * PLATFORM_SEARCH_WIDTH_RATIO))
         self._search_platforms.setObjectName("platform_search")
         self._search_platforms.textChanged.connect(lambda _: self.refresh())
-        actions_bar.addWidget(self._search_platforms)
+        sb_layout.addWidget(self._search_platforms)
 
-        actions_bar.addStretch()
+        self.summary_label = QLabel()
+        self.summary_label.setProperty("role", "muted")
+        self.summary_label.setWordWrap(True)
+        sb_layout.addWidget(self.summary_label)
 
         btn_export_ready = QPushButton("Export Ready")
         btn_export_ready.setObjectName("platform_action_btn")
         btn_export_ready.setToolTip("Export all platforms with required slots filled")
         btn_export_ready.clicked.connect(self._export_ready_platforms)
-        actions_bar.addWidget(btn_export_ready)
+        sb_layout.addWidget(btn_export_ready)
 
-        right_layout.addLayout(actions_bar)
+        sb_layout.addStretch()
+        outer.addWidget(sidebar)
 
-        # Top bar: summary
-        top_bar = QHBoxLayout()
-        self.summary_label = QLabel()
-        self.summary_label.setProperty("role", "muted")
-        top_bar.addWidget(self.summary_label, 1)
-        right_layout.addLayout(top_bar)
-
-        # Side-by-side: cards left, dashboard right
+        # ── Right: cards + dashboard splitter ────────────────────────────
         self._plat_hsplit = QSplitter(Qt.Orientation.Horizontal)
-        right_layout.addWidget(self._plat_hsplit, 1)
+        outer.addWidget(self._plat_hsplit, 1)
 
         # ── Left: Cards view ─────────────────────────────────────────────
         cards_page = QWidget()
