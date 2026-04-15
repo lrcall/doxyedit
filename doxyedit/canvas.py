@@ -59,9 +59,10 @@ class TagItem(QGraphicsRectItem):
             | QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable
         )
         self._label = QGraphicsTextItem(label, self)
-        self._label.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
         from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
+        _tag_font_size = max(7, int(_dt.font_size * 0.67))
+        self._label.setFont(QFont(_dt.font_family, _tag_font_size, QFont.Weight.Bold))
         self._label.setDefaultTextColor(QColor(_dt.text_on_accent))
         self._label.setPos(4, 1)
 
@@ -123,14 +124,18 @@ class CanvasScene(QGraphicsScene):
 
         if self.current_tool in (Tool.LINE, Tool.BOX):
             self._draw_start = pos
-            pen = QPen(QColor("#4fc3f7"), 2)
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            _dt = THEMES[DEFAULT_THEME]
+            pen = QPen(QColor(_dt.accent_bright), 2)
             if self.current_tool == Tool.LINE:
                 self._temp_item = QGraphicsLineItem(QLineF(pos, pos))
                 self._temp_item.setPen(pen)
             else:
                 self._temp_item = QGraphicsRectItem(QRectF(pos, pos))
                 self._temp_item.setPen(pen)
-                self._temp_item.setBrush(QBrush(QColor(79, 195, 247, 30)))
+                fill = QColor(_dt.accent_bright)
+                fill.setAlpha(30)
+                self._temp_item.setBrush(QBrush(fill))
             self._temp_item.setFlags(
                 QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
                 | QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable

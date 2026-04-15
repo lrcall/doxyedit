@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QPushButton, QFrame, QSizePolicy,
 )
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal, Qt, QSettings
 
 from doxyedit.models import Project, SocialPostStatus
 
@@ -24,10 +24,12 @@ class _DayCell(QFrame):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        self._f = _f
         self.setObjectName("calendar_day_cell")
         self.setCursor(Qt.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setFixedHeight(48)
+        self.setFixedHeight(int(_f * 4.0))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(3, 2, 3, 2)
@@ -96,7 +98,8 @@ class _DayCell(QFrame):
                 dot = QLabel()
                 dot.setObjectName("calendar_dot")
                 dot.setProperty("dot_status", status)
-                dot.setFixedSize(6, 6)
+                _dot = int(self._f * 0.5)
+                dot.setFixedSize(_dot, _dot)
                 # Color + border-radius come from QSS selector on dot_status
                 self._dot_row.addWidget(dot)
                 shown += 1
@@ -148,6 +151,9 @@ class CalendarPane(QWidget):
     # ---- UI construction ----
 
     def _build_ui(self) -> None:
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _cb = max(14, _f + 2)
+
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(4)
@@ -158,7 +164,7 @@ class CalendarPane(QWidget):
 
         self._btn_prev = QPushButton("\u25C0")
         self._btn_prev.setObjectName("calendar_nav_btn")
-        self._btn_prev.setFixedSize(28, 28)
+        self._btn_prev.setFixedSize(_cb, _cb)
         self._btn_prev.clicked.connect(self._go_prev)
         header.addWidget(self._btn_prev)
 
@@ -169,7 +175,7 @@ class CalendarPane(QWidget):
 
         self._btn_next = QPushButton("\u25B6")
         self._btn_next.setObjectName("calendar_nav_btn")
-        self._btn_next.setFixedSize(28, 28)
+        self._btn_next.setFixedSize(_cb, _cb)
         self._btn_next.clicked.connect(self._go_next)
         header.addWidget(self._btn_next)
 

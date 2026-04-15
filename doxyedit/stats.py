@@ -185,8 +185,10 @@ class StatsPanel(QWidget):
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(8)
 
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+
         name_lbl = QLabel(label)
-        name_lbl.setFixedWidth(180)
+        name_lbl.setFixedWidth(int(_f * 15))
         h.addWidget(name_lbl)
 
         bar = QProgressBar()
@@ -194,13 +196,13 @@ class StatsPanel(QWidget):
         bar.setMaximum(maximum or 1)
         bar.setValue(value)
         bar.setTextVisible(False)
-        bar.setFixedHeight(12)
+        bar.setFixedHeight(int(_f * 1.0))
         bar.setObjectName("stats_bar")
         bar.setStyleSheet(f"QProgressBar::chunk {{ background: {color}; border-radius: 4px; }}")
         h.addWidget(bar, 1)
 
         count_lbl = QLabel(suffix)
-        count_lbl.setFixedWidth(90)
+        count_lbl.setFixedWidth(int(_f * 7.5))
         count_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         count_lbl.setProperty("role", "muted")
         h.addWidget(count_lbl)

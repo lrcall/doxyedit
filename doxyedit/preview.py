@@ -280,6 +280,8 @@ class ImagePreviewDialog(QDialog):
         self.setWindowTitle(f"Preview — {Path(image_path).name}")
         self.setMinimumSize(800, 600)
         settings = QSettings("DoxyEdit", "DoxyEdit")
+        _f = settings.value("font_size", 12, type=int)
+        _cb = max(14, _f + 2)
         w_size = settings.value("preview_width", 1100, type=int)
         h_size = settings.value("preview_height", 800, type=int)
         self.resize(w_size, h_size)
@@ -353,7 +355,7 @@ class ImagePreviewDialog(QDialog):
 
         self._crop_combo = QComboBox()
         self._crop_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self._crop_combo.setFixedWidth(200)
+        self._crop_combo.setFixedWidth(max(160, int(_f * 16.7)))
         self._crop_combo.addItem("Free crop", None)
         for pid, platform in PLATFORMS.items():
             self._crop_combo.insertSeparator(self._crop_combo.count())
@@ -397,7 +399,7 @@ class ImagePreviewDialog(QDialog):
         info_bar.addWidget(self._dock_btn)
 
         self._fs_btn = QPushButton("⛶")
-        self._fs_btn.setFixedWidth(28)
+        self._fs_btn.setFixedWidth(_cb * 2)
         self._fs_btn.setToolTip("Toggle fullscreen (F11)")
         self._fs_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._fs_btn.clicked.connect(self._toggle_fullscreen)
@@ -417,8 +419,10 @@ class ImagePreviewDialog(QDialog):
         layout.addWidget(info_bar_widget)
 
         # Zoomable view
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
         self.scene = QGraphicsScene()
-        self.scene.setBackgroundBrush(QColor("#111"))
+        self.scene.setBackgroundBrush(QColor(_dt.bg_deep))
         self.view = QGraphicsView(self.scene)
         self.view.setRenderHints(
             QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform
@@ -904,8 +908,10 @@ class PreviewPane(QWidget):
         layout.addWidget(self._info_bar)
 
         # Graphics view
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt_pane = THEMES[DEFAULT_THEME]
         self._scene = QGraphicsScene()
-        self._scene.setBackgroundBrush(QColor("#111"))
+        self._scene.setBackgroundBrush(QColor(_dt_pane.bg_deep))
         self._view = QGraphicsView(self._scene)
         self._view.setRenderHints(
             QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform

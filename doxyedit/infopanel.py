@@ -174,9 +174,12 @@ class InfoPanel(QWidget):
 
         self._palette_header.show()
         self._palette_container.show()
+        from PySide6.QtCore import QSettings as _QS
+        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _sw = int(_f * 1.67)
         for hex_color in colors[:5]:
             swatch = QLabel()
-            swatch.setFixedSize(20, 20)
+            swatch.setFixedSize(_sw, _sw)
             swatch.setStyleSheet(
                 f"background: {hex_color}; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15);")
             swatch.setToolTip(hex_color)

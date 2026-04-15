@@ -1272,7 +1272,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         heading_margin_top = max(4, font_size // 2)
         heading_margin_bottom = max(1, font_size // 8)
         paragraph_margin = max(1, font_size // 6)
-        list_indent = max(12, font_size + 4)
+        LIST_INDENT_RATIO = 1.3            # list bullet indentation
+        list_indent = max(12, int(font_size * LIST_INDENT_RATIO))
         list_line_height = 1.15
         code_pad_v = max(1, font_size // 10)
         code_pad_h = max(3, font_size // 3)

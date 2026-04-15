@@ -317,7 +317,7 @@ class PlatformPanel(QWidget):
 
         self._search_platforms = QLineEdit()
         self._search_platforms.setPlaceholderText("Filter platforms...")
-        self._search_platforms.setFixedWidth(150)
+        self._search_platforms.setFixedWidth(int(_f * 12.5))
         self._search_platforms.setObjectName("platform_search")
         self._search_platforms.textChanged.connect(lambda _: self.refresh())
         actions_bar.addWidget(self._search_platforms)
@@ -338,7 +338,7 @@ class PlatformPanel(QWidget):
         self.summary_label.setProperty("role", "muted")
         top_bar.addWidget(self.summary_label, 1)
         self._view_toggle = QPushButton("Dashboard")
-        self._view_toggle.setFixedWidth(80)
+        self._view_toggle.setFixedWidth(int(_f * 6.7))
         self._view_toggle.setCheckable(True)
         self._view_toggle.setToolTip("Toggle between card and dashboard views")
         self._view_toggle.toggled.connect(self._on_view_toggled)
@@ -622,6 +622,7 @@ class PlatformPanel(QWidget):
 
     def _slot_row(self, slot, pid: str, entries: list) -> QWidget:
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _cb = max(14, _f + 2)
         _pad_lg = max(6, _f // 2)
         row = _DroppableSlotRow()
         row.dropped.connect(lambda path, p=pid, s=slot: self._on_file_dropped(path, p, s))
@@ -704,14 +705,14 @@ class PlatformPanel(QWidget):
         if entries:
             first_status = str(entries[0][1].status)
             status_btn = QPushButton(STATUS_ICONS.get(first_status, "·"))
-            status_btn.setFixedSize(24, 20)
+            status_btn.setFixedSize(_cb + 10, _cb + 6)
             status_btn.setToolTip(f"{first_status} — click to cycle")
             self._style_status_btn(status_btn, first_status)
             status_btn.clicked.connect(
                 lambda _, p=pid, s=slot.name, b=status_btn: self._cycle_status(p, s, b))
         else:
             status_btn = QPushButton("·")
-            status_btn.setFixedSize(24, 20)
+            status_btn.setFixedSize(_cb + 10, _cb + 6)
             status_btn.setToolTip("right-click row to assign")
             self._style_status_btn(status_btn, "pending")
             status_btn.setEnabled(False)
@@ -869,7 +870,7 @@ class PlatformPanel(QWidget):
             progress.setValue(filled)
             progress.setFormat(f"{filled}/{total} filled · {posted} posted")
             progress.setFixedHeight(max(14, _f))
-            progress.setFixedWidth(200)
+            progress.setFixedWidth(int(_f * 16.7))
             header_row.addWidget(progress)
 
             # Export button — shown when all required slots are filled

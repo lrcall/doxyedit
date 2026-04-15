@@ -77,16 +77,24 @@ class _TagContainer(QWidget):
 
     def paintEvent(self, event):
         super().paintEvent(event)
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
         p = QPainter(self)
         # Rubber-band rectangle
         if self._drag_mode == "select" and self._drag_start and self._drag_current:
             rect = QRect(self._drag_start, self._drag_current).normalized()
-            p.setPen(QPen(QColor(100, 160, 220, 180), 1))
-            p.setBrush(QBrush(QColor(100, 160, 220, 40)))
+            sel_color = QColor(_dt.selection_bg)
+            sel_color.setAlpha(180)
+            p.setPen(QPen(sel_color, 1))
+            sel_fill = QColor(_dt.selection_bg)
+            sel_fill.setAlpha(40)
+            p.setBrush(QBrush(sel_fill))
             p.drawRect(rect)
         # Drop indicator line
         if self._drag_mode == "reorder" and self._drop_indicator_y >= 0:
-            p.setPen(QPen(QColor(100, 200, 255, 220), 2))
+            accent_color = QColor(_dt.accent_bright)
+            accent_color.setAlpha(220)
+            p.setPen(QPen(accent_color, 2))
             p.drawLine(0, self._drop_indicator_y, self.width(), self._drop_indicator_y)
         p.end()
 
@@ -236,7 +244,8 @@ class TagRow(QFrame):
 
         # Tag color dot (shows the tag's own color)
         self.dot = QLabel()
-        self.dot.setFixedSize(12, 12)
+        _dot = max(8, _f)
+        self.dot.setFixedSize(_dot, _dot)
         self.dot.setStyleSheet(
             f"background: {tag.color}; border-radius: 6px;"
             f" border: 1px solid rgba(0,0,0,0.3);")

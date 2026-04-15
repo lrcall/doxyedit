@@ -832,7 +832,8 @@ class StudioEditor(QWidget):
         _pad_lg = max(6, _dt.font_size // 2)
         _slider_w = _dt.font_size * 7          # slider track width
         _slider_sm = _dt.font_size * 5         # narrow slider
-        _icon_btn_w = _dt.font_size * 2 + 4    # icon button width (B, I, ■, ◻)
+        ICON_BUTTON_WIDTH_RATIO = 2.3            # icon button width (B, I, ■, ◻)
+        _icon_btn_w = int(_dt.font_size * ICON_BUTTON_WIDTH_RATIO)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)

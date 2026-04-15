@@ -135,7 +135,7 @@ class WorkTray(QWidget):
         # Handle — clickable arrow on left edge
         self._handle = QPushButton("\u25C0")  # ◀
         self._handle.setObjectName("tray_handle")
-        self._handle.setFixedWidth(16)
+        self._handle.setFixedWidth(max(12, int(_f * 1.33)))
         self._handle.setCursor(Qt.CursorShape.PointingHandCursor)
         self._handle.setToolTip("Close tray (Ctrl+T)")
         self._handle.clicked.connect(lambda: self.toggle_requested.emit())

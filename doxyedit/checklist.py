@@ -42,7 +42,7 @@ class ChecklistPanel(QWidget):
         self._progress.setMinimum(0)
         self._progress.setMaximum(1)
         self._progress.setValue(0)
-        self._progress.setFixedHeight(6)
+        self._progress.setFixedHeight(max(4, _f // 2))
         self._progress.setTextVisible(False)
         self._progress.setObjectName("checklist_progress")
         outer.addWidget(self._progress)
@@ -72,7 +72,7 @@ class ChecklistPanel(QWidget):
         add_row.addWidget(self._add_input)
 
         add_btn = QPushButton("Add")
-        add_btn.setFixedWidth(60)
+        add_btn.setFixedWidth(_f * 5)
         add_btn.clicked.connect(self._add_item_from_input)
         add_row.addWidget(add_btn)
         outer.addLayout(add_row)
@@ -111,7 +111,8 @@ class ChecklistPanel(QWidget):
         h.addWidget(cb)
 
         del_btn = QPushButton("✕")
-        del_btn.setFixedSize(20, 20)
+        _cb = max(14, _f + 2)
+        del_btn.setFixedSize(_cb, _cb)
         del_btn.setObjectName("checklist_del_btn")
         del_btn.clicked.connect(lambda _, r=row: self._delete_row(r))
         h.addWidget(del_btn)

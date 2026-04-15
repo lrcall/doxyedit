@@ -101,6 +101,9 @@ class OverlayEditor(QWidget):
     # ---- construction ----
 
     def _build(self):
+        from PySide6.QtCore import QSettings
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
 
@@ -134,7 +137,7 @@ class OverlayEditor(QWidget):
         self.opacity_slider.setObjectName("overlay_opacity_slider")
         self.opacity_slider.setRange(0, 100)
         self.opacity_slider.setValue(30)
-        self.opacity_slider.setFixedWidth(100)
+        self.opacity_slider.setFixedWidth(max(80, int(_f * 8.3)))
         self.opacity_slider.valueChanged.connect(self._on_opacity_changed)
         toolbar.addWidget(self.opacity_slider)
 
@@ -144,7 +147,7 @@ class OverlayEditor(QWidget):
         self.scale_slider.setObjectName("overlay_scale_slider")
         self.scale_slider.setRange(5, 100)
         self.scale_slider.setValue(20)
-        self.scale_slider.setFixedWidth(100)
+        self.scale_slider.setFixedWidth(max(80, int(_f * 8.3)))
         self.scale_slider.valueChanged.connect(self._on_scale_changed)
         toolbar.addWidget(self.scale_slider)
 

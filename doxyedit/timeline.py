@@ -227,9 +227,11 @@ class PostCard(QFrame):
                     row_lay.setContentsMargins(4, 2, 4, 2)
                     row_lay.setSpacing(6)
 
+                    from PySide6.QtCore import QSettings as _QS
+                    _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
                     icon = "!!" if mins < 0 else ("!" if mins < 5 else "~")
                     icon_lbl = QLabel(icon)
-                    icon_lbl.setFixedWidth(20)
+                    icon_lbl.setFixedWidth(int(_f * 1.67))
                     row_lay.addWidget(icon_lbl)
 
                     desc = QLabel(f"{check.platform} — {check.notes}")

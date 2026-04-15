@@ -226,7 +226,7 @@ class HealthPanel(QWidget):
         h.setSpacing(_pad_lg)
 
         dot = QLabel("●")
-        dot.setFixedWidth(12)
+        dot.setFixedWidth(round(_f * 1.0))  # scales with font_size
         dot.setObjectName("health_dot")
         dot.setProperty("severity", severity)
         h.addWidget(dot)
@@ -261,7 +261,7 @@ class HealthPanel(QWidget):
         h.setSpacing(_pad_lg)
 
         dot = QLabel("●")
-        dot.setFixedWidth(12)
+        dot.setFixedWidth(round(_f * 1.0))  # scales with font_size
         dot.setObjectName("health_dot")
         dot.setProperty("severity", severity)
         h.addWidget(dot)

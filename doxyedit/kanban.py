@@ -40,11 +40,12 @@ class KanbanCard(QFrame):
         self.status = status
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setCursor(Qt.CursorShape.OpenHandCursor)
-        self.setFixedHeight(56)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-
         from PySide6.QtCore import QSettings
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _card_height = round(_f * 4.67)  # ~56 at font_size 12
+        self.setFixedHeight(_card_height)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
 
@@ -76,9 +77,12 @@ class KanbanCard(QFrame):
         mime.setData("application/x-kanban-card", QByteArray(data.encode("utf-8")))
         drag.setMimeData(mime)
         pm = QPixmap(self.size())
-        pm.fill(QColor(60, 60, 60))
+        # Use theme tokens for drag pixmap; fall back to column's cached theme
+        _drag_bg = getattr(self, '_theme_bg_deep', "#3c3c3c")
+        _drag_fg = getattr(self, '_theme_text_primary', "#c8c8c8")
+        pm.fill(QColor(_drag_bg))
         p = QPainter(pm)
-        p.setPen(QColor(200, 200, 200))
+        p.setPen(QColor(_drag_fg))
         p.drawText(pm.rect(), Qt.AlignmentFlag.AlignCenter,
                    f"{self.platform}/{self.slot}")
         p.end()
@@ -109,8 +113,9 @@ class KanbanColumn(QWidget):
 
         # Header
         header = QHBoxLayout()
+        _dot_w = round(_f * 1.5)  # ~18 at font_size 12
         self._dot = QLabel("\u25cf")
-        self._dot.setFixedWidth(18)
+        self._dot.setFixedWidth(_dot_w)
         header.addWidget(self._dot)
         self._title = QLabel(f"{label}")
         header.addWidget(self._title)
@@ -236,6 +241,8 @@ class KanbanPanel(QWidget):
                         f" border-radius: 4px;")
                     card._name_lbl.setStyleSheet(f"color: {self._theme.text_primary}; background: transparent;")
                     card._detail_lbl.setStyleSheet(f"color: {self._theme.text_secondary}; background: transparent;")
+                    card._theme_bg_deep = self._theme.bg_deep
+                    card._theme_text_primary = self._theme.text_primary
                 self._columns[status].add_card(card)
                 total += 1
         # Summary
@@ -272,11 +279,12 @@ class KanbanPanel(QWidget):
         """Apply theme to kanban panel and all columns/cards."""
         self._theme = theme
         self.setStyleSheet(f"background: {theme.bg_deep};")
+        _title_size = round(theme.font_size * 1.08)  # slightly larger heading
         self._title.setStyleSheet(
-            f"color: {theme.text_primary}; font-size: {theme.font_size + 1}px;"
+            f"color: {theme.text_primary}; font-size: {_title_size}px;"
             f" font-weight: bold; background: transparent;")
         self._summary.setStyleSheet(
-            f"color: {theme.text_secondary}; font-size: {theme.font_size - 1}px;"
+            f"color: {theme.text_secondary}; font-size: {round(theme.font_size * 0.92)}px;"
             f" background: transparent;")
         for col in self._columns.values():
             col.apply_theme(theme)
