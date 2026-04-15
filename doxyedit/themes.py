@@ -1671,6 +1671,11 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.text_muted};
         }}
 
+        /* ── Studio editor ─────────────────────────────────────────── */
+        QWidget#studio_props_row QPushButton {{
+            padding: 2px 4px; min-width: 24px;
+        }}
+
         /* ── Gantt panel ────────────────────────────────────────────── */
         QWidget#gantt_panel {{
             background: {theme.bg_deep};

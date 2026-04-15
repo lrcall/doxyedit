@@ -23,8 +23,9 @@ from PySide6.QtGui import (
 import copy
 from PIL import Image
 
-from doxyedit.models import Asset, Project, CensorRegion, CanvasOverlay
+from doxyedit.models import Asset, Project, CensorRegion, CanvasOverlay, CropRegion, PLATFORMS
 from doxyedit.exporter import apply_censors, apply_overlays
+from doxyedit.preview import NoteRectItem, ResizableCropItem
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +63,8 @@ class StudioTool(Enum):
     CENSOR = auto()
     WATERMARK = auto()
     TEXT_OVERLAY = auto()
+    CROP = auto()
+    NOTE = auto()
     ANNOTATE_TEXT = auto()
     ANNOTATE_LINE = auto()
     ANNOTATE_BOX = auto()
@@ -341,6 +344,9 @@ class StudioScene(QGraphicsScene):
         # Callbacks set by StudioEditor
         self.on_censor_finished = None   # callable(CensorRectItem)
         self.on_annotation_placed = None  # callable(item)
+        self.on_crop_finished = None     # callable(QRectF)
+        self.on_note_finished = None     # callable(QRectF, NoteRectItem)
+        self.get_crop_aspect = None      # callable() -> float | None
 
     def set_theme(self, theme):
         self.setBackgroundBrush(QBrush(QColor(theme.bg_deep)))
@@ -373,6 +379,22 @@ class StudioScene(QGraphicsScene):
                 QRectF(pos, pos), self._censor_style
             )
             self._temp_item.setZValue(150)
+            self.addItem(self._temp_item)
+            return
+
+        if self.current_tool == StudioTool.CROP:
+            self._draw_start = pos
+            self._temp_item = QGraphicsRectItem(QRectF(pos, pos))
+            self._temp_item.setPen(QPen(QColor(255, 200, 80, 220), 2))
+            self._temp_item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+            self._temp_item.setZValue(400)
+            self.addItem(self._temp_item)
+            return
+
+        if self.current_tool == StudioTool.NOTE:
+            self._draw_start = pos
+            self._temp_item = NoteRectItem(QRectF(pos, pos), "")
+            self._temp_item.setZValue(400)
             self.addItem(self._temp_item)
             return
 
@@ -415,6 +437,15 @@ class StudioScene(QGraphicsScene):
                 self._temp_item.setLine(QLineF(self._draw_start, pos))
             elif isinstance(self._temp_item, QGraphicsRectItem):
                 r = QRectF(self._draw_start, pos).normalized()
+                # Constrain crop to aspect ratio
+                if self.current_tool == StudioTool.CROP and self.get_crop_aspect:
+                    aspect = self.get_crop_aspect()
+                    if aspect and r.width() > 2 and r.height() > 2:
+                        cur = r.width() / r.height()
+                        if cur > aspect:
+                            r.setWidth(r.height() * aspect)
+                        else:
+                            r.setHeight(r.width() / aspect)
                 self._temp_item.setRect(r)
             return
         super().mouseMoveEvent(event)
@@ -424,6 +455,18 @@ class StudioScene(QGraphicsScene):
             if self.current_tool == StudioTool.CENSOR:
                 if self.on_censor_finished:
                     self.on_censor_finished(self._temp_item)
+            elif self.current_tool == StudioTool.CROP:
+                r = self._temp_item.rect()
+                if r.width() > 10 and r.height() > 10 and self.on_crop_finished:
+                    self.on_crop_finished(r)
+                else:
+                    self.removeItem(self._temp_item)
+            elif self.current_tool == StudioTool.NOTE:
+                r = self._temp_item.rect()
+                if r.width() > 10 and r.height() > 10 and self.on_note_finished:
+                    self.on_note_finished(self._temp_item, r)
+                else:
+                    self.removeItem(self._temp_item)
             self._draw_start = None
             self._temp_item = None
             self.current_tool = StudioTool.SELECT
@@ -518,10 +561,19 @@ class StudioEditor(QWidget):
         self.setObjectName("studio_editor")
         self._asset: Asset | None = None
         self._project: Project | None = None
+        self._theme = None
         self._pixmap_item: QGraphicsPixmapItem | None = None
         self._censor_items: list[CensorRectItem] = []
         self._overlay_items: list[OverlayImageItem | OverlayTextItem] = []
         self._overlays_visible = True
+        # Crop + note state
+        self._crop_items: list[ResizableCropItem] = []
+        self._crop_rect_item: QGraphicsRectItem | None = None
+        self._crop_mask_item = None
+        self._crop_start: QPointF | None = None
+        self._notes: list[NoteRectItem] = []
+        self._note_start: QPointF | None = None
+        self._note_temp: NoteRectItem | None = None
         self._build()
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
@@ -594,6 +646,12 @@ class StudioEditor(QWidget):
             if key == Qt.Key.Key_R:
                 self._set_tool(StudioTool.TEXT_OVERLAY)
                 return
+            if key == Qt.Key.Key_C:
+                self._set_tool(StudioTool.CROP)
+                return
+            if key == Qt.Key.Key_N:
+                self._set_tool(StudioTool.NOTE)
+                return
             if key == Qt.Key.Key_F:
                 if self._scene.sceneRect():
                     self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
@@ -631,6 +689,31 @@ class StudioEditor(QWidget):
         self.combo_censor_style.addItems(["black", "blur", "pixelate"])
         self.combo_censor_style.currentTextChanged.connect(self._on_censor_style_changed)
         toolbar.addWidget(self.combo_censor_style)
+
+        self.btn_crop = QPushButton("Crop")
+        self.btn_crop.setObjectName("studio_btn_crop")
+        self.btn_crop.clicked.connect(lambda: self._set_tool(StudioTool.CROP))
+        toolbar.addWidget(self.btn_crop)
+
+        self._crop_combo = QComboBox()
+        self._crop_combo.setObjectName("studio_crop_combo")
+        self._crop_combo.setFixedWidth(180)
+        self._crop_combo.addItem("Free crop", None)
+        for pid, platform in PLATFORMS.items():
+            self._crop_combo.insertSeparator(self._crop_combo.count())
+            self._crop_combo.addItem(f"\u2500\u2500 {platform.name} \u2500\u2500", None)
+            idx = self._crop_combo.count() - 1
+            self._crop_combo.model().item(idx).setEnabled(False)
+            for slot in platform.slots:
+                self._crop_combo.addItem(
+                    f"  {slot.label} ({slot.width}x{slot.height})",
+                    (slot.width, slot.height))
+        toolbar.addWidget(self._crop_combo)
+
+        self.btn_note = QPushButton("Note")
+        self.btn_note.setObjectName("studio_btn_note")
+        self.btn_note.clicked.connect(lambda: self._set_tool(StudioTool.NOTE))
+        toolbar.addWidget(self.btn_note)
 
         self.btn_delete = QPushButton("Delete")
         self.btn_delete.setObjectName("studio_btn_delete")
@@ -823,6 +906,9 @@ class StudioEditor(QWidget):
         # Scene + View
         self._scene = StudioScene()
         self._scene.on_censor_finished = self._on_censor_drawn
+        self._scene.on_crop_finished = self._on_crop_drawn
+        self._scene.on_note_finished = self._on_note_drawn
+        self._scene.get_crop_aspect = self._get_crop_aspect
         self._view = StudioView(self._scene)
         self._view.on_file_dropped = self._on_file_dropped
         root.addWidget(self._view)
@@ -847,11 +933,14 @@ class StudioEditor(QWidget):
             self.combo_template.addItem(label)
 
     def load_asset(self, asset: Asset):
-        """Load image, restore censors + overlays. Annotations are lost."""
+        """Load image, restore censors, overlays, crops, and notes."""
         self._asset = asset
         self._scene.clear()
         self._censor_items.clear()
         self._overlay_items.clear()
+        self._crop_items.clear()
+        self._notes.clear()
+        self._crop_mask_item = None
         self._pixmap_item = None
 
         # Load base image
@@ -894,13 +983,17 @@ class StudioEditor(QWidget):
                 item.setZValue(200 + i)
                 self._overlay_items.append(item)
 
+        # Restore crops + notes (Z 400+)
+        self._load_existing_crops()
+        self._load_saved_notes()
+
         self._update_info()
 
     # ---- tool management ----
 
     def _set_tool(self, tool: StudioTool):
         self._scene.set_tool(tool)
-        if tool == StudioTool.CENSOR:
+        if tool in (StudioTool.CENSOR, StudioTool.CROP, StudioTool.NOTE):
             self._view.setCursor(Qt.CursorShape.CrossCursor)
             self._view.setDragMode(QGraphicsView.DragMode.NoDrag)
         elif tool == StudioTool.WATERMARK:
@@ -912,6 +1005,14 @@ class StudioEditor(QWidget):
         else:
             self._view.setCursor(Qt.CursorShape.ArrowCursor)
             self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+
+    def _get_crop_aspect(self) -> float | None:
+        """Return target W/H aspect ratio from crop combo, or None for free crop."""
+        data = self._crop_combo.currentData()
+        if data is None:
+            return None
+        w, h = data
+        return w / h if h else None
 
     def _on_censor_style_changed(self, style: str):
         self._scene.set_censor_style(style)
@@ -927,6 +1028,135 @@ class StudioEditor(QWidget):
         self._view.setCursor(Qt.CursorShape.ArrowCursor)
         self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self._update_info()
+
+    # ---- crop / note callbacks ----
+
+    def _on_crop_drawn(self, rect: QRectF):
+        """Called when a crop rect is finished drawing."""
+        if not self._asset:
+            return
+        # Remove the temp rect drawn by the scene
+        if self._scene._temp_item and self._scene._temp_item.scene():
+            self._scene.removeItem(self._scene._temp_item)
+        # Determine label from crop combo
+        data = self._crop_combo.currentData()
+        label = self._crop_combo.currentText().strip() if data else "free"
+        # Save to asset
+        crop = CropRegion(x=int(rect.x()), y=int(rect.y()),
+                          w=int(rect.width()), h=int(rect.height()), label=label)
+        self._asset.crops = [c for c in self._asset.crops if c.label != label]
+        self._asset.crops.append(crop)
+        # Create editable item
+        crop_item = ResizableCropItem(rect, label=label)
+        crop_item.on_changed = self._on_crop_edited
+        self._scene.addItem(crop_item)
+        self._crop_items.append(crop_item)
+        # Update mask
+        self._update_crop_mask(rect)
+        self._view.setCursor(Qt.CursorShape.ArrowCursor)
+        self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+
+    def _on_crop_edited(self, item: ResizableCropItem):
+        """Sync a moved/resized crop back to the asset."""
+        if not self._asset:
+            return
+        region = item.get_crop_region()
+        self._asset.crops = [c for c in self._asset.crops if c.label != region.label]
+        self._asset.crops.append(region)
+        r = item.rect().translated(item.pos())
+        self._update_crop_mask(r)
+
+    def _update_crop_mask(self, crop_rect: QRectF):
+        """Draw dark overlay outside the crop region."""
+        if self._crop_mask_item:
+            if self._crop_mask_item.scene():
+                self._scene.removeItem(self._crop_mask_item)
+            self._crop_mask_item = None
+        if not self._pixmap_item:
+            return
+        from PySide6.QtGui import QPainterPath
+        from PySide6.QtWidgets import QGraphicsPathItem
+        img_rect = self._pixmap_item.boundingRect()
+        path = QPainterPath()
+        path.addRect(img_rect)
+        hole = QPainterPath()
+        hole.addRect(crop_rect)
+        path = path.subtracted(hole)
+        self._crop_mask_item = QGraphicsPathItem(path)
+        self._crop_mask_item.setPen(QPen(Qt.PenStyle.NoPen))
+        self._crop_mask_item.setBrush(QBrush(QColor(0, 0, 0, 140)))
+        self._crop_mask_item.setZValue(400)
+        self._scene.addItem(self._crop_mask_item)
+
+    def _load_existing_crops(self):
+        """Show existing crop regions as editable overlays."""
+        for item in self._crop_items:
+            if item.scene():
+                self._scene.removeItem(item)
+        self._crop_items.clear()
+        if self._crop_mask_item and self._crop_mask_item.scene():
+            self._scene.removeItem(self._crop_mask_item)
+            self._crop_mask_item = None
+        if not self._asset or not self._asset.crops:
+            return
+        for crop in self._asset.crops:
+            rect = QRectF(crop.x, crop.y, crop.w, crop.h)
+            item = ResizableCropItem(rect, label=crop.label)
+            item.on_changed = self._on_crop_edited
+            self._scene.addItem(item)
+            self._crop_items.append(item)
+
+    def _on_note_drawn(self, temp_item, rect: QRectF):
+        """Called when a note rect is finished drawing."""
+        if not self._asset:
+            return
+        dlg = QInputDialog(self)
+        dlg.setWindowTitle("Note")
+        dlg.setLabelText("Enter note:")
+        dlg.resize(500, 140)
+        ok = dlg.exec()
+        text = dlg.textValue() if ok else ""
+        if ok and text.strip():
+            temp_item.update_text(text.strip())
+            self._notes.append(temp_item)
+            self._save_notes_to_asset()
+        else:
+            if temp_item.scene():
+                self._scene.removeItem(temp_item)
+        self._view.setCursor(Qt.CursorShape.ArrowCursor)
+        self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+
+    def _save_notes_to_asset(self):
+        """Save all note annotations to the asset's notes field."""
+        if not self._asset:
+            return
+        note_lines = []
+        for n in self._notes:
+            r = n.rect()
+            note_lines.append(f"[{int(r.x())},{int(r.y())} {int(r.width())}x{int(r.height())}] {n.text}")
+        existing = self._asset.notes
+        existing_lines = [l for l in existing.split("\n") if l.strip() and not l.strip().startswith("[")]
+        self._asset.notes = "\n".join(existing_lines + note_lines)
+
+    def _load_saved_notes(self):
+        """Parse annotation notes from asset.notes and display them."""
+        for n in self._notes:
+            if n.scene():
+                self._scene.removeItem(n)
+        self._notes.clear()
+        if not self._asset or not self._asset.notes:
+            return
+        import re
+        pattern = re.compile(r'\[(\d+),(\d+)\s+(\d+)x(\d+)\]\s*(.*)')
+        for line in self._asset.notes.split("\n"):
+            m = pattern.match(line.strip())
+            if m:
+                x, y, w, h = int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
+                text = m.group(5)
+                note = NoteRectItem(QRectF(x, y, w, h), text)
+                note.setZValue(400)
+                self._scene.addItem(note)
+                self._notes.append(note)
 
     # ---- overlay creation ----
 
@@ -1276,7 +1506,7 @@ class StudioEditor(QWidget):
     # ---- actions ----
 
     def _delete_selected(self):
-        """Remove selected censors/overlays from scene and model."""
+        """Remove selected censors/overlays/crops/notes from scene and model."""
         for item in self._scene.selectedItems():
             if isinstance(item, CensorRectItem):
                 self._scene.removeItem(item)
@@ -1286,6 +1516,17 @@ class StudioEditor(QWidget):
                 self._scene.removeItem(item)
                 if item in self._overlay_items:
                     self._overlay_items.remove(item)
+            elif isinstance(item, ResizableCropItem):
+                self._scene.removeItem(item)
+                if item in self._crop_items:
+                    self._crop_items.remove(item)
+                if self._asset:
+                    self._asset.crops = [c for c in self._asset.crops if c.label != item.label]
+            elif isinstance(item, NoteRectItem):
+                self._scene.removeItem(item)
+                if item in self._notes:
+                    self._notes.remove(item)
+                self._save_notes_to_asset()
             elif isinstance(item, (AnnotationTextItem, QGraphicsRectItem, QGraphicsLineItem)):
                 self._scene.removeItem(item)
         self._sync_censors_to_asset()

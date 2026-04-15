@@ -94,6 +94,8 @@ class PostComposerWidget(QWidget):
     save_requested = Signal(object)    # emits SocialPost
     cancel_requested = Signal()
     dock_toggled = Signal(bool)        # True=dock, False=float
+    open_in_studio = Signal(str)       # asset_id
+    open_in_preview = Signal(str)      # asset_id
 
     def __init__(self, project: Project, post: SocialPost | None = None,
                  project_dir: str = "", parent=None):
@@ -166,6 +168,8 @@ class PostComposerWidget(QWidget):
 
         # Image preview panel
         self._left_panel = ImagePreviewPanel(self._project)
+        self._left_panel.open_in_studio.connect(self.open_in_studio)
+        self._left_panel.open_in_preview.connect(self.open_in_preview)
         left_layout.addWidget(self._left_panel, 1)
 
         self._composer_split.addWidget(self._left_wrapper)

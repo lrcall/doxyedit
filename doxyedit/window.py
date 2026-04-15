@@ -2683,6 +2683,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._composer_dock.setVisible(True)
         self._docked_composer = widget
         self._docked_is_new = is_new
+        widget.open_in_studio.connect(self._send_to_studio)
+        widget.open_in_preview.connect(lambda aid: self._on_asset_preview(aid))
         # Restore or create dock width
         sizes = self._social_top_split.sizes()
         if len(sizes) >= 3 and sizes[2] < 50:

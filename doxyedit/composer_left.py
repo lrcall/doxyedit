@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QCheckBox, QSizePolicy, QScrollArea,
+    QFrame, QCheckBox, QSizePolicy, QScrollArea, QMenu,
 )
 from PySide6.QtCore import Qt, QSize, Signal
 from PySide6.QtGui import QPixmap
@@ -24,6 +24,8 @@ class ImagePreviewPanel(QWidget):
     """Left column: image preview + SFW/NSFW + crop status."""
 
     assets_changed = Signal()  # emitted when SFW toggle changes
+    open_in_studio = Signal(str)   # asset_id
+    open_in_preview = Signal(str)  # asset_id
 
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
@@ -75,6 +77,8 @@ class ImagePreviewPanel(QWidget):
         self._preview_label.setMinimumSize(PREVIEW_SIZE, PREVIEW_SIZE)
         self._preview_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._preview_label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._preview_label.customContextMenuRequested.connect(self._preview_context_menu)
         layout.addWidget(self._preview_label, 1)
 
         # -- Image order strip (for multi-image posts) --
@@ -360,7 +364,8 @@ class ImagePreviewPanel(QWidget):
             self._preview_label.setText("Cannot load image")
 
     def _apply_scaled_pixmap(self) -> None:
-        """Scale the current pixmap (raw or censored) to fill the preview label."""
+        """Scale the current pixmap (raw or censored) to fill the preview label.
+        Draws crop/note overlays on the scaled result."""
         pm = self._censored_pm if self._showing_censored else self._raw_pm
         if not pm or pm.isNull():
             return
@@ -372,7 +377,65 @@ class ImagePreviewPanel(QWidget):
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
+        # Draw crop/note overlays if asset has them
+        if self._assets and (self._assets[0].crops or self._assets[0].notes):
+            from PySide6.QtGui import QPainter, QPen, QColor, QFont as _QFont
+            from PySide6.QtCore import QRectF
+            asset = self._assets[0]
+            sx = scaled.width() / pm.width() if pm.width() else 1
+            sy = scaled.height() / pm.height() if pm.height() else 1
+            result = QPixmap(scaled)  # copy
+            painter = QPainter(result)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            # Draw crops
+            crop_pen = QPen(QColor(255, 200, 80, 200), 2)
+            for crop in asset.crops:
+                r = QRectF(crop.x * sx, crop.y * sy, crop.w * sx, crop.h * sy)
+                painter.setPen(crop_pen)
+                painter.drawRect(r)
+                painter.setPen(QColor(255, 200, 80, 160))
+                font = painter.font()
+                font.setPointSize(8)
+                painter.setFont(font)
+                painter.drawText(r.adjusted(3, 2, 0, 0), Qt.AlignmentFlag.AlignTop, crop.label)
+            # Draw note markers
+            note_pen = QPen(QColor(190, 149, 92, 180), 2)
+            import re
+            pattern = re.compile(r'\[(\d+),(\d+)\s+(\d+)x(\d+)\]\s*(.*)')
+            for line in (asset.notes or "").split("\n"):
+                m = pattern.match(line.strip())
+                if m:
+                    x, y, w, h = int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
+                    r = QRectF(x * sx, y * sy, w * sx, h * sy)
+                    painter.setPen(note_pen)
+                    painter.drawRect(r)
+            painter.end()
+            scaled = result
         self._preview_label.setPixmap(scaled)
+
+    def _preview_context_menu(self, pos):
+        """Right-click menu on the preview thumbnail."""
+        if not self._assets:
+            return
+        asset = self._assets[0]
+        menu = QMenu(self)
+        menu.addAction("Open in Studio", lambda: self.open_in_studio.emit(asset.id))
+        menu.addAction("Open in Preview", lambda: self.open_in_preview.emit(asset.id))
+        menu.addSeparator()
+        menu.addAction(f"Copy Path", lambda: (
+            __import__('PySide6.QtWidgets', fromlist=['QApplication']).QApplication.clipboard().setText(asset.source_path)
+        ))
+        if asset.notes:
+            menu.addSeparator()
+            notes_short = asset.notes[:60].replace('\n', ' ')
+            note_act = menu.addAction(f"Notes: {notes_short}...")
+            note_act.setEnabled(False)
+        if asset.crops:
+            menu.addSeparator()
+            for crop in asset.crops:
+                crop_act = menu.addAction(f"Crop: {crop.label} ({crop.w}x{crop.h})")
+                crop_act.setEnabled(False)
+        menu.exec(self._preview_label.mapToGlobal(pos))
 
     def resizeEvent(self, event):
         """Re-scale preview when panel is resized."""
