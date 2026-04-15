@@ -62,6 +62,12 @@ class _RemovableMenu(QMenu):
         super().mousePressEvent(event)
 
 
+class _NarrowTabWidget(QTabWidget):
+    """QTabWidget that doesn't force width to the widest tab's minimumSizeHint."""
+    def minimumSizeHint(self):
+        return QSize(200, 200)
+
+
 class MainWindow(QMainWindow):
     _open_windows: list["MainWindow"] = []  # keep extra windows alive (prevent GC)
 
@@ -155,12 +161,6 @@ class MainWindow(QMainWindow):
         _proj_bar_row.addWidget(self._new_tab_btn)
 
         # --- Main layout: tabs + tray splitter ---
-        # Subclass QTabWidget so minimumSizeHint only considers the active tab,
-        # not the max of all tabs (which blocks narrowing for vertical screens).
-        class _NarrowTabWidget(QTabWidget):
-            def minimumSizeHint(self):
-                from PySide6.QtCore import QSize
-                return QSize(200, 200)
         self.tabs = _NarrowTabWidget()
         self.work_tray = WorkTray()
         self._tray_open = False
@@ -5246,7 +5246,8 @@ Ctrl+Click tag — Search by tag
         old = self._asset_watcher.files()
         if old:
             self._asset_watcher.removePaths(old)
-        paths = [a.source_path for a in self.project.assets if Path(a.source_path).exists()]
+        # addPaths silently ignores non-existent paths — no need to stat each file
+        paths = [a.source_path for a in self.project.assets if a.source_path]
         if paths:
             self._asset_watcher.addPaths(paths)
 
@@ -5541,8 +5542,11 @@ Ctrl+Click tag — Search by tag
         """Heavy I/O deferred from _rebind_project — runs after the UI paints."""
         self._watch_asset_files()
         self._watch_import_folders()
-        # Render notes markdown previews
-        for tab_name, (preview, editor, _) in self._notes_tab_widgets.items():
+        # Render only the active notes tab preview (others render lazily on switch)
+        active_idx = self._notes_tabs.currentIndex()
+        active_name = self._notes_tabs.tabText(active_idx) if active_idx >= 0 else ""
+        if active_name in self._notes_tab_widgets:
+            preview, editor, _ = self._notes_tab_widgets[active_name]
             text = editor.toPlainText()
             if text:
                 self._render_notes_preview_to(preview, text)

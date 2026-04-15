@@ -1806,6 +1806,10 @@ class AssetBrowser(QWidget):
     def toggle_tag_bar(self):
         self._tag_bar_toggle_btn.setChecked(not self._tag_bar_toggle_btn.isChecked())
 
+    def _mark_dirty(self):
+        """Signal the main window that project data changed."""
+        self._mark_dirty()
+
     def _on_link_mode_toggled(self, checked: bool):
         self._link_mode = checked
         if not checked:
@@ -1854,10 +1858,7 @@ class AssetBrowser(QWidget):
         for a in assets:
             a.specs["variant_set"] = set_id
         self._refresh_grid()
-        try:
-            self.window()._dirty = True
-        except Exception:
-            pass
+        self._mark_dirty()
 
     def _select_ids(self, ids: list[str]):
         """Hard-select a list of asset IDs in the grid."""
@@ -1878,19 +1879,13 @@ class AssetBrowser(QWidget):
                 a.specs.pop("duplicate_keep", None)
         asset.specs["duplicate_keep"] = True
         self._refresh_grid()
-        try:
-            self.window()._dirty = True
-        except Exception:
-            pass
+        self._mark_dirty()
 
     def _unlink_duplicate(self, asset):
         asset.specs.pop("duplicate_group", None)
         asset.specs.pop("duplicate_keep", None)
         self._refresh_grid()
-        try:
-            self.window()._dirty = True
-        except Exception:
-            pass
+        self._mark_dirty()
 
     def _dissolve_duplicate_group(self, group_id: str):
         for a in self.project.assets:
@@ -1898,28 +1893,19 @@ class AssetBrowser(QWidget):
                 a.specs.pop("duplicate_group", None)
                 a.specs.pop("duplicate_keep", None)
         self._refresh_grid()
-        try:
-            self.window()._dirty = True
-        except Exception:
-            pass
+        self._mark_dirty()
 
     def _unlink_variant(self, asset):
         asset.specs.pop("variant_set", None)
         self._refresh_grid()
-        try:
-            self.window()._dirty = True
-        except Exception:
-            pass
+        self._mark_dirty()
 
     def _dissolve_variant_set(self, set_id: str):
         for a in self.project.assets:
             if a.specs.get("variant_set") == set_id:
                 a.specs.pop("variant_set", None)
         self._refresh_grid()
-        try:
-            self.window()._dirty = True
-        except Exception:
-            pass
+        self._mark_dirty()
 
     def _on_scroll_idle(self):
         """400ms after scrolling stops — promote visible items to front of queue."""
@@ -2350,16 +2336,19 @@ class AssetBrowser(QWidget):
         self.count_label.setText(f"{shown}/{total} shown, {starred}★, {tagged} tagged{filtered_marker}")
         self.page_label.setText(f"{shown} images")
 
-        # Rebuild group/variant lookup indexes
+        # Rebuild group/variant lookup indexes + used tag cache
         self._duplicate_groups.clear()
         self._variant_sets.clear()
+        used_tags: set[str] = set()
         for a in self.project.assets:
+            used_tags.update(a.tags)
             dg = a.specs.get("duplicate_group")
             if dg:
                 self._duplicate_groups.setdefault(dg, []).append(a.id)
             vs = a.specs.get("variant_set")
             if vs:
                 self._variant_sets.setdefault(vs, []).append(a.id)
+        self._used_tag_ids = used_tags
 
     def _rebuild_folder_sections(self, saved_ids=None):
         """Rebuild per-folder QListView sections, grouped under import-source roots."""
@@ -3171,7 +3160,7 @@ class AssetBrowser(QWidget):
         # Quick Tag submenu — used/custom tags flat at top, unused presets in "More Tags"
         all_tags_map = self.project.get_tags()
         custom_tag_ids = set(self.project.tag_definitions.keys())
-        used_tag_ids = {t for a in self.project.assets for t in a.tags}
+        used_tag_ids = getattr(self, '_used_tag_ids', set())
         # "Active" = custom-defined OR actually used on assets — shown flat
         active_tags = [t for t in all_tags_map.values()
                        if t.id in custom_tag_ids or t.id in used_tag_ids]
@@ -3291,10 +3280,7 @@ class AssetBrowser(QWidget):
     def _set_assignment_status(self, pa, status: str):
         pa.status = status
         self._refresh_grid()
-        try:
-            self.window()._dirty = True
-        except Exception:
-            pass
+        self._mark_dirty()
 
     def _delete_from_disk(self, asset):
         """Permanently delete file from disk + remove from project. Requires confirmation."""
@@ -3423,10 +3409,7 @@ class AssetBrowser(QWidget):
         self.project.assets = [a for a in self.project.assets if a.id not in ids]
         self._selected_ids.clear()
         self._refresh_grid()
-        try:
-            self.window()._dirty = True
-        except Exception:
-            pass
+        self._mark_dirty()
 
     def _delete_selected_from_disk(self):
         """Permanently delete all selected files from disk + remove from project."""
@@ -3454,10 +3437,7 @@ class AssetBrowser(QWidget):
         self.project.assets = [a for a in self.project.assets if a.id not in ids]
         self._selected_ids.clear()
         self._refresh_grid()
-        try:
-            self.window()._dirty = True
-        except Exception:
-            pass
+        self._mark_dirty()
 
     # --- Hover preview ---
 

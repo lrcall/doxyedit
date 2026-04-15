@@ -3,7 +3,7 @@ from pathlib import Path
 import uuid
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame, QSizePolicy, QSplitter, QStackedWidget,
+    QScrollArea, QFrame, QSizePolicy, QSplitter,
     QProgressBar, QGridLayout, QComboBox, QDialog, QLineEdit,
     QDateEdit, QCheckBox, QDialogButtonBox, QInputDialog,
 )
@@ -485,77 +485,6 @@ class PlatformPanel(QWidget):
             f"{empty} empty"
         )
         self._rebuild_dashboard()
-
-    def _rebuild_hive(self, assign_map: dict):
-        """Rebuild the thumbnail hive from current assignments."""
-        # Clear previous thumbnails (keep trailing stretch)
-        while self._hive_layout.count() > 1:
-            item = self._hive_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        # Collect all (asset, slot_label, platform_name, status) in platform order
-        for pid in self.project.platforms:
-            platform = PLATFORMS.get(pid)
-            if not platform:
-                continue
-            for slot in platform.slots:
-                key = (pid, slot.name)
-                slot_entries = assign_map.get(key, [])
-                n = len(slot_entries)
-                for idx, (asset, pa) in enumerate(slot_entries):
-                    label = slot.label if n == 1 else f"{slot.label} {idx + 1}/{n}"
-                    cell = self._hive_cell(asset, label, platform.name, pa.status)
-                    self._hive_layout.insertWidget(self._hive_layout.count() - 1, cell)
-
-    def _hive_cell(self, asset, slot_label: str, plat_name: str, status: str) -> QWidget:
-        """One thumbnail cell in the image hive."""
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
-        _pad = max(4, _f // 3)
-        THUMB = 100
-        cell = QWidget()
-        cell.setFixedWidth(THUMB + 8)
-        cell.setCursor(Qt.CursorShape.PointingHandCursor)
-        cell.setToolTip(f"{plat_name} — {slot_label}\n{asset.source_path}")
-        v = QVBoxLayout(cell)
-        v.setContentsMargins(4, 4, 4, 4)
-        v.setSpacing(max(2, _pad // 2))
-
-        # Thumbnail
-        thumb = QLabel()
-        thumb.setObjectName("hive_thumb")
-        thumb.setFixedSize(THUMB, THUMB)
-        thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pm = self._thumb_cache.get(asset.id) if self._thumb_cache else None
-        if pm is None:
-            pm = QPixmap()
-        if not pm.isNull():
-            pm = pm.scaled(THUMB, THUMB, Qt.AspectRatioMode.KeepAspectRatio,
-                           Qt.TransformationMode.SmoothTransformation)
-            thumb.setPixmap(pm)
-        else:
-            thumb.setText("?")
-        v.addWidget(thumb)
-
-        # Slot label
-        slot_lbl = QLabel(slot_label)
-        slot_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        slot_lbl.setWordWrap(True)
-        slot_lbl.setProperty("role", "muted")
-        slot_lbl.setMaximumWidth(THUMB + 8)
-        v.addWidget(slot_lbl)
-
-        # Status dot
-        dot = QLabel(STATUS_ICONS.get(str(status), "·"))
-        dot.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        dot.setObjectName("hive_status_dot")
-        dot.setProperty("status", str(status))
-        v.addWidget(dot)
-
-        # Click → emit asset_selected — capture asset_id via default arg
-        asset_id = asset.id
-        cell.mousePressEvent = lambda _, _aid=asset_id: self.asset_selected.emit(_aid)
-        return cell
 
     def _build_card(self, platform, pid: str, assign_map: dict) -> QFrame:
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
