@@ -381,8 +381,9 @@ class MainWindow(QMainWindow):
         # Corner buttons: Preview/Edit toggle + Add tab
         _corner = QWidget()
         _corner_layout = QHBoxLayout(_corner)
-        _corner_layout.setContentsMargins(0, 0, _pad, 0)
-        _corner_layout.setSpacing(_pad)
+        _notes_pad = max(4, _f // 3)
+        _corner_layout.setContentsMargins(0, 0, _notes_pad, 0)
+        _corner_layout.setSpacing(_notes_pad)
 
         # Preview button removed — live side-by-side editor + preview
 
