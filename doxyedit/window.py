@@ -1660,7 +1660,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._filenames_actions = {a.text(): a for a in filenames_menu.actions()}
         self._fill_mode_action = display_sub.addAction("Fill Thumbnails (Crop)")
         self._fill_mode_action.setCheckable(True)
-        self._fill_mode_action.setChecked(False)
+        saved_fill = self._settings.value("fill_mode", False, type=bool)
+        self._fill_mode_action.setChecked(saved_fill)
+        self.browser._delegate.fill_mode = saved_fill
         self._fill_mode_action.toggled.connect(self._toggle_fill_mode)
 
         # Font & Size submenu
@@ -3808,6 +3810,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.browser._delegate.fill_mode = on
         self.browser._delegate.invalidate_cache()
         self.browser.active_view.viewport().update()
+        self._settings.setValue("fill_mode", on)
 
     def _toggle_show_hidden_only(self, checked: bool):
         self.browser.show_hidden_only = checked

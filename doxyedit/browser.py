@@ -536,9 +536,8 @@ class ThumbnailDelegate(QStyledItemDelegate):
         """Total height needed below the thumbnail (dots + dims + name + margins)."""
         return (self.below_dots_offset       # tag dots row
                 + self.dims_line_height      # dimensions text
-                + self.cell_padding          # gap
                 + self.name_line_height      # filename
-                + self.cell_padding)         # bottom margin
+                + self.cell_padding // 2)    # bottom margin
 
     def grid_size_for(self, thumb_size: int) -> QSize:
         """Return the proper grid cell size for a given thumbnail size."""
@@ -745,7 +744,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
                       option.state & QStyle.StateFlag.State_Selected)
         if _show_name:
             name = index.data(Qt.ItemDataRole.DisplayRole) or ""
-            name_top = self.below_dots_offset + self.dims_line_height + self.cell_padding
+            name_top = self.below_dots_offset + self.dims_line_height
             name_rect = QRect(rect.x() + self.cell_padding, rect.y() + ts + name_top,
                               rect.width() - self.cell_padding * 2 - self.star_size, self.name_line_height)
             painter.setPen(option.palette.text().color())
