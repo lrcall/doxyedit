@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QGraphicsScene, QGraphicsView, QGraphicsRectItem, QGraphicsPixmapItem,
     QGraphicsTextItem, QGraphicsLineItem, QComboBox, QFileDialog, QSlider,
     QFontComboBox, QSpinBox, QColorDialog, QInputDialog, QMenu,
+    QListWidget, QListWidgetItem, QSplitter,
 )
 from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal
 from PySide6.QtGui import (
@@ -743,6 +744,11 @@ class StudioEditor(QWidget):
             if key == Qt.Key.Key_H:
                 self._toggle_overlay_visibility()
                 return
+            elif key == Qt.Key.Key_L:
+                # Toggle layer panel
+                vis = self._layer_panel.isVisible()
+                self._layer_panel.setVisible(not vis)
+                return
 
         super().keyPressEvent(event)
 
@@ -1027,7 +1033,21 @@ class StudioEditor(QWidget):
         self._scene.get_crop_aspect = self._get_crop_aspect
         self._view = StudioView(self._scene)
         self._view.on_file_dropped = self._on_file_dropped
-        root.addWidget(self._view)
+
+        # Layer panel (right sidebar, collapsible)
+        self._layer_panel = QListWidget()
+        self._layer_panel.setObjectName("studio_layer_panel")
+        self._layer_panel.setMaximumWidth(200)
+        self._layer_panel.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+        self._layer_panel.itemClicked.connect(self._on_layer_clicked)
+
+        self._canvas_split = QSplitter(Qt.Orientation.Horizontal)
+        self._canvas_split.addWidget(self._view)
+        self._canvas_split.addWidget(self._layer_panel)
+        self._canvas_split.setSizes([800, 200])
+        self._canvas_split.setStretchFactor(0, 1)
+        self._canvas_split.setStretchFactor(1, 0)
+        root.addWidget(self._canvas_split)
 
         # Selection change -> update sliders + props row
         self._scene.selectionChanged.connect(self._on_selection_changed)
@@ -1109,6 +1129,9 @@ class StudioEditor(QWidget):
         if hasattr(self, '_asset_info'):
             size_mb = src.stat().st_size / (1024*1024) if src.exists() else 0
             self._asset_info.setText(f"{pm.width()}\u00d7{pm.height()} \u00b7 {src.suffix.upper().lstrip('.')} \u00b7 {size_mb:.1f}MB")
+
+        if hasattr(self, '_layer_panel'):
+            self._rebuild_layer_panel()
 
     def _set_zoom(self, factor: float):
         self._view.resetTransform()
@@ -1668,6 +1691,55 @@ class StudioEditor(QWidget):
         self._project.default_overlays.append(d)
         self.combo_template.addItem(label.strip())
 
+    # ---- layer panel ----
+
+    def _rebuild_layer_panel(self):
+        """Rebuild the layer list from current scene items."""
+        self._layer_panel.clear()
+        if not self._asset:
+            return
+
+        # Overlays (top of list = front)
+        for i, ov in enumerate(reversed(self._asset.overlays)):
+            if ov.type == "text":
+                label = f"T  {ov.text[:20]}" if ov.text else "T  (empty text)"
+            elif ov.type == "watermark":
+                label = f"W  {ov.label or Path(ov.image_path).stem}"
+            else:
+                label = f"O  {ov.label or ov.type}"
+            item = QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, ("overlay", len(self._asset.overlays) - 1 - i))
+            if not ov.enabled:
+                item.setForeground(Qt.GlobalColor.gray)
+            self._layer_panel.addItem(item)
+
+        # Censors
+        for i, cr in enumerate(self._asset.censors):
+            label = f"C  {cr.style} ({cr.w}\u00d7{cr.h})"
+            item = QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, ("censor", i))
+            self._layer_panel.addItem(item)
+
+    def _on_layer_clicked(self, item):
+        """Select the corresponding scene item when layer is clicked."""
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+        kind, idx = data
+        self._scene.clearSelection()
+        # Find matching scene item
+        for scene_item in self._scene.items():
+            if kind == "censor" and hasattr(scene_item, '_censor_region'):
+                if scene_item._censor_region is self._asset.censors[idx]:
+                    scene_item.setSelected(True)
+                    self._view.centerOn(scene_item)
+                    break
+            elif kind == "overlay" and hasattr(scene_item, 'overlay'):
+                if scene_item.overlay is self._asset.overlays[idx]:
+                    scene_item.setSelected(True)
+                    self._view.centerOn(scene_item)
+                    break
+
     # ---- sync ----
 
     def _sync_censors_to_asset(self):
@@ -1683,6 +1755,8 @@ class StudioEditor(QWidget):
                 w=int(r.width()), h=int(r.height()),
                 style=item.style,
             ))
+        if hasattr(self, '_layer_panel'):
+            self._rebuild_layer_panel()
 
     def _sync_overlays_to_asset(self):
         """Write overlay items back to asset.overlays."""
@@ -1691,6 +1765,8 @@ class StudioEditor(QWidget):
         self._asset.overlays.clear()
         for item in self._overlay_items:
             self._asset.overlays.append(item.overlay)
+        if hasattr(self, '_layer_panel'):
+            self._rebuild_layer_panel()
 
     # ---- actions ----
 
