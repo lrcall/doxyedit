@@ -172,7 +172,7 @@ class ResizableCropItem(QGraphicsRectItem):
             _lc.setAlpha(200)
             painter.setPen(_lc)
             font = painter.font()
-            font.setPointSize(_dt.font_size * 2)
+            font.setPixelSize(_dt.font_size)
             painter.setFont(font)
             painter.drawText(self.rect().adjusted(6, 4, 0, 0), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, self.label)
         # Draw handles if selected

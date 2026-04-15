@@ -1830,7 +1830,7 @@ class AssetBrowser(QWidget):
         self._format_filter = fmt
         if hasattr(self, '_format_combo'):
             # Match by case-insensitive search — handles "PSD", "Has Notes", etc.
-            lookup = "All" if not fmt else fmt
+            lookup = "All" if not fmt else fmt.title() if " " in fmt else fmt.upper()
             idx = self._format_combo.findText(lookup, Qt.MatchFlag.MatchFixedString)
             if idx >= 0:
                 self._format_combo.setCurrentIndex(idx)

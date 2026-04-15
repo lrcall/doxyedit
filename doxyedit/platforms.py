@@ -408,12 +408,14 @@ class PlatformPanel(QWidget):
 
         total_slots = filled_slots = posted_slots = 0
 
-        for i, (pid, platform) in enumerate(
+        placed = 0
+        for pid, platform in (
             (pid, PLATFORMS[pid]) for pid in self.project.platforms if pid in PLATFORMS
         ):
             if campaign_platform and pid != campaign_platform:
                 continue
-            col = self._col0 if i % 2 == 0 else self._col1
+            col = self._col0 if placed % 2 == 0 else self._col1
+            placed += 1
             col.addWidget(self._build_card(platform, pid, assign_map))
 
             for slot in platform.slots:
@@ -649,8 +651,18 @@ class PlatformPanel(QWidget):
 
         # Drag-drop support
         row.setAcceptDrops(True)
-        row.dragEnterEvent = lambda e, r=row: (e.acceptProposedAction() if e.mimeData().hasUrls() else None, r.setStyleSheet("background: rgba(110,170,120,40);"))
-        row.dragLeaveEvent = lambda e, r=row: r.setStyleSheet("")
+        def _drag_enter(e, r=row):
+            if e.mimeData().hasUrls():
+                e.acceptProposedAction()
+                r.setProperty("drag_hover", True)
+                r.style().unpolish(r)
+                r.style().polish(r)
+        def _drag_leave(e, r=row):
+            r.setProperty("drag_hover", False)
+            r.style().unpolish(r)
+            r.style().polish(r)
+        row.dragEnterEvent = _drag_enter
+        row.dragLeaveEvent = _drag_leave
         row.dropEvent = lambda e, p=pid, s=slot, r=row: self._on_slot_drop(e, p, s, r)
 
         return row

@@ -3254,7 +3254,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._toggle_dock_preview()
         # Load the current asset into the docked pane
         if self._preview_dlg and self._preview_dlg._asset:
-            self._preview_pane.load_asset(self._preview_dlg._asset)
+            self._preview_pane.show_asset(self._preview_dlg._asset)
 
     def _on_fast_cache_toggled(self, on: bool):
         self._settings.setValue("fast_cache", int(on))
