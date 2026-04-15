@@ -139,6 +139,16 @@ class DiskCache:
         except sqlite3.OperationalError:
             return (0, 0)
 
+    def has(self, path: str, size: int) -> bool:
+        """Fast check: does a cached thumbnail file exist? No image loading."""
+        key = _cache_key(path, size)
+        for ext in (_FAST_EXT, _STD_EXT):
+            if (self._dir / f"{key}{ext}").exists():
+                return True
+        if _global_index and _global_index.lookup(key):
+            return True
+        return False
+
     def get(self, path: str, size: int) -> tuple[QImage, int, int] | None:
         """Try to load a cached thumbnail. Returns (qimage, orig_w, orig_h) or None.
         Uses QImage (thread-safe) — caller converts to QPixmap in the GUI thread."""
@@ -507,15 +517,42 @@ class ThumbCache:
         self._gen_sizes.pop(asset_id, None)
         self._dims.pop(asset_id, None)
 
+    def _try_disk_hit(self, asset_id: str, path: str, size: int) -> bool:
+        """Check disk cache and load into memory if found. Returns True on hit."""
+        cached = self._disk_cache.get(path, size)
+        if cached:
+            qimg, w, h = cached
+            if not qimg.isNull():
+                self._pixmaps[asset_id] = QPixmap.fromImage(qimg)
+                self._pixmaps.move_to_end(asset_id)
+                self._gen_sizes[asset_id] = size
+                if w and h:
+                    self._dims[asset_id] = (w, h)
+                return True
+        return False
+
     def request(self, asset_id: str, path: str, size: int = THUMB_SIZE):
         if self._gen_sizes.get(asset_id, 0) >= size:
+            return
+        # Check disk cache before enqueuing to worker thread
+        if self._disk_cache.has(path, size) and self._try_disk_hit(asset_id, path, size):
             return
         self._worker.enqueue(asset_id, path, size)
 
     def request_batch(self, items: list[tuple[str, str]], size: int = THUMB_SIZE,
                       force: bool = False):
-        needed = [(aid, path, size) for aid, path in items
-                  if force or self._gen_sizes.get(aid, 0) < size]
+        if not force:
+            # Check disk cache first — load hits directly, only enqueue misses
+            still_needed = []
+            for aid, path in items:
+                if self._gen_sizes.get(aid, 0) >= size:
+                    continue
+                if self._disk_cache.has(path, size) and self._try_disk_hit(aid, path, size):
+                    continue
+                still_needed.append((aid, path, size))
+            needed = still_needed
+        else:
+            needed = [(aid, path, size) for aid, path in items]
         if needed:
             if force:
                 # Force-regen: invalidate memory cache entries too
