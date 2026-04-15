@@ -1263,19 +1263,53 @@ class StudioEditor(QWidget):
         self._update_info()
 
     def _apply_template(self, index: int):
-        """Load overlay preset from project.default_overlays."""
-        if index <= 0 or not self._project or not self._asset:
+        """Load overlay preset from project.default_overlays.
+
+        Recomputes position from the stored anchor + relative offset
+        so the template adapts to the current image dimensions.
+        """
+        if index <= 0 or not self._project or not self._asset or not self._pixmap_item:
             return
         tmpl_index = index - 1
         if tmpl_index >= len(self._project.default_overlays):
             return
-        tmpl = self._project.default_overlays[tmpl_index]
+        tmpl = dict(self._project.default_overlays[tmpl_index])
+
+        # Resolve position for this image
+        anchor_key = tmpl.pop("_template_position", tmpl.get("position", "custom"))
+        off_x = tmpl.pop("_template_offset_x", 0)
+        off_y = tmpl.pop("_template_offset_y", 0)
+
         ov = CanvasOverlay.from_dict(tmpl)
-        self._asset.overlays.append(ov)
+
+        # Create item first so we know its rendered size
         item = self._create_overlay_item(ov)
-        if item:
-            item.setZValue(200 + len(self._overlay_items))
-            self._overlay_items.append(item)
+        if not item:
+            self.combo_template.setCurrentIndex(0)
+            return
+
+        base_w = self._pixmap_item.pixmap().width()
+        base_h = self._pixmap_item.pixmap().height()
+        iw = item.boundingRect().width()
+        ih = item.boundingRect().height()
+        margin = 20
+        anchor_positions = {
+            "bottom-right": (base_w - iw - margin, base_h - ih - margin),
+            "bottom-left": (margin, base_h - ih - margin),
+            "top-right": (base_w - iw - margin, margin),
+            "top-left": (margin, margin),
+            "center": ((base_w - iw) / 2, (base_h - ih) / 2),
+        }
+        if anchor_key in anchor_positions:
+            ax, ay = anchor_positions[anchor_key]
+            ov.x = int(ax + off_x * base_w)
+            ov.y = int(ay + off_y * base_h)
+            ov.position = anchor_key
+            item.setPos(ov.x, ov.y)
+
+        item.setZValue(200 + len(self._overlay_items))
+        self._overlay_items.append(item)
+        self._asset.overlays.append(ov)
         self._update_info()
         self.combo_template.setCurrentIndex(0)
 
@@ -1502,16 +1536,45 @@ class StudioEditor(QWidget):
         self._sync_overlays_to_asset()
 
     def _save_as_template(self):
-        """Save selected overlay as a project template."""
+        """Save selected overlay as a reusable project template.
+
+        Converts absolute x,y to relative offsets from the position anchor
+        so the template works on images of any size.
+        """
         items = self._selected_overlay_items()
-        if not items or not self._project:
+        if not items or not self._project or not self._pixmap_item:
             return
-        ov = items[0].overlay
+        item = items[0]
+        ov = item.overlay
         label, ok = QInputDialog.getText(self, "Save Template", "Template label:")
         if not ok or not label.strip():
             return
         d = ov.to_dict()
         d["label"] = label.strip()
+
+        # Compute relative offset from anchor position
+        base_w = self._pixmap_item.pixmap().width()
+        base_h = self._pixmap_item.pixmap().height()
+        iw = item.boundingRect().width()
+        ih = item.boundingRect().height()
+        margin = 20
+        anchor_positions = {
+            "bottom-right": (base_w - iw - margin, base_h - ih - margin),
+            "bottom-left": (margin, base_h - ih - margin),
+            "top-right": (base_w - iw - margin, margin),
+            "top-left": (margin, margin),
+            "center": ((base_w - iw) / 2, (base_h - ih) / 2),
+        }
+        anchor_key = ov.position if ov.position in anchor_positions else "bottom-right"
+        ax, ay = anchor_positions[anchor_key]
+        # Store offset as fraction of image dimensions (resolution-independent)
+        d["_template_position"] = anchor_key
+        d["_template_offset_x"] = (ov.x - ax) / base_w if base_w else 0
+        d["_template_offset_y"] = (ov.y - ay) / base_h if base_h else 0
+        # Remove absolute coords — they'll be recomputed on apply
+        d.pop("x", None)
+        d.pop("y", None)
+
         self._project.default_overlays.append(d)
         self.combo_template.addItem(label.strip())
 
