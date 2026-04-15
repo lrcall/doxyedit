@@ -427,7 +427,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
         Every visual measurement in the thumbnail grid comes from here.
         Changing font_size rescales the entire layout proportionally.
         """
-        fs = self.font_size
+        font_size = self.font_size
 
         # ── Minimums (prevent unreadable UI at tiny font sizes) ────────
         MIN_PADDING            = 4       # smallest cell padding in px
@@ -442,10 +442,12 @@ class ThumbnailDelegate(QStyledItemDelegate):
         THUMB_CORNER_RATIO     = 0.25    # thumbnail rounded corner
         SELECT_BORDER_RATIO    = 0.17    # selection highlight thickness
         TAG_DOT_RATIO          = 0.5     # tag dot radius
+        TAG_DOT_SPACING_MULT   = 2.5     # dot spacing = dot_radius * this
         BADGE_RATIO            = 1.2     # badge square size
         BADGE_CORNER_RATIO     = 0.33    # badge rounded corner
         BADGE_FONT_RATIO       = 0.7     # badge label font
         READINESS_DOT_RATIO    = 0.25    # readiness indicator radius
+        READINESS_DOT_SPACING_MULT = 3.0 # readiness dot spacing = radius * this
         DIMS_FONT_RATIO        = 0.75    # dimensions text font
         DIMS_HEIGHT_RATIO      = 1.3     # dimensions line height
         NAME_FONT_RATIO        = 0.85    # filename font
@@ -455,44 +457,44 @@ class ThumbnailDelegate(QStyledItemDelegate):
 
         # ── Derived measurements ──────────────────────────────────────
         # Layout spacing
-        self.cell_padding = max(MIN_PADDING, int(fs * PADDING_RATIO))
+        self.cell_padding = max(MIN_PADDING, int(font_size * PADDING_RATIO))
         self.badge_corner_inset = self.cell_padding // 2
 
         # Thumbnail
-        self.thumb_corner = max(MIN_CORNER, int(fs * THUMB_CORNER_RATIO))
+        self.thumb_corner = max(MIN_CORNER, int(font_size * THUMB_CORNER_RATIO))
 
         # Selection highlight
-        self.selection_border_width = max(1, int(fs * SELECT_BORDER_RATIO))  # min 1px always visible
+        self.selection_border_width = max(1, int(font_size * SELECT_BORDER_RATIO))
         self.selection_fill_alpha = self._theme.grid_selection_alpha
         self.selection_border_alpha = self._theme.grid_selection_border_alpha
         self.hover_fill_alpha = self._theme.grid_hover_alpha
 
         # Tag dots (colored circles below thumbnail)
-        self.tag_dot_radius = max(MIN_DOT, int(fs * TAG_DOT_RATIO))
-        self.tag_dot_spacing = self.tag_dot_radius * 2 + self.tag_dot_radius // 2
+        self.tag_dot_radius = max(MIN_DOT, int(font_size * TAG_DOT_RATIO))
+        self.tag_dot_spacing = int(self.tag_dot_radius * TAG_DOT_SPACING_MULT)
         self.tag_dot_outline_width = self._theme.grid_dot_outline_width
         self.dot_outline_alpha = self._theme.grid_dot_outline_alpha
 
         # Status badges (top corners of thumbnail)
-        self.badge_size = max(MIN_BADGE, int(fs * BADGE_RATIO))
-        self.badge_corner = max(MIN_CORNER, int(fs * BADGE_CORNER_RATIO))
-        self.badge_font_size = max(MIN_FONT, int(fs * BADGE_FONT_RATIO))
+        self.badge_size = max(MIN_BADGE, int(font_size * BADGE_RATIO))
+        self.badge_corner = max(MIN_CORNER, int(font_size * BADGE_CORNER_RATIO))
+        self.badge_font_size = max(MIN_FONT, int(font_size * BADGE_FONT_RATIO))
         self.badge_bg_alpha = self._theme.grid_badge_alpha
 
         # Readiness dots (tiny platform status indicators)
-        self.readiness_dot_radius = max(MIN_READINESS_DOT, int(fs * READINESS_DOT_RATIO))
-        self.readiness_dot_spacing = self.readiness_dot_radius * 3
+        self.readiness_dot_radius = max(MIN_READINESS_DOT, int(font_size * READINESS_DOT_RATIO))
+        self.readiness_dot_spacing = int(self.readiness_dot_radius * READINESS_DOT_SPACING_MULT)
 
         # Below-thumbnail text area
         self.below_dots_offset = self.cell_padding + self.tag_dot_radius * 2 + self.cell_padding
-        self.dims_font_size = max(MIN_FONT, int(fs * DIMS_FONT_RATIO))
-        self.dims_line_height = int(fs * DIMS_HEIGHT_RATIO)
-        self.name_font_size = max(MIN_FONT + 1, int(fs * NAME_FONT_RATIO))
-        self.name_line_height = int(fs * NAME_HEIGHT_RATIO)
+        self.dims_font_size = max(MIN_FONT, int(font_size * DIMS_FONT_RATIO))
+        self.dims_line_height = int(font_size * DIMS_HEIGHT_RATIO)
+        self.name_font_size = max(MIN_FONT + 1, int(font_size * NAME_FONT_RATIO))
+        self.name_line_height = int(font_size * NAME_HEIGHT_RATIO)
 
         # Star icon
-        self.star_font_size = int(fs * STAR_FONT_RATIO)
-        self.star_size = int(fs * STAR_SIZE_RATIO)
+        self.star_font_size = int(font_size * STAR_FONT_RATIO)
+        self.star_size = int(font_size * STAR_SIZE_RATIO)
         self.star_empty_alpha = self._theme.grid_star_empty_alpha
 
         # Placeholder (no thumbnail loaded)
@@ -511,8 +513,11 @@ class ThumbnailDelegate(QStyledItemDelegate):
         return self._fms[size]
 
     def sizeHint(self, option, index):
-        # Below-thumb area: tag dots + dims + filename + star = ~5x font_size
-        below = max(50, self.font_size * 5)
+        below = (self.below_dots_offset       # tag dots row
+                 + self.dims_line_height       # dimensions text
+                 + self.cell_padding           # gap
+                 + self.name_line_height       # filename
+                 + self.cell_padding)          # bottom margin
         return QSize(self.thumb_size + 2 * self.cell_padding,
                      self.thumb_size + below)
 
@@ -697,7 +702,6 @@ class ThumbnailDelegate(QStyledItemDelegate):
                 readiness_x += self.readiness_dot_spacing
 
         # Dimensions text
-        fs = self.font_size
         if self.show_dims:
             dims = index.data(ThumbnailModel.DimsRole)
             dim_text = f"{dims[0]}x{dims[1]}" if dims else ""
@@ -714,7 +718,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
                       option.state & QStyle.StateFlag.State_Selected)
         if _show_name:
             name = index.data(Qt.ItemDataRole.DisplayRole) or ""
-            name_top = self.below_dots_offset + fs + self.cell_padding
+            name_top = self.below_dots_offset + self.dims_line_height + self.cell_padding
             name_rect = QRect(rect.x() + self.cell_padding, rect.y() + ts + name_top,
                               rect.width() - self.cell_padding * 2 - self.star_size, self.name_line_height)
             painter.setPen(option.palette.text().color())
@@ -733,7 +737,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
             painter.setPen(_star_empty)
         painter.setFont(self._font(self.star_font_size))
         star_rect = QRect(rect.right() - self.star_size - self.cell_padding,
-                          rect.y() + ts + self.below_dots_offset + fs,
+                          rect.y() + ts + self.below_dots_offset + self.dims_line_height,
                           self.star_size, self.star_size)
         painter.drawText(star_rect, Qt.AlignmentFlag.AlignCenter, star_char)
 
