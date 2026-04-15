@@ -343,26 +343,21 @@ class PlatformPanel(QWidget):
 
         right_layout.addLayout(actions_bar)
 
-        # Top bar: summary + view toggle
+        # Top bar: summary
         top_bar = QHBoxLayout()
         self.summary_label = QLabel()
         self.summary_label.setProperty("role", "muted")
         top_bar.addWidget(self.summary_label, 1)
-        self._view_toggle = QPushButton("Dashboard")
-        self._view_toggle.setFixedWidth(int(_f * PLATFORM_VIEW_TOGGLE_RATIO))
-        self._view_toggle.setCheckable(True)
-        self._view_toggle.setToolTip("Toggle between card and dashboard views")
-        self._view_toggle.toggled.connect(self._on_view_toggled)
-        top_bar.addWidget(self._view_toggle)
         right_layout.addLayout(top_bar)
 
-        self._stack = QStackedWidget()
-        right_layout.addWidget(self._stack, 1)
+        # Side-by-side: cards left, dashboard right
+        self._plat_hsplit = QSplitter(Qt.Orientation.Horizontal)
+        right_layout.addWidget(self._plat_hsplit, 1)
 
-        # ── Page 0: Cards view (existing) ─────────────────────────────────
+        # ── Left: Cards view ─────────────────────────────────────────────
         cards_page = QWidget()
         cards_layout = QVBoxLayout(cards_page)
-        cards_layout.setContentsMargins(0, 0, 0, 0)  # scroll area provides framing
+        cards_layout.setContentsMargins(0, 0, 0, 0)
 
         self._vsplit = QSplitter(Qt.Orientation.Vertical)
         cards_layout.addWidget(self._vsplit)
@@ -391,9 +386,14 @@ class PlatformPanel(QWidget):
         self._vsplit.setStretchFactor(0, 1)
         self._vsplit.setStretchFactor(1, 0)
 
-        self._stack.addWidget(cards_page)
+        self._plat_hsplit.addWidget(cards_page)
 
-        # ── Page 1: Dashboard view ──────────────────────────��─────────────
+        # ── Right: Dashboard view ────────────────────────────────────────
+        dash_container = QWidget()
+        dash_outer = QVBoxLayout(dash_container)
+        dash_outer.setContentsMargins(0, 0, 0, 0)
+        dash_outer.setSpacing(0)
+
         self._dash_scroll = QScrollArea()
         self._dash_scroll.setWidgetResizable(True)
         self._dash_scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -403,15 +403,13 @@ class PlatformPanel(QWidget):
         self._dash_layout.setSpacing(_pad_lg * 2)
         self._dash_layout.addStretch()
         self._dash_scroll.setWidget(self._dash_widget)
-        self._stack.addWidget(self._dash_scroll)
+        dash_outer.addWidget(self._dash_scroll, 1)
+        self._plat_hsplit.addWidget(dash_container)
+
+        # Default split: 60% cards, 40% dashboard
+        self._plat_hsplit.setSizes([600, 400])
 
         self.refresh()
-
-    def _on_view_toggled(self, checked: bool):
-        self._stack.setCurrentIndex(1 if checked else 0)
-        self._view_toggle.setText("Cards" if checked else "Dashboard")
-        if checked:
-            self._rebuild_dashboard()
 
     def _on_campaign_modified(self):
         """Called when CampaignBar changes data — refresh cards and propagate."""
@@ -486,7 +484,7 @@ class PlatformPanel(QWidget):
             f"{posted_slots} posted  ·  "
             f"{empty} empty"
         )
-        # Hive removed
+        self._rebuild_dashboard()
 
     def _rebuild_hive(self, assign_map: dict):
         """Rebuild the thumbnail hive from current assignments."""
@@ -937,6 +935,9 @@ class PlatformPanel(QWidget):
                 pm = pm.scaled(THUMB, THUMB, Qt.AspectRatioMode.KeepAspectRatio,
                                Qt.TransformationMode.SmoothTransformation)
                 thumb_lbl.setPixmap(pm)
+            elif self._thumb_cache and asset.source_path:
+                # Request generation — will appear next time dashboard is rebuilt
+                self._thumb_cache.request(asset.id, asset.source_path)
             cell.setCursor(Qt.CursorShape.PointingHandCursor)
             _aid = asset.id
             cell.mousePressEvent = lambda _, _aid=_aid: self.asset_selected.emit(_aid)
