@@ -1533,6 +1533,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         tools_menu.addAction("Test Engagement Windows", self._test_engagement)
         tools_menu.addAction("Find Duplicate Files...", self._find_duplicates)
         tools_menu.addAction("Find Similar Images (Perceptual)...", self._find_similar)
+        tools_menu.addAction("Auto-Link Variants by Filename...", self._auto_link_by_filename)
         tools_menu.addSeparator()
 
         # — Cache submenu —
@@ -4634,6 +4635,24 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             remove_btn.clicked.connect(_remove_dupes)
             btn_row.addWidget(remove_btn)
 
+            link_btn = QPushButton("Link as Duplicate Groups")
+            link_btn.setToolTip("Write duplicate_group IDs to asset specs for Link Mode highlighting")
+            def _link_dupes():
+                for group in dupe_groups:
+                    h = hashlib.md5(Path(group[0].source_path).read_bytes()).hexdigest()
+                    for i, asset in enumerate(group):
+                        asset.specs["duplicate_group"] = h
+                        if i == 0:
+                            asset.specs["duplicate_keep"] = True
+                        else:
+                            asset.specs.pop("duplicate_keep", None)
+                self._dirty = True
+                self.browser.refresh()
+                self.status.showMessage(f"Linked {len(dupe_groups)} duplicate group(s)", 3000)
+                dlg.accept()
+            link_btn.clicked.connect(_link_dupes)
+            btn_row.addWidget(link_btn)
+
         btn_row.addStretch()
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(dlg.reject)
@@ -4753,6 +4772,21 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         tag_btn.clicked.connect(do_tag)
         btn_row.addWidget(tag_btn)
 
+        import uuid as _uuid
+        link_btn = QPushButton(f"Create Variant Sets ({len(similar_groups)} groups)")
+        link_btn.setToolTip("Write variant_set IDs to asset specs for Link Mode highlighting")
+        def do_link_variants():
+            for group in similar_groups:
+                set_id = "vs_" + _uuid.uuid4().hex[:8]
+                for asset in group:
+                    asset.specs["variant_set"] = set_id
+            self._dirty = True
+            self.browser.refresh()
+            self.status.showMessage(f"Created {len(similar_groups)} variant set(s)", 3000)
+            dlg.accept()
+        link_btn.clicked.connect(do_link_variants)
+        btn_row.addWidget(link_btn)
+
         remove_btn = QPushButton(f"Remove {total_variants} variants from project")
         def do_remove():
             if QMessageBox.question(self, "Remove Variants",
@@ -4772,6 +4806,80 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         close_btn.clicked.connect(dlg.reject)
         btn_row.addWidget(close_btn)
 
+        layout.addLayout(btn_row)
+        dlg.exec()
+
+    def _auto_link_by_filename(self):
+        """Group assets by shared filename stem and propose variant sets."""
+        import re
+        import uuid as _uuid
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel
+
+        STRIP_PATTERN = re.compile(
+            r'[_\-\s]*(0*\d{1,3}|v\d+|final|draft|wip|nsfw|sfw|color|bw|'
+            r'sketch|lineart|flat|rendered|clean|raw|alt|crop|web|hd|hq|lq)$',
+            re.IGNORECASE)
+
+        def canonical_stem(name: str) -> str:
+            stem = Path(name).stem
+            prev = ""
+            while stem != prev:
+                prev = stem
+                stem = STRIP_PATTERN.sub("", stem)
+            return stem.lower().strip("_- ")
+
+        groups: dict[str, list] = {}
+        for asset in self.project.assets:
+            cs = canonical_stem(asset.source_path)
+            if cs:
+                groups.setdefault(cs, []).append(asset)
+
+        proposable = {}
+        for stem, assets in groups.items():
+            unlinked = [a for a in assets if not a.specs.get("variant_set")]
+            if len(unlinked) >= 2:
+                proposable[stem] = unlinked
+
+        if not proposable:
+            QMessageBox.information(self, "Auto-Link", "No filename-based variant groups found.")
+            return
+
+        total_assets = sum(len(g) for g in proposable.values())
+        lines = [f"Found {len(proposable)} group(s) with {total_assets} assets\n"]
+        for stem, assets in sorted(proposable.items()):
+            lines.append(f"--- {stem} ({len(assets)} files) ---")
+            for a in assets:
+                lines.append(f"  {Path(a.source_path).name}")
+            lines.append("")
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Auto-Link Variants — {len(proposable)} groups")
+        dlg.resize(600, 450)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel(f"{len(proposable)} groups · {total_assets} assets"))
+
+        text = QTextEdit()
+        text.setReadOnly(True)
+        text.setPlainText("\n".join(lines))
+        layout.addWidget(text)
+
+        btn_row = QHBoxLayout()
+        link_btn = QPushButton(f"Create {len(proposable)} Variant Sets")
+        def do_link():
+            for assets in proposable.values():
+                set_id = "vs_" + _uuid.uuid4().hex[:8]
+                for a in assets:
+                    a.specs["variant_set"] = set_id
+            self._dirty = True
+            self.browser.refresh()
+            self.status.showMessage(
+                f"Created {len(proposable)} variant set(s) ({total_assets} assets)", 3000)
+            dlg.accept()
+        link_btn.clicked.connect(do_link)
+        btn_row.addWidget(link_btn)
+        close_btn = QPushButton("Cancel")
+        close_btn.clicked.connect(dlg.reject)
+        btn_row.addWidget(close_btn)
         layout.addLayout(btn_row)
         dlg.exec()
 
