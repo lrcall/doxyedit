@@ -560,8 +560,8 @@ class PlatformPanel(QWidget):
         # Slot label
         label_text = slot.label + (" *" if slot.required else "")
         name_lbl = QLabel(label_text)
-        name_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        h.addWidget(name_lbl, 3)
+        name_lbl.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        h.addWidget(name_lbl, 1)
 
         # Size badge
         size_lbl = QLabel(f"{slot.width}×{slot.height}")

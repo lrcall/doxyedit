@@ -213,8 +213,9 @@ class MainWindow(QMainWindow):
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
         self._browse_split.setChildrenCollapsible(True)
-        # File browser (left, hidden by default)
+        # File browser (left, hidden by default, capped width)
         self._file_browser = FileBrowserPanel()
+        self._file_browser.setMaximumWidth(int(self._font_size * 18))
         self._file_browser.folder_selected.connect(self._on_file_browser_folder)
         self._file_browser.import_requested.connect(
             lambda f: self.browser.import_folder(f))
@@ -251,22 +252,36 @@ class MainWindow(QMainWindow):
         self._browse_split.setStretchFactor(1, 0)  # tag panel
         self._browse_split.setStretchFactor(2, 1)  # browser (stretches)
         self._browse_split.setStretchFactor(3, 0)  # preview pane
-        saved_split = self._settings_early.value("splitter_sizes", None)
-        if saved_split:
-            sizes = [int(s) for s in saved_split]
-            # Strip 5th element from old layout (info_panel moved to sidebar)
-            if len(sizes) == 5:
-                sizes = sizes[:4]
-            if len(sizes) == 4:
-                self._browse_split.setSizes(sizes)
-            else:
-                self._browse_split.setSizes([0, 260, 1000, 400])
-        else:
-            self._browse_split.setSizes([0, 260, 1000, 400])
-        if self._settings_early.value("preview_docked", False, type=bool):
+        # Restore panel visibility and splitter sizes
+        files_vis = self._settings_early.value("file_browser_visible", False, type=bool)
+        tags_vis = self._settings_early.value("tags_panel_visible", True, type=bool)
+        preview_vis = self._settings_early.value("preview_docked", False, type=bool)
+        if preview_vis:
             self._preview_pane.show()
-        if self._settings_early.value("file_browser_visible", False, type=bool):
+        if files_vis:
             self._file_browser.show()
+        # Deferred splitter restore — Qt needs geometry to be finalized first
+        def _restore_browse_split():
+            saved_split = self._settings.value("splitter_sizes", None)
+            if saved_split:
+                sizes = [int(s) for s in saved_split]
+                if len(sizes) == 5:
+                    sizes = sizes[:4]
+                if len(sizes) == 4:
+                    if not files_vis:
+                        sizes[0] = 0
+                    if not tags_vis:
+                        sizes[1] = 0
+                    if not preview_vis:
+                        sizes[3] = 0
+                    self._browse_split.setSizes(sizes)
+            else:
+                self._browse_split.setSizes([
+                    220 if files_vis else 0,
+                    260 if tags_vis else 0,
+                    1000,
+                    300 if preview_vis else 0])
+        QTimer.singleShot(0, _restore_browse_split)
         # Restore collapsed folders state
         # Collapsed/hidden folders restored in _restore_last_project (after _rebind_project)
         # Restore collapsed tag sections
