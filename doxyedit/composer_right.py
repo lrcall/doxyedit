@@ -1468,9 +1468,14 @@ RULES:
         # ── Tab 4: Chrome Profiles ──
         chrome_tab = QWidget()
         chrome_tab.setObjectName("identity_tab_chrome")
-        chrome_layout = QVBoxLayout(chrome_tab)
+        chrome_scroll = QScrollArea()
+        chrome_scroll.setWidgetResizable(True)
+        chrome_scroll_inner = QWidget()
+        chrome_layout = QVBoxLayout(chrome_scroll_inner)
         chrome_form = QFormLayout()
+        chrome_form.setVerticalSpacing(max(6, _f_dlg // 2))
         chrome_layout.addLayout(chrome_form)
+        chrome_scroll.setWidget(chrome_scroll_inner)
 
         existing_profiles = identity.get("chrome_profiles", {})
         chrome_edits: dict[str, QLineEdit] = {}
@@ -1534,7 +1539,7 @@ RULES:
         chrome_layout.addLayout(btn_row)
         chrome_layout.addWidget(profile_list)
         chrome_layout.addStretch()
-        tabs.addTab(chrome_tab, "Chrome")
+        tabs.addTab(chrome_scroll, "Chrome")
 
         # ── Tab 5: Posting ──
         posting_tab = QWidget()
@@ -1570,7 +1575,61 @@ RULES:
 
         tabs.addTab(posting_tab, "Posting")
 
-        # ── Buttons ──
+        # ── Import/Export + Buttons ──
+        from PySide6.QtWidgets import QFileDialog as _QFD
+        btn_row = QHBoxLayout()
+        import_btn = QPushButton("Import...")
+        import_btn.setObjectName("identity_import_btn")
+        def _import_identity():
+            path, _ = _QFD.getOpenFileName(dlg, "Import Identity", "", "JSON (*.json)")
+            if not path:
+                return
+            import json
+            with open(path, "r", encoding="utf-8") as fh:
+                imported = json.load(fh)
+            # Fill fields from imported data
+            for key, e in edits.items():
+                e.setText(imported.get(key, ""))
+            if "hashtags" in imported:
+                hashtags_edit.setText(", ".join(imported["hashtags"]))
+            if "hashtags_ja" in imported:
+                hashtags_ja_edit.setText(", ".join(imported["hashtags_ja"]))
+            if not current:
+                name_edit.setText(imported.get("name", ""))
+            if "oneup_category" in imported and hasattr(dlg, '_cat_combo'):
+                for i in range(dlg._cat_combo.count()):
+                    if str(dlg._cat_combo.itemData(i)) == str(imported["oneup_category"]):
+                        dlg._cat_combo.setCurrentIndex(i)
+                        break
+        import_btn.clicked.connect(_import_identity)
+        btn_row.addWidget(import_btn)
+
+        export_btn = QPushButton("Export...")
+        export_btn.setObjectName("identity_export_btn")
+        def _export_identity():
+            export_name = name_edit.text().strip() or "identity"
+            path, _ = _QFD.getSaveFileName(dlg, "Export Identity", f"{export_name}.json", "JSON (*.json)")
+            if not path:
+                return
+            import json
+            data = dict(identity)
+            data["name"] = export_name
+            for key, e in edits.items():
+                val = e.text().strip()
+                if val:
+                    data[key] = val
+            ht = [t.strip() for t in hashtags_edit.text().split(",") if t.strip()]
+            if ht:
+                data["hashtags"] = ht
+            ht_ja = [t.strip() for t in hashtags_ja_edit.text().split(",") if t.strip()]
+            if ht_ja:
+                data["hashtags_ja"] = ht_ja
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(data, fh, ensure_ascii=False, indent=2)
+        export_btn.clicked.connect(_export_identity)
+        btn_row.addWidget(export_btn)
+        btn_row.addStretch()
+
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         if current:
@@ -1578,7 +1637,8 @@ RULES:
             del_btn.clicked.connect(lambda: self._delete_identity(current, dlg))
         buttons.accepted.connect(dlg.accept)
         buttons.rejected.connect(dlg.reject)
-        layout.addWidget(buttons)
+        btn_row.addWidget(buttons)
+        layout.addLayout(btn_row)
 
         result = dlg.exec()
         _settings.setValue("identity_editor_geometry", dlg.saveGeometry())
