@@ -1819,6 +1819,18 @@ def generate_stylesheet(theme: Theme) -> str:
         QListWidget#studio_layer_panel::item:hover {{
             background: {theme.bg_hover};
         }}
+        QScrollArea#studio_preview_scroll {{
+            background: {theme.bg_deep};
+            border: none;
+            border-top: 1px solid {theme.border};
+        }}
+        QWidget#studio_preview_strip {{
+            background: {theme.bg_deep};
+        }}
+        QLabel#studio_preview_thumb_label {{
+            color: {theme.text_secondary};
+            font-size: {max(9, theme.font_size - 2)}px;
+        }}
 
         /* ── Gantt panel ────────────────────────────────────────────── */
         QWidget#gantt_panel {{
