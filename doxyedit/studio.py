@@ -571,6 +571,27 @@ class StudioScene(QGraphicsScene):
     def set_tool(self, tool: StudioTool):
         self.current_tool = tool
 
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            # Clear any text item editing
+            focus = self.focusItem()
+            if focus and isinstance(focus, OverlayTextItem):
+                cursor = focus.textCursor()
+                cursor.clearSelection()
+                focus.setTextCursor(cursor)
+                focus.clearFocus()
+                focus.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+                focus.overlay.text = focus.toPlainText()
+            # Clear scene selection
+            self.clearSelection()
+            # Forward to editor for crop mask cleanup
+            if self.views():
+                view = self.views()[0]
+                if hasattr(view, '_studio_editor') and view._studio_editor:
+                    view._studio_editor._clear_escape_state()
+            return
+        super().keyPressEvent(event)
+
     def drawForeground(self, painter, rect):
         """Draw snap grid overlay when visible."""
         super().drawForeground(painter, rect)
