@@ -2432,27 +2432,26 @@ class StudioEditor(QWidget):
             QCoreApplication.processEvents()
             try:
                 img_crop = load_image_for_export(str(src_path))
-                # Apply censors that are global or scoped to match this crop label
+                # Determine which platform this crop belongs to
+                crop_lbl = crop.label.strip().lower()
+                # Apply ONLY censors that are global OR scoped to this crop's platform
                 applicable_censors = []
                 for cr in self._asset.censors:
                     if not cr.platforms:
                         applicable_censors.append(cr)
-                    elif crop.label and any(p.lower() in crop.label.lower() for p in cr.platforms):
+                    elif any(p.lower() == crop_lbl or crop_lbl in p.lower() or p.lower() in crop_lbl for p in cr.platforms):
                         applicable_censors.append(cr)
-                    elif cr.platforms:
-                        # Include if any scoped platform exists
-                        applicable_censors.append(cr)
+                    # else: scoped to different platform — SKIP
                 if applicable_censors:
                     img_crop = apply_censors(img_crop, applicable_censors)
-                # Apply overlays that are global or scoped
+                # Apply ONLY overlays that are global OR scoped to this crop's platform
                 applicable_overlays = []
                 for ov in self._asset.overlays:
                     if not ov.platforms:
                         applicable_overlays.append(ov)
-                    elif crop.label and any(p.lower() in crop.label.lower() for p in ov.platforms):
+                    elif any(p.lower() == crop_lbl or crop_lbl in p.lower() or p.lower() in crop_lbl for p in ov.platforms):
                         applicable_overlays.append(ov)
-                    elif ov.platforms:
-                        applicable_overlays.append(ov)
+                    # else: scoped to different platform — SKIP
                 if applicable_overlays:
                     img_crop = apply_overlays(img_crop, applicable_overlays, str(src_path.parent))
                 # Crop
