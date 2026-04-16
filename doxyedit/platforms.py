@@ -41,6 +41,8 @@ STATUS_BTN_PAD_H = 6                  # status button extra height (px)
 DASH_CELL_THUMB = 80                  # dashboard cell thumbnail size (px)
 DASH_CELL_PAD = 4                     # dashboard cell internal padding (px)
 DASH_CELL_EXTRA_W = 16                # dashboard cell extra width beyond thumb
+DASH_CELL_SPACING = 2                 # dashboard cell internal spacing (px)
+MIN_PROGRESS_HEIGHT = 14              # dashboard progress bar minimum height (px)
 
 
 class _DroppableSlotRow(QWidget):
@@ -188,7 +190,7 @@ class CampaignBar(QWidget):
         self._milestone_frame.setObjectName("campaign_milestones")
         self._ms_layout = QVBoxLayout(self._milestone_frame)
         self._ms_layout.setContentsMargins(0, _pad, 0, _pad)
-        self._ms_layout.setSpacing(2)
+        self._ms_layout.setSpacing(max(2, _pad // 2))
         outer.addWidget(self._milestone_frame)
 
         self._populate_combo()
@@ -612,7 +614,7 @@ class PlatformPanel(QWidget):
         row.customContextMenuRequested.connect(
             lambda pos, p=pid, s=slot, e=entries: self._slot_context_menu(row, pos, p, s, e))
         h = QHBoxLayout(row)
-        h.setContentsMargins(0, 1, 0, 1)
+        h.setContentsMargins(0, SLOT_ROW_MARGIN_V, 0, SLOT_ROW_MARGIN_V)
         h.setSpacing(_pad_lg)
 
         # Slot label
@@ -654,9 +656,10 @@ class PlatformPanel(QWidget):
                 preview.setObjectName("slot_preview_empty")
             h.insertWidget(1, preview)
         elif slot.width and slot.height:
-            thumb_w = int(60 * slot.width / slot.height) if slot.height else 60
+            _preview_h = PLATFORM_SLOT_PREVIEW_HEIGHT
+            thumb_w = int(_preview_h * slot.width / slot.height) if slot.height else _preview_h
             empty_prev = QLabel()
-            empty_prev.setFixedSize(thumb_w, 60)
+            empty_prev.setFixedSize(thumb_w, _preview_h)
             empty_prev.setAlignment(Qt.AlignmentFlag.AlignCenter)
             empty_prev.setText(f"{slot.width}×{slot.height}")
             empty_prev.setObjectName("slot_preview_dims")
@@ -850,7 +853,7 @@ class PlatformPanel(QWidget):
             progress.setRange(0, total)
             progress.setValue(filled)
             progress.setFormat(f"{filled}/{total} filled · {posted} posted")
-            progress.setFixedHeight(max(14, _f))
+            progress.setFixedHeight(max(MIN_PROGRESS_HEIGHT, _f))
             progress.setFixedWidth(int(_f * PLATFORM_PROGRESS_WIDTH_RATIO))
             header_row.addWidget(progress)
 
@@ -889,7 +892,7 @@ class PlatformPanel(QWidget):
         cell.setFixedWidth(DASH_CELL_THUMB + DASH_CELL_EXTRA_W)
         v = QVBoxLayout(cell)
         v.setContentsMargins(DASH_CELL_PAD, DASH_CELL_PAD, DASH_CELL_PAD, DASH_CELL_PAD)
-        v.setSpacing(2)
+        v.setSpacing(DASH_CELL_SPACING)
 
         # Thumbnail
         thumb_lbl = QLabel()
