@@ -750,6 +750,15 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.accent}; border-color: {theme.accent_bright};
         }}
 
+        QRadioButton {{ color: {theme.text_secondary}; font-size: {f}px; }}
+        QRadioButton::indicator {{
+            width: {cb}px; height: {cb}px; border: 1px solid {theme.border};
+            border-radius: {cb // 2}px; background: {theme.bg_input};
+        }}
+        QRadioButton::indicator:checked {{
+            background: {theme.accent}; border-color: {theme.accent_bright};
+        }}
+
         QTreeWidget {{
             background: {theme.bg_deep}; color: {theme.text_primary};
             border: none; font-size: {f}px;

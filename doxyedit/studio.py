@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QGraphicsScene, QGraphicsView, QGraphicsRectItem, QGraphicsPixmapItem,
     QGraphicsTextItem, QGraphicsLineItem, QComboBox, QFileDialog, QSlider,
     QFontComboBox, QSpinBox, QColorDialog, QInputDialog, QMenu,
-    QListWidget, QListWidgetItem, QSplitter,
+    QListWidget, QListWidgetItem, QSplitter, QScrollArea,
 )
 from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal
 from PySide6.QtGui import (
@@ -402,6 +402,20 @@ class OverlayTextItem(QGraphicsTextItem):
     def mouseDoubleClickEvent(self, event):
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
         super().mouseDoubleClickEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            cursor = self.textCursor()
+            cursor.clearSelection()
+            self.setTextCursor(cursor)
+            self.clearFocus()
+            self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+            self.overlay.text = self.toPlainText()
+            # Propagate to parent so StudioEditor also clears crop mask etc.
+            if self._editor:
+                self._editor._clear_escape_state()
+            return
+        super().keyPressEvent(event)
 
     def focusOutEvent(self, event):
         self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
@@ -872,19 +886,15 @@ class StudioEditor(QWidget):
 
         # Escape — deselect everything, clear crop mask, reset tool
         if key == Qt.Key.Key_Escape:
-            # Clear text editing focus
+            # Clear text editing focus and selection highlight
             focus = self._scene.focusItem()
             if focus and isinstance(focus, QGraphicsTextItem):
+                cursor = focus.textCursor()
+                cursor.clearSelection()
+                focus.setTextCursor(cursor)
                 focus.clearFocus()
                 focus.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-            # Deselect all
-            self._scene.clearSelection()
-            # Clear crop mask
-            if self._crop_mask_item and self._crop_mask_item.scene():
-                self._scene.removeItem(self._crop_mask_item)
-                self._crop_mask_item = None
-            # Reset to select tool
-            self._set_tool(StudioTool.SELECT)
+            self._clear_escape_state()
             return
 
         # Tool shortcuts (only when no modifier)
@@ -1084,10 +1094,6 @@ class StudioEditor(QWidget):
 
         toolbar.addStretch()
 
-        self.info_label = QLabel("No image loaded")
-        self.info_label.setObjectName("studio_info")
-        toolbar.addWidget(self.info_label)
-
         root.addLayout(toolbar)
 
         # Row 2: Overlay properties (visible when text/watermark selected)
@@ -1243,6 +1249,28 @@ class StudioEditor(QWidget):
         self._canvas_split.setStretchFactor(1, 0)
         root.addWidget(self._canvas_split, 1)
 
+        # Platform preview strip (collapsible)
+        self._preview_strip = QWidget()
+        self._preview_strip.setObjectName("studio_preview_strip")
+        self._preview_strip.setVisible(False)
+        self._preview_strip_layout = QHBoxLayout(self._preview_strip)
+        self._preview_strip_layout.setContentsMargins(_pad, _pad, _pad, _pad)
+        self._preview_strip_layout.setSpacing(_pad_lg)
+        self._preview_strip_scroll = QScrollArea()
+        self._preview_strip_scroll.setObjectName("studio_preview_scroll")
+        self._preview_strip_scroll.setWidgetResizable(True)
+        self._preview_strip_scroll.setFixedHeight(int(_dt.font_size * 10))
+        self._preview_strip_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._preview_strip_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._preview_strip_scroll.setWidget(self._preview_strip)
+        root.addWidget(self._preview_strip_scroll)
+        self._preview_strip_scroll.setVisible(False)
+
+        # Bottom status bar
+        self.info_label = QLabel("No image loaded")
+        self.info_label.setObjectName("studio_info")
+        root.addWidget(self.info_label)
+
         # Selection change -> update sliders + props row
         self._scene.selectionChanged.connect(self._on_selection_changed)
 
@@ -1332,6 +1360,14 @@ class StudioEditor(QWidget):
         self._view.resetTransform()
         self._view.scale(factor, factor)
         self._zoom_label.setText(f"{int(factor * 100)}%")
+
+    def _clear_escape_state(self):
+        """Shared cleanup for Escape — clear selection, crop mask, reset tool."""
+        self._scene.clearSelection()
+        if self._crop_mask_item and self._crop_mask_item.scene():
+            self._scene.removeItem(self._crop_mask_item)
+            self._crop_mask_item = None
+        self._set_tool(StudioTool.SELECT)
 
     # ---- tool management ----
 
@@ -2090,10 +2126,12 @@ class StudioEditor(QWidget):
 
         if self._project_path:
             from doxyedit.imaging import get_export_dir
-            export_dir = get_export_dir(self._project_path)
-            out = export_dir / f"{src_path.stem}_studio_preview.png"
+            export_dir = get_export_dir(self._project_path) / src_path.stem
+            export_dir.mkdir(parents=True, exist_ok=True)
+            out = export_dir / "studio_preview.png"
             img.save(str(out))
-            self.info_label.setText(f"Exported: {out.name} → _assets/")
+            self.info_label.setText(f"Exported: {src_path.stem}/studio_preview.png")
+            self._open_export_folder(export_dir)
         else:
             default_name = f"{src_path.stem}_studio_preview.png"
             path, _ = QFileDialog.getSaveFileName(
@@ -2123,6 +2161,61 @@ class StudioEditor(QWidget):
         msg += " → _assets/"
         self.info_label.setText(msg)
         self._rebuild_layer_panel()
+        self._populate_preview_strip(results)
+        if self._project_path:
+            from doxyedit.imaging import get_export_dir
+            self._open_export_folder(get_export_dir(self._project_path))
+
+    @staticmethod
+    def _open_export_folder(folder: Path):
+        """Open the export folder in the system file manager."""
+        import subprocess
+        subprocess.Popen(
+            ["explorer", str(folder)],
+            creationflags=0x08000000, encoding="utf-8", errors="replace",
+        )
+
+    def _populate_preview_strip(self, results):
+        """Fill the preview strip with thumbnails from export results."""
+        # Clear old thumbnails
+        while self._preview_strip_layout.count():
+            item = self._preview_strip_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        from doxyedit.models import PLATFORMS
+        thumb_h = self._preview_strip_scroll.height() - 30
+        any_shown = False
+        for r in results:
+            if not r.success or not r.output_path:
+                continue
+            p = Path(r.output_path)
+            if not p.exists():
+                continue
+            pm = QPixmap(str(p))
+            if pm.isNull():
+                continue
+            pm = pm.scaledToHeight(thumb_h, Qt.TransformationMode.SmoothTransformation)
+            frame = QWidget()
+            frame.setObjectName("studio_preview_thumb")
+            vl = QVBoxLayout(frame)
+            vl.setContentsMargins(0, 0, 0, 0)
+            vl.setSpacing(2)
+            img_label = QLabel()
+            img_label.setPixmap(pm)
+            img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            vl.addWidget(img_label)
+            plat = PLATFORMS.get(r.platform_id)
+            name = plat.name if plat else r.platform_id
+            txt = QLabel(f"{name}\n{r.width}×{r.height}")
+            txt.setObjectName("studio_preview_thumb_label")
+            txt.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            vl.addWidget(txt)
+            self._preview_strip_layout.addWidget(frame)
+            any_shown = True
+
+        self._preview_strip_layout.addStretch()
+        self._preview_strip_scroll.setVisible(any_shown)
 
     # ---- helpers ----
 

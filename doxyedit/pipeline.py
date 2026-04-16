@@ -289,7 +289,7 @@ def prepare_for_platform(
     else:
         out_base = Path("_exports")
 
-    out_dir = out_base / asset.id
+    out_dir = out_base / Path(asset.source_path).stem
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{platform_id}_{slot_name}.png"
     img.save(str(out_path), "PNG")
@@ -308,24 +308,25 @@ def batch_export_variants(
     project: Project,
     output_dir: str = "",
 ) -> list[PrepResult]:
-    """Export all platform variants for an asset. Populates asset.variant_exports."""
+    """Export all platform variants for an asset. Populates asset.variant_exports.
+
+    Exports every slot of every platform in the project.
+    """
     results = []
     asset.variant_exports.clear()
-    for pa in asset.assignments:
-        platform = PLATFORMS.get(pa.platform)
-        if not platform:
+    for pid in project.platforms:
+        platform = PLATFORMS.get(pid)
+        if not platform or not platform.slots:
             continue
-        slot_name = pa.slot or (platform.slots[0].name if platform.slots else "")
-        if not slot_name:
-            continue
-        r = prepare_for_platform(
-            asset, pa.platform, project,
-            slot_name=slot_name, output_dir=output_dir,
-        )
-        results.append(r)
-        if r.success:
-            key = f"{pa.platform}_{slot_name}"
-            asset.variant_exports[key] = r.output_path
+        for slot in platform.slots:
+            r = prepare_for_platform(
+                asset, pid, project,
+                slot_name=slot.name, output_dir=output_dir,
+            )
+            results.append(r)
+            if r.success:
+                key = f"{pid}_{slot.name}"
+                asset.variant_exports[key] = r.output_path
     return results
 
 

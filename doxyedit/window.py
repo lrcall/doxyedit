@@ -2732,7 +2732,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     continue
 
                 censor_override = None
-                if hasattr(post, 'censor_mode'):
+                if hasattr(post, 'nsfw_platforms') and pid in post.nsfw_platforms:
+                    censor_override = False  # NSFW platforms get uncensored
+                elif hasattr(post, 'censor_mode'):
                     if post.censor_mode == "uncensored":
                         censor_override = False
                     elif post.censor_mode == "custom":

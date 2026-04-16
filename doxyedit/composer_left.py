@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QCheckBox, QSizePolicy, QScrollArea, QMenu,
+    QFrame, QCheckBox, QSizePolicy, QScrollArea, QMenu, QComboBox,
 )
 from PySide6.QtCore import Qt, QSize, Signal
 from PySide6.QtGui import QPixmap
@@ -85,6 +85,13 @@ class ImagePreviewPanel(QWidget):
         layout.addLayout(mode_row)
 
         self._preview_mode = "raw"
+
+        # -- Platform variant selector (visible in platform mode) --
+        self._plat_variant_combo = QComboBox()
+        self._plat_variant_combo.setObjectName("composer_plat_variant")
+        self._plat_variant_combo.currentIndexChanged.connect(self._on_variant_changed)
+        self._plat_variant_combo.setVisible(False)
+        layout.addWidget(self._plat_variant_combo)
 
         # -- Large image preview --
         self._preview_label = QLabel()
@@ -243,6 +250,9 @@ class ImagePreviewPanel(QWidget):
         self._preview_mode = mode
         for btn, m in [(self._mode_raw, "raw"), (self._mode_studio, "studio"), (self._mode_platform, "platform")]:
             btn.setChecked(m == mode)
+        self._plat_variant_combo.setVisible(mode == "platform")
+        if mode == "platform":
+            self._rebuild_variant_combo()
         self._update_preview()
 
     def _generate_studio_preview(self) -> "QPixmap | None":
@@ -263,36 +273,52 @@ class ImagePreviewPanel(QWidget):
         except Exception:
             return None
 
-    def _generate_platform_preview(self) -> "QPixmap | None":
-        """Generate preview cropped to the first selected platform's dimensions."""
+    def _rebuild_variant_combo(self):
+        """Populate the platform variant dropdown from asset data."""
+        self._plat_variant_combo.blockSignals(True)
+        self._plat_variant_combo.clear()
         if not self._assets:
-            return None
+            self._plat_variant_combo.blockSignals(False)
+            return
         asset = self._assets[0]
-        from doxyedit.models import PLATFORMS
-        # Find the first platform that has a "post" slot
         for pa in asset.assignments:
             plat = PLATFORMS.get(pa.platform)
             if not plat:
                 continue
-            for slot in plat.slots:
-                if "post" in slot.name.lower() or slot == plat.slots[0]:
-                    try:
-                        from doxyedit.imaging import load_image_for_export, pil_to_qpixmap
-                        from doxyedit.exporter import apply_censors, apply_overlays
-                        img = load_image_for_export(asset.source_path)
-                        if asset.censors:
-                            img = apply_censors(img, asset.censors)
-                        if asset.overlays:
-                            img = apply_overlays(img, asset.overlays, str(Path(asset.source_path).parent))
-                        # Crop/resize to slot dimensions
-                        if pa.crop and pa.crop.w > 0:
-                            img = img.crop((pa.crop.x, pa.crop.y, pa.crop.x + pa.crop.w, pa.crop.y + pa.crop.h))
-                        if slot.width and slot.height:
-                            img = img.resize((slot.width, slot.height))
-                        return pil_to_qpixmap(img)
-                    except Exception:
-                        return None
-                    break
+            slot_name = pa.slot or (plat.slots[0].name if plat.slots else "")
+            label = plat.name + (f" / {slot_name}" if slot_name else "")
+            self._plat_variant_combo.addItem(label, (pa.platform, slot_name))
+        if self._plat_variant_combo.count() == 0:
+            self._plat_variant_combo.addItem("(no platform assignments)", None)
+        self._plat_variant_combo.blockSignals(False)
+
+    def _on_variant_changed(self, index: int):
+        if self._preview_mode == "platform":
+            self._update_preview()
+
+    def _generate_platform_preview(self) -> "QPixmap | None":
+        """Generate preview for the selected platform variant."""
+        if not self._assets:
+            return None
+        asset = self._assets[0]
+
+        # Check variant_exports first (pre-rendered by Studio batch export)
+        data = self._plat_variant_combo.currentData()
+        if data:
+            platform_id, slot_name = data
+            key = f"{platform_id}_{slot_name}"
+            export_path = asset.variant_exports.get(key, "")
+            if export_path and Path(export_path).exists():
+                return QPixmap(export_path)
+
+            # Fall back to pipeline on-the-fly
+            try:
+                from doxyedit.pipeline import prepare_for_platform
+                r = prepare_for_platform(asset, platform_id, self._project, slot_name=slot_name)
+                if r.success and r.output_path and Path(r.output_path).exists():
+                    return QPixmap(r.output_path)
+            except Exception:
+                pass
         # No platform assignment — just show studio version
         return self._generate_studio_preview()
 

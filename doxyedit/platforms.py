@@ -629,7 +629,7 @@ class PlatformPanel(QWidget):
         size_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         h.addWidget(size_lbl)
 
-        # Slot preview thumbnail at platform aspect ratio
+        # Slot preview thumbnail at platform aspect ratio (lazy loaded)
         if entries and slot.width and slot.height:
             asset, _ = entries[0]
             thumb_w = int(60 * slot.width / slot.height) if slot.height else 60
@@ -638,23 +638,29 @@ class PlatformPanel(QWidget):
             preview.setFixedSize(thumb_w, thumb_h)
             preview.setObjectName("slot_preview")
             preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            # Try to load thumbnail
-            pm = None
-            if self._thumb_cache:
-                pm = self._thumb_cache.get(asset.id)
-            if pm and not pm.isNull():
-                scaled = pm.scaled(thumb_w, thumb_h,
-                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                    Qt.TransformationMode.SmoothTransformation)
-                # Center crop
-                cx = (scaled.width() - thumb_w) // 2
-                cy = (scaled.height() - thumb_h) // 2
-                cropped = scaled.copy(cx, cy, thumb_w, thumb_h)
-                preview.setPixmap(cropped)
-            else:
-                preview.setText("?")
-                preview.setObjectName("slot_preview_empty")
+            preview.setText("…")
             h.insertWidget(1, preview)
+            # Lazy load thumbnail
+            from PySide6.QtCore import QTimer
+            _aid = asset.id
+            _tw, _th = thumb_w, thumb_h
+            _preview = preview
+            _cache = self._thumb_cache
+            def _load_thumb(aid=_aid, tw=_tw, th=_th, lbl=_preview, cache=_cache):
+                if not lbl or not lbl.isVisible():
+                    return
+                pm = cache.get(aid) if cache else None
+                if pm and not pm.isNull():
+                    scaled = pm.scaled(tw, th,
+                        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                        Qt.TransformationMode.SmoothTransformation)
+                    cx = (scaled.width() - tw) // 2
+                    cy = (scaled.height() - th) // 2
+                    lbl.setPixmap(scaled.copy(cx, cy, tw, th))
+                else:
+                    lbl.setText("?")
+                    lbl.setObjectName("slot_preview_empty")
+            QTimer.singleShot(0, _load_thumb)
         elif slot.width and slot.height:
             _preview_h = PLATFORM_SLOT_PREVIEW_HEIGHT
             thumb_w = int(_preview_h * slot.width / slot.height) if slot.height else _preview_h
