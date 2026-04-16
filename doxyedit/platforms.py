@@ -330,6 +330,7 @@ class PlatformPanel(QWidget):
         # ── Pane 1: Sidebar (campaign, filter, summary, actions) ─────────
         sidebar = QWidget()
         sidebar.setObjectName("platform_sidebar")
+        sidebar.setMaximumWidth(int(_f * 15))  # cap sidebar width
         sb_layout = QVBoxLayout(sidebar)
         sb_layout.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
         sb_layout.setSpacing(_pad_lg)
@@ -390,12 +391,10 @@ class PlatformPanel(QWidget):
         dash_outer.addWidget(self._dash_scroll, 1)
         self._plat_hsplit.addWidget(dash_container)
 
-        # Restore or default split
-        saved_hsplit = QSettings("DoxyEdit", "DoxyEdit").value("plat_hsplit_sizes", None)
-        if saved_hsplit and len(saved_hsplit) == 3:
-            self._plat_hsplit.setSizes([int(s) for s in saved_hsplit])
-        else:
-            self._plat_hsplit.setSizes([180, 500, 400])
+        self._plat_hsplit.setStretchFactor(0, 0)  # sidebar fixed
+        self._plat_hsplit.setStretchFactor(1, 1)  # cards stretch
+        self._plat_hsplit.setStretchFactor(2, 1)  # dashboard stretch
+        self._plat_hsplit.setSizes([int(_f * 12), 500, 400])
 
         self.refresh()
 
