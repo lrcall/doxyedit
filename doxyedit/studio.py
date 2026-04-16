@@ -48,11 +48,11 @@ class _AppEscapeFilter(QObject):
 
     def eventFilter(self, obj, event):
         from PySide6.QtCore import QEvent
-        if (event.type() == QEvent.Type.KeyPress
-                and event.key() == Qt.Key.Key_Escape
-                and self._editor.isVisible()):
-            self._editor._nuclear_clear()
-            return True  # consume — nothing else sees Escape
+        if event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Escape:
+            print(f"[AppFilter] ESC detected. editor visible={self._editor.isVisible()}")
+            if self._editor.isVisible():
+                self._editor._nuclear_clear()
+                return True
         return False
 
 
