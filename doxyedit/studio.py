@@ -2186,13 +2186,16 @@ class StudioEditor(QWidget):
 
     def _export_current_platform(self):
         """Export only the currently selected platform/crop from the crop combo."""
+        print(f"[Export Platform] clicked. asset={self._asset is not None}, project={self._project is not None}")
         if not self._asset or not self._project:
+            self.info_label.setText("No asset or project loaded")
             return
         self._sync_censors_to_asset()
         self._sync_overlays_to_asset()
 
         data = self._crop_combo.currentData()
-        if not data or len(data) < 4:
+        print(f"[Export Platform] combo data={data}")
+        if not data or (isinstance(data, (list, tuple)) and len(data) < 4):
             self.info_label.setText("Select a platform slot in the crop combo first")
             return
 
