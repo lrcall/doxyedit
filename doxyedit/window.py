@@ -1763,7 +1763,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # Help menu
         help_menu = menu.addMenu("&Help")
         help_menu.addAction("Keyboard Shortcuts", self._show_shortcuts)
-        help_menu.addAction("What's New (v2.4)", self._show_whats_new)
+        help_menu.addAction("What's New", self._show_whats_new)
         help_menu.addAction("About DoxyEdit", self._show_about)
 
     def _setup_tag_shortcuts(self):
@@ -5224,51 +5224,43 @@ Ctrl+Click tag — Search by tag
     def _show_whats_new(self):
         from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
         dlg = QDialog(self)
-        dlg.setWindowTitle("What's New in v2.4")
+        from doxyedit import __version__
+        dlg.setWindowTitle(f"What's New in v{__version__}")
         dlg.resize(560, 540)
         layout = QVBoxLayout(dlg)
         text = QTextEdit()
         text.setReadOnly(True)
         text.setMarkdown(
-            "# What's New in v2.4\n\n"
-            "## Unified Content Pipeline\n"
-            "- **Platform readiness** — green/yellow/red dots show if assets are prepped\n"
-            "- **Prep Strip** in composer — see each platform's readiness with Fix buttons\n"
-            "- **Auto-crop** — images auto-fitted to platform ratios (16:9 for Twitter, 1:1 for Instagram)\n"
-            "- **Coordinate-correct exports** — censors + overlays transform when images are cropped\n"
-            "- **Export-on-queue** — platform-ready images cached to _exports/ before pushing\n"
-            "- **Advisory queue gate** — warns about unprepped platforms, never blocks\n\n"
-            "## Multi-Platform Posting\n"
-            "- **OneUp categories** — Doxy/Onta/L3rk/0rng dropdown with per-category accounts\n"
-            "- **Bluesky** direct posting via AT Protocol (app password in Identity)\n"
-            "- **Telegram** + **Discord webhook** direct posting\n"
-            "- **Browser automation** for Patreon, Fantia, Fanbox, Ci-en, Ko-fi, SubscribeStar\n"
-            "- **Per-platform censor mode** — Auto / Uncensored / Custom per platform\n"
-            "- **Sync OneUp** — push new, pull status, detect duplicates\n\n"
-            "## Studio Improvements\n"
-            "- **Keyboard shortcuts** — Delete, Ctrl+D, arrows, Q/W/E/R tools, H hide, F fit\n"
-            "- **Right-click context menus** on censors + overlays\n"
-            "- **Text effects** — outline (stroke), drop shadow, line height\n"
-            "- **Studio badge** on grid thumbnails + Studio filter checkbox\n"
-            "- **Configurable blur/pixelate** radius per censor region\n\n"
-            "## Identity System\n"
-            "- **Identity editor** — brand voice, all platform URLs, API credentials\n"
-            "- **Per-identity Bluesky/Telegram/Discord** credentials\n"
-            "- **OneUp category** auto-switches with identity\n\n"
-            "## Social Tab Layout\n"
-            "- **Gantt full-width** bottom, composer docks beside timeline\n"
-            "- **Engagement inline** on post cards (collapsible) + toolbar button\n"
-            "- **Live notes** — side-by-side markdown editor + preview\n"
-            "- **Calendar** — past days dimmed, theme-correct\n\n"
-            "## Entry Points\n"
-            "- **Right-click → Prepare for Posting** opens composer with asset\n"
-            "- **Studio → Queue This** sends current asset to composer\n"
-            "- **Right-click → Send to Studio** loads asset in Studio tab\n\n"
-            "## Other\n"
-            "- **Package/Transport** project with compact folder option\n"
-            "- **Merge projects** — import assets, tags, posts from another project\n"
-            "- **Per-project themes** saved with the project file\n"
-            "- **All 13 themes** have post status colors\n"
+            f"# What's New in v{__version__}\n\n"
+            "## Asset Groups: Duplicates & Variants\n"
+            "- **Link Mode** — toggle on toolbar, click asset to highlight its group\n"
+            "- **Corner dots** — red = duplicate group, teal = variant set\n"
+            "- **4 creation paths** — duplicate scanner, similar scanner, manual linking, filename auto-detect\n"
+            "- **Right-click management** — Select All, Mark as Keeper, Add to Set, Remove, Dissolve\n\n"
+            "## Rich Copy/Paste\n"
+            "- **Ctrl+C/V across project tabs** carries tags, crops, censors, overlays, notes\n"
+            "- Plain paste from Explorer still works\n\n"
+            "## Platform Panel Rework\n"
+            "- **3-pane splitter** — sidebar | cards | dashboard side by side\n"
+            "- **Campaign management** — edit, delete, selection persists\n"
+            "- **Dashboard** wraps cells to new rows, shows thumbnails\n\n"
+            "## Performance\n"
+            "- **Lazy censor editor** — only loads PSD when censor tab active\n"
+            "- **Faster tab switch** — deferred file watchers + notes rendering\n"
+            "- **Shared cache** keeps thumbnails in memory across project switches\n"
+            "- **Social tab** auto-refreshes every 60s\n\n"
+            "## UI Improvements\n"
+            "- **Vertical screen support** — window narrows to ~400px\n"
+            "- **Compact grid cells** — tighter ratios, less dead space\n"
+            "- **Fill Thumbnails** persists across sessions\n"
+            "- **Light theme contrast** — all 13 themes pass WCAG accessibility\n"
+            "- **Info panel** — accent-colored section headers for better readability\n"
+            "- **Quick Tag** — used/custom tags flat at top, presets in More Tags\n"
+            "- **Drag-drop** .doxyproj/.doxycoll files onto window to load\n"
+            "- **Styled dialogs** — tag input dialogs inherit app theme\n\n"
+            "## Tokenization\n"
+            "- Entire codebase tokenized — 125+ hardcoded values replaced\n"
+            "- All visual properties derive from Theme dataclass or font_size ratios\n"
         )
         layout.addWidget(text)
         close = QPushButton("Close")

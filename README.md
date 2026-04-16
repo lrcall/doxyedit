@@ -20,6 +20,9 @@ Art asset manager for artists and creators. Browse, tag, organize, and export ar
 - **Preview Annotations** — draw note boxes on images, persist with project
 - **Work Tray** — collapsible quickslot panel, persists across all tabs
 - **Crop Handles** — 8 drag handles on crop regions with persistent overlays
+- **Asset Groups** — duplicate detection (MD5) and variant linking (perceptual hash, filename, manual). Link Mode highlights related assets on click
+- **Rich Copy/Paste** — Ctrl+C/V carries full metadata (tags, crops, censors) across project tabs
+- **Drag-drop** .doxyproj/.doxycoll files onto window to open
 
 ### Social Media Pipeline
 - **Post Composer** — two-column layout with image preview, SFW/NSFW toggle, strategy notes, captions, scheduling

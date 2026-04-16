@@ -1,5 +1,60 @@
 # DoxyEdit Changelog
 
+## v2.3.1 (2026-04-16) — Asset Groups, Tokenization & Platform Rework
+
+### Asset Groups: Duplicates & Variants
+- **Link Mode** toggle on browser toolbar — click an asset to highlight its group
+- **Corner dots** — red (top-right) for duplicate groups, teal (top-left) for variant sets
+- **4 creation paths** — duplicate scanner (MD5), similar scanner (perceptual hash), manual linking (right-click), filename stem auto-detect (Tools menu)
+- **Right-click management** — Select All, Mark as Keeper, Add to Set, Remove, Dissolve
+- **Progress dialogs** on duplicate and similar scanners (cancellable)
+
+### Rich Copy/Paste
+- **Ctrl+C/V across project tabs** carries full asset metadata (tags, crops, censors, overlays, notes)
+- Plain paste from Explorer still works as file import
+
+### Platform Panel Rework
+- **3-pane splitter** — sidebar (campaign/filter/export) | cards (scrollable) | dashboard (flow-wrapping)
+- **Campaign management** — edit name/status/launch date, delete with confirmation
+- **Campaign selection persists** across sessions
+- **Dashboard cells** wrap to new rows via FlowLayout, request thumbnails from cache
+
+### Performance
+- **Lazy censor editor** — only loads full PSD when censor tab is active
+- **Deferred rebind** — file watchers, notes rendering, cross-project cache after UI paints
+- **Shared thumb cache** keeps in-memory pixmaps on project switch (same folder = no clear)
+- **Tab switch** — removed double theme apply + double browser refresh
+- **Social tab** auto-refreshes every 60s (timeline + gantt "today" markers)
+- **Grid size** synced on font_size change (was stale from init)
+
+### UI/Layout
+- **Vertical screen support** — window narrows to ~400px (QTabWidget minSizeHint override, status bar SizePolicy.Ignored, all splitters collapsible)
+- **Grid cells** — tokenized height, tighter ratios (DIMS 1.0, NAME 1.2), proper top padding
+- **Fill Thumbnails** persists across sessions
+- **Files/Tags/Tray** button states saved/restored correctly on startup
+- **Notes tabs** don't leak across projects on tab switch
+- **Project tab** right-click: Rename Tab + Close Tab
+- **Info panel** — bg_raised background + accent_bright section headers for light theme contrast
+- **Quick Tag** — shows used/custom tags flat at top, unused presets in "More Tags"
+- **Styled QInputDialog** — tag dialogs inherit app theme on Windows
+- **Drag-drop** .doxyproj.json and .doxycoll.json onto window to load
+
+### Whole-Codebase Tokenization
+- **125+ violations fixed** across ~20 files → 0 remaining
+- 20 alpha fields added to Theme dataclass
+- All setAlpha, setSpacing, setContentsMargins, setFixed*, QPen, setPointSize, setStyleSheet values tokenized
+- Named constants for all max() minimums, ratios at class/module level
+- **scripts/check_theme_contrast.py** — WCAG contrast validator
+- **/check-contrast** skill created for any project
+- **All 13 themes** pass WCAG contrast (AAA primary, AA secondary, AA muted)
+
+### Theme Contrast Fixes
+- Darkened text on all light themes (Bone, Milk Glass, Dawn, Citrus, Candy)
+- Lightened text on all dark themes (Vinik24, Soot, Dark, Neon, Ember, Midnight, Forest)
+- Adjusted accent/statusbar colors where text_on_accent failed
+
+---
+
 ## v2.3.0 (2026-04-14) — Social Media Suite Expansion
 
 ### New Tabs & Panels
