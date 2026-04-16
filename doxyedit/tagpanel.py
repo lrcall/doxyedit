@@ -84,16 +84,16 @@ class _TagContainer(QWidget):
         if self._drag_mode == "select" and self._drag_start and self._drag_current:
             rect = QRect(self._drag_start, self._drag_current).normalized()
             sel_color = QColor(_dt.selection_bg)
-            sel_color.setAlpha(180)
+            sel_color.setAlpha(_dt.tag_row_active_alpha)
             p.setPen(QPen(sel_color, 1))
             sel_fill = QColor(_dt.selection_bg)
-            sel_fill.setAlpha(40)
+            sel_fill.setAlpha(_dt.tag_row_dim_alpha)
             p.setBrush(QBrush(sel_fill))
             p.drawRect(rect)
         # Drop indicator line
         if self._drag_mode == "reorder" and self._drop_indicator_y >= 0:
             accent_color = QColor(_dt.accent_bright)
-            accent_color.setAlpha(220)
+            accent_color.setAlpha(_dt.tag_row_hover_alpha)
             p.setPen(QPen(accent_color, 2))
             p.drawLine(0, self._drop_indicator_y, self.width(), self._drop_indicator_y)
         p.end()
@@ -311,10 +311,17 @@ class TagRow(QFrame):
 
     def set_row_selected(self, selected: bool):
         self._row_selected = selected
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
         if selected:
-            self.setStyleSheet("background: rgba(100,150,200,0.3); border-radius: 3px;")
+            _c = QColor(_dt.selection_bg); _c.setAlpha(_dt.tag_row_dim_alpha)
+            self.setStyleSheet(f"background: rgba({_c.red()},{_c.green()},{_c.blue()},{_c.alpha() / 255:.2f}); border-radius: 3px;")
         else:
-            base = "border-left: 3px solid rgba(190,149,92,0.7);" if self._pinned else ""
+            if self._pinned:
+                _p = QColor(_dt.accent_dim); _p.setAlpha(_dt.composer_status_hover_alpha)
+                base = f"border-left: 3px solid rgba({_p.red()},{_p.green()},{_p.blue()},{_p.alpha() / 255:.2f});"
+            else:
+                base = ""
             self.setStyleSheet(base)
 
     def set_checked(self, checked: bool, block_signals=True):
@@ -768,7 +775,10 @@ class TagPanel(QWidget):
                             break
             self._tag_layout.removeWidget(row)
             self._tag_layout.insertWidget(target_idx, row)
-            row.setStyleSheet("border-left: 3px solid rgba(190,149,92,0.7);")
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            _dt = THEMES[DEFAULT_THEME]
+            _p = QColor(_dt.accent_dim); _p.setAlpha(_dt.composer_status_hover_alpha)
+            row.setStyleSheet(f"border-left: 3px solid rgba({_p.red()},{_p.green()},{_p.blue()},{_p.alpha() / 255:.2f});")
         else:
             row.setStyleSheet("")
 

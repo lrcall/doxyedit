@@ -495,9 +495,6 @@ class GanttPanel(QWidget):
                         if c_end >= d_start and c_start <= d_end:
                             cx = max(0, (c_start - d_start).days) * ppd
                             cx2 = min(total_days, (c_end - d_start).days + 1) * ppd
-                            span_pen = QPen(cam_color, 0)
-                            span_brush = QBrush(cam_color)
-                            span_brush.color().setAlpha(30)
                             span_rect = self._scene.addRect(
                                 cx, _HEADER_HEIGHT, cx2 - cx, chart_h - _HEADER_HEIGHT - 20,
                                 QPen(Qt.NoPen), QBrush(QColor(cam_color.red(), cam_color.green(), cam_color.blue(), theme.gantt_campaign_span_alpha))

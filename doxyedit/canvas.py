@@ -134,7 +134,7 @@ class CanvasScene(QGraphicsScene):
                 self._temp_item = QGraphicsRectItem(QRectF(pos, pos))
                 self._temp_item.setPen(pen)
                 fill = QColor(_dt.accent_bright)
-                fill.setAlpha(30)
+                fill.setAlpha(_dt.studio_guide_alpha)
                 self._temp_item.setBrush(QBrush(fill))
             self._temp_item.setFlags(
                 QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable

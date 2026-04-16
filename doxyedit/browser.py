@@ -566,7 +566,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
             _tag_h = max(14, int(self.font_size * FOLDER_TAG_HEIGHT_RATIO))
             tag_rect = QRect(rect.x(), rect.y(), min(text_w, rect.width()), _tag_h)
             _bg = QColor(self._theme.bg_hover)
-            _bg.setAlpha(60)
+            _bg.setAlpha(self._theme.grid_folder_tag_alpha)
             painter.fillRect(tag_rect, _bg)
             painter.setPen(QColor(self._theme.text_primary))
             painter.drawText(tag_rect.adjusted(self.cell_padding, 0, -self.cell_padding, 0),
@@ -624,10 +624,10 @@ class ThumbnailDelegate(QStyledItemDelegate):
             # Placeholder
             ph_rect = QRect(rect.x() + self.cell_padding, rect.y() + self.cell_padding, ts, ts)
             _ph_fill = QColor(self._theme.text_muted)
-            _ph_fill.setAlpha(20)  # very faint placeholder bg
+            _ph_fill.setAlpha(self.placeholder_bg_alpha)
             painter.fillRect(ph_rect, _ph_fill)
             _ph_text = QColor(self._theme.text_muted)
-            _ph_text.setAlpha(50)
+            _ph_text.setAlpha(self.placeholder_text_alpha)
             painter.setPen(_ph_text)
             painter.drawText(ph_rect, Qt.AlignmentFlag.AlignCenter, "...")
 
@@ -1092,7 +1092,9 @@ class FolderSection(QWidget):
     def _set_random_chip(self):
         """Left border chip indicator — theme-aware."""
         color = self._theme_accent_variant()
-        color.setAlpha(255)  # chip needs full opacity
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
+        color.setAlpha(_dt.tag_bar_active_alpha)  # chip needs full opacity
         self._chip_color = color.name()
         self._apply_header_colors()
         self._save_folder_colors()

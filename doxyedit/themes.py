@@ -96,6 +96,32 @@ class Theme:
     group_duplicate_color: str = "#e06c6c"    # red dot/border for duplicate groups
     group_variant_color: str = "#5ca8b8"      # teal dot/border for variant sets
     group_dot_inset: int = 1                  # corner dot inset from thumbnail edge
+    # Preview pane
+    preview_overlay_alpha: int = 220       # preview overlay/badge opacity
+    preview_hint_bg_alpha: int = 50        # preview hint background opacity
+    preview_label_bg_alpha: int = 160      # preview floating label bg opacity
+    preview_label_text_alpha: int = 240    # preview floating label text opacity
+    preview_tooltip_bg_alpha: int = 140    # preview tooltip bg opacity
+    preview_badge_alpha: int = 200         # preview badge opacity
+    # Tag panel
+    tag_row_active_alpha: int = 180        # active tag row opacity
+    tag_row_dim_alpha: int = 40            # dimmed tag row opacity
+    tag_row_hover_alpha: int = 220         # hovered tag row opacity
+    # File browser
+    filebrowser_folder_alpha: int = 40     # folder icon tint opacity
+    filebrowser_folder_dim_alpha: int = 20 # dimmed folder opacity
+    filebrowser_badge_alpha: int = 80      # count badge opacity
+    filebrowser_active_alpha: int = 40     # active folder highlight opacity
+    # Composer
+    composer_status_active_alpha: int = 200  # active status dot
+    composer_status_dim_alpha: int = 160     # dim status dot
+    composer_status_hover_alpha: int = 180   # hover status dot
+    # Studio
+    studio_handle_alpha: int = 220         # drag handle opacity
+    studio_guide_alpha: int = 30           # alignment guide opacity
+    # Browser extras
+    grid_folder_tag_alpha: int = 60        # folder label tag bg opacity
+    tag_bar_active_alpha: int = 255        # active tag button opacity
     # Timeline
     timeline_gap: str = "#664444"
     timeline_day_header: str = ""  # defaults to text_secondary

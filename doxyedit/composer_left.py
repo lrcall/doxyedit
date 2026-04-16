@@ -402,20 +402,20 @@ class ImagePreviewPanel(QWidget):
             # Draw crops
             from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
-            _cc = QColor(_dt.crop_border); _cc.setAlpha(200)
+            _cc = QColor(_dt.crop_border); _cc.setAlpha(_dt.composer_status_active_alpha)
             crop_pen = QPen(_cc, max(1, _dt.crop_border_width - 1))
             for crop in asset.crops:
                 r = QRectF(crop.x * sx, crop.y * sy, crop.w * sx, crop.h * sy)
                 painter.setPen(crop_pen)
                 painter.drawRect(r)
-                _lc = QColor(_dt.crop_border); _lc.setAlpha(160)
+                _lc = QColor(_dt.crop_border); _lc.setAlpha(_dt.composer_status_dim_alpha)
                 painter.setPen(_lc)
                 font = painter.font()
                 font.setPointSize(max(self.MIN_CROP_LABEL_FONT, int(_dt.font_size * self.CROP_LABEL_FONT_RATIO)))
                 painter.setFont(font)
                 painter.drawText(r.adjusted(3, 2, 0, 0), Qt.AlignmentFlag.AlignTop, crop.label)
             # Draw note markers
-            _nc = QColor(_dt.note_border); _nc.setAlpha(180)
+            _nc = QColor(_dt.note_border); _nc.setAlpha(_dt.composer_status_hover_alpha)
             note_pen = QPen(_nc, max(1, _dt.crop_border_width - 1))
             import re
             pattern = re.compile(r'\[(\d+),(\d+)\s+(\d+)x(\d+)\]\s*(.*)')

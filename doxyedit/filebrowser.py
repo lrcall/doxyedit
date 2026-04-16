@@ -28,14 +28,14 @@ class FolderDelegate(QStyledItemDelegate):
         if is_active:
             painter.save()
             painter.setPen(Qt.PenStyle.NoPen)
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            _dt = THEMES[DEFAULT_THEME]
             if getattr(self._panel, '_theme', None):
                 bg = QColor(self._panel._theme.selection_bg)
-                bg.setAlpha(40)
+                bg.setAlpha(self._panel._theme.filebrowser_active_alpha)
             else:
-                from doxyedit.themes import THEMES, DEFAULT_THEME
-                _dt = THEMES[DEFAULT_THEME]
                 bg = QColor(_dt.selection_bg)
-                bg.setAlpha(20)
+                bg.setAlpha(_dt.filebrowser_folder_dim_alpha)
             painter.setBrush(bg)
             painter.drawRect(option.rect)
             painter.restore()
@@ -70,19 +70,19 @@ class FolderDelegate(QStyledItemDelegate):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
         panel = self._panel
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
         if getattr(panel, '_theme', None):
             if is_active:
                 badge_bg = QColor(panel._theme.accent)
-                badge_bg.setAlpha(80)
+                badge_bg.setAlpha(panel._theme.filebrowser_badge_alpha)
             else:
                 badge_bg = QColor(panel._theme.text_muted)
-                badge_bg.setAlpha(40)
+                badge_bg.setAlpha(panel._theme.filebrowser_folder_alpha)
             text_color = QColor(panel._theme.text_secondary)
         else:
-            from doxyedit.themes import THEMES, DEFAULT_THEME
-            _dt = THEMES[DEFAULT_THEME]
             badge_bg = QColor(_dt.text_muted)
-            badge_bg.setAlpha(40)
+            badge_bg.setAlpha(_dt.filebrowser_folder_alpha)
             text_color = QColor(_dt.text_secondary)
         painter.setBrush(badge_bg)
         painter.drawRoundedRect(badge_rect, th // 2, th // 2)

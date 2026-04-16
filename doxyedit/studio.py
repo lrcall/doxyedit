@@ -544,7 +544,7 @@ class StudioScene(QGraphicsScene):
             from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
             _cc = QColor(_dt.crop_border)
-            _cc.setAlpha(220)
+            _cc.setAlpha(_dt.studio_handle_alpha)
             self._temp_item.setPen(QPen(_cc, _dt.crop_border_width))
             self._temp_item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
             self._temp_item.setZValue(400)
@@ -580,7 +580,7 @@ class StudioScene(QGraphicsScene):
                 self._temp_item = QGraphicsRectItem(QRectF(pos, pos))
                 self._temp_item.setPen(pen)
                 _abf = QColor(_dt.accent_bright)
-                _abf.setAlpha(30)
+                _abf.setAlpha(_dt.studio_guide_alpha)
                 self._temp_item.setBrush(QBrush(_abf))
             self._temp_item.setZValue(300)
             self._temp_item.setFlags(
@@ -1348,7 +1348,9 @@ class StudioEditor(QWidget):
         path = path.subtracted(hole)
         self._crop_mask_item = QGraphicsPathItem(path)
         self._crop_mask_item.setPen(QPen(Qt.PenStyle.NoPen))
-        self._crop_mask_item.setBrush(QBrush(QColor(0, 0, 0, 140)))
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _mask_bg = QColor(0, 0, 0); _mask_bg.setAlpha(THEMES[DEFAULT_THEME].preview_tooltip_bg_alpha)
+        self._crop_mask_item.setBrush(QBrush(_mask_bg))
         self._crop_mask_item.setZValue(400)
         self._scene.addItem(self._crop_mask_item)
 

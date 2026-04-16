@@ -90,10 +90,10 @@ class NoteRectItem(QGraphicsRectItem):
         from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         _nc = QColor(_dt.note_border)
-        _nc.setAlpha(220)
+        _nc.setAlpha(_dt.preview_overlay_alpha)
         self.setPen(QPen(_nc, _dt.crop_border_width))
         _nf = QColor(_dt.note_border)
-        _nf.setAlpha(50)
+        _nf.setAlpha(_dt.preview_hint_bg_alpha)
         self.setBrush(QBrush(_nf))
         self.setFlags(
             QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
@@ -127,8 +127,12 @@ class NoteRectItem(QGraphicsRectItem):
         text_h = fm.height() + pad_y * 2
 
         bg = QRectF(screen_tl.x() + 4, screen_tl.y() + 4, text_w, text_h)
-        painter.fillRect(bg, QColor(0, 0, 0, 160))
-        painter.setPen(QColor(255, 240, 210, 240))
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _dt = THEMES[DEFAULT_THEME]
+        _label_bg = QColor(0, 0, 0); _label_bg.setAlpha(_dt.preview_label_bg_alpha)
+        painter.fillRect(bg, _label_bg)
+        _label_fg = QColor(255, 240, 210); _label_fg.setAlpha(_dt.preview_label_text_alpha)
+        painter.setPen(_label_fg)
         painter.drawText(bg.adjusted(pad_x, pad_y, -pad_x, -pad_y), self.text)
 
         painter.restore()
@@ -152,7 +156,7 @@ class ResizableCropItem(QGraphicsRectItem):
         from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         _cc = QColor(_dt.crop_border)
-        _cc.setAlpha(220)
+        _cc.setAlpha(_dt.preview_overlay_alpha)
         self.setPen(QPen(_cc, _dt.crop_border_width))
         self.setBrush(Qt.BrushStyle.NoBrush)
         self.setZValue(101)
@@ -169,7 +173,7 @@ class ResizableCropItem(QGraphicsRectItem):
             from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
             _lc = QColor(_dt.crop_border)
-            _lc.setAlpha(200)
+            _lc.setAlpha(_dt.preview_badge_alpha)
             painter.setPen(_lc)
             font = painter.font()
             font.setPixelSize(_dt.font_size)
@@ -606,7 +610,9 @@ class ImagePreviewDialog(QDialog):
         path = path.subtracted(hole)
         self._crop_mask_item = QGraphicsPathItem(path)
         self._crop_mask_item.setPen(QPen(Qt.PenStyle.NoPen))
-        self._crop_mask_item.setBrush(QBrush(QColor(0, 0, 0, 140)))
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        _mask_bg = QColor(0, 0, 0); _mask_bg.setAlpha(THEMES[DEFAULT_THEME].preview_tooltip_bg_alpha)
+        self._crop_mask_item.setBrush(QBrush(_mask_bg))
         self._crop_mask_item.setZValue(100)
         self.scene.addItem(self._crop_mask_item)
 
@@ -672,7 +678,7 @@ class ImagePreviewDialog(QDialog):
             self._crop_rect_item = QGraphicsRectItem()
             from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
-            _cc = QColor(_dt.crop_border); _cc.setAlpha(220)
+            _cc = QColor(_dt.crop_border); _cc.setAlpha(_dt.preview_overlay_alpha)
             self._crop_rect_item.setPen(QPen(_cc, _dt.crop_border_width))
             self._crop_rect_item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
             self._crop_rect_item.setZValue(101)
