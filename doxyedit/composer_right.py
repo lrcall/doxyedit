@@ -1713,6 +1713,9 @@ RULES:
 
         chain_platforms = self._get_chain_platforms()
 
+        from PySide6.QtCore import QSettings as _QS2
+        _f2 = _QS2("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+
         for idx, step in enumerate(self._release_steps):
             row = QWidget()
             row.setObjectName("composer_chain_step_row")
@@ -1723,8 +1726,6 @@ RULES:
             # Step label
             step_label = QLabel(f"Step {idx + 1}:")
             step_label.setObjectName("composer_chain_step_label")
-            from PySide6.QtCore import QSettings as _QS2
-            _f2 = _QS2("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
             step_label.setFixedWidth(int(_f2 * self.STEP_LABEL_WIDTH_RATIO))
             row_layout.addWidget(step_label)
 

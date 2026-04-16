@@ -1793,6 +1793,23 @@ def generate_stylesheet(theme: Theme) -> str:
         QWidget#studio_props_row QPushButton {{
             padding: 2px 4px; min-width: 24px;
         }}
+        QListWidget#studio_layer_panel {{
+            background: {theme.bg_deep};
+            color: {theme.text_primary};
+            border: none;
+            border-left: 1px solid {theme.border};
+        }}
+        QListWidget#studio_layer_panel::item {{
+            padding: {max(2, theme.font_size // 4)}px {max(4, theme.font_size // 3)}px;
+            border-bottom: 1px solid {theme.border};
+        }}
+        QListWidget#studio_layer_panel::item:selected {{
+            background: {theme.accent};
+            color: {theme.text_on_accent};
+        }}
+        QListWidget#studio_layer_panel::item:hover {{
+            background: {theme.bg_hover};
+        }}
 
         /* ── Gantt panel ────────────────────────────────────────────── */
         QWidget#gantt_panel {{

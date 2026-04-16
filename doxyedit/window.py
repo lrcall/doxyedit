@@ -315,7 +315,7 @@ class MainWindow(QMainWindow):
         # Tab 2: Studio (merged Canvas + Censor + Overlay)
         from doxyedit.studio import StudioEditor
         self.studio = StudioEditor()
-        self.studio.set_project(self.project)
+        self.studio.set_project(self.project, self._project_path or "")
         self.tabs.addTab(self.studio, "Studio")
 
         # Keep old censor_editor reference for backward compat (load_asset calls)
@@ -2720,7 +2720,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         exports = {}
         project_dir = str(Path(self._project_path).parent) if self._project_path else "."
-        output_base = str(Path(project_dir) / "_exports" / post.id[:8])
+        from doxyedit.imaging import get_export_dir
+        output_base = str(get_export_dir(self._project_path) / post.id[:8])
 
         for aid in post.asset_ids[:1]:
             asset = self.project.get_asset(aid)
@@ -5505,7 +5506,7 @@ Ctrl+Click tag — Search by tag
         if hasattr(self, '_gantt_panel'):
             self._gantt_panel.set_project(self.project)
         if hasattr(self, 'studio'):
-            self.studio.set_project(self.project)
+            self.studio.set_project(self.project, self._project_path or "")
         if hasattr(self, '_smart_folder_menu'):
             self._rebuild_smart_folder_menu()
         if hasattr(self, '_info_panel'):

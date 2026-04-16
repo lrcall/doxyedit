@@ -242,6 +242,8 @@ def prepare_for_platform(
     if use_censor and asset.censors:
         transformed_censors = []
         for cr in asset.censors:
+            if cr.platforms and platform_id not in cr.platforms:
+                continue
             tx, ty, tw, th = _transform_region(
                 cr.x, cr.y, cr.w, cr.h, crop_box, (slot.width, slot.height)
             )
@@ -259,7 +261,10 @@ def prepare_for_platform(
             img = apply_censors(img, transformed_censors)
 
     # --- 7. Apply overlays with coordinate transform ---
-    overlays_to_apply: list[CanvasOverlay] = list(asset.overlays)
+    overlays_to_apply: list[CanvasOverlay] = [
+        ov for ov in asset.overlays
+        if not ov.platforms or platform_id in ov.platforms
+    ]
     if overlays_to_apply:
         transformed_overlays = []
         for ov in overlays_to_apply:
@@ -296,6 +301,32 @@ def prepare_for_platform(
     result.height = slot.height
     result.warnings = warnings
     return result
+
+
+def batch_export_variants(
+    asset: Asset,
+    project: Project,
+    output_dir: str = "",
+) -> list[PrepResult]:
+    """Export all platform variants for an asset. Populates asset.variant_exports."""
+    results = []
+    asset.variant_exports.clear()
+    for pa in asset.assignments:
+        platform = PLATFORMS.get(pa.platform)
+        if not platform:
+            continue
+        slot_name = pa.slot or (platform.slots[0].name if platform.slots else "")
+        if not slot_name:
+            continue
+        r = prepare_for_platform(
+            asset, pa.platform, project,
+            slot_name=slot_name, output_dir=output_dir,
+        )
+        results.append(r)
+        if r.success:
+            key = f"{pa.platform}_{slot_name}"
+            asset.variant_exports[key] = r.output_path
+    return results
 
 
 # ---------------------------------------------------------------------------

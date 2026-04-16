@@ -175,6 +175,7 @@ class CensorRegion:
     style: str = "black"  # "black", "blur", "pixelate"
     blur_radius: int = 20     # Gaussian blur radius (blur style)
     pixelate_ratio: int = 10  # downscale factor (pixelate style)
+    platforms: list[str] = field(default_factory=list)  # empty = all platforms
 
 
 @dataclass
@@ -204,6 +205,7 @@ class CanvasOverlay:
     shadow_color: str = ""    # drop shadow color (empty = no shadow)
     shadow_offset: int = 0    # shadow offset in px (both x and y)
     shadow_blur: int = 0      # shadow blur radius
+    platforms: list[str] = field(default_factory=list)  # empty = all platforms
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -519,6 +521,7 @@ class Asset:
     tags: list[str] = field(default_factory=list)
     notes: str = ""
     specs: dict = field(default_factory=dict)  # CLI/tool metadata (size, relations, etc.)
+    variant_exports: dict[str, str] = field(default_factory=dict)  # "platform_slot" → export path
 
     @property
     def stem(self) -> str:

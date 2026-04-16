@@ -238,3 +238,10 @@ def open_for_thumb(path: str, target_size: int = 160) -> tuple[PILImage.Image, i
         return img, img.width, img.height
     except Exception:
         return _make_placeholder(path)
+
+
+def get_export_dir(project_path: str) -> Path:
+    """Return the sidecar _assets folder next to the project file, creating it if needed."""
+    d = Path(project_path).parent / "_assets"
+    d.mkdir(exist_ok=True)
+    return d

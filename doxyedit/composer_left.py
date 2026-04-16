@@ -332,7 +332,7 @@ class ImagePreviewPanel(QWidget):
             cb.setObjectName("composer_nsfw_plat_check")
             self._nsfw_checks[pid] = cb
             self._nsfw_plat_layout.addWidget(cb)
-        self._nsfw_plat_layout.addStretch()
+        # FlowLayout doesn't support addStretch — skip
 
         # Update crop status
         self._update_crop_status(platform_ids)

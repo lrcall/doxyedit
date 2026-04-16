@@ -64,6 +64,43 @@ def _themed_menu(parent=None) -> QMenu:
     return menu
 
 
+def _add_platform_submenu(menu: QMenu, current_platforms: list[str], editor) -> QMenu:
+    """Add a 'Platforms...' submenu with checkable entries. Returns the submenu."""
+    if not editor or not editor._project:
+        return menu
+    from doxyedit.models import PLATFORMS
+    sub = menu.addMenu("Platforms...")
+    sub.setStyleSheet(menu.styleSheet())
+    all_act = sub.addAction("All Platforms")
+    all_act.setCheckable(True)
+    all_act.setChecked(not current_platforms)
+    sub.addSeparator()
+    plat_actions = {}
+    for pid in editor._project.platforms:
+        p = PLATFORMS.get(pid)
+        label = p.name if p else pid
+        act = sub.addAction(label)
+        act.setCheckable(True)
+        act.setChecked(pid in current_platforms)
+        plat_actions[act] = pid
+    return sub, all_act, plat_actions
+
+
+def _resolve_platform_menu(chosen, all_act, plat_actions, current_platforms: list[str]) -> list[str]:
+    """Resolve platform submenu selection into updated platforms list."""
+    if chosen is all_act:
+        return []
+    if chosen in plat_actions:
+        pid = plat_actions[chosen]
+        new = list(current_platforms)
+        if pid in new:
+            new.remove(pid)
+        else:
+            new.append(pid)
+        return new
+    return current_platforms
+
+
 # ---------------------------------------------------------------------------
 # Tool state machine
 # ---------------------------------------------------------------------------
@@ -109,9 +146,10 @@ class _ResizeHandle(QGraphicsRectItem):
 class CensorRectItem(QGraphicsRectItem):
     """Draggable censor rectangle — overlay exception: hardcoded colors OK."""
 
-    def __init__(self, rect: QRectF, style: str = "black"):
+    def __init__(self, rect: QRectF, style: str = "black", platforms: list[str] | None = None):
         super().__init__(rect)
         self.style = style
+        self.platforms: list[str] = platforms or []
         self._editor = None  # set by StudioEditor after creation
         self.setFlags(
             QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
@@ -184,6 +222,10 @@ class CensorRectItem(QGraphicsRectItem):
                 act = menu.addAction(label)
                 act.setData(key)
         menu.addSeparator()
+        plat_sub = all_act = plat_actions = None
+        if self._editor and self._editor._project:
+            plat_sub, all_act, plat_actions = _add_platform_submenu(menu, self.platforms, self._editor)
+            menu.addSeparator()
         delete_act = menu.addAction("Delete")
 
         chosen = menu.exec(event.screenPos())
@@ -192,6 +234,11 @@ class CensorRectItem(QGraphicsRectItem):
         if chosen is delete_act:
             if self._editor:
                 self._editor._remove_censor_item(self)
+        elif plat_actions and (chosen is all_act or chosen in plat_actions):
+            self.platforms = _resolve_platform_menu(chosen, all_act, plat_actions, self.platforms)
+            if self._editor:
+                self._editor._sync_censors_to_asset()
+                self._editor._refresh_layer_panel()
         elif chosen.data():
             self.style = chosen.data()
             self._apply_style()
@@ -232,6 +279,10 @@ class OverlayImageItem(QGraphicsPixmapItem):
         fwd_act = menu.addAction("Bring Forward")
         bwd_act = menu.addAction("Send Backward")
         menu.addSeparator()
+        plat_sub = all_act = plat_actions = None
+        if self._editor and self._editor._project:
+            plat_sub, all_act, plat_actions = _add_platform_submenu(menu, self.overlay.platforms, self._editor)
+            menu.addSeparator()
         del_act = menu.addAction("Delete")
 
         chosen = menu.exec(event.screenPos())
@@ -239,6 +290,11 @@ class OverlayImageItem(QGraphicsPixmapItem):
             return
         if chosen is dup_act and self._editor:
             self._editor._duplicate_overlay_item(self)
+        elif plat_actions and (chosen is all_act or chosen in plat_actions):
+            self.overlay.platforms = _resolve_platform_menu(chosen, all_act, plat_actions, self.overlay.platforms)
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+                self._editor._refresh_layer_panel()
         elif chosen is fwd_act:
             self.setZValue(self.zValue() + 1)
         elif chosen is bwd_act:
@@ -361,6 +417,10 @@ class OverlayTextItem(QGraphicsTextItem):
         fwd_act = menu.addAction("Bring Forward")
         bwd_act = menu.addAction("Send Backward")
         menu.addSeparator()
+        plat_sub = all_act = plat_actions = None
+        if self._editor and self._editor._project:
+            plat_sub, all_act, plat_actions = _add_platform_submenu(menu, self.overlay.platforms, self._editor)
+            menu.addSeparator()
         del_act = menu.addAction("Delete")
 
         chosen = menu.exec(event.screenPos())
@@ -371,6 +431,11 @@ class OverlayTextItem(QGraphicsTextItem):
             self.setFocus()
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_overlay_item(self)
+        elif plat_actions and (chosen is all_act or chosen in plat_actions):
+            self.overlay.platforms = _resolve_platform_menu(chosen, all_act, plat_actions, self.overlay.platforms)
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+                self._editor._refresh_layer_panel()
         elif chosen is fwd_act:
             self.setZValue(self.zValue() + 1)
         elif chosen is bwd_act:
@@ -483,6 +548,7 @@ class StudioScene(QGraphicsScene):
         self.on_annotation_placed = None  # callable(item)
         self.on_crop_finished = None     # callable(QRectF)
         self.on_note_finished = None     # callable(QRectF, NoteRectItem)
+        self.on_text_overlay_placed = None  # callable(QPointF)
         self.get_crop_aspect = None      # callable() -> float | None
 
     def set_theme(self, theme):
@@ -556,6 +622,12 @@ class StudioScene(QGraphicsScene):
             self._temp_item = NoteRectItem(QRectF(pos, pos), "")
             self._temp_item.setZValue(400)
             self.addItem(self._temp_item)
+            return
+
+        if self.current_tool == StudioTool.TEXT_OVERLAY:
+            if self.on_text_overlay_placed:
+                self.on_text_overlay_placed(pos)
+            self.current_tool = StudioTool.SELECT
             return
 
         if self.current_tool == StudioTool.ANNOTATE_TEXT:
@@ -724,6 +796,7 @@ class StudioEditor(QWidget):
         self.setObjectName("studio_editor")
         self._asset: Asset | None = None
         self._project: Project | None = None
+        self._project_path: str = ""
         self._theme = None
         self._pixmap_item: QGraphicsPixmapItem | None = None
         self._censor_items: list[CensorRectItem] = []
@@ -977,6 +1050,11 @@ class StudioEditor(QWidget):
         self.btn_export.clicked.connect(self._export_preview)
         toolbar.addWidget(self.btn_export)
 
+        self.btn_export_all = QPushButton("Export All Platforms")
+        self.btn_export_all.setObjectName("studio_btn_export_all")
+        self.btn_export_all.clicked.connect(self._export_all_platforms)
+        toolbar.addWidget(self.btn_export_all)
+
         btn_queue = QPushButton("Queue This")
         btn_queue.setObjectName("studio_queue_btn")
         btn_queue.clicked.connect(self._queue_current)
@@ -1139,6 +1217,7 @@ class StudioEditor(QWidget):
         self._scene.on_censor_finished = self._on_censor_drawn
         self._scene.on_crop_finished = self._on_crop_drawn
         self._scene.on_note_finished = self._on_note_drawn
+        self._scene.on_text_overlay_placed = self._on_text_placed
         self._scene.get_crop_aspect = self._get_crop_aspect
         self._view = StudioView(self._scene)
         self._view.on_file_dropped = self._on_file_dropped
@@ -1162,7 +1241,7 @@ class StudioEditor(QWidget):
         self._canvas_split.setSizes([800, 200])
         self._canvas_split.setStretchFactor(0, 1)
         self._canvas_split.setStretchFactor(1, 0)
-        root.addWidget(self._canvas_split)
+        root.addWidget(self._canvas_split, 1)
 
         # Selection change -> update sliders + props row
         self._scene.selectionChanged.connect(self._on_selection_changed)
@@ -1174,9 +1253,10 @@ class StudioEditor(QWidget):
         self._theme = theme
         self._scene.set_theme(theme)
 
-    def set_project(self, project: Project):
+    def set_project(self, project: Project, project_path: str = ""):
         """Store project ref and populate template dropdown."""
         self._project = project
+        self._project_path = project_path
         self.combo_template.clear()
         self.combo_template.addItem("Apply Template...")
         for i, tmpl in enumerate(project.default_overlays):
@@ -1221,7 +1301,7 @@ class StudioEditor(QWidget):
 
         # Restore censors (Z 100-199)
         for i, cr in enumerate(asset.censors):
-            item = CensorRectItem(QRectF(cr.x, cr.y, cr.w, cr.h), cr.style)
+            item = CensorRectItem(QRectF(cr.x, cr.y, cr.w, cr.h), cr.style, cr.platforms)
             item._editor = self
             item.setZValue(100 + i)
             self._scene.addItem(item)
@@ -1264,8 +1344,8 @@ class StudioEditor(QWidget):
             self._add_watermark()
             self._scene.set_tool(StudioTool.SELECT)
         elif tool == StudioTool.TEXT_OVERLAY:
-            self._add_text_overlay()
-            self._scene.set_tool(StudioTool.SELECT)
+            self._view.setCursor(Qt.CursorShape.CrossCursor)
+            self._view.setDragMode(QGraphicsView.DragMode.NoDrag)
         else:
             self._view.setCursor(Qt.CursorShape.ArrowCursor)
             self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
@@ -1473,8 +1553,14 @@ class StudioEditor(QWidget):
             self._overlay_items.append(item)
         self._update_info()
 
-    def _add_text_overlay(self):
-        """Add a text overlay at a default position."""
+    def _on_text_placed(self, pos: QPointF):
+        """Handle click-to-place text overlay from scene."""
+        self._add_text_overlay(int(pos.x()), int(pos.y()))
+        self._view.setCursor(Qt.CursorShape.ArrowCursor)
+        self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+
+    def _add_text_overlay(self, x: int = 50, y: int = 50):
+        """Add a text overlay at the given position."""
         if not self._asset:
             return
         ov = CanvasOverlay(
@@ -1483,7 +1569,7 @@ class StudioEditor(QWidget):
             text="Your text",
             opacity=self.slider_opacity.value() / 100.0,
             position="custom",
-            x=50, y=50,
+            x=x, y=y,
         )
         self._asset.overlays.append(ov)
         item = self._create_overlay_item(ov)
@@ -1816,6 +1902,13 @@ class StudioEditor(QWidget):
         if not self._asset:
             return
 
+        def _scope_tag(platforms: list[str]) -> str:
+            if not platforms:
+                return ""
+            abbrevs = [p[:2].upper() for p in platforms[:3]]
+            suffix = "+" if len(platforms) > 3 else ""
+            return f" [{','.join(abbrevs)}{suffix}]"
+
         # Overlays (top of list = front)
         for i, ov in enumerate(reversed(self._asset.overlays)):
             if ov.type == "text":
@@ -1824,6 +1917,7 @@ class StudioEditor(QWidget):
                 label = f"W  {ov.label or Path(ov.image_path).stem}"
             else:
                 label = f"O  {ov.label or ov.type}"
+            label += _scope_tag(ov.platforms)
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, ("overlay", len(self._asset.overlays) - 1 - i))
             if not ov.enabled:
@@ -1832,10 +1926,12 @@ class StudioEditor(QWidget):
 
         # Censors
         for i, cr in enumerate(self._asset.censors):
-            label = f"C  {cr.style} ({cr.w}\u00d7{cr.h})"
+            label = f"C  {cr.style} ({cr.w}\u00d7{cr.h}){_scope_tag(cr.platforms)}"
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, ("censor", i))
             self._layer_panel.addItem(item)
+
+    _refresh_layer_panel = _rebuild_layer_panel
 
     def _on_layer_clicked(self, item):
         """Select the corresponding scene item when layer is clicked."""
@@ -1871,6 +1967,7 @@ class StudioEditor(QWidget):
                 x=int(pos.x() + r.x()), y=int(pos.y() + r.y()),
                 w=int(r.width()), h=int(r.height()),
                 style=item.style,
+                platforms=list(item.platforms),
             ))
         if hasattr(self, '_layer_panel'):
             self._rebuild_layer_panel()
@@ -1991,14 +2088,41 @@ class StudioEditor(QWidget):
         img = apply_censors(img, self._asset.censors)
         img = apply_overlays(img, self._asset.overlays)
 
-        default_name = f"{src_path.stem}_studio_preview.png"
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export Studio Preview", default_name,
-            "PNG (*.png);;JPEG (*.jpg);;All Files (*)",
-        )
-        if path:
-            img.save(path)
-            self.info_label.setText(f"Exported: {Path(path).name}")
+        if self._project_path:
+            from doxyedit.imaging import get_export_dir
+            export_dir = get_export_dir(self._project_path)
+            out = export_dir / f"{src_path.stem}_studio_preview.png"
+            img.save(str(out))
+            self.info_label.setText(f"Exported: {out.name} → _assets/")
+        else:
+            default_name = f"{src_path.stem}_studio_preview.png"
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Export Studio Preview", default_name,
+                "PNG (*.png);;JPEG (*.jpg);;All Files (*)",
+            )
+            if path:
+                img.save(path)
+                self.info_label.setText(f"Exported: {Path(path).name}")
+
+    def _export_all_platforms(self):
+        """Batch export all platform variants for the current asset."""
+        if not self._asset or not self._project:
+            return
+        self._sync_censors_to_asset()
+        self._sync_overlays_to_asset()
+
+        from doxyedit.pipeline import batch_export_variants
+        from doxyedit.imaging import get_export_dir
+        output_dir = str(get_export_dir(self._project_path)) if self._project_path else ""
+        results = batch_export_variants(self._asset, self._project, output_dir=output_dir)
+        ok = sum(1 for r in results if r.success)
+        fail = sum(1 for r in results if not r.success)
+        msg = f"Exported {ok} platform variant(s)"
+        if fail:
+            msg += f", {fail} failed"
+        msg += " → _assets/"
+        self.info_label.setText(msg)
+        self._rebuild_layer_panel()
 
     # ---- helpers ----
 

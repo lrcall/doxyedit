@@ -938,7 +938,7 @@ class PreviewPane(QWidget):
         self._view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._view.wheelEvent = self._wheel_zoom
-        layout.addWidget(self._view)
+        layout.addWidget(self._view, 1)
 
         self.setMinimumWidth(0)  # browse splitter handles collapsing
 
