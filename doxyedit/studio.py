@@ -1103,28 +1103,6 @@ class StudioEditor(QWidget):
         btn_queue.clicked.connect(self._queue_current)
         toolbar.addWidget(btn_queue)
 
-        # Zoom presets
-        toolbar.addWidget(QLabel("|"))
-        for label, factor in [("Fit", 0), ("50%", 0.5), ("100%", 1.0), ("200%", 2.0)]:
-            btn = QPushButton(label)
-            btn.setFixedWidth(int(_dt.font_size * ZOOM_BUTTON_WIDTH_RATIO))
-            btn.setObjectName("studio_zoom_btn")
-            if factor == 0:
-                btn.clicked.connect(lambda: self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio))
-            else:
-                btn.clicked.connect(lambda _, f=factor: self._set_zoom(f))
-            toolbar.addWidget(btn)
-
-        self._zoom_label = QLabel("100%")
-        self._zoom_label.setFixedWidth(int(_dt.font_size * ZOOM_LABEL_WIDTH_RATIO))
-        toolbar.addWidget(self._zoom_label)
-
-        # Asset info
-        toolbar.addWidget(QLabel("|"))
-        self._asset_info = QLabel("")
-        self._asset_info.setObjectName("studio_asset_info")
-        toolbar.addWidget(self._asset_info)
-
         toolbar.addStretch()
 
         root.addLayout(toolbar)
@@ -1304,9 +1282,38 @@ class StudioEditor(QWidget):
         self._preview_strip_scroll.setVisible(False)
 
         # Bottom status bar
+        status_bar = QHBoxLayout()
+        status_bar.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)
+        status_bar.setSpacing(_pad_lg)
+
+        # Zoom presets
+        for label, factor in [("Fit", 0), ("50%", 0.5), ("100%", 1.0), ("200%", 2.0)]:
+            btn = QPushButton(label)
+            btn.setFixedWidth(int(_dt.font_size * ZOOM_BUTTON_WIDTH_RATIO))
+            btn.setObjectName("studio_zoom_btn")
+            if factor == 0:
+                btn.clicked.connect(lambda: self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio))
+            else:
+                btn.clicked.connect(lambda _, f=factor: self._set_zoom(f))
+            status_bar.addWidget(btn)
+
+        self._zoom_label = QLabel("100%")
+        self._zoom_label.setFixedWidth(int(_dt.font_size * ZOOM_LABEL_WIDTH_RATIO))
+        status_bar.addWidget(self._zoom_label)
+
+        status_bar.addWidget(QLabel("|"))
+
+        self._asset_info = QLabel("")
+        self._asset_info.setObjectName("studio_asset_info")
+        status_bar.addWidget(self._asset_info)
+
+        status_bar.addStretch()
+
         self.info_label = QLabel("No image loaded")
         self.info_label.setObjectName("studio_info")
-        root.addWidget(self.info_label)
+        status_bar.addWidget(self.info_label)
+
+        root.addLayout(status_bar)
 
         # Selection change -> update sliders + props row
         self._scene.selectionChanged.connect(self._on_selection_changed)
