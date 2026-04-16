@@ -1067,6 +1067,11 @@ class StudioEditor(QWidget):
         self.btn_export.clicked.connect(self._export_preview)
         toolbar.addWidget(self.btn_export)
 
+        self.btn_export_plat = QPushButton("Export Platform")
+        self.btn_export_plat.setObjectName("studio_btn_export_plat")
+        self.btn_export_plat.clicked.connect(self._export_current_platform)
+        toolbar.addWidget(self.btn_export_plat)
+
         self.btn_export_all = QPushButton("Export All Platforms")
         self.btn_export_all.setObjectName("studio_btn_export_all")
         self.btn_export_all.clicked.connect(self._export_all_platforms)
@@ -1257,17 +1262,20 @@ class StudioEditor(QWidget):
         self._canvas_split.setStretchFactor(1, 0)
         root.addWidget(self._canvas_split, 1)
 
-        # Platform preview strip (collapsible)
+        # Platform preview strip (collapsible filmstrip)
+        self._preview_thumb_h = max(60, int(_dt.font_size * 5))
+        strip_h = self._preview_thumb_h + int(_dt.font_size * 2.5)
         self._preview_strip = QWidget()
         self._preview_strip.setObjectName("studio_preview_strip")
-        self._preview_strip.setVisible(False)
+        self._preview_strip.setFixedHeight(strip_h)
         self._preview_strip_layout = QHBoxLayout(self._preview_strip)
         self._preview_strip_layout.setContentsMargins(_pad, _pad, _pad, _pad)
         self._preview_strip_layout.setSpacing(_pad_lg)
+        self._preview_strip_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self._preview_strip_scroll = QScrollArea()
         self._preview_strip_scroll.setObjectName("studio_preview_scroll")
         self._preview_strip_scroll.setWidgetResizable(True)
-        self._preview_strip_scroll.setFixedHeight(int(_dt.font_size * 10))
+        self._preview_strip_scroll.setFixedHeight(strip_h)
         self._preview_strip_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._preview_strip_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._preview_strip_scroll.setWidget(self._preview_strip)
@@ -2150,6 +2158,49 @@ class StudioEditor(QWidget):
                 img.save(path)
                 self.info_label.setText(f"Exported: {Path(path).name}")
 
+    def _export_current_platform(self):
+        """Export only the currently selected platform/crop from the crop combo."""
+        if not self._asset or not self._project:
+            return
+        self._sync_censors_to_asset()
+        self._sync_overlays_to_asset()
+
+        data = self._crop_combo.currentData()
+        if not data:
+            self.info_label.setText("Select a platform slot in the crop combo first")
+            return
+
+        slot_w, slot_h = data
+        # Find matching platform and slot
+        from doxyedit.models import PLATFORMS
+        platform_id = slot_name = None
+        for pid, plat in PLATFORMS.items():
+            for s in plat.slots:
+                if s.width == slot_w and s.height == slot_h:
+                    platform_id, slot_name = pid, s.name
+                    break
+            if platform_id:
+                break
+
+        if not platform_id:
+            self.info_label.setText("Could not match crop to a platform")
+            return
+
+        from doxyedit.pipeline import prepare_for_platform
+        from doxyedit.imaging import get_export_dir
+        output_dir = str(get_export_dir(self._project_path) / Path(self._asset.source_path).stem) if self._project_path else ""
+        r = prepare_for_platform(
+            self._asset, platform_id, self._project,
+            slot_name=slot_name, output_dir=output_dir,
+        )
+        if r.success:
+            self._asset.variant_exports[f"{platform_id}_{slot_name}"] = r.output_path
+            self.info_label.setText(f"Exported: {platform_id}/{slot_name} ({r.width}×{r.height})")
+            if self._project_path:
+                self._open_export_folder(Path(r.output_path).parent)
+        else:
+            self.info_label.setText(f"Export failed: {r.error}")
+
     def _export_all_platforms(self):
         """Batch export all platform variants for the current asset."""
         if not self._asset or not self._project:
@@ -2192,7 +2243,7 @@ class StudioEditor(QWidget):
                 item.widget().deleteLater()
 
         from doxyedit.models import PLATFORMS
-        thumb_h = self._preview_strip_scroll.height() - 30
+        thumb_h = self._preview_thumb_h
         any_shown = False
         for r in results:
             if not r.success or not r.output_path:

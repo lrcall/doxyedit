@@ -170,7 +170,7 @@ class ResizableCropItem(QGraphicsRectItem):
         painter.setPen(self.pen())
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(self.rect())
-        # Draw label
+        # Draw label (screen-space sized so it stays readable at any zoom)
         if self.label:
             from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
@@ -178,9 +178,16 @@ class ResizableCropItem(QGraphicsRectItem):
             _lc.setAlpha(_dt.preview_badge_alpha)
             painter.setPen(_lc)
             font = painter.font()
-            font.setPixelSize(_dt.font_size)
+            # Compute screen-space font size by inverting the view transform
+            view = self.scene().views()[0] if self.scene() and self.scene().views() else None
+            if view:
+                scale = view.transform().m11()
+                font.setPixelSize(max(12, int(_dt.font_size * 1.2 / max(scale, 0.01))))
+            else:
+                font.setPixelSize(_dt.font_size)
             painter.setFont(font)
-            painter.drawText(self.rect().adjusted(6, 4, 0, 0), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, self.label)
+            pad = max(6, int(6 / max(scale, 0.01))) if view else 6
+            painter.drawText(self.rect().adjusted(pad, pad, 0, 0), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, self.label)
         # Draw handles if selected
         if self.isSelected():
             from doxyedit.themes import THEMES, DEFAULT_THEME
