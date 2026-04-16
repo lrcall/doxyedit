@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QSize, QSettings, QDate
 from PySide6.QtGui import QPixmap
+from doxyedit.browser import FlowLayout
 
 from doxyedit.models import (
     Project, Asset, PlatformAssignment, PostStatus, PLATFORMS,
@@ -318,11 +319,15 @@ class PlatformPanel(QWidget):
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
-        outer = QHBoxLayout(self)
+        outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # ── Left sidebar: campaign, filter, summary, actions ─────────────
+        # ── 3-pane horizontal splitter: sidebar | cards | dashboard ──────
+        self._plat_hsplit = QSplitter(Qt.Orientation.Horizontal)
+        outer.addWidget(self._plat_hsplit, 1)
+
+        # ── Pane 1: Sidebar (campaign, filter, summary, actions) ─────────
         sidebar = QWidget()
         sidebar.setObjectName("platform_sidebar")
         sb_layout = QVBoxLayout(sidebar)
@@ -351,20 +356,9 @@ class PlatformPanel(QWidget):
         sb_layout.addWidget(btn_export_ready)
 
         sb_layout.addStretch()
-        outer.addWidget(sidebar)
+        self._plat_hsplit.addWidget(sidebar)
 
-        # ── Right: cards + dashboard splitter ────────────────────────────
-        self._plat_hsplit = QSplitter(Qt.Orientation.Horizontal)
-        outer.addWidget(self._plat_hsplit, 1)
-
-        # ── Left: Cards view ─────────────────────────────────────────────
-        cards_page = QWidget()
-        cards_layout = QVBoxLayout(cards_page)
-        cards_layout.setContentsMargins(0, 0, 0, 0)
-
-        self._vsplit = QSplitter(Qt.Orientation.Vertical)
-        cards_layout.addWidget(self._vsplit)
-
+        # ── Pane 2: Cards (single scrollable column) ────────────────────
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -372,33 +366,11 @@ class PlatformPanel(QWidget):
         self._cards_widget = QWidget()
         scroll.setWidget(self._cards_widget)
 
-        self._col_split = QSplitter(Qt.Orientation.Horizontal)
-        _cards_inner = QVBoxLayout(self._cards_widget)
-        _cards_inner.setContentsMargins(0, _pad, 0, _pad)
-        _cards_inner.addWidget(self._col_split)
+        self._cards_layout = QVBoxLayout(self._cards_widget)
+        self._cards_layout.setContentsMargins(_pad, _pad, _pad, _pad)
+        self._cards_layout.setSpacing(int(_f * COL_SPACING_RATIO))
 
-        self._col0_widget = QWidget()
-        self._col0 = QVBoxLayout(self._col0_widget)
-        self._col0.setContentsMargins(0, 0, 0, 0)
-        self._col0.setSpacing(int(_f * COL_SPACING_RATIO))
-
-        self._col1_widget = QWidget()
-        self._col1 = QVBoxLayout(self._col1_widget)
-        self._col1.setContentsMargins(0, 0, 0, 0)
-        self._col1.setSpacing(int(_f * COL_SPACING_RATIO))
-
-        self._col_split.addWidget(self._col0_widget)
-        self._col_split.addWidget(self._col1_widget)
-        self._col_split.setSizes([500, 500])
-        self._col_split.setChildrenCollapsible(False)
-
-        self._vsplit.addWidget(scroll)
-
-        # Hive removed — drag-drop onto slot rows replaces it
-        self._vsplit.setStretchFactor(0, 1)
-        self._vsplit.setStretchFactor(1, 0)
-
-        self._plat_hsplit.addWidget(cards_page)
+        self._plat_hsplit.addWidget(scroll)
 
         # ── Right: Dashboard view ────────────────────────────────────────
         dash_container = QWidget()
@@ -420,10 +392,10 @@ class PlatformPanel(QWidget):
 
         # Restore or default split
         saved_hsplit = QSettings("DoxyEdit", "DoxyEdit").value("plat_hsplit_sizes", None)
-        if saved_hsplit:
+        if saved_hsplit and len(saved_hsplit) == 3:
             self._plat_hsplit.setSizes([int(s) for s in saved_hsplit])
         else:
-            self._plat_hsplit.setSizes([500, 500])
+            self._plat_hsplit.setSizes([180, 500, 400])
 
         self.refresh()
 
@@ -432,12 +404,11 @@ class PlatformPanel(QWidget):
         self.refresh()
 
     def refresh(self):
-        # Clear both columns
-        for col in (self._col0, self._col1):
-            while col.count():
-                item = col.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
+        # Clear cards
+        while self._cards_layout.count():
+            item = self._cards_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
 
         # Build lookup: (platform_id, slot_name) → list of (asset, PlatformAssignment)
         cid = self._campaign_bar.current_campaign_id
@@ -478,9 +449,7 @@ class PlatformPanel(QWidget):
                 continue
             if search_text and search_text not in platform.name.lower() and search_text not in pid.lower():
                 continue
-            col = self._col0 if placed % 2 == 0 else self._col1
-            placed += 1
-            col.addWidget(self._build_card(platform, pid, assign_map))
+            self._cards_layout.addWidget(self._build_card(platform, pid, assign_map))
 
             for slot in platform.slots:
                 total_slots += 1
@@ -491,8 +460,7 @@ class PlatformPanel(QWidget):
                     if all(str(pa.status) == "posted" for _, pa in entries):
                         posted_slots += 1
 
-        self._col0.addStretch()
-        self._col1.addStretch()
+        self._cards_layout.addStretch()
 
         empty = total_slots - filled_slots
         self.summary_label.setText(
@@ -507,6 +475,7 @@ class PlatformPanel(QWidget):
         _pad = max(4, _f // 3)
         card = QFrame()
         card.setObjectName("platform_card")
+        card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         layout = QVBoxLayout(card)
         _card_m = int(_f * CARD_MARGIN_RATIO)
         layout.setContentsMargins(_card_m, _card_m, _card_m, _card_m)
@@ -842,16 +811,13 @@ class PlatformPanel(QWidget):
 
             # Slot grid — flow layout of cells
             grid_widget = QWidget()
-            grid_flow = QHBoxLayout(grid_widget)
-            grid_flow.setContentsMargins(0, 0, 0, 0)
-            grid_flow.setSpacing(_pad_lg)
+            grid_flow = FlowLayout(grid_widget, spacing=_pad_lg)
 
             for slot in platform.slots:
                 key = (pid, slot.name)
                 entries = assign_map.get(key, [])
                 cell = self._dash_cell(slot, pid, entries)
                 grid_flow.addWidget(cell)
-            grid_flow.addStretch()
 
             section_layout.addWidget(grid_widget)
             self._dash_layout.insertWidget(insert_idx, section)

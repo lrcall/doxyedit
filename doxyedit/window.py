@@ -546,17 +546,27 @@ class MainWindow(QMainWindow):
         self.browser._tags_btn.toggled.connect(self._toggle_tag_panel_btn)
         self._tags_toolbar_btn = self.browser._tags_btn
 
-        # Sync toolbar button states with saved visibility (not widget.isVisible which is unreliable before show)
+        # Sync toolbar button states AND panel visibility with saved state
+        tags_vis = self._settings.value("tags_panel_visible", True, type=bool)
         self.browser._tags_btn.blockSignals(True)
-        self.browser._tags_btn.setChecked(self._settings.value("tags_panel_visible", True, type=bool))
+        self.browser._tags_btn.setChecked(tags_vis)
         self.browser._tags_btn.blockSignals(False)
+        self.tag_panel.setVisible(tags_vis)
+
+        tray_vis = self._settings.value("tray_visible", False, type=bool)
         self.browser._tray_btn.blockSignals(True)
-        self.browser._tray_btn.setChecked(self._settings.value("tray_visible", False, type=bool))
+        self.browser._tray_btn.setChecked(tray_vis)
         self.browser._tray_btn.blockSignals(False)
+        if tray_vis:
+            self._tray_open = True
+            self.work_tray.show()
+
         if hasattr(self.browser, '_files_btn'):
+            files_vis = self._settings.value("file_browser_visible", False, type=bool)
             self.browser._files_btn.blockSignals(True)
-            self.browser._files_btn.setChecked(self._settings.value("file_browser_visible", False, type=bool))
+            self.browser._files_btn.setChecked(files_vis)
             self.browser._files_btn.blockSignals(False)
+            self._file_browser.setVisible(files_vis)
 
         # Tab key — toggle all side panels (hide/restore)
         QShortcut(QKeySequence(Qt.Key.Key_Tab), self).activated.connect(self._toggle_all_panels)
