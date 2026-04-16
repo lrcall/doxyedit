@@ -134,8 +134,8 @@ class ImagePreviewPanel(QWidget):
 
         self._nsfw_checks: dict[str, QCheckBox] = {}
         self._nsfw_platform_container = QWidget()
-        from doxyedit.composer_right import _FlowLayout
-        self._nsfw_plat_layout = _FlowLayout(hspacing=8, vspacing=4)
+        from doxyedit.browser import FlowLayout
+        self._nsfw_plat_layout = FlowLayout(hspacing=8, vspacing=4)
         self._nsfw_platform_container.setLayout(self._nsfw_plat_layout)
         nsfw_layout.addWidget(self._nsfw_platform_container)
 

@@ -22,7 +22,7 @@ from doxyedit.models import (
     Asset, Project, TAG_PRESETS, TAG_SIZED, TAG_ALL, TAG_SHORTCUTS,
     TagPreset, toggle_tags, next_tag_color, STAR_COLORS, VINIK_COLORS,
 )
-from doxyedit.preview import HoverPreview, ImagePreviewDialog
+from doxyedit.preview import HoverPreview
 from doxyedit.thumbcache import ThumbCache, THUMB_SIZE
 
 from PySide6.QtWidgets import QLayout, QProgressDialog
@@ -211,10 +211,17 @@ class _ScanWorker(QThread):
 # ---------------------------------------------------------------------------
 
 class FlowLayout(QLayout):
-    def __init__(self, parent=None, spacing=4):
+    """Simple flow layout that wraps widgets like text.
+
+    Accepts either a single ``spacing`` (used for both axes) or separate
+    ``hspacing`` / ``vspacing`` values.
+    """
+
+    def __init__(self, parent=None, spacing=4, *, hspacing=None, vspacing=None):
         super().__init__(parent)
         self._items = []
-        self._spacing = spacing
+        self._hspacing = hspacing if hspacing is not None else spacing
+        self._vspacing = vspacing if vspacing is not None else spacing
 
     def addItem(self, item):
         self._items.append(item)
@@ -260,11 +267,11 @@ class FlowLayout(QLayout):
             h = item.sizeHint().height()
             if x + w > max_width and x > rect.x() + m.left():
                 x = rect.x() + m.left()
-                y += row_height + self._spacing
+                y += row_height + self._vspacing
                 row_height = 0
             if not dry_run:
                 item.setGeometry(QRect(x, y, w, h))
-            x += w + self._spacing
+            x += w + self._hspacing
             row_height = max(row_height, h)
         return y + row_height - rect.y() + m.bottom()
 
@@ -810,13 +817,6 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self._scaled_cache.clear()
         self._fonts.clear()
         self._fms.clear()
-
-    def _ensure_cache_limit(self):
-        """Evict old entries if cache grows too large."""
-        if len(self._scaled_cache) > 500:
-            keys = list(self._scaled_cache.keys())
-            for k in keys[:200]:
-                del self._scaled_cache[k]
 
 
 # ---------------------------------------------------------------------------
@@ -3775,12 +3775,6 @@ class AssetBrowser(QWidget):
 def _mtime(asset: Asset) -> float:
     try:
         return os.path.getmtime(asset.source_path)
-    except OSError:
-        return 0
-
-def _fsize(asset: Asset) -> int:
-    try:
-        return os.path.getsize(asset.source_path)
     except OSError:
         return 0
 

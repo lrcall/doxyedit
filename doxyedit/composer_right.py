@@ -11,13 +11,12 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QTextEdit, QPushButton, QCheckBox, QDateTimeEdit, QFrame,
-    QScrollArea, QGroupBox, QLayout, QStackedWidget, QTextBrowser,
+    QScrollArea, QGroupBox, QStackedWidget, QTextBrowser,
     QSizePolicy, QComboBox, QSpinBox,
 )
-from PySide6.QtCore import Qt, QDateTime, QRect, QSize, Signal
-from PySide6.QtGui import QPixmap
-
-from doxyedit.models import Project, ReleaseStep, SocialPost, SocialPostStatus
+from PySide6.QtCore import Qt, QDateTime, Signal
+from doxyedit.browser import FlowLayout
+from doxyedit.models import Project, SocialPost
 
 
 # ─── Chrome profile utilities ─────────────────────────────────────
@@ -75,78 +74,6 @@ def open_chrome_with_profile(url: str, profile_dir: str = "Default"):
         subprocess.Popen(cmd, creationflags=0x08000000)
     else:
         subprocess.Popen(cmd)
-
-
-# ─── Flow layout ───────────────────────────────────────────────────
-
-class _FlowLayout(QLayout):
-    """Simple flow layout that wraps widgets like text."""
-
-    def __init__(self, parent=None, hspacing=6, vspacing=4):
-        super().__init__(parent)
-        self._hspacing = hspacing
-        self._vspacing = vspacing
-        self._items: list = []
-
-    def addItem(self, item):
-        self._items.append(item)
-
-    def count(self):
-        return len(self._items)
-
-    def itemAt(self, index):
-        if 0 <= index < len(self._items):
-            return self._items[index]
-        return None
-
-    def takeAt(self, index):
-        if 0 <= index < len(self._items):
-            return self._items.pop(index)
-        return None
-
-    def hasHeightForWidth(self):
-        return True
-
-    def heightForWidth(self, width):
-        return self._do_layout(QRect(0, 0, width, 0), test_only=True)
-
-    def setGeometry(self, rect):
-        super().setGeometry(rect)
-        self._do_layout(rect)
-
-    def sizeHint(self):
-        return self.minimumSize()
-
-    def minimumSize(self):
-        s = QSize(0, 0)
-        for item in self._items:
-            s = s.expandedTo(item.minimumSize())
-        m = self.contentsMargins()
-        s += QSize(m.left() + m.right(), m.top() + m.bottom())
-        return s
-
-    def _do_layout(self, rect, test_only=False):
-        from PySide6.QtCore import QRect as _QRect
-        m = self.contentsMargins()
-        effective = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
-        x = effective.x()
-        y = effective.y()
-        row_height = 0
-
-        for item in self._items:
-            sz = item.sizeHint()
-            next_x = x + sz.width() + self._hspacing
-            if next_x - self._hspacing > effective.right() and row_height > 0:
-                x = effective.x()
-                y += row_height + self._vspacing
-                next_x = x + sz.width() + self._hspacing
-                row_height = 0
-            if not test_only:
-                item.setGeometry(_QRect(x, y, sz.width(), sz.height()))
-            x = next_x
-            row_height = max(row_height, sz.height())
-
-        return y + row_height - rect.y() + m.bottom()
 
 
 # ─── Content panel ─────────────────────────────────────────────────
@@ -260,7 +187,7 @@ class ContentPanel(QWidget):
         # Container widget for account checkboxes (rebuilt on category change)
         self._accounts_container = QWidget()
         self._accounts_container.setObjectName("composer_accounts_container")
-        self._accounts_flow = _FlowLayout(hspacing=8, vspacing=4)
+        self._accounts_flow = FlowLayout(hspacing=8, vspacing=4)
         self._accounts_container.setLayout(self._accounts_flow)
         platforms_layout.addWidget(self._accounts_container)
 
@@ -270,7 +197,7 @@ class ContentPanel(QWidget):
         # --- Subscription platforms (Patreon, Fanbox, etc.) ---
         from doxyedit.models import SUB_PLATFORMS
         self._sub_platform_checks: dict[str, QCheckBox] = {}
-        sub_flow = _FlowLayout(hspacing=8, vspacing=4)
+        sub_flow = FlowLayout(hspacing=8, vspacing=4)
         sub_container = QWidget()
         sub_container.setLayout(sub_flow)
 
@@ -308,7 +235,7 @@ class ContentPanel(QWidget):
             ("newgrounds", "Newgrounds"),
         ]
         self._manual_platform_checks: dict[str, QCheckBox] = {}
-        manual_flow = _FlowLayout(hspacing=8, vspacing=4)
+        manual_flow = FlowLayout(hspacing=8, vspacing=4)
         manual_container = QWidget()
         manual_container.setLayout(manual_flow)
 
@@ -1631,7 +1558,7 @@ RULES:
         default_platforms = identity.get("default_platforms", [])
         platform_checks: dict[str, QCheckBox] = {}
         plat_widget = QWidget()
-        plat_layout = _FlowLayout(plat_widget, hspacing=8, vspacing=4)
+        plat_layout = FlowLayout(plat_widget, hspacing=8, vspacing=4)
         all_platform_ids = list(self._platform_checks.keys())
         all_platform_ids += list(getattr(self, '_sub_platform_checks', {}).keys())
         for pid in all_platform_ids:

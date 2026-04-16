@@ -1,11 +1,10 @@
 """reminders.py — Scans project posts for pending release steps and surfaces alerts."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
 
-from doxyedit.models import Project, SocialPost, ReleaseStep, EngagementWindow
+from doxyedit.models import Project, SocialPost, EngagementWindow
 
 
 @dataclass

@@ -5,10 +5,10 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox,
     QFrame, QScrollArea, QTextEdit, QPushButton, QSplitter, QColorDialog,
 )
-from PySide6.QtCore import Qt, Signal, QPoint, QRect, QEvent, QSettings
-from PySide6.QtGui import QFont, QColor, QPainter, QPen, QBrush
+from PySide6.QtCore import Qt, Signal, QPoint, QRect, QSettings
+from PySide6.QtGui import QColor, QPainter, QPen, QBrush
 
-from doxyedit.models import Asset, TAG_PRESETS, TAG_SIZED, TAG_ALL, TAG_SHORTCUTS, TagPreset, check_fitness
+from doxyedit.models import Asset, TAG_PRESETS, TAG_SIZED, TAG_SHORTCUTS, TagPreset, check_fitness
 
 
 FITNESS_COLORS = {

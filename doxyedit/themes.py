@@ -587,6 +587,18 @@ THEMES: dict[str, Theme] = {
 DEFAULT_THEME = "soot"
 
 
+def ui_metrics(font_size: int = 0) -> tuple[int, int, int, int]:
+    """Return (font_size, pad, pad_lg, cb) derived from font_size.
+    If font_size is 0, reads from QSettings."""
+    if not font_size:
+        from PySide6.QtCore import QSettings
+        font_size = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+    pad = max(4, font_size // 3)
+    pad_lg = max(6, font_size // 2)
+    cb = max(14, font_size + 2)
+    return font_size, pad, pad_lg, cb
+
+
 def generate_stylesheet(theme: Theme) -> str:
     """Generate a complete Qt stylesheet from a theme."""
     # --- Design tokens ---

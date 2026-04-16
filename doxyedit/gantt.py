@@ -10,8 +10,8 @@ from PySide6.QtWidgets import (
     QGraphicsRectItem, QGraphicsLineItem, QSplitter,
     QScrollArea, QFrame, QSizePolicy, QGraphicsItem,
 )
-from PySide6.QtCore import Signal, Qt, QDate, QRectF, QPointF
-from PySide6.QtGui import QPen, QColor, QBrush, QPainter, QPainterPath
+from PySide6.QtCore import Signal, Qt, QDate
+from PySide6.QtGui import QPen, QColor, QBrush, QPainter
 
 from doxyedit.models import Project, SocialPost, SocialPostStatus
 

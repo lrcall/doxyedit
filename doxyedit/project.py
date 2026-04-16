@@ -1,21 +1,16 @@
-"""Project save/load and markdown import/export.
+"""Project save/load for .doxy.json canvas files.
 
 The .doxy.json format is intentionally human-readable so Claude CLI
 can read, understand, and modify project files directly.
 """
 import json
 import base64
-import io
-import re
 from pathlib import Path
 from PySide6.QtWidgets import (
-    QGraphicsTextItem, QGraphicsRectItem, QGraphicsLineItem,
-    QGraphicsPixmapItem,
+    QGraphicsRectItem, QGraphicsLineItem,
 )
-from PySide6.QtCore import QPointF, QRectF, QLineF, QBuffer, QIODevice
-from PySide6.QtGui import QColor, QPen, QBrush, QFont, QPixmap
-
-DEFAULT_ANNOTATION_PEN_WIDTH = 2  # default pen width for scene annotations
+from PySide6.QtCore import QRectF, QLineF, QBuffer, QIODevice
+from PySide6.QtGui import QColor, QPen, QBrush, QPixmap
 
 
 def _color_str(color: QColor) -> str:
@@ -158,149 +153,3 @@ def load_project(scene, path: str):
             )
             scene.addItem(rect)
 
-
-# ---------------------------------------------------------------------------
-# Markdown export/import
-# ---------------------------------------------------------------------------
-
-def export_markdown(scene, path: str):
-    """Export scene items to a readable markdown file.
-
-    The markdown includes HTML comments with position data so it can be
-    round-tripped back into the editor.
-    """
-    from doxyedit.canvas import EditableTextItem, TagItem, MovablePixmapItem
-
-    lines = ["# DoxyEdit Export\n"]
-    img_dir = Path(path).parent / (Path(path).stem + "_images")
-    img_index = 0
-
-    for item in sorted(scene.items(), key=lambda i: (i.pos().y(), i.pos().x())):
-        if item.parentItem() is not None:
-            continue
-
-        if isinstance(item, TagItem):
-            lines.append(f"<!-- doxy:tag x={item.pos().x():.1f} y={item.pos().y():.1f} color={_color_str(item.brush().color())} -->")
-            lines.append(f"`[{item.label}]`\n")
-
-        elif isinstance(item, EditableTextItem):
-            lines.append(f"<!-- doxy:text x={item.pos().x():.1f} y={item.pos().y():.1f} color={_color_str(item.defaultTextColor())} -->")
-            lines.append(f"{item.toPlainText()}\n")
-
-        elif isinstance(item, MovablePixmapItem):
-            img_dir.mkdir(exist_ok=True)
-            img_path = img_dir / f"image_{img_index}.png"
-            item.pixmap().save(str(img_path))
-            rel = img_path.relative_to(Path(path).parent)
-            lines.append(f"<!-- doxy:image x={item.pos().x():.1f} y={item.pos().y():.1f} -->")
-            lines.append(f"![image]({rel})\n")
-            img_index += 1
-
-        elif isinstance(item, QGraphicsLineItem):
-            line = item.line()
-            lines.append(f"<!-- doxy:line x={item.pos().x():.1f} y={item.pos().y():.1f} x2={line.x2():.1f} y2={line.y2():.1f} color={_color_str(item.pen().color())} -->")
-            lines.append(f"*line*\n")
-
-        elif isinstance(item, QGraphicsRectItem):
-            r = item.rect()
-            lines.append(f"<!-- doxy:box x={item.pos().x():.1f} y={item.pos().y():.1f} w={r.width():.1f} h={r.height():.1f} color={_color_str(item.pen().color())} -->")
-            lines.append(f"*box*\n")
-
-    Path(path).write_text("\n".join(lines), encoding="utf-8")
-
-
-def import_markdown(scene, path: str):
-    """Import a markdown file back into the scene.
-
-    Reads doxy: HTML comments for positioning. Plain markdown without
-    comments is imported as text blocks.
-    """
-    from doxyedit.canvas import EditableTextItem, TagItem, MovablePixmapItem
-
-    text = Path(path).read_text(encoding="utf-8")
-    scene.clear()
-
-    # Pattern to match doxy comments
-    comment_re = re.compile(r"<!--\s*doxy:(\w+)\s+(.*?)\s*-->")
-    attr_re = re.compile(r"(\w+)=([\S]+)")
-
-    lines_iter = iter(text.splitlines())
-    y_cursor = 0.0
-    base_dir = Path(path).parent
-
-    for raw_line in lines_iter:
-        m = comment_re.match(raw_line.strip())
-        if m:
-            kind = m.group(1)
-            attrs = dict(attr_re.findall(m.group(2)))
-            x = float(attrs.get("x", 0))
-            y = float(attrs.get("y", 0))
-
-            # Read the next non-empty content line
-            content = ""
-            for next_line in lines_iter:
-                next_line = next_line.strip()
-                if next_line:
-                    content = next_line
-                    break
-
-            if kind == "text":
-                item = EditableTextItem(content)
-                item.setPos(x, y)
-                if "color" in attrs:
-                    item.setDefaultTextColor(_parse_color(attrs["color"]))
-                scene.addItem(item)
-
-            elif kind == "tag":
-                # strip backticks and brackets: `[label]` -> label
-                label = content.strip("`[]")
-                color = attrs.get("color", "#ff6b6b")
-                item = TagItem(x, y, label, color)
-                scene.addItem(item)
-
-            elif kind == "image":
-                # parse ![alt](path)
-                img_match = re.match(r"!\[.*?\]\((.+?)\)", content)
-                if img_match:
-                    img_path = base_dir / img_match.group(1)
-                    pm = QPixmap(str(img_path))
-                    if not pm.isNull():
-                        item = MovablePixmapItem(pm)
-                        item.setPos(x, y)
-                        scene.addItem(item)
-
-            elif kind == "line":
-                x2 = float(attrs.get("x2", 100))
-                y2 = float(attrs.get("y2", 100))
-                color = _parse_color(attrs.get("color", "#4fc3f7"))
-                line = QGraphicsLineItem(QLineF(0, 0, x2, y2))
-                line.setPos(x, y)
-                line.setPen(QPen(color, attrs.get("width", DEFAULT_ANNOTATION_PEN_WIDTH)))
-                line.setFlags(
-                    QGraphicsLineItem.GraphicsItemFlag.ItemIsMovable
-                    | QGraphicsLineItem.GraphicsItemFlag.ItemIsSelectable
-                )
-                scene.addItem(line)
-
-            elif kind == "box":
-                w = float(attrs.get("w", 100))
-                h = float(attrs.get("h", 60))
-                color = _parse_color(attrs.get("color", "#4fc3f7"))
-                rect = QGraphicsRectItem(QRectF(0, 0, w, h))
-                rect.setPos(x, y)
-                rect.setPen(QPen(color, attrs.get("width", DEFAULT_ANNOTATION_PEN_WIDTH)))
-                rect.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 30)))
-                rect.setFlags(
-                    QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
-                    | QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable
-                )
-                scene.addItem(rect)
-
-        else:
-            # Plain text line (no doxy comment) — import as text if non-trivial
-            stripped = raw_line.strip()
-            if stripped and not stripped.startswith("#"):
-                item = EditableTextItem(stripped)
-                item.setPos(20, y_cursor)
-                scene.addItem(item)
-                y_cursor += 30

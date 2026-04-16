@@ -1335,10 +1335,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 cursor.insertText("\n" + replacement)
         self.status.showMessage("Text refined by Claude", 3000)
 
-    def _on_project_notes_tab_changed(self):
-        """Legacy handler — redirects to sub-note system."""
-        self._on_sub_note_changed("General")
-
     def _render_notes_preview(self, text: str):
         """Render to the General tab preview (backward compat)."""
         self._render_notes_preview_to(self._project_notes_preview, text)
@@ -2502,18 +2498,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._file_browser._update_folder_counts()
             self._file_browser._tree.viewport().update()
 
-    def _send_to_tray(self):
-        """Send selected assets to work tray."""
-        assets = self.browser.get_selected_assets()
-        if not assets:
-            return
-        if not self.work_tray.isVisible():
-            self._toggle_work_tray()
-        for a in assets:
-            pm = self.browser._thumb_cache.get(a.id)
-            self.work_tray.add_asset(a.id, a.name, pm, path=a.source_path)
-        self.status.showMessage(f"Sent {len(assets)} to tray")
-
     def _on_thumb_for_tray(self, asset_id: str, pixmap):
         """Update tray thumbnail when thumb cache generates it."""
         self.work_tray.update_pixmap(asset_id, pixmap)
@@ -3590,12 +3574,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if hasattr(self, 'studio') and hasattr(self.studio, '_set_tool'):
             self.studio._set_tool(tool)
             self.tabs.setCurrentWidget(self.studio)
-
-    def _add_image_to_canvas(self):
-        """Legacy — redirect to Studio tab."""
-        if hasattr(self, 'studio'):
-            self.tabs.setCurrentWidget(self.studio)
-            self.status.showMessage("Use Studio tab to add images")
 
     def _rename_selected(self):
         """F2 — rename the selected file on disk and update the project."""
