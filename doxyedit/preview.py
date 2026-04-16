@@ -922,7 +922,6 @@ class PreviewPane(QWidget):
         self._popout_btn.setToolTip("Open in floating preview window")
         self._popout_btn.clicked.connect(lambda: self.popout_requested.emit() if self._asset else None)
         info_layout.addWidget(self._popout_btn)
-        layout.addWidget(self._info_bar)
 
         # Graphics view
         from doxyedit.themes import THEMES, DEFAULT_THEME
@@ -939,6 +938,7 @@ class PreviewPane(QWidget):
         self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._view.wheelEvent = self._wheel_zoom
         layout.addWidget(self._view, 1)
+        layout.addWidget(self._info_bar)
 
         self.setMinimumWidth(0)  # browse splitter handles collapsing
 
