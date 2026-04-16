@@ -216,7 +216,7 @@ def prepare_for_platform(
             crop_source = "assignment"
             break
 
-    # Then check asset.crops by label (flexible matching)
+    # Then check asset.crops by label
     if crop_box is None:
         for cr in asset.crops:
             lbl = cr.label.strip().lower()
@@ -228,28 +228,37 @@ def prepare_for_platform(
                 crop_source = f"label_match ('{cr.label}')"
                 break
 
-    # Match by aspect ratio
+    # Match by aspect ratio (5% tolerance)
     if crop_box is None and slot.width and slot.height:
         target_ratio = slot.width / slot.height
+        best_match = None
+        best_diff = 999
         for cr in asset.crops:
             if cr.w > 0 and cr.h > 0:
-                cr_ratio = cr.w / cr.h
-                if abs(cr_ratio - target_ratio) < 0.02:
-                    crop_box = (cr.x, cr.y, cr.w, cr.h)
-                    crop_source = f"aspect_match ('{cr.label}', ratio={cr_ratio:.2f})"
-                    break
+                diff = abs(cr.w / cr.h - target_ratio)
+                if diff < 0.05 and diff < best_diff:
+                    best_match = cr
+                    best_diff = diff
+        if best_match:
+            crop_box = (best_match.x, best_match.y, best_match.w, best_match.h)
+            crop_source = f"aspect_match ('{best_match.label}', diff={best_diff:.3f})"
 
-    # If only one crop exists on the asset, use it
+    # If only one crop exists, just use it
     if crop_box is None and len(asset.crops) == 1:
         cr = asset.crops[0]
         crop_box = (cr.x, cr.y, cr.w, cr.h)
         crop_source = f"only_crop ('{cr.label}')"
 
-    # Auto-fit as fallback
+    # Last resort: use the largest crop (user drew it for a reason)
+    if crop_box is None and asset.crops:
+        biggest = max(asset.crops, key=lambda c: c.w * c.h)
+        crop_box = (biggest.x, biggest.y, biggest.w, biggest.h)
+        crop_source = f"largest_crop ('{biggest.label}')"
+
+    # Auto-fit only if NO crops exist at all
     if crop_box is None:
         crop_box = _auto_crop_for_ratio(img_w, img_h, slot.width, slot.height)
-        crop_source = "auto"
-        warnings.append("No explicit crop found, using auto-fit")
+        crop_source = "auto (no crops on asset)"
 
     print(f"[Pipeline] {platform_id}/{slot_name}: crop={crop_source}")
 

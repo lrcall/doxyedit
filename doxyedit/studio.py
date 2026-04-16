@@ -2417,8 +2417,9 @@ class StudioEditor(QWidget):
 
         output_dir = str(get_export_dir(self._project_path)) if self._project_path else ""
 
-        # ONLY export platforms that have crops drawn or scoped overlays/censors
-        crop_labels = {c.label.strip().lower() for c in self._asset.crops}
+        # Build list of what to export:
+        # - Every platform that has a scoped overlay/censor
+        # - Every platform whose slot aspect ratio matches a drawn crop
         overlay_pids = set()
         for ov in self._asset.overlays:
             overlay_pids.update(ov.platforms)
@@ -2431,22 +2432,23 @@ class StudioEditor(QWidget):
             if not plat or not plat.slots:
                 continue
             for s in plat.slots:
-                # Check if this platform/slot has a drawn crop or scoped overlay
-                has_crop = (s.name.lower() in crop_labels
-                            or pid.lower() in crop_labels
-                            or any(pid.lower() in lbl or s.name.lower() in lbl for lbl in crop_labels))
-                has_overlay = pid in overlay_pids
-                # Also check aspect ratio match against drawn crops
-                if not has_crop and s.width and s.height:
+                if pid in overlay_pids:
+                    slots.append((pid, s.name))
+                    continue
+                # Check if ANY crop on the asset matches this slot
+                if s.width and s.height:
                     target = s.width / s.height
                     for c in self._asset.crops:
-                        if c.w > 0 and c.h > 0 and abs(c.w / c.h - target) < 0.02:
-                            has_crop = True
-                            break
-                if has_crop or has_overlay:
-                    slots.append((pid, s.name))
+                        if c.w > 0 and c.h > 0:
+                            lbl = c.label.strip().lower()
+                            # Exact label match OR aspect ratio match
+                            if (lbl == s.name.lower() or lbl == pid.lower()
+                                    or s.name.lower() in lbl or pid.lower() in lbl
+                                    or abs(c.w / c.h - target) < 0.05):
+                                slots.append((pid, s.name))
+                                break
 
-        if not slots:
+        if not slots and not self._asset.crops:
             self.info_label.setText("No crops or platform-scoped overlays on this asset")
             return
 
