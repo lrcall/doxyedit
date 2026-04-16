@@ -1242,8 +1242,9 @@ class StudioEditor(QWidget):
 
         # QShortcut fires regardless of focus — guaranteed Escape handling
         from PySide6.QtGui import QShortcut, QKeySequence
+        # Escape shortcut — WindowShortcut so it fires even when toolbar has focus
         self._esc_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
-        self._esc_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self._esc_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
         self._esc_shortcut.activated.connect(self._clear_escape_state)
 
         # Snap grid overlay — flag on the scene, drawn via foreground
@@ -1413,6 +1414,8 @@ class StudioEditor(QWidget):
 
     def _clear_escape_state(self):
         """Shared cleanup for Escape — clear selection, crop mask, reset tool."""
+        if not self.isVisible():
+            return
         print("[Studio] ESC — clearing escape state")
         # Clear text editing on ALL text items (not just focused one)
         for item in self._scene.items():
