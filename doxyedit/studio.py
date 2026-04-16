@@ -1239,6 +1239,9 @@ class StudioEditor(QWidget):
         self._view = StudioView(self._scene)
         self._view._studio_editor = self
         self._view.on_file_dropped = self._on_file_dropped
+        # Install event filter to catch Escape before anything else
+        self._view.installEventFilter(self)
+        self._view.viewport().installEventFilter(self)
 
         # Snap grid overlay — flag on the scene, drawn via foreground
         self._grid_visible = False
@@ -1407,11 +1410,28 @@ class StudioEditor(QWidget):
 
     def _clear_escape_state(self):
         """Shared cleanup for Escape — clear selection, crop mask, reset tool."""
+        # Clear text editing on any focused text item
+        focus = self._scene.focusItem()
+        if focus and isinstance(focus, OverlayTextItem):
+            cursor = focus.textCursor()
+            cursor.clearSelection()
+            focus.setTextCursor(cursor)
+            focus.clearFocus()
+            focus.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+            focus.overlay.text = focus.toPlainText()
         self._scene.clearSelection()
         if self._crop_mask_item and self._crop_mask_item.scene():
             self._scene.removeItem(self._crop_mask_item)
             self._crop_mask_item = None
         self._set_tool(StudioTool.SELECT)
+
+    def eventFilter(self, obj, event):
+        """Catch Escape at the event filter level — guaranteed to fire."""
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Escape:
+            self._clear_escape_state()
+            return True  # consume the event
+        return super().eventFilter(obj, event)
 
     # ---- tool management ----
 
@@ -2201,13 +2221,27 @@ class StudioEditor(QWidget):
         self._sync_overlays_to_asset()
 
         data = self._crop_combo.currentData()
-        print(f"[Export Platform] combo data={data}")
         if not data or (isinstance(data, (list, tuple)) and len(data) < 4):
-            self.info_label.setText("Select a platform slot in the crop combo first")
-            return
-
-        platform_id, slot_name = data[0], data[1]
-        print(f"[Export Platform] {platform_id}/{slot_name} for asset {self._asset.id}")
+            # No platform selected — show a quick-pick menu
+            from doxyedit.models import PLATFORMS
+            menu = _themed_menu(self)
+            actions = {}
+            for pid in self._project.platforms:
+                plat = PLATFORMS.get(pid)
+                if not plat or not plat.slots:
+                    continue
+                for s in plat.slots:
+                    act = menu.addAction(f"{plat.name} / {s.label} ({s.width}×{s.height})")
+                    actions[act] = (pid, s.name)
+            if not actions:
+                self.info_label.setText("No platforms configured")
+                return
+            chosen = menu.exec(self.btn_export_plat.mapToGlobal(self.btn_export_plat.rect().bottomLeft()))
+            if not chosen or chosen not in actions:
+                return
+            platform_id, slot_name = actions[chosen]
+        else:
+            platform_id, slot_name = data[0], data[1]
 
         from doxyedit.pipeline import prepare_for_platform
         from doxyedit.imaging import get_export_dir
