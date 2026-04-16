@@ -1495,25 +1495,28 @@ class StudioEditor(QWidget):
         self._f10_step = 0  # reset cycle
 
     def _clear_escape_state(self):
-        """Shared cleanup for Escape — clear selection, crop mask, reset tool."""
+        """Shared cleanup for Escape — the two things that actually work."""
         if not self.isVisible():
             return
-        print("[Studio] ESC — clearing escape state")
-        # Clear text editing on ALL text items (not just focused one)
+        print("[Studio] ESC — clearing")
+        # Step 2: Clear text selection on ALL text items
         for item in self._scene.items():
             if isinstance(item, OverlayTextItem):
-                if item.textInteractionFlags() & Qt.TextInteractionFlag.TextEditorInteraction:
-                    cursor = item.textCursor()
-                    cursor.clearSelection()
-                    item.setTextCursor(cursor)
-                    item.clearFocus()
-                    item.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-                    item.overlay.text = item.toPlainText()
-        self._scene.clearSelection()
+                cursor = item.textCursor()
+                cursor.clearSelection()
+                item.setTextCursor(cursor)
+                item.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+                item.overlay.text = item.toPlainText()
+                item.clearFocus()
+        # Step 5: Remove crop mask
         if self._crop_mask_item and self._crop_mask_item.scene():
             self._scene.removeItem(self._crop_mask_item)
             self._crop_mask_item = None
+        # Also clear selection and reset tool
+        self._scene.clearFocus()
+        self._scene.clearSelection()
         self._set_tool(StudioTool.SELECT)
+        self._view.setFocus()
 
     # ---- tool management ----
 
