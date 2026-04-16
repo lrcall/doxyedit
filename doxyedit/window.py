@@ -213,9 +213,8 @@ class MainWindow(QMainWindow):
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
         self._browse_split.setChildrenCollapsible(True)
-        # File browser (left, hidden by default, capped width)
+        # File browser (left, hidden by default)
         self._file_browser = FileBrowserPanel()
-        self._file_browser.setMaximumWidth(int(self._font_size * 18))
         self._file_browser.folder_selected.connect(self._on_file_browser_folder)
         self._file_browser.import_requested.connect(
             lambda f: self.browser.import_folder(f))
