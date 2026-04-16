@@ -643,14 +643,12 @@ class StudioScene(QGraphicsScene):
 
         pos = event.scenePos()
 
-        # Clear text editing focus when clicking on empty space
+        # Click on empty space — clear everything (same as F10)
         if self.current_tool == StudioTool.SELECT:
             item_under = self.itemAt(pos, self.views()[0].transform() if self.views() else QTransform())
             if item_under is None:
-                focus = self.focusItem()
-                if focus and isinstance(focus, QGraphicsTextItem):
-                    focus.clearFocus()
-                    focus.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+                if self.views() and hasattr(self.views()[0], '_studio_editor'):
+                    self.views()[0]._studio_editor._nuclear_clear()
             return super().mousePressEvent(event)
 
         if self.current_tool == StudioTool.CENSOR:
