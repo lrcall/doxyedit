@@ -236,7 +236,8 @@ class CensorRectItem(QGraphicsRectItem):
         return super().itemChange(change, value)
 
     def contextMenuEvent(self, event):
-        menu = _themed_menu()
+        _parent = self._editor._view if self._editor else None
+        menu = _themed_menu(_parent)
         styles = {"black": "Change to Black", "blur": "Change to Blur",
                    "pixelate": "Change to Pixelate"}
         for key, label in styles.items():
@@ -295,7 +296,8 @@ class OverlayImageItem(QGraphicsPixmapItem):
         return super().itemChange(change, value)
 
     def contextMenuEvent(self, event):
-        menu = _themed_menu()
+        _parent = self._editor._view if self._editor else None
+        menu = _themed_menu(_parent)
         dup_act = menu.addAction("Duplicate")
         menu.addSeparator()
         fwd_act = menu.addAction("Bring Forward")
@@ -450,7 +452,8 @@ class OverlayTextItem(QGraphicsTextItem):
         super().focusOutEvent(event)
 
     def contextMenuEvent(self, event):
-        menu = _themed_menu()
+        _parent = self._editor._view if self._editor else None
+        menu = _themed_menu(_parent)
         edit_act = menu.addAction("Edit Text")
         menu.addSeparator()
         dup_act = menu.addAction("Duplicate")
@@ -2270,70 +2273,22 @@ class StudioEditor(QWidget):
                 self.info_label.setText(f"Exported: {Path(path).name}")
 
     def _export_current_platform(self):
-        """Export only the currently selected platform/crop from the crop combo."""
-        print(f"[Export Platform] clicked. asset={self._asset is not None}, project={self._project is not None}")
+        """Export the currently selected crop combo platform slot."""
         if not self._asset or not self._project:
             self.info_label.setText("No asset or project loaded")
+            return
+        data = self._crop_combo.currentData()
+        if not data or not isinstance(data, (list, tuple)) or len(data) < 4:
+            self.info_label.setText("Select a platform slot in the crop dropdown first")
             return
         self._sync_censors_to_asset()
         self._sync_overlays_to_asset()
 
-        data = self._crop_combo.currentData()
-        if data and isinstance(data, (list, tuple)) and len(data) >= 4:
-            platform_id, slot_name = data[0], data[1]
-        else:
-            # Build menu from crops + scoped overlays/censors on this asset
-            from doxyedit.models import PLATFORMS
-            relevant: dict[tuple, str] = {}  # (pid, slot) → display label
-
-            # Platforms that have crops drawn
-            crop_labels = {c.label for c in self._asset.crops}
-            for pid in self._project.platforms:
-                plat = PLATFORMS.get(pid)
-                if not plat:
-                    continue
-                for s in plat.slots:
-                    if s.name in crop_labels or pid in crop_labels:
-                        relevant[(pid, s.name)] = f"{plat.name} / {s.label} ({s.width}×{s.height})"
-
-            # Platforms scoped on overlays
-            for ov in self._asset.overlays:
-                for pid in ov.platforms:
-                    plat = PLATFORMS.get(pid)
-                    if plat and plat.slots:
-                        s = plat.slots[0]
-                        relevant.setdefault((pid, s.name), f"{plat.name} / {s.label} ({s.width}×{s.height})")
-
-            # Platforms scoped on censors
-            for cr in self._asset.censors:
-                for pid in cr.platforms:
-                    plat = PLATFORMS.get(pid)
-                    if plat and plat.slots:
-                        s = plat.slots[0]
-                        relevant.setdefault((pid, s.name), f"{plat.name} / {s.label} ({s.width}×{s.height})")
-
-            if not relevant:
-                self.info_label.setText("No crops or platform-scoped overlays on this asset")
-                return
-
-            if len(relevant) == 1:
-                # Only one option — just use it
-                platform_id, slot_name = next(iter(relevant))
-            else:
-                menu = _themed_menu(self)
-                actions = {}
-                for (pid, sname), label in relevant.items():
-                    act = menu.addAction(label)
-                    actions[act] = (pid, sname)
-                chosen = menu.exec(self.btn_export_plat.mapToGlobal(self.btn_export_plat.rect().bottomLeft()))
-                if not chosen or chosen not in actions:
-                    return
-                platform_id, slot_name = actions[chosen]
+        platform_id, slot_name = data[0], data[1]
 
         from doxyedit.pipeline import prepare_for_platform
         from doxyedit.imaging import get_export_dir
         output_dir = str(get_export_dir(self._project_path)) if self._project_path else ""
-        print(f"[Export Platform] output_dir={output_dir}")
         try:
             r = prepare_for_platform(
                 self._asset, platform_id, self._project,
