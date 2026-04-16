@@ -51,7 +51,7 @@ class KanbanCard(QFrame):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)
-        layout.setSpacing(1)
+        layout.setSpacing(max(1, _pad // 4))
 
         self._name_lbl = QLabel(asset_name)
         layout.addWidget(self._name_lbl)
@@ -132,7 +132,7 @@ class KanbanColumn(QWidget):
         self._card_widget = QWidget()
         self._card_layout = QVBoxLayout(self._card_widget)
         self._card_layout.setContentsMargins(0, 0, 0, 0)  # inside scroll area
-        self._card_layout.setSpacing(4)
+        self._card_layout.setSpacing(_pad)
         self._card_layout.addStretch()
         self._scroll.setWidget(self._card_widget)
         layout.addWidget(self._scroll, 1)

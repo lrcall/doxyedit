@@ -31,9 +31,10 @@ class _DayCell(QFrame):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setFixedHeight(int(_f * 4.0))
 
+        _pad = max(4, _f // 3)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(3, 2, 3, 2)
-        layout.setSpacing(1)
+        layout.setContentsMargins(max(2, _pad // 2), max(1, _pad // 4), max(2, _pad // 2), max(1, _pad // 4))
+        layout.setSpacing(max(1, _pad // 4))
 
         self._day_label = QLabel()
         self._day_label.setObjectName("calendar_day_number")
@@ -42,7 +43,7 @@ class _DayCell(QFrame):
 
         self._dot_row = QHBoxLayout()
         self._dot_row.setContentsMargins(0, 0, 0, 0)
-        self._dot_row.setSpacing(2)
+        self._dot_row.setSpacing(max(2, _pad // 2))
         self._dot_row.setAlignment(Qt.AlignLeft)
         layout.addLayout(self._dot_row)
 
@@ -154,13 +155,16 @@ class CalendarPane(QWidget):
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _cb = max(14, _f + 2)
 
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
+
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(4)
+        root.setSpacing(_pad)
 
         # -- header row --
         header = QHBoxLayout()
-        header.setContentsMargins(4, 4, 4, 0)
+        header.setContentsMargins(_pad, _pad, _pad, 0)
 
         self._btn_prev = QPushButton("\u25C0")
         self._btn_prev.setObjectName("calendar_nav_btn")
@@ -201,8 +205,8 @@ class CalendarPane(QWidget):
 
         # -- day-of-week headers --
         dow_row = QHBoxLayout()
-        dow_row.setContentsMargins(4, 0, 4, 0)
-        dow_row.setSpacing(2)
+        dow_row.setContentsMargins(_pad, 0, _pad, 0)
+        dow_row.setSpacing(max(2, _pad // 2))
         for name in _DAY_HEADERS:
             lbl = QLabel(name)
             lbl.setObjectName("calendar_dow_header")
@@ -213,8 +217,8 @@ class CalendarPane(QWidget):
 
         # -- grid --
         self._grid = QGridLayout()
-        self._grid.setContentsMargins(4, 0, 4, 4)
-        self._grid.setSpacing(2)
+        self._grid.setContentsMargins(_pad, 0, _pad, _pad)
+        self._grid.setSpacing(max(2, _pad // 2))
         root.addLayout(self._grid)
 
         self._cells: list[_DayCell] = []

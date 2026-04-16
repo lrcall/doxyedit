@@ -76,19 +76,24 @@ class PostCard(QFrame):
         self._asset_ids = post.asset_ids
         self._project = project
 
+        from PySide6.QtCore import QSettings as _QS
+        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
+
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
         outer = QHBoxLayout()
-        outer.setContentsMargins(6, 4, 6, 4)
-        outer.setSpacing(8)
+        outer.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)
+        outer.setSpacing(_pad_lg + _pad)
         root.addLayout(outer)
 
         # Thumbnails (left side)
         if post.asset_ids and project:
             thumb_col = QHBoxLayout()
-            thumb_col.setSpacing(4)
+            thumb_col.setSpacing(_pad)
             for aid in post.asset_ids[:4]:  # max 4 thumbs
                 pm = None
                 # Try thumb cache first
@@ -117,11 +122,11 @@ class PostCard(QFrame):
 
         # Right side: text info
         info = QVBoxLayout()
-        info.setSpacing(2)
+        info.setSpacing(max(2, _pad // 2))
 
         # Row 1: asset names (bold) + status badge + time
         row1 = QHBoxLayout()
-        row1.setSpacing(6)
+        row1.setSpacing(_pad_lg)
 
         asset_names = self._resolve_names(post, project)
         name_label = QLabel(", ".join(asset_names) if asset_names else "(no assets)")
@@ -154,7 +159,7 @@ class PostCard(QFrame):
         # Row 2: platform badges
         if post.platforms:
             row2 = QHBoxLayout()
-            row2.setSpacing(4)
+            row2.setSpacing(_pad)
             for plat in post.platforms:
                 row2.addWidget(PlatformBadge(plat))
             row2.addStretch()
@@ -423,8 +428,13 @@ class GapMarker(QFrame):
         self.setObjectName("timeline_gap")
         self._date_str = date_str
 
+        from PySide6.QtCore import QSettings as _QS
+        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
+
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setContentsMargins(_pad_lg + _pad, _pad, _pad_lg + _pad, _pad)
 
         label = QLabel(f"⚠ {date_str} — no posts scheduled")
         layout.addWidget(label, 1)
@@ -451,14 +461,19 @@ class TimelineStream(QWidget):
         self._thumb_cache = None
         self._day_filter: str | None = None
 
+        from PySide6.QtCore import QSettings as _QS
+        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
+
         # ---- Outer layout ----
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(4)
+        outer.setSpacing(_pad)
 
         # ---- Toolbar ----
         toolbar = QHBoxLayout()
-        toolbar.setSpacing(6)
+        toolbar.setSpacing(_pad_lg)
 
         self._btn_new = QPushButton("+ New Post")
         self._btn_new.setObjectName("timeline_btn_new")
@@ -504,8 +519,8 @@ class TimelineStream(QWidget):
         self._content = QWidget()
         self._content.setObjectName("timeline_content")
         self._content_layout = QVBoxLayout(self._content)
-        self._content_layout.setContentsMargins(4, 4, 4, 4)
-        self._content_layout.setSpacing(4)
+        self._content_layout.setContentsMargins(_pad, _pad, _pad, _pad)
+        self._content_layout.setSpacing(_pad)
         self._content_layout.addStretch()  # trailing stretch always at end
 
         self._scroll.setWidget(self._content)

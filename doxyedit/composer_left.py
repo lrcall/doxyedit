@@ -51,13 +51,17 @@ class ImagePreviewPanel(QWidget):
     MIN_CROP_LABEL_FONT = 7           # crop label minimum readable size
 
     def _build_ui(self):
+        _f = self._f
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
+        layout.setSpacing(_pad_lg)
 
         # -- Preview mode toggle --
         mode_row = QHBoxLayout()
-        mode_row.setSpacing(2)
+        mode_row.setSpacing(max(2, _pad // 2))
         self._mode_raw = QPushButton("Raw")
         self._mode_raw.setObjectName("composer_preview_mode_btn")
         self._mode_raw.setCheckable(True)
@@ -95,7 +99,7 @@ class ImagePreviewPanel(QWidget):
 
         # -- Image order strip (for multi-image posts) --
         self._order_strip = QHBoxLayout()
-        self._order_strip.setSpacing(4)
+        self._order_strip.setSpacing(_pad)
         self._order_container = QWidget()
         self._order_container.setLayout(self._order_strip)
         self._order_container.setVisible(False)
@@ -112,8 +116,8 @@ class ImagePreviewPanel(QWidget):
         self._nsfw_body = QFrame()
         self._nsfw_body.setObjectName("composer_nsfw_frame")
         nsfw_layout = QVBoxLayout(self._nsfw_body)
-        nsfw_layout.setContentsMargins(6, 6, 6, 6)
-        nsfw_layout.setSpacing(4)
+        nsfw_layout.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
+        nsfw_layout.setSpacing(_pad)
 
         nsfw_row = QHBoxLayout()
         self._nsfw_toggle = QPushButton("Show Censored")
@@ -142,8 +146,8 @@ class ImagePreviewPanel(QWidget):
         self._prep_strip = QWidget()
         self._prep_strip.setObjectName("composer_prep_strip")
         self._prep_strip_layout = QVBoxLayout(self._prep_strip)
-        self._prep_strip_layout.setContentsMargins(4, 4, 4, 4)
-        self._prep_strip_layout.setSpacing(2)
+        self._prep_strip_layout.setContentsMargins(_pad, _pad, _pad, _pad)
+        self._prep_strip_layout.setSpacing(max(2, _pad // 2))
         self._prep_strip.setVisible(False)
         layout.addWidget(self._prep_strip)
 
@@ -158,11 +162,11 @@ class ImagePreviewPanel(QWidget):
         self._crop_body = QFrame()
         self._crop_body.setObjectName("composer_crop_frame")
         crop_layout = QVBoxLayout(self._crop_body)
-        crop_layout.setContentsMargins(6, 6, 6, 6)
-        crop_layout.setSpacing(2)
+        crop_layout.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
+        crop_layout.setSpacing(max(2, _pad // 2))
 
         self._crop_status_layout = QVBoxLayout()
-        self._crop_status_layout.setSpacing(2)
+        self._crop_status_layout.setSpacing(max(2, _pad // 2))
         crop_layout.addLayout(self._crop_status_layout)
 
         self._crop_body.setVisible(False)
@@ -201,9 +205,11 @@ class ImagePreviewPanel(QWidget):
             status = readiness["status"]
 
             row_w = QWidget()
+            _pad = max(4, self._f // 3)
+            _pad_lg = max(6, self._f // 2)
             row = QHBoxLayout(row_w)
-            row.setContentsMargins(2, 1, 2, 1)
-            row.setSpacing(6)
+            row.setContentsMargins(max(2, _pad // 2), max(1, _pad // 4), max(2, _pad // 2), max(1, _pad // 4))
+            row.setSpacing(_pad_lg)
 
             from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]

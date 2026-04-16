@@ -200,13 +200,16 @@ class ContentPanel(QWidget):
         from PySide6.QtCore import QSettings as _QS
         _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
 
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
+
         root = QVBoxLayout(self)
-        root.setSpacing(4)
+        root.setSpacing(_pad)
         root.setContentsMargins(0, 0, 0, 0)
 
         # --- Identity (top of composer — controls category + platform defaults) ---
         identity_row = QHBoxLayout()
-        identity_row.setSpacing(4)
+        identity_row.setSpacing(_pad)
         id_label = QLabel("Identity:")
         id_label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         self._identity_combo = QComboBox()
@@ -236,7 +239,7 @@ class ContentPanel(QWidget):
         platforms_box = QGroupBox("Platforms")
         platforms_box.setObjectName("composer_platforms_box")
         platforms_layout = QVBoxLayout(platforms_box)
-        platforms_layout.setSpacing(4)
+        platforms_layout.setSpacing(_pad)
 
         # Category dropdown
         if self._categories:
@@ -339,7 +342,7 @@ class ContentPanel(QWidget):
         self._censor_container = QWidget()
         censor_lay = QVBoxLayout(self._censor_container)
         censor_lay.setContentsMargins(0, 0, 0, 0)
-        censor_lay.setSpacing(2)
+        censor_lay.setSpacing(max(2, _pad // 2))
         self._censor_container.setVisible(False)
         censor_toggle.clicked.connect(lambda c: (
             self._censor_container.setVisible(c),
@@ -423,7 +426,7 @@ class ContentPanel(QWidget):
         scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         container = QWidget()
         layout = QVBoxLayout(container)
-        layout.setSpacing(10)
+        layout.setSpacing(_pad_lg + _pad)
         layout.setContentsMargins(0, 0, 0, 0)
         scroll_area.setWidget(container)
         self._content_split.addWidget(scroll_area)
@@ -454,7 +457,7 @@ class ContentPanel(QWidget):
 
         self._per_platform_container = QWidget()
         self._pp_layout = QVBoxLayout(self._per_platform_container)
-        self._pp_layout.setSpacing(4)
+        self._pp_layout.setSpacing(_pad)
         self._pp_layout.setContentsMargins(0, 0, 0, 0)
         self._rebuild_per_platform_captions()
 
@@ -512,7 +515,7 @@ class ContentPanel(QWidget):
         self._chain_steps_container = QWidget()
         self._chain_steps_container.setObjectName("composer_chain_steps")
         self._chain_steps_layout = QVBoxLayout(self._chain_steps_container)
-        self._chain_steps_layout.setSpacing(4)
+        self._chain_steps_layout.setSpacing(_pad)
         self._chain_steps_layout.setContentsMargins(0, 0, 0, 0)
         chain_layout.addWidget(self._chain_steps_container)
 
@@ -1788,7 +1791,7 @@ RULES:
             row.setObjectName("composer_chain_step_row")
             row_layout = QHBoxLayout(row)
             row_layout.setContentsMargins(0, 0, 0, 0)
-            row_layout.setSpacing(4)
+            row_layout.setSpacing(max(4, _f2 // 3))
 
             # Step label
             step_label = QLabel(f"Step {idx + 1}:")

@@ -54,8 +54,13 @@ class CensorEditor(QWidget):
         self._build()
 
     def _build(self):
+        from PySide6.QtCore import QSettings as _QS
+        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
+
         root = QVBoxLayout(self)
-        root.setContentsMargins(8, 8, 8, 8)
+        root.setContentsMargins(_pad_lg + _pad, _pad_lg + _pad, _pad_lg + _pad, _pad_lg + _pad)
 
         # Toolbar
         toolbar = QHBoxLayout()

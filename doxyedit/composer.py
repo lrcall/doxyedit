@@ -114,9 +114,13 @@ class PostComposerWidget(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
+        _f = self._settings.value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
+
         root = QVBoxLayout(self)
-        root.setSpacing(4)
-        root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(_pad)
+        root.setContentsMargins(_pad_lg + _pad, _pad_lg + _pad, _pad_lg + _pad, _pad_lg + _pad)
 
         # --- Two-column splitter ---
         self._composer_split = QSplitter(Qt.Orientation.Horizontal)
@@ -126,7 +130,7 @@ class PostComposerWidget(QWidget):
         self._left_wrapper = QWidget()
         left_layout = QVBoxLayout(self._left_wrapper)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(4)
+        left_layout.setSpacing(_pad)
 
         # Schedule picker (top of left panel for visibility)
         from PySide6.QtWidgets import QDateTimeEdit, QGroupBox
@@ -136,7 +140,7 @@ class PostComposerWidget(QWidget):
         sched_box = QGroupBox("Schedule")
         sched_box.setObjectName("composer_left_schedule")
         sched_lay = QVBoxLayout(sched_box)
-        sched_lay.setContentsMargins(4, 4, 4, 4)
+        sched_lay.setContentsMargins(_pad, _pad, _pad, _pad)
         self._left_schedule = _NoScrollDateTimeEdit()
         self._left_schedule.setObjectName("composer_left_schedule_edit")
         self._left_schedule.setCalendarPopup(True)

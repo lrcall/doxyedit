@@ -224,6 +224,8 @@ class TagRow(QFrame):
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _cb = max(14, _f + 2)
         _pad = max(4, _f // 3)
+        self._f = _f
+        self._cb = _cb
         self.setObjectName("tag_row")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -245,9 +247,10 @@ class TagRow(QFrame):
         # Tag color dot (shows the tag's own color)
         self.dot = QLabel()
         _dot = max(8, _f)
+        self._dot_size = _dot
         self.dot.setFixedSize(_dot, _dot)
         self.dot.setStyleSheet(
-            f"background: {tag.color}; border-radius: 6px;"
+            f"background: {tag.color}; border-radius: {_dot // 2}px;"
             f" border: 1px solid rgba(0,0,0,0.3);")
         layout.addWidget(self.dot)
 
@@ -313,13 +316,14 @@ class TagRow(QFrame):
         self._row_selected = selected
         from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
+        _bw = max(2, self._f // 4)
         if selected:
             _c = QColor(_dt.selection_bg); _c.setAlpha(_dt.tag_row_dim_alpha)
-            self.setStyleSheet(f"background: rgba({_c.red()},{_c.green()},{_c.blue()},{_c.alpha() / 255:.2f}); border-radius: 3px;")
+            self.setStyleSheet(f"background: rgba({_c.red()},{_c.green()},{_c.blue()},{_c.alpha() / 255:.2f}); border-radius: {_bw}px;")
         else:
             if self._pinned:
                 _p = QColor(_dt.accent_dim); _p.setAlpha(_dt.composer_status_hover_alpha)
-                base = f"border-left: 3px solid rgba({_p.red()},{_p.green()},{_p.blue()},{_p.alpha() / 255:.2f});"
+                base = f"border-left: {_bw}px solid rgba({_p.red()},{_p.green()},{_p.blue()},{_p.alpha() / 255:.2f});"
             else:
                 base = ""
             self.setStyleSheet(base)
@@ -358,10 +362,10 @@ class TagRow(QFrame):
             self.tag = type(self.tag)(id=self.tag.id, label=self.tag.label,
                                       color=hex_color, width=self.tag.width,
                                       height=self.tag.height, ratio=self.tag.ratio)
-            self.dot.setStyleSheet(f"background: {hex_color}; border-radius: 6px; border: 1px solid rgba(0,0,0,0.3);")
+            self.dot.setStyleSheet(f"background: {hex_color}; border-radius: {self._dot_size // 2}px; border: 1px solid rgba(0,0,0,0.3);")
             self.checkbox.setStyleSheet(
                 f"QCheckBox#tag_checkbox {{ color: {hex_color}; }}"
-                f"QCheckBox#tag_checkbox::indicator {{ width: 13px; height: 13px; }}")
+                f"QCheckBox#tag_checkbox::indicator {{ width: {self._cb - 2}px; height: {self._cb - 2}px; }}")
             self.color_changed.emit(self.tag.id, hex_color)
 
     def _request_rename(self):
@@ -778,7 +782,8 @@ class TagPanel(QWidget):
             from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
             _p = QColor(_dt.accent_dim); _p.setAlpha(_dt.composer_status_hover_alpha)
-            row.setStyleSheet(f"border-left: 3px solid rgba({_p.red()},{_p.green()},{_p.blue()},{_p.alpha() / 255:.2f});")
+            _bw = max(2, row._f // 4)
+            row.setStyleSheet(f"border-left: {_bw}px solid rgba({_p.red()},{_p.green()},{_p.blue()},{_p.alpha() / 255:.2f});")
         else:
             row.setStyleSheet("")
 

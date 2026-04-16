@@ -201,6 +201,11 @@ class GanttPanel(QWidget):
     # -- UI construction ----------------------------------------------------
 
     def _build_ui(self) -> None:
+        from PySide6.QtCore import QSettings as _QS
+        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
+
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -209,8 +214,8 @@ class GanttPanel(QWidget):
         toolbar = QWidget()
         toolbar.setObjectName("gantt_toolbar")
         tb_lay = QHBoxLayout(toolbar)
-        tb_lay.setContentsMargins(8, 4, 8, 4)
-        tb_lay.setSpacing(8)
+        tb_lay.setContentsMargins(_pad_lg + _pad, _pad, _pad_lg + _pad, _pad)
+        tb_lay.setSpacing(_pad_lg + _pad)
 
         tb_lay.addWidget(QLabel("From:"))
         self._date_start = QDateEdit()
@@ -265,7 +270,7 @@ class GanttPanel(QWidget):
         self._label_container = QWidget()
         self._label_container.setObjectName("gantt_label_container")
         self._label_layout = QVBoxLayout(self._label_container)
-        self._label_layout.setContentsMargins(4, _HEADER_HEIGHT, 4, 0)
+        self._label_layout.setContentsMargins(_pad, _HEADER_HEIGHT, _pad, 0)
         self._label_layout.setSpacing(0)
         self._label_layout.setAlignment(Qt.AlignTop)
         self._label_area.setWidget(self._label_container)

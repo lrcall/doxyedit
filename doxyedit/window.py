@@ -145,7 +145,7 @@ class MainWindow(QMainWindow):
         self._new_tab_btn.setFixedSize(self._control_size, self._control_size)
         self._new_tab_btn.setToolTip("New tab — open project, folder, or new project (Ctrl+T)")
         self._new_tab_btn.setStyleSheet(
-            "QPushButton { font-size: 16px; font-weight: bold; border-radius: 4px;"
+            f"QPushButton {{ font-size: {int(self._font_size * 1.33)}px; font-weight: bold; border-radius: {max(2, self._ui_padding // 2)}px;"
             " background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);"
             " color: rgba(200,200,200,0.8); padding: 0; }"
             " QPushButton:hover { background: rgba(255,255,255,0.18);"
@@ -157,7 +157,7 @@ class MainWindow(QMainWindow):
         _proj_bar_widget.setObjectName("proj_tab_bar_row")
         _proj_bar_row = QHBoxLayout(_proj_bar_widget)
         _proj_bar_row.setContentsMargins(0, 0, 0, 0)
-        _proj_bar_row.setSpacing(2)
+        _proj_bar_row.setSpacing(max(2, self._ui_padding // 2))
         _proj_bar_row.addWidget(self._proj_tab_bar, 1)
         _proj_bar_row.addWidget(self._new_tab_btn)
 
