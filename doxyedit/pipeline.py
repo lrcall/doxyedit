@@ -216,19 +216,42 @@ def prepare_for_platform(
             crop_source = "assignment"
             break
 
-    # Then check asset.crops by label
+    # Then check asset.crops by label (flexible matching)
     if crop_box is None:
         for cr in asset.crops:
-            if cr.label == slot_name or cr.label == platform_id:
+            lbl = cr.label.strip().lower()
+            if (lbl == slot_name.lower()
+                    or lbl == platform_id.lower()
+                    or slot_name.lower() in lbl
+                    or platform_id.lower() in lbl):
                 crop_box = (cr.x, cr.y, cr.w, cr.h)
-                crop_source = "asset_crop"
+                crop_source = f"label_match ('{cr.label}')"
                 break
+
+    # Match by aspect ratio
+    if crop_box is None and slot.width and slot.height:
+        target_ratio = slot.width / slot.height
+        for cr in asset.crops:
+            if cr.w > 0 and cr.h > 0:
+                cr_ratio = cr.w / cr.h
+                if abs(cr_ratio - target_ratio) < 0.02:
+                    crop_box = (cr.x, cr.y, cr.w, cr.h)
+                    crop_source = f"aspect_match ('{cr.label}', ratio={cr_ratio:.2f})"
+                    break
+
+    # If only one crop exists on the asset, use it
+    if crop_box is None and len(asset.crops) == 1:
+        cr = asset.crops[0]
+        crop_box = (cr.x, cr.y, cr.w, cr.h)
+        crop_source = f"only_crop ('{cr.label}')"
 
     # Auto-fit as fallback
     if crop_box is None:
         crop_box = _auto_crop_for_ratio(img_w, img_h, slot.width, slot.height)
         crop_source = "auto"
         warnings.append("No explicit crop found, using auto-fit")
+
+    print(f"[Pipeline] {platform_id}/{slot_name}: crop={crop_source}")
 
     # --- 4. Apply crop ---
     cx, cy, cw, ch = crop_box
@@ -238,12 +261,21 @@ def prepare_for_platform(
     img = img.resize((slot.width, slot.height), Image.LANCZOS)
 
     # --- 6. Apply censors with coordinate transform ---
+    # Censors with platform scope always apply to their designated platforms.
+    # Unscoped censors apply when the platform needs_censor flag is set.
     use_censor = censor_override if censor_override is not None else platform.needs_censor
-    if use_censor and asset.censors:
+    applicable_censors = []
+    for cr in asset.censors:
+        if cr.platforms:
+            # Scoped censor — apply only to designated platforms
+            if platform_id in cr.platforms:
+                applicable_censors.append(cr)
+        elif use_censor:
+            # Unscoped censor — apply when platform requires censoring
+            applicable_censors.append(cr)
+    if applicable_censors:
         transformed_censors = []
-        for cr in asset.censors:
-            if cr.platforms and platform_id not in cr.platforms:
-                continue
+        for cr in applicable_censors:
             tx, ty, tw, th = _transform_region(
                 cr.x, cr.y, cr.w, cr.h, crop_box, (slot.width, slot.height)
             )
