@@ -87,8 +87,9 @@ def _add_platform_submenu(menu: QMenu, current_platforms: list[str], editor) -> 
     if not editor or not editor._project:
         return menu
     from doxyedit.models import PLATFORMS
-    sub = menu.addMenu("Platforms...")
-    sub.setStyleSheet(menu.styleSheet())
+    sub = _themed_menu()
+    sub.setTitle("Platforms...")
+    menu.addMenu(sub)
     all_act = sub.addAction("All Platforms")
     all_act.setCheckable(True)
     all_act.setChecked(not current_platforms)
@@ -2364,39 +2365,8 @@ class StudioEditor(QWidget):
 
         output_dir = str(get_export_dir(self._project_path)) if self._project_path else ""
 
-        # Build list of what to export:
-        # - Every platform that has a scoped overlay/censor
-        # - Every platform whose slot aspect ratio matches a drawn crop
-        overlay_pids = set()
-        for ov in self._asset.overlays:
-            overlay_pids.update(ov.platforms)
-        for cr in self._asset.censors:
-            overlay_pids.update(cr.platforms)
-
-        slots = []
-        for pid in self._project.platforms:
-            plat = PLATFORMS.get(pid)
-            if not plat or not plat.slots:
-                continue
-            for s in plat.slots:
-                if pid in overlay_pids:
-                    slots.append((pid, s.name))
-                    continue
-                # Check if ANY crop on the asset matches this slot
-                if s.width and s.height:
-                    target = s.width / s.height
-                    for c in self._asset.crops:
-                        if c.w > 0 and c.h > 0:
-                            lbl = c.label.strip().lower()
-                            # Exact label match OR aspect ratio match
-                            if (lbl == s.name.lower() or lbl == pid.lower()
-                                    or s.name.lower() in lbl or pid.lower() in lbl
-                                    or abs(c.w / c.h - target) < 0.05):
-                                slots.append((pid, s.name))
-                                break
-
-        if not slots and not self._asset.crops:
-            self.info_label.setText("No crops or platform-scoped overlays on this asset")
+        if not self._asset.crops and not self._asset.censors and not self._asset.overlays:
+            self.info_label.setText("Nothing to export — no crops, censors, or overlays")
             return
 
         from doxyedit.imaging import load_image_for_export
@@ -2409,7 +2379,7 @@ class StudioEditor(QWidget):
         out_base = Path(output_dir) if output_dir else Path("_exports")
         out_base.mkdir(parents=True, exist_ok=True)
 
-        total = len(slots) + 2  # +2 for full image + censored full
+        total = len(self._asset.crops) + 2  # +2 for full + censored
         progress = QProgressDialog("Exporting...", "Cancel", 0, total, self)
         progress.setWindowTitle("Export All")
         progress.setMinimumDuration(300)
@@ -2447,37 +2417,55 @@ class StudioEditor(QWidget):
         step += 1
         progress.setValue(step)
 
-        # --- 3. Per-platform cropped variants (with scoped overlays/censors) ---
-        results = []
-        self._asset.variant_exports.clear()
-        for pid, slot_name in slots:
+        # --- 3. One export per crop drawn on the asset ---
+        crop_count = 0
+        for ci, crop in enumerate(self._asset.crops):
             if progress.wasCanceled():
                 break
             step += 1
             progress.setValue(step)
-            progress.setLabelText(f"{pid} / {slot_name}...")
+            crop_name = crop.label.strip() if crop.label.strip() and crop.label.strip() != "free" else f"crop_{ci+1}"
+            progress.setLabelText(f"Cropping: {crop_name}...")
             QCoreApplication.processEvents()
             try:
-                r = prepare_for_platform(
-                    self._asset, pid, self._project,
-                    slot_name=slot_name, output_dir=output_dir,
-                )
-                results.append(r)
-                if r.success:
-                    self._asset.variant_exports[f"{pid}_{slot_name}"] = r.output_path
+                img_crop = load_image_for_export(str(src_path))
+                # Apply censors that are global or scoped to match this crop label
+                applicable_censors = []
+                for cr in self._asset.censors:
+                    if not cr.platforms:
+                        applicable_censors.append(cr)
+                    elif crop.label and any(p.lower() in crop.label.lower() for p in cr.platforms):
+                        applicable_censors.append(cr)
+                    elif cr.platforms:
+                        # Include if any scoped platform exists
+                        applicable_censors.append(cr)
+                if applicable_censors:
+                    img_crop = apply_censors(img_crop, applicable_censors)
+                # Apply overlays that are global or scoped
+                applicable_overlays = []
+                for ov in self._asset.overlays:
+                    if not ov.platforms:
+                        applicable_overlays.append(ov)
+                    elif crop.label and any(p.lower() in crop.label.lower() for p in ov.platforms):
+                        applicable_overlays.append(ov)
+                    elif ov.platforms:
+                        applicable_overlays.append(ov)
+                if applicable_overlays:
+                    img_crop = apply_overlays(img_crop, applicable_overlays, str(src_path.parent))
+                # Crop
+                img_crop = img_crop.crop((crop.x, crop.y, crop.x + crop.w, crop.y + crop.h))
+                out_path = out_base / f"{stem}_{crop_name}.png"
+                img_crop.save(str(out_path), "PNG")
+                crop_count += 1
             except Exception as e:
-                print(f"[Export All] {pid}/{slot_name} failed: {e}")
+                print(f"[Export All] crop {crop_name} failed: {e}")
+                import traceback; traceback.print_exc()
 
         progress.setValue(total)
 
-        ok = sum(1 for r in results if r.success)
-        fail = sum(1 for r in results if not r.success)
-        msg = f"Exported: full + censored + {ok} platform variant(s)"
-        if fail:
-            msg += f", {fail} failed"
+        msg = f"Exported: full + censored + {crop_count} crop(s)"
         self.info_label.setText(msg)
         self._rebuild_layer_panel()
-        self._populate_preview_strip(results)
         if self._project_path:
             self._open_export_folder(get_export_dir(self._project_path))
 
