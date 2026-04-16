@@ -144,56 +144,50 @@ class CampaignBar(QWidget):
         _pad = max(4, _f // 3)
         outer.setSpacing(_pad)
 
-        # ── Top row: combo + status + launch + milestones summary ──
-        row = QHBoxLayout()
-        row.setSpacing(_pad * 2)
-
-        row.addWidget(QLabel("Campaign:"))
+        # Campaign combo
         self._combo = QComboBox()
         self._combo.setObjectName("campaign_combo")
-        from PySide6.QtCore import QSettings
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
-        COMBO_MIN_WIDTH_RATIO = 11.7       # campaign combo minimum width
-        self._combo.setMinimumWidth(int(_f * COMBO_MIN_WIDTH_RATIO))
         self._combo.currentIndexChanged.connect(self._on_campaign_changed)
-        row.addWidget(self._combo)
+        outer.addWidget(self._combo)
 
-        self._new_btn = QPushButton("+ New")
+        # Action buttons row
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(_pad)
+        self._new_btn = QPushButton("New")
         self._new_btn.setObjectName("campaign_new_btn")
         self._new_btn.clicked.connect(self._on_new_campaign)
-        row.addWidget(self._new_btn)
+        btn_row.addWidget(self._new_btn)
+        self._edit_btn = QPushButton("Edit")
+        self._edit_btn.setObjectName("campaign_new_btn")
+        self._edit_btn.clicked.connect(self._on_edit_campaign)
+        btn_row.addWidget(self._edit_btn)
+        self._del_btn = QPushButton("Del")
+        self._del_btn.setObjectName("campaign_new_btn")
+        self._del_btn.setToolTip("Delete selected campaign")
+        self._del_btn.clicked.connect(self._on_delete_campaign)
+        btn_row.addWidget(self._del_btn)
+        outer.addLayout(btn_row)
 
-        sep = QLabel("|")
-        sep.setProperty("role", "muted")
-        row.addWidget(sep)
-
+        # Info labels (vertical, wraps in narrow sidebar)
         self._status_label = QLabel()
         self._status_label.setObjectName("campaign_status_label")
-        row.addWidget(self._status_label)
-
-        sep2 = QLabel("|")
-        sep2.setProperty("role", "muted")
-        row.addWidget(sep2)
+        self._status_label.setWordWrap(True)
+        outer.addWidget(self._status_label)
 
         self._launch_label = QLabel()
         self._launch_label.setObjectName("campaign_launch_label")
-        row.addWidget(self._launch_label)
-
-        sep3 = QLabel("|")
-        sep3.setProperty("role", "muted")
-        row.addWidget(sep3)
+        self._launch_label.setWordWrap(True)
+        outer.addWidget(self._launch_label)
 
         self._milestone_summary = QLabel()
-        row.addWidget(self._milestone_summary)
-
-        row.addStretch()
-        outer.addLayout(row)
+        self._milestone_summary.setWordWrap(True)
+        outer.addWidget(self._milestone_summary)
 
         # ── Milestone frame (collapsible) ──
         self._milestone_frame = QFrame()
         self._milestone_frame.setObjectName("campaign_milestones")
         self._ms_layout = QVBoxLayout(self._milestone_frame)
-        self._ms_layout.setContentsMargins(20, 2, 4, 2)
+        self._ms_layout.setContentsMargins(0, _pad, 0, _pad)
         self._ms_layout.setSpacing(2)
         outer.addWidget(self._milestone_frame)
 
@@ -207,12 +201,23 @@ class CampaignBar(QWidget):
         self._combo.addItem("All", "")
         for c in self.project.campaigns:
             self._combo.addItem(c.name, c.id)
+        # Restore last selected campaign
+        last_cid = QSettings("DoxyEdit", "DoxyEdit").value("last_campaign_id", "")
+        restore_idx = 0
+        if last_cid:
+            for i in range(self._combo.count()):
+                if self._combo.itemData(i) == last_cid:
+                    restore_idx = i
+                    break
+        self._combo.setCurrentIndex(restore_idx)
         self._combo.blockSignals(False)
-        self._on_campaign_changed(0)
+        self._on_campaign_changed(restore_idx)
 
     def _on_campaign_changed(self, idx: int):
         cid = self._combo.currentData() or ""
         self._current_campaign_id = cid
+        # Remember selection
+        QSettings("DoxyEdit", "DoxyEdit").setValue("last_campaign_id", cid)
         cam = self.project.get_campaign(cid) if cid else None
         if cam:
             self._status_label.setText(f"Status: {cam.status}")
@@ -287,6 +292,54 @@ class CampaignBar(QWidget):
         self.project.campaigns.append(cam)
         self._populate_combo()
         self._combo.setCurrentIndex(self._combo.count() - 1)
+        self.modified.emit()
+
+    def _on_edit_campaign(self):
+        cid = self._current_campaign_id
+        if not cid:
+            return
+        cam = self.project.get_campaign(cid)
+        if not cam:
+            return
+        from PySide6.QtWidgets import QInputDialog
+        # Edit name
+        new_name, ok = QInputDialog.getText(self, "Edit Campaign", "Name:", text=cam.name)
+        if ok and new_name.strip():
+            cam.name = new_name.strip()
+        # Edit status
+        statuses = ["planning", "active", "paused", "completed", "cancelled"]
+        current_idx = statuses.index(cam.status) if cam.status in statuses else 0
+        new_status, ok2 = QInputDialog.getItem(self, "Campaign Status", "Status:", statuses, current_idx, False)
+        if ok2:
+            cam.status = new_status
+        # Edit launch date
+        new_date, ok3 = QInputDialog.getText(self, "Launch Date", "Date (YYYY-MM-DD):", text=cam.launch_date or "")
+        if ok3:
+            cam.launch_date = new_date.strip()
+        self._populate_combo()
+        # Re-select the edited campaign
+        for i in range(self._combo.count()):
+            if self._combo.itemData(i) == cid:
+                self._combo.setCurrentIndex(i)
+                break
+        self.modified.emit()
+
+    def _on_delete_campaign(self):
+        cid = self._current_campaign_id
+        if not cid:
+            return
+        cam = self.project.get_campaign(cid)
+        if not cam:
+            return
+        from PySide6.QtWidgets import QMessageBox
+        reply = QMessageBox.question(
+            self, "Delete Campaign",
+            f"Delete campaign '{cam.name}'?\n\nThis removes the campaign but not its asset assignments.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self.project.campaigns = [c for c in self.project.campaigns if c.id != cid]
+        self._populate_combo()
         self.modified.emit()
 
     @property
