@@ -289,7 +289,12 @@ def prepare_for_platform(
     else:
         out_base = Path("_exports")
 
-    stem = Path(asset.source_path).stem
+    # Use full source filename (without extension) for the output name
+    src = Path(asset.source_path)
+    stem = src.stem
+    # If stem is generic (all digits), prepend parent folder name for context
+    if stem.isdigit() and src.parent.name:
+        stem = f"{src.parent.name}_{stem}"
     out_base.mkdir(parents=True, exist_ok=True)
     out_path = out_base / f"{stem}_{platform_id}_{slot_name}.png"
     # Deduplicate if collision with a different asset

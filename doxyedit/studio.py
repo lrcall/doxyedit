@@ -2192,9 +2192,12 @@ class StudioEditor(QWidget):
         if self._project_path:
             from doxyedit.imaging import get_export_dir
             export_dir = get_export_dir(self._project_path)
-            out = export_dir / f"{src_path.stem}_studio_preview.png"
+            stem = src_path.stem
+            if stem.isdigit() and src_path.parent.name:
+                stem = f"{src_path.parent.name}_{stem}"
+            out = export_dir / f"{stem}_studio_preview.png"
             img.save(str(out))
-            self.info_label.setText(f"Exported: {src_path.stem}/studio_preview.png")
+            self.info_label.setText(f"Exported: {stem}_studio_preview.png")
             self._open_export_folder(export_dir)
         else:
             default_name = f"{src_path.stem}_studio_preview.png"
