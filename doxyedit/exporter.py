@@ -83,9 +83,41 @@ def _composite_text_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
     from PIL import ImageDraw, ImageFont
 
     try:
-        try:
-            font = ImageFont.truetype(ov.font_family + ".ttf", ov.font_size)
-        except (OSError, IOError):
+        import os
+        _winfonts = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
+        font = None
+        _family = ov.font_family
+        # Build style suffix for bold/italic variants
+        _style = ""
+        if getattr(ov, 'bold', False) and getattr(ov, 'italic', False):
+            _style = "bi"
+        elif getattr(ov, 'bold', False):
+            _style = "bd"
+        elif getattr(ov, 'italic', False):
+            _style = "i"
+        # Try candidates in order
+        _names = [
+            _family + _style,
+            _family.replace(" ", "") + _style,
+            _family.lower().replace(" ", "") + _style,
+            _family,
+            _family.replace(" ", ""),
+            _family.lower().replace(" ", ""),
+        ]
+        for name in _names:
+            for ext in (".ttf", ".otf"):
+                for base in ["", _winfonts]:
+                    path = os.path.join(base, name + ext) if base else name + ext
+                    try:
+                        font = ImageFont.truetype(path, ov.font_size)
+                        break
+                    except (OSError, IOError):
+                        pass
+                if font:
+                    break
+            if font:
+                break
+        if font is None:
             try:
                 font = ImageFont.truetype("arial.ttf", ov.font_size)
             except (OSError, IOError):
