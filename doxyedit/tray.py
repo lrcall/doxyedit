@@ -11,6 +11,8 @@ from PySide6.QtGui import QPixmap, QIcon, QDrag
 
 NAME_ROLE = Qt.ItemDataRole.UserRole + 1  # stores display name for view mode switching
 PATH_ROLE = Qt.ItemDataRole.UserRole + 2  # stores source_path for drag-out
+TRAY_ICON_SIZE = 80
+MIN_HANDLE_WIDTH = 12
 
 
 class DragOutListWidget(QListWidget):
@@ -137,7 +139,7 @@ class WorkTray(QWidget):
         # Handle — clickable arrow on left edge
         self._handle = QPushButton("\u25C0")  # ◀
         self._handle.setObjectName("tray_handle")
-        self._handle.setFixedWidth(max(12, int(_f * 1.33)))
+        self._handle.setFixedWidth(max(MIN_HANDLE_WIDTH, int(_f * 1.33)))
         self._handle.setCursor(Qt.CursorShape.PointingHandCursor)
         self._handle.setToolTip("Close tray (Ctrl+T)")
         self._handle.clicked.connect(lambda: self.toggle_requested.emit())
@@ -209,7 +211,7 @@ class WorkTray(QWidget):
         # List widget — shows thumbnails vertically
         self._list = DragOutListWidget()
         self._list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self._list.setIconSize(QSize(80, 80))
+        self._list.setIconSize(QSize(TRAY_ICON_SIZE, TRAY_ICON_SIZE))
         self._list.setSpacing(max(2, _pad // 2))
         self._list.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
         self._list.setDragEnabled(True)
@@ -244,7 +246,7 @@ class WorkTray(QWidget):
         item.setData(NAME_ROLE, name)  # store name for mode switching
         item.setData(PATH_ROLE, path)  # store path for drag-out
         if pixmap and not pixmap.isNull():
-            scaled = pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio,
+            scaled = pixmap.scaled(TRAY_ICON_SIZE, TRAY_ICON_SIZE, Qt.AspectRatioMode.KeepAspectRatio,
                                    Qt.TransformationMode.SmoothTransformation)
             item.setIcon(QIcon(scaled))
             self._pixmaps[asset_id] = pixmap
@@ -444,7 +446,7 @@ class WorkTray(QWidget):
             # List mode — full filename + icon
             self._view_btn.setText("\u2630")
             self._list.setViewMode(QListWidget.ViewMode.ListMode)
-            self._list.setIconSize(QSize(80, 80))
+            self._list.setIconSize(QSize(TRAY_ICON_SIZE, TRAY_ICON_SIZE))
             self._list.setGridSize(QSize())  # auto
             self._list.setSpacing(max(2, _pad // 2))
             for i in range(self._list.count()):
@@ -624,7 +626,7 @@ class WorkTray(QWidget):
             return
         item = self._list.item(row)
         if item:
-            scaled = pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio,
+            scaled = pixmap.scaled(TRAY_ICON_SIZE, TRAY_ICON_SIZE, Qt.AspectRatioMode.KeepAspectRatio,
                                    Qt.TransformationMode.SmoothTransformation)
             item.setIcon(QIcon(scaled))
             self._pixmaps[asset_id] = pixmap

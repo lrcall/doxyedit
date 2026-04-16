@@ -615,7 +615,7 @@ class MainWindow(QMainWindow):
         self.status.addPermanentWidget(self._progress_bar)
 
         self._progress_label = QLabel()
-        self._progress_label.setStyleSheet("padding-right: 12px;")
+        self._progress_label.setStyleSheet(f"padding-right: {self._ui_padding * 3}px;")
         self._progress_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.status.addPermanentWidget(self._progress_label)
         self.browser.count_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -4881,13 +4881,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         layout = QVBoxLayout(dlg)
 
         summary = QLabel(f"{len(similar_groups)} group(s) · {total_variants} variant(s) · {len(hashmap)} hashed")
-        summary.setStyleSheet("font-weight: bold; padding: 4px;")
+        summary.setStyleSheet(f"font-weight: bold; padding: {self._ui_padding}px;")
         layout.addWidget(summary)
 
         text = QTextEdit()
         text.setReadOnly(True)
         text.setPlainText("\n".join(lines))
-        text.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
+        text.setStyleSheet(f"font-family: Consolas, monospace; font-size: {self._font_size - 1}px;")
         layout.addWidget(text)
 
         btn_row = QHBoxLayout()

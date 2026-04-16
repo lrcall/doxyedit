@@ -14,6 +14,8 @@ from doxyedit.browser import IMAGE_EXTS
 class FolderDelegate(QStyledItemDelegate):
     """Custom delegate that paints asset count badges on folder rows."""
 
+    MIN_BADGE_FONT = 6
+
     def __init__(self, panel: 'FileBrowserPanel', parent=None):
         super().__init__(parent)
         self._panel = panel
@@ -56,7 +58,8 @@ class FolderDelegate(QStyledItemDelegate):
         painter.save()
         text = str(count)
         font = painter.font()
-        font.setPointSize(8)
+        _f = getattr(self._panel, '_f', 12)
+        font.setPointSize(max(self.MIN_BADGE_FONT, int(_f * 0.67)))
         painter.setFont(font)
         fm = painter.fontMetrics()
         tw = fm.horizontalAdvance(text) + 10
@@ -125,6 +128,7 @@ class FileBrowserPanel(QWidget):
     def _build(self):
         from PySide6.QtCore import QSettings
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        self._f = _f
         _cb = max(14, _f + 2)
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)

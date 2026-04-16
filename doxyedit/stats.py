@@ -10,6 +10,9 @@ from doxyedit.models import Project, PLATFORMS
 
 
 class StatsPanel(QWidget):
+    BAR_LABEL_WIDTH_RATIO = 15       # label column width = _f * 15
+    BAR_COUNT_WIDTH_RATIO = 7.5      # count column width = _f * 7.5
+
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
         self.setObjectName("stats_panel")
@@ -30,13 +33,17 @@ class StatsPanel(QWidget):
 
         self._body = QWidget()
         self._body_layout = QVBoxLayout(self._body)
-        self._body_layout.setContentsMargins(32, 24, 32, 32)
-        self._body_layout.setSpacing(24)
+        _pad_lg = max(6, _f // 2)
+        self._body_layout.setContentsMargins(_pad_lg * 5, _pad_lg * 4, _pad_lg * 5, _pad_lg * 5)
+        self._body_layout.setSpacing(_pad_lg * 4)
         scroll.setWidget(self._body)
 
         self.refresh()
 
     def refresh(self):
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
         # Clear previous content
         while self._body_layout.count():
             item = self._body_layout.takeAt(0)
@@ -68,7 +75,7 @@ class StatsPanel(QWidget):
         grid = QWidget()
         grid_layout = QHBoxLayout(grid)
         grid_layout.setContentsMargins(0, 0, 0, 0)
-        grid_layout.setSpacing(12)
+        grid_layout.setSpacing(_pad_lg * 2)
         for label, value in [
             ("Total Assets", str(total)),
             ("Tagged", f"{tagged} ({tagged*100//total}%)"),
@@ -92,7 +99,7 @@ class StatsPanel(QWidget):
             tag_widget = QWidget()
             tag_layout = QVBoxLayout(tag_widget)
             tag_layout.setContentsMargins(0, 0, 0, 0)
-            tag_layout.setSpacing(3)
+            tag_layout.setSpacing(_pad)
             for tid, count in top_tags:
                 label = all_tags[tid].label if tid in all_tags else tid
                 color = all_tags[tid].color if tid in all_tags else "#888"
@@ -122,7 +129,7 @@ class StatsPanel(QWidget):
             plat_widget = QWidget()
             plat_layout = QVBoxLayout(plat_widget)
             plat_layout.setContentsMargins(0, 0, 0, 0)
-            plat_layout.setSpacing(3)
+            plat_layout.setSpacing(_pad)
             for name, filled, total_slots, color in platform_rows:
                 suffix = f"{filled}/{total_slots} slots"
                 plat_layout.addWidget(
@@ -144,7 +151,7 @@ class StatsPanel(QWidget):
             fold_widget = QWidget()
             fold_layout = QVBoxLayout(fold_widget)
             fold_layout.setContentsMargins(0, 0, 0, 0)
-            fold_layout.setSpacing(3)
+            fold_layout.setSpacing(_pad)
             for fname, count in top_folders:
                 fold_layout.addWidget(
                     self._bar_row(fname, count, max_f, self.folder_bar_color, f"{count} assets"))
@@ -165,8 +172,11 @@ class StatsPanel(QWidget):
         card = QFrame()
         card.setObjectName("stat_card")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(14, 10, 14, 10)
-        layout.setSpacing(2)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
+        layout.setContentsMargins(_pad_lg * 2, _pad_lg + _pad, _pad_lg * 2, _pad_lg + _pad)
+        layout.setSpacing(max(2, _pad // 2))
         val_lbl = QLabel(value)
         f = val_lbl.font(); f.setBold(True); val_lbl.setFont(f)
         val_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -183,12 +193,12 @@ class StatsPanel(QWidget):
         row = QWidget()
         h = QHBoxLayout(row)
         h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(8)
-
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad_lg = max(6, _f // 2)
+        h.setSpacing(_pad_lg)
 
         name_lbl = QLabel(label)
-        name_lbl.setFixedWidth(int(_f * 15))
+        name_lbl.setFixedWidth(int(_f * self.BAR_LABEL_WIDTH_RATIO))
         h.addWidget(name_lbl)
 
         bar = QProgressBar()
@@ -198,11 +208,12 @@ class StatsPanel(QWidget):
         bar.setTextVisible(False)
         bar.setFixedHeight(int(_f * 1.0))
         bar.setObjectName("stats_bar")
-        bar.setStyleSheet(f"QProgressBar::chunk {{ background: {color}; border-radius: 4px; }}")
+        _pad = max(4, _f // 3)
+        bar.setStyleSheet(f"QProgressBar::chunk {{ background: {color}; border-radius: {_pad}px; }}")
         h.addWidget(bar, 1)
 
         count_lbl = QLabel(suffix)
-        count_lbl.setFixedWidth(int(_f * 7.5))
+        count_lbl.setFixedWidth(int(_f * self.BAR_COUNT_WIDTH_RATIO))
         count_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         count_lbl.setProperty("role", "muted")
         h.addWidget(count_lbl)

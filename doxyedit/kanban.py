@@ -105,6 +105,7 @@ class KanbanColumn(QWidget):
 
         from PySide6.QtCore import QSettings
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        self._f = _f
         _pad = max(4, _f // 3)
 
         layout = QVBoxLayout(self)
@@ -176,7 +177,7 @@ class KanbanColumn(QWidget):
         self._scroll.setStyleSheet(f"QScrollArea {{ background: {theme.bg_main}; border: none; }}")
         self._card_widget.setStyleSheet(f"background: {theme.bg_main};")
         # Status dot uses theme-derived color
-        self._dot.setStyleSheet(f"color: {self._status_color}; font-size: 14px; background: transparent;")
+        self._dot.setStyleSheet(f"color: {self._status_color}; font-size: {self._f}px; background: transparent;")
         self._title.setStyleSheet(f"color: {theme.text_primary}; background: transparent;")
         self._count.setStyleSheet(f"color: {theme.text_muted}; background: transparent;")
 

@@ -474,7 +474,8 @@ class ImagePreviewPanel(QWidget):
             pm = self._load_pixmap(asset)
             cell = QLabel()
             if pm and not pm.isNull():
-                scaled = pm.scaled(QSize(48, 48),
+                _order_thumb = int(self._f * self.ORDER_CELL_SIZE_RATIO)
+                scaled = pm.scaled(QSize(_order_thumb, _order_thumb),
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation)
                 cell.setPixmap(scaled)

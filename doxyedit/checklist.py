@@ -8,6 +8,10 @@ from PySide6.QtCore import Qt, Signal, QSettings
 from PySide6.QtGui import QKeySequence, QShortcut
 
 
+MIN_PROGRESS_HEIGHT = 4
+ADD_BTN_WIDTH_RATIO = 5
+
+
 class ChecklistPanel(QWidget):
     modified = Signal()  # emitted whenever checklist changes
 
@@ -42,7 +46,7 @@ class ChecklistPanel(QWidget):
         self._progress.setMinimum(0)
         self._progress.setMaximum(1)
         self._progress.setValue(0)
-        self._progress.setFixedHeight(max(4, _f // 2))
+        self._progress.setFixedHeight(max(MIN_PROGRESS_HEIGHT, _f // 2))
         self._progress.setTextVisible(False)
         self._progress.setObjectName("checklist_progress")
         outer.addWidget(self._progress)
@@ -59,8 +63,9 @@ class ChecklistPanel(QWidget):
 
         self._list_widget = QWidget()
         self._list_layout = QVBoxLayout(self._list_widget)
-        self._list_layout.setContentsMargins(0, 4, 0, 4)
-        self._list_layout.setSpacing(2)
+        _pad = max(4, _f // 3)
+        self._list_layout.setContentsMargins(0, _pad, 0, _pad)
+        self._list_layout.setSpacing(max(2, _pad // 2))
         self._list_layout.addStretch()
         scroll.setWidget(self._list_widget)
 
@@ -72,7 +77,7 @@ class ChecklistPanel(QWidget):
         add_row.addWidget(self._add_input)
 
         add_btn = QPushButton("Add")
-        add_btn.setFixedWidth(_f * 5)
+        add_btn.setFixedWidth(_f * ADD_BTN_WIDTH_RATIO)
         add_btn.clicked.connect(self._add_item_from_input)
         add_row.addWidget(add_btn)
         outer.addLayout(add_row)
@@ -99,7 +104,7 @@ class ChecklistPanel(QWidget):
         _pad_lg = max(6, _f // 2)
         row = QWidget()
         h = QHBoxLayout(row)
-        h.setContentsMargins(0, 2, 0, 2)
+        h.setContentsMargins(0, max(2, _pad_lg // 3), 0, max(2, _pad_lg // 3))
         h.setSpacing(_pad_lg * 2)
 
         cb = QCheckBox(text)

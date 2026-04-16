@@ -868,7 +868,9 @@ class RootFolderHeader(QWidget):
         self._on_expand = on_expand
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 4, 0, 0)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        layout.setContentsMargins(0, _pad, 0, 0)
         layout.setSpacing(0)
 
         parts = Path(root_path).parts
@@ -938,7 +940,7 @@ class FolderSection(QWidget):
         _pad = max(4, _f // 3)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 2, 0, 0)
+        layout.setContentsMargins(0, max(2, _pad // 2), 0, 0)
         layout.setSpacing(0)
 
         # Header
@@ -1423,7 +1425,7 @@ class AssetBrowser(QWidget):
         self._tag_bar_frame.setObjectName("tag_bar_frame")
         self._tag_bar_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         self._tag_flow = FlowLayout(self._tag_bar_frame, spacing=4)
-        self._tag_flow.setContentsMargins(0, 2, 0, 2)
+        self._tag_flow.setContentsMargins(0, max(2, _pad // 2), 0, max(2, _pad // 2))
         self._tag_buttons: list[tuple[QPushButton, str]] = []
         self._tag_button_map: dict[str, QPushButton] = {}  # tag_id → button, O(1) lookup
         self._add_tag_btn = QPushButton("+")
@@ -1499,7 +1501,7 @@ class AssetBrowser(QWidget):
 
         # Status line — zoom slider on left, page label on right
         status = QHBoxLayout()
-        status.setContentsMargins(0, 2, 0, 0)
+        status.setContentsMargins(0, max(2, _pad // 2), 0, 0)
         self._zoom_slider = QSlider(Qt.Orientation.Horizontal)
         self._zoom_slider.setRange(80, 512)
         self._zoom_slider.setValue(self._thumb_size)

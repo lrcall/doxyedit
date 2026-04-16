@@ -11,6 +11,11 @@ from PySide6.QtGui import QFont, QColor
 from doxyedit.browser import FlowLayout
 
 
+MIN_NOTE_HEIGHT = 40
+MIN_NOTE_MAX_HEIGHT = 80
+SEPARATOR_HEIGHT = 1
+
+
 class _TagPill(QPushButton):
     """Clickable tag pill with remove button."""
     removed = Signal(str)  # tag_id
@@ -151,8 +156,8 @@ class InfoPanel(QWidget):
         _bold = self._notes_header.font(); _bold.setBold(True); self._notes_header.setFont(_bold)
         self._layout.addWidget(self._notes_header)
         self._notes_edit = QTextEdit()
-        self._notes_edit.setMinimumHeight(max(40, _f * 3))
-        self._notes_edit.setMaximumHeight(max(80, _f * 8))
+        self._notes_edit.setMinimumHeight(max(MIN_NOTE_HEIGHT, _f * 3))
+        self._notes_edit.setMaximumHeight(max(MIN_NOTE_MAX_HEIGHT, _f * 8))
         self._notes_edit.setPlaceholderText("Add notes...")
         self._notes_edit.textChanged.connect(self._on_notes_changed)
         self._layout.addWidget(self._notes_edit)
@@ -195,7 +200,7 @@ class InfoPanel(QWidget):
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
         line.setStyleSheet("")
-        line.setFixedHeight(1)
+        line.setFixedHeight(SEPARATOR_HEIGHT)
         return line
 
     def set_assets(self, assets: list):

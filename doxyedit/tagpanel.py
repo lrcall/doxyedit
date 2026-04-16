@@ -228,7 +228,7 @@ class TagRow(QFrame):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setContentsMargins(_pad, max(2, _pad // 2), _pad, max(2, _pad // 2))
         layout.setSpacing(_pad)
 
         # Eye toggle — hide/show images with this tag
@@ -409,7 +409,7 @@ class TagPanel(QWidget):
         _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _pad = max(4, _f // 3)
         root = QVBoxLayout(self)
-        root.setContentsMargins(3, 3, 3, 3)
+        root.setContentsMargins(_pad, _pad, _pad, _pad)
 
         # Header
         self.header = QLabel("Select an image to tag it")
@@ -519,7 +519,7 @@ class TagPanel(QWidget):
         notes_widget = QWidget()
         notes_layout = QVBoxLayout(notes_widget)
         notes_layout.setContentsMargins(0, 0, 0, 0)
-        notes_layout.setSpacing(2)
+        notes_layout.setSpacing(max(2, _pad // 2))
         notes_label = QLabel("Notes:")
         notes_layout.addWidget(notes_label)
         self.notes_edit = QTextEdit()

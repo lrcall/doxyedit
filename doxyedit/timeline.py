@@ -12,6 +12,8 @@ from PySide6.QtGui import QPixmap
 
 from doxyedit.models import Project, SocialPost, SocialPostStatus, EngagementWindow
 
+ICON_WIDTH_RATIO = 1.67
+
 
 def _resolve_chrome_profile(project, collection: str, account_id: str) -> str:
     """Look up the Chrome profile for an account from the identity config."""
@@ -213,25 +215,26 @@ class PostCard(QFrame):
             if pending:
                 pending.sort(key=lambda x: x[2])
 
+                from PySide6.QtCore import QSettings as _QS
+                _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+                _pad = max(4, _f // 3)
+                _pad_lg = max(6, _f // 2)
                 eng_container = QFrame()
                 eng_container.setObjectName("engagement_panel")
                 eng_layout = QVBoxLayout(eng_container)
-                eng_layout.setContentsMargins(6, 4, 6, 4)
-                eng_layout.setSpacing(3)
+                eng_layout.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)
+                eng_layout.setSpacing(_pad)
                 eng_container.setVisible(False)
 
                 for idx, check, mins in pending:
                     row = QFrame()
                     row.setObjectName("engagement_row")
                     row_lay = QHBoxLayout(row)
-                    row_lay.setContentsMargins(4, 2, 4, 2)
-                    row_lay.setSpacing(6)
-
-                    from PySide6.QtCore import QSettings as _QS
-                    _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+                    row_lay.setContentsMargins(_pad, max(2, _pad // 2), _pad, max(2, _pad // 2))
+                    row_lay.setSpacing(_pad_lg)
                     icon = "!!" if mins < 0 else ("!" if mins < 5 else "~")
                     icon_lbl = QLabel(icon)
-                    icon_lbl.setFixedWidth(int(_f * 1.67))
+                    icon_lbl.setFixedWidth(int(_f * ICON_WIDTH_RATIO))
                     row_lay.addWidget(icon_lbl)
 
                     desc = QLabel(f"{check.platform} — {check.notes}")

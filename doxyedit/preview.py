@@ -26,9 +26,11 @@ class HoverPreview(QWidget):
         self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setObjectName("hover_preview")
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(2)
+        layout.setContentsMargins(_pad, _pad, _pad, _pad)
+        layout.setSpacing(max(2, _pad // 2))
         self._img_label = QLabel()
         self._img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._img_label)
@@ -328,7 +330,9 @@ class ImagePreviewDialog(QDialog):
 
         # Info bar
         info_bar = QHBoxLayout()
-        info_bar.setContentsMargins(12, 8, 12, 4)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
+        info_bar.setContentsMargins(_pad * 3, _pad_lg, _pad * 3, _pad)
 
         pm, w, h = load_pixmap(image_path)
         name = Path(image_path).name
@@ -900,7 +904,10 @@ class PreviewPane(QWidget):
         # Compact info bar
         self._info_bar = QWidget()
         info_layout = QHBoxLayout(self._info_bar)
-        info_layout.setContentsMargins(8, 4, 8, 4)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _pad = max(4, _f // 3)
+        _pad_lg = max(6, _f // 2)
+        info_layout.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)
         self._info_label = QLabel()
         self._info_label.setObjectName("preview_info")
         info_layout.addWidget(self._info_label)

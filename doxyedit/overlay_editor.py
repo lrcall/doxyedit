@@ -15,6 +15,8 @@ from doxyedit.models import Asset, Project, CanvasOverlay
 from doxyedit.exporter import apply_overlays
 
 
+MIN_SLIDER_WIDTH = 80
+
 # ---------------------------------------------------------------------------
 # Graphics items
 # ---------------------------------------------------------------------------
@@ -137,7 +139,7 @@ class OverlayEditor(QWidget):
         self.opacity_slider.setObjectName("overlay_opacity_slider")
         self.opacity_slider.setRange(0, 100)
         self.opacity_slider.setValue(30)
-        self.opacity_slider.setFixedWidth(max(80, int(_f * 8.3)))
+        self.opacity_slider.setFixedWidth(max(MIN_SLIDER_WIDTH, int(_f * 8.3)))
         self.opacity_slider.valueChanged.connect(self._on_opacity_changed)
         toolbar.addWidget(self.opacity_slider)
 
@@ -147,7 +149,7 @@ class OverlayEditor(QWidget):
         self.scale_slider.setObjectName("overlay_scale_slider")
         self.scale_slider.setRange(5, 100)
         self.scale_slider.setValue(20)
-        self.scale_slider.setFixedWidth(max(80, int(_f * 8.3)))
+        self.scale_slider.setFixedWidth(max(MIN_SLIDER_WIDTH, int(_f * 8.3)))
         self.scale_slider.valueChanged.connect(self._on_scale_changed)
         toolbar.addWidget(self.scale_slider)
 
