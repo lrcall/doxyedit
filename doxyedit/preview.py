@@ -145,7 +145,7 @@ class ResizableCropItem(QGraphicsRectItem):
 
     HANDLE_SIZE = 14
 
-    def __init__(self, rect: QRectF, label: str = "", aspect: float | None = None, parent=None):
+    def __init__(self, rect: QRectF, label: str = "", aspect: float | None = None, theme=None, parent=None):
         super().__init__(rect, parent)
         self.label = label
         self._aspect = aspect
@@ -155,11 +155,13 @@ class ResizableCropItem(QGraphicsRectItem):
             QGraphicsItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
-        from doxyedit.themes import THEMES, DEFAULT_THEME
-        _dt = THEMES[DEFAULT_THEME]
-        _cc = QColor(_dt.crop_border)
-        _cc.setAlpha(_dt.preview_overlay_alpha)
-        self.setPen(QPen(_cc, _dt.crop_border_width))
+        if theme is None:
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            theme = THEMES[DEFAULT_THEME]
+        self._theme = theme
+        _cc = QColor(theme.crop_border)
+        _cc.setAlpha(theme.preview_overlay_alpha)
+        self.setPen(QPen(_cc, theme.crop_border_width))
         self.setBrush(Qt.BrushStyle.NoBrush)
         self.setZValue(101)
         self.setCursor(Qt.CursorShape.SizeAllCursor)
@@ -196,10 +198,8 @@ class ResizableCropItem(QGraphicsRectItem):
             painter.drawText(QRectF(tx, ty, tw, th), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, self.label)
         # Draw handles if selected
         if self.isSelected():
-            from doxyedit.themes import THEMES, DEFAULT_THEME
-            _dt2 = THEMES[DEFAULT_THEME]
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(_dt2.crop_border))
+            painter.setBrush(QColor(self._theme.crop_border))
             for hr in self._handle_rects():
                 painter.drawRect(hr)
 

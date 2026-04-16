@@ -1553,7 +1553,7 @@ class StudioEditor(QWidget):
         self._asset.crops.append(crop)
         # Create editable item
         aspect = data[2] / data[3] if data and len(data) >= 4 and data[3] else None
-        crop_item = ResizableCropItem(rect, label=label, aspect=aspect)
+        crop_item = ResizableCropItem(rect, label=label, aspect=aspect, theme=self._theme)
         crop_item.on_changed = self._on_crop_edited
         self._scene.addItem(crop_item)
         self._crop_items.append(crop_item)
@@ -1611,7 +1611,7 @@ class StudioEditor(QWidget):
             rect = QRectF(crop.x, crop.y, crop.w, crop.h)
             # Derive aspect from crop dimensions (preserves platform ratio)
             aspect = crop.w / crop.h if crop.w and crop.h else None
-            item = ResizableCropItem(rect, label=crop.label, aspect=aspect)
+            item = ResizableCropItem(rect, label=crop.label, aspect=aspect, theme=self._theme)
             item.on_changed = self._on_crop_edited
             self._scene.addItem(item)
             self._crop_items.append(item)
