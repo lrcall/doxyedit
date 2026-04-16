@@ -732,6 +732,7 @@ class StudioView(QGraphicsView):
     def __init__(self, scene: StudioScene, parent=None):
         super().__init__(scene, parent)
         self.setObjectName("studio_view")
+        self._studio_editor = None  # set by StudioEditor after creation
         self.setRenderHints(
             QPainter.RenderHint.Antialiasing
             | QPainter.RenderHint.SmoothPixmapTransform
@@ -776,6 +777,12 @@ class StudioView(QGraphicsView):
             self.setCursor(Qt.CursorShape.ArrowCursor)
             return
         super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape and self._studio_editor:
+            self._studio_editor.keyPressEvent(event)
+            return
+        super().keyPressEvent(event)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -1226,6 +1233,7 @@ class StudioEditor(QWidget):
         self._scene.on_text_overlay_placed = self._on_text_placed
         self._scene.get_crop_aspect = self._get_crop_aspect
         self._view = StudioView(self._scene)
+        self._view._studio_editor = self
         self._view.on_file_dropped = self._on_file_dropped
 
         # Snap grid overlay — flag on the scene, drawn via foreground
