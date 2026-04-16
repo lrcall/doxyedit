@@ -174,19 +174,26 @@ class ResizableCropItem(QGraphicsRectItem):
         if self.label:
             from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
-            _lc = QColor(_dt.crop_border)
-            _lc.setAlpha(_dt.preview_badge_alpha)
-            painter.setPen(_lc)
             font = painter.font()
-            # Compute screen-space font size by inverting the view transform
             view = self.scene().views()[0] if self.scene() and self.scene().views() else None
-            if view:
-                scale = view.transform().m11()
-                font.setPixelSize(max(12, int(_dt.font_size * 1.2 / max(scale, 0.01))))
-            else:
-                font.setPixelSize(_dt.font_size)
+            scale = view.transform().m11() if view else 1.0
+            font.setPixelSize(max(12, int(_dt.font_size * 1.2 / max(scale, 0.01))))
+            font.setBold(True)
             painter.setFont(font)
-            pad = max(6, int(6 / max(scale, 0.01))) if view else 6
+            pad = max(6, int(6 / max(scale, 0.01)))
+            text_rect = painter.fontMetrics().boundingRect(self.label)
+            bg_rect = QRectF(
+                self.rect().x() + pad - 2 / max(scale, 0.01),
+                self.rect().y() + pad - 2 / max(scale, 0.01),
+                text_rect.width() + 8 / max(scale, 0.01),
+                text_rect.height() + 4 / max(scale, 0.01),
+            )
+            _bg = QColor(0, 0, 0, 160)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(_bg)
+            painter.drawRoundedRect(bg_rect, 3 / max(scale, 0.01), 3 / max(scale, 0.01))
+            painter.setPen(QColor(255, 255, 255))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawText(self.rect().adjusted(pad, pad, 0, 0), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, self.label)
         # Draw handles if selected
         if self.isSelected():

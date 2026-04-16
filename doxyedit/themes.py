@@ -1828,7 +1828,7 @@ def generate_stylesheet(theme: Theme) -> str:
             background: {theme.bg_deep};
         }}
         QLabel#studio_preview_thumb_label {{
-            color: {theme.text_secondary};
+            color: {theme.text_primary};
             font-size: {max(9, theme.font_size - 2)}px;
         }}
 

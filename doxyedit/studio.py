@@ -78,6 +78,9 @@ def _themed_menu(parent=None) -> QMenu:
         QMenu::item:selected {{ background: {t.accent_dim}; color: {t.text_on_accent}; }}
         QMenu::item:disabled {{ color: {t.text_muted}; }}
         QMenu::separator {{ background: {t.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
+        QMenu::indicator {{ width: {pad_lg * 2}px; height: {pad_lg * 2}px; margin-left: {pad}px; }}
+        QMenu::indicator:checked {{ background: {t.accent}; border: 1px solid {t.accent_bright}; border-radius: {rad}px; }}
+        QMenu::indicator:unchecked {{ background: {t.bg_input}; border: 1px solid {t.border}; border-radius: {rad}px; }}
     """)
     return menu
 
@@ -2466,6 +2469,7 @@ class StudioEditor(QWidget):
         msg = f"Exported: full + censored + {crop_count} crop(s)"
         self.info_label.setText(msg)
         self._rebuild_layer_panel()
+        self._show_filmstrip_from_files(out_base, stem)
         if self._project_path:
             self._open_export_folder(get_export_dir(self._project_path))
 
@@ -2517,6 +2521,37 @@ class StudioEditor(QWidget):
             self._preview_strip_layout.addWidget(frame)
             any_shown = True
 
+        self._preview_strip_layout.addStretch()
+        self._preview_strip_scroll.setVisible(any_shown)
+
+    def _show_filmstrip_from_files(self, folder: Path, stem: str):
+        """Show filmstrip from exported files matching the stem."""
+        while self._preview_strip_layout.count():
+            item = self._preview_strip_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        thumb_h = self._preview_thumb_h
+        any_shown = False
+        for f in sorted(folder.glob(f"{stem}*.png")):
+            pm = QPixmap(str(f))
+            if pm.isNull():
+                continue
+            pm = pm.scaledToHeight(thumb_h, Qt.TransformationMode.SmoothTransformation)
+            frame = QWidget()
+            frame.setObjectName("studio_preview_thumb")
+            vl = QVBoxLayout(frame)
+            vl.setContentsMargins(0, 0, 0, 0)
+            vl.setSpacing(2)
+            img_label = QLabel()
+            img_label.setPixmap(pm)
+            img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            vl.addWidget(img_label)
+            txt = QLabel(f.stem.replace(f"{stem}_", ""))
+            txt.setObjectName("studio_preview_thumb_label")
+            txt.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            vl.addWidget(txt)
+            self._preview_strip_layout.addWidget(frame)
+            any_shown = True
         self._preview_strip_layout.addStretch()
         self._preview_strip_scroll.setVisible(any_shown)
 
