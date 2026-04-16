@@ -2216,6 +2216,7 @@ class StudioEditor(QWidget):
         if r.success:
             self._asset.variant_exports[f"{platform_id}_{slot_name}"] = r.output_path
             self.info_label.setText(f"Exported: {platform_id}/{slot_name} ({r.width}×{r.height})")
+            self._populate_preview_strip([r])
             if self._project_path:
                 self._open_export_folder(Path(r.output_path).parent)
         else:
