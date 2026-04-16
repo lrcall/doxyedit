@@ -1250,9 +1250,9 @@ class StudioEditor(QWidget):
         self._f10_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F10), self)
         self._f10_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._f10_shortcut.activated.connect(self._nuclear_clear)
-        # Escape shortcut — WindowShortcut so it fires even when toolbar has focus
+        # Escape shortcut — ApplicationShortcut (same as F10 which works)
         self._esc_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
-        self._esc_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+        self._esc_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._esc_shortcut.activated.connect(self._clear_escape_state)
 
         # Snap grid overlay — flag on the scene, drawn via foreground
