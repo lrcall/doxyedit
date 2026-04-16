@@ -241,7 +241,23 @@ def open_for_thumb(path: str, target_size: int = 160) -> tuple[PILImage.Image, i
 
 
 def get_export_dir(project_path: str) -> Path:
-    """Return the sidecar _assets folder next to the project file, creating it if needed."""
-    d = Path(project_path).parent / "_assets"
+    """Return a sidecar assets folder named after the project file.
+
+    e.g. socials_jenni.doxyproj.json → socials_jenni_assets/
+    Deduplicates with _001, _002 if a non-directory file with that name exists.
+    """
+    p = Path(project_path)
+    # Strip all extensions (.doxyproj.json → stem)
+    stem = p.stem
+    if stem.endswith(".doxyproj"):
+        stem = stem[: -len(".doxyproj")]
+    base_name = f"{stem}_assets"
+    d = p.parent / base_name
+    if d.exists() and not d.is_dir():
+        # Name collision with a file — add suffix
+        for i in range(1, 1000):
+            d = p.parent / f"{base_name}_{i:03d}"
+            if not d.exists() or d.is_dir():
+                break
     d.mkdir(exist_ok=True)
     return d
