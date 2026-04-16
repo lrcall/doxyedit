@@ -403,21 +403,26 @@ class OverlayTextItem(QGraphicsTextItem):
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
         super().mouseDoubleClickEvent(event)
 
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Escape:
+    def sceneEvent(self, event):
+        """Intercept ALL events before Qt's internal text control sees them."""
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Escape:
             cursor = self.textCursor()
             cursor.clearSelection()
             self.setTextCursor(cursor)
-            self.clearFocus()
             self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
             self.overlay.text = self.toPlainText()
-            # Propagate to parent so StudioEditor also clears crop mask etc.
+            self.clearFocus()
             if self._editor:
                 self._editor._clear_escape_state()
-            return
-        super().keyPressEvent(event)
+            event.accept()
+            return True  # consumed — Qt text control never sees it
+        return super().sceneEvent(event)
 
     def focusOutEvent(self, event):
+        cursor = self.textCursor()
+        cursor.clearSelection()
+        self.setTextCursor(cursor)
         self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self.overlay.text = self.toPlainText()
         super().focusOutEvent(event)
@@ -1242,9 +1247,9 @@ class StudioEditor(QWidget):
 
         # F5 = nuclear clear — always fires, clears EVERYTHING
         from PySide6.QtGui import QShortcut, QKeySequence
-        self._f5_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F5), self)
-        self._f5_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        self._f5_shortcut.activated.connect(self._nuclear_clear)
+        self._f10_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F10), self)
+        self._f10_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self._f10_shortcut.activated.connect(self._nuclear_clear)
         # Escape shortcut — WindowShortcut so it fires even when toolbar has focus
         self._esc_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         self._esc_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
@@ -1415,79 +1420,79 @@ class StudioEditor(QWidget):
         self._view.scale(factor, factor)
         self._zoom_label.setText(f"{int(factor * 100)}%")
 
-    _f5_step = 0
+    _f10_step = 0
 
     def _nuclear_clear(self):
         """F5 — cycle through clear methods one at a time."""
         if not self.isVisible():
             return
         steps = [
-            ("Clear text editing",      self._f5_clear_text_editing),
-            ("Clear text selection",    self._f5_clear_text_selection),
-            ("Clear scene focus",       self._f5_clear_scene_focus),
-            ("Clear scene selection",   self._f5_clear_scene_selection),
-            ("Remove crop mask",        self._f5_clear_crop_mask),
-            ("Remove crop items",       self._f5_clear_crop_items),
-            ("Reset tool to Select",    self._f5_reset_tool),
-            ("Clear overlay selection", self._f5_clear_overlay_selection),
-            ("Force view focus",        self._f5_force_view_focus),
-            ("Full scene update",       self._f5_full_update),
+            ("Clear text editing",      self._f10_clear_text_editing),
+            ("Clear text selection",    self._f10_clear_text_selection),
+            ("Clear scene focus",       self._f10_clear_scene_focus),
+            ("Clear scene selection",   self._f10_clear_scene_selection),
+            ("Remove crop mask",        self._f10_clear_crop_mask),
+            ("Remove crop items",       self._f10_clear_crop_items),
+            ("Reset tool to Select",    self._f10_reset_tool),
+            ("Clear overlay selection", self._f10_clear_overlay_selection),
+            ("Force view focus",        self._f10_force_view_focus),
+            ("Full scene update",       self._f10_full_update),
         ]
-        step = self._f5_step % len(steps)
+        step = self._f10_step % len(steps)
         name, fn = steps[step]
         fn()
-        self._f5_step = step + 1
+        self._f10_step = step + 1
         msg = f"F5 [{step+1}/{len(steps)}] {name}"
         print(f"[Studio] {msg}")
         self.info_label.setText(msg)
 
-    def _f5_clear_text_editing(self):
+    def _f10_clear_text_editing(self):
         for item in self._scene.items():
             if isinstance(item, OverlayTextItem):
                 item.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
                 item.overlay.text = item.toPlainText()
 
-    def _f5_clear_text_selection(self):
+    def _f10_clear_text_selection(self):
         for item in self._scene.items():
             if isinstance(item, OverlayTextItem):
                 cursor = item.textCursor()
                 cursor.clearSelection()
                 item.setTextCursor(cursor)
 
-    def _f5_clear_scene_focus(self):
+    def _f10_clear_scene_focus(self):
         for item in self._scene.items():
             if isinstance(item, QGraphicsTextItem):
                 item.clearFocus()
         self._scene.clearFocus()
 
-    def _f5_clear_scene_selection(self):
+    def _f10_clear_scene_selection(self):
         self._scene.clearSelection()
 
-    def _f5_clear_crop_mask(self):
+    def _f10_clear_crop_mask(self):
         if self._crop_mask_item and self._crop_mask_item.scene():
             self._scene.removeItem(self._crop_mask_item)
             self._crop_mask_item = None
 
-    def _f5_clear_crop_items(self):
+    def _f10_clear_crop_items(self):
         for ci in list(self._crop_items):
             if ci.scene():
                 self._scene.removeItem(ci)
         self._crop_items.clear()
 
-    def _f5_reset_tool(self):
+    def _f10_reset_tool(self):
         self._set_tool(StudioTool.SELECT)
 
-    def _f5_clear_overlay_selection(self):
+    def _f10_clear_overlay_selection(self):
         for item in self._scene.items():
             item.setSelected(False)
 
-    def _f5_force_view_focus(self):
+    def _f10_force_view_focus(self):
         self._view.setFocus()
 
-    def _f5_full_update(self):
+    def _f10_full_update(self):
         self._scene.update()
         self._view.viewport().update()
-        self._f5_step = 0  # reset cycle
+        self._f10_step = 0  # reset cycle
 
     def _clear_escape_state(self):
         """Shared cleanup for Escape — clear selection, crop mask, reset tool."""
