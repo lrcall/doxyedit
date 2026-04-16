@@ -2450,18 +2450,63 @@ class StudioEditor(QWidget):
             self.info_label.setText("No crops or platform-scoped overlays on this asset")
             return
 
-        progress = QProgressDialog("Exporting platform variants...", "Cancel", 0, len(slots), self)
-        progress.setWindowTitle("Export All Platforms")
+        from doxyedit.imaging import load_image_for_export
+        from doxyedit.exporter import apply_censors, apply_overlays
+
+        src_path = Path(self._asset.source_path)
+        stem = src_path.stem
+        if stem.isdigit() and src_path.parent.name:
+            stem = f"{src_path.parent.name}_{stem}"
+        out_base = Path(output_dir) if output_dir else Path("_exports")
+        out_base.mkdir(parents=True, exist_ok=True)
+
+        total = len(slots) + 2  # +2 for full image + censored full
+        progress = QProgressDialog("Exporting...", "Cancel", 0, total, self)
+        progress.setWindowTitle("Export All")
         progress.setMinimumDuration(300)
         progress.setModal(True)
+        step = 0
 
+        # --- 1. Full image with ALL overlays (no crop) ---
+        progress.setLabelText("Full image with overlays...")
+        QCoreApplication.processEvents()
+        try:
+            img_full = load_image_for_export(str(src_path))
+            all_overlays = [ov for ov in self._asset.overlays if not ov.platforms]
+            if all_overlays:
+                img_full = apply_overlays(img_full, all_overlays, str(src_path.parent))
+            img_full.save(str(out_base / f"{stem}_full.png"), "PNG")
+        except Exception as e:
+            print(f"[Export All] full image failed: {e}")
+        step += 1
+        progress.setValue(step)
+
+        # --- 2. Censored full image (all censors + overlays, no crop) ---
+        if not progress.wasCanceled():
+            progress.setLabelText("Censored full image...")
+            QCoreApplication.processEvents()
+            try:
+                img_cens = load_image_for_export(str(src_path))
+                if self._asset.censors:
+                    img_cens = apply_censors(img_cens, self._asset.censors)
+                all_overlays = [ov for ov in self._asset.overlays if not ov.platforms]
+                if all_overlays:
+                    img_cens = apply_overlays(img_cens, all_overlays, str(src_path.parent))
+                img_cens.save(str(out_base / f"{stem}_censored.png"), "PNG")
+            except Exception as e:
+                print(f"[Export All] censored full failed: {e}")
+        step += 1
+        progress.setValue(step)
+
+        # --- 3. Per-platform cropped variants (with scoped overlays/censors) ---
         results = []
         self._asset.variant_exports.clear()
-        for i, (pid, slot_name) in enumerate(slots):
+        for pid, slot_name in slots:
             if progress.wasCanceled():
                 break
-            progress.setValue(i)
-            progress.setLabelText(f"Exporting {pid} / {slot_name}...")
+            step += 1
+            progress.setValue(step)
+            progress.setLabelText(f"{pid} / {slot_name}...")
             QCoreApplication.processEvents()
             try:
                 r = prepare_for_platform(
@@ -2474,11 +2519,11 @@ class StudioEditor(QWidget):
             except Exception as e:
                 print(f"[Export All] {pid}/{slot_name} failed: {e}")
 
-        progress.setValue(len(slots))
+        progress.setValue(total)
 
         ok = sum(1 for r in results if r.success)
         fail = sum(1 for r in results if not r.success)
-        msg = f"Exported {ok} platform variant(s)"
+        msg = f"Exported: full + censored + {ok} platform variant(s)"
         if fail:
             msg += f", {fail} failed"
         self.info_label.setText(msg)
