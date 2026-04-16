@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QFontComboBox, QSpinBox, QColorDialog, QInputDialog, QMenu,
     QListWidget, QListWidgetItem, QSplitter, QScrollArea,
 )
-from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal
+from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal, QObject
 from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
     QKeyEvent, QTransform, QUndoCommand, QUndoStack,
@@ -37,6 +37,24 @@ STUDIO_RESIZE_HANDLE_SIZE = 6     # resize handle square size
 STUDIO_ZOOM_BTN_WIDTH_RATIO = 3.0  # zoom button width × font_size
 STUDIO_ZOOM_LABEL_WIDTH_RATIO = 3.3  # zoom % label width × font_size
 STUDIO_LAYER_PANEL_WIDTH = 200    # layer panel max width
+
+
+class _AppEscapeFilter(QObject):
+    """QApplication-level event filter — intercepts Escape before ANY widget."""
+
+    def __init__(self, editor):
+        super().__init__()
+        self._editor = editor
+
+    def eventFilter(self, obj, event):
+        from PySide6.QtCore import QEvent
+        if (event.type() == QEvent.Type.KeyPress
+                and event.key() == Qt.Key.Key_Escape
+                and self._editor.isVisible()):
+            self._editor._nuclear_clear()
+            return True  # consume — nothing else sees Escape
+        return False
+
 
 # ---------------------------------------------------------------------------
 # Context menu theming helper
@@ -1245,15 +1263,16 @@ class StudioEditor(QWidget):
         self._view._studio_editor = self
         self._view.on_file_dropped = self._on_file_dropped
 
-        # F5 = nuclear clear — always fires, clears EVERYTHING
+        # F10 = cycling testbed
         from PySide6.QtGui import QShortcut, QKeySequence
         self._f10_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F10), self)
         self._f10_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._f10_shortcut.activated.connect(self._nuclear_clear)
-        # Escape shortcut — ApplicationShortcut (same as F10 which works)
-        self._esc_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
-        self._esc_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        self._esc_shortcut.activated.connect(self._clear_escape_state)
+
+        # Escape — QApplication event filter (the ONLY way to beat QGraphicsTextItem)
+        from PySide6.QtWidgets import QApplication
+        self._app_esc_filter = _AppEscapeFilter(self)
+        QApplication.instance().installEventFilter(self._app_esc_filter)
 
         # Snap grid overlay — flag on the scene, drawn via foreground
         self._grid_visible = False
