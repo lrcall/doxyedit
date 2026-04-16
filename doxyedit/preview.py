@@ -180,21 +180,20 @@ class ResizableCropItem(QGraphicsRectItem):
             font.setPixelSize(max(12, int(_dt.font_size * 1.2 / max(scale, 0.01))))
             font.setBold(True)
             painter.setFont(font)
-            pad = max(6, int(6 / max(scale, 0.01)))
-            text_rect = painter.fontMetrics().boundingRect(self.label)
-            bg_rect = QRectF(
-                self.rect().x() + pad - 2 / max(scale, 0.01),
-                self.rect().y() + pad - 2 / max(scale, 0.01),
-                text_rect.width() + 8 / max(scale, 0.01),
-                text_rect.height() + 4 / max(scale, 0.01),
-            )
-            _bg = QColor(0, 0, 0, 160)
+            inv = 1.0 / max(scale, 0.01)
+            pad = 6 * inv
+            fm = painter.fontMetrics()
+            tw = fm.horizontalAdvance(self.label)
+            th = fm.height()
+            tx = self.rect().x() + pad
+            ty = self.rect().y() + pad
+            bg_rect = QRectF(tx - 3 * inv, ty - 2 * inv, tw + 6 * inv, th + 4 * inv)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(_bg)
-            painter.drawRoundedRect(bg_rect, 3 / max(scale, 0.01), 3 / max(scale, 0.01))
+            painter.setBrush(QColor(0, 0, 0, 180))
+            painter.drawRoundedRect(bg_rect, 3 * inv, 3 * inv)
             painter.setPen(QColor(255, 255, 255))
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawText(self.rect().adjusted(pad, pad, 0, 0), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, self.label)
+            painter.drawText(QRectF(tx, ty, tw, th), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, self.label)
         # Draw handles if selected
         if self.isSelected():
             from doxyedit.themes import THEMES, DEFAULT_THEME
