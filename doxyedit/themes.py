@@ -121,6 +121,13 @@ class Theme:
     # Studio
     studio_handle_alpha: int = 220         # drag handle opacity
     studio_guide_alpha: int = 30           # alignment guide opacity
+    crop_label_bg_alpha: int = 180         # crop label pill background
+    crop_label_text: str = "#ffffff"       # crop label text color
+    crop_label_min_font: int = 12          # crop label minimum font size
+    crop_label_scale_ratio: float = 1.2    # crop label font scale factor
+    filmstrip_thumb_min: int = 60          # filmstrip thumbnail minimum height
+    filmstrip_height_ratio: float = 5.0    # filmstrip height × font_size
+    filmstrip_label_ratio: float = 2.5     # filmstrip label area × font_size
     # Browser extras
     grid_folder_tag_alpha: int = 60        # folder label tag bg opacity
     tag_bar_active_alpha: int = 255        # active tag button opacity

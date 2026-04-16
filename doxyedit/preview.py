@@ -179,7 +179,8 @@ class ResizableCropItem(QGraphicsRectItem):
             font = painter.font()
             view = self.scene().views()[0] if self.scene() and self.scene().views() else None
             scale = view.transform().m11() if view else 1.0
-            font.setPixelSize(max(12, int(_dt.font_size * 1.2 / max(scale, 0.01))))
+            _t = self._theme
+            font.setPixelSize(max(_t.crop_label_min_font, int(_t.font_size * _t.crop_label_scale_ratio / max(scale, 0.01))))
             font.setBold(True)
             painter.setFont(font)
             inv = 1.0 / max(scale, 0.01)
@@ -191,9 +192,11 @@ class ResizableCropItem(QGraphicsRectItem):
             ty = self.rect().y() + pad
             bg_rect = QRectF(tx - 3 * inv, ty - 2 * inv, tw + 6 * inv, th + 4 * inv)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(0, 0, 0, 180))
+            _bg = QColor(0, 0, 0)
+            _bg.setAlpha(_t.crop_label_bg_alpha)
+            painter.setBrush(_bg)
             painter.drawRoundedRect(bg_rect, 3 * inv, 3 * inv)
-            painter.setPen(QColor(255, 255, 255))
+            painter.setPen(QColor(_t.crop_label_text))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawText(QRectF(tx, ty, tw, th), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, self.label)
         # Draw handles if selected

@@ -1301,8 +1301,8 @@ class StudioEditor(QWidget):
         root.addWidget(self._canvas_split, 1)
 
         # Platform preview strip (collapsible filmstrip)
-        self._preview_thumb_h = max(60, int(_dt.font_size * 5))
-        strip_h = self._preview_thumb_h + int(_dt.font_size * 2.5)
+        self._preview_thumb_h = max(_dt.filmstrip_thumb_min, int(_dt.font_size * _dt.filmstrip_height_ratio))
+        strip_h = self._preview_thumb_h + int(_dt.font_size * _dt.filmstrip_label_ratio)
         self._preview_strip = QWidget()
         self._preview_strip.setObjectName("studio_preview_strip")
         self._preview_strip.setFixedHeight(strip_h)
