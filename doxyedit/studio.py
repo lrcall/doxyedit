@@ -2198,14 +2198,21 @@ class StudioEditor(QWidget):
             return
 
         platform_id, slot_name = data[0], data[1]
+        print(f"[Export Platform] {platform_id}/{slot_name} for asset {self._asset.id}")
 
         from doxyedit.pipeline import prepare_for_platform
         from doxyedit.imaging import get_export_dir
         output_dir = str(get_export_dir(self._project_path) / Path(self._asset.source_path).stem) if self._project_path else ""
-        r = prepare_for_platform(
-            self._asset, platform_id, self._project,
-            slot_name=slot_name, output_dir=output_dir,
-        )
+        print(f"[Export Platform] output_dir={output_dir}")
+        try:
+            r = prepare_for_platform(
+                self._asset, platform_id, self._project,
+                slot_name=slot_name, output_dir=output_dir,
+            )
+        except Exception as e:
+            self.info_label.setText(f"Export crashed: {e}")
+            import traceback; traceback.print_exc()
+            return
         if r.success:
             self._asset.variant_exports[f"{platform_id}_{slot_name}"] = r.output_path
             self.info_label.setText(f"Exported: {platform_id}/{slot_name} ({r.width}×{r.height})")
@@ -2213,6 +2220,7 @@ class StudioEditor(QWidget):
                 self._open_export_folder(Path(r.output_path).parent)
         else:
             self.info_label.setText(f"Export failed: {r.error}")
+            print(f"[Export Platform] FAILED: {r.error}")
 
     def _export_all_platforms(self):
         """Batch export all platform variants for the current asset."""
@@ -2221,21 +2229,57 @@ class StudioEditor(QWidget):
         self._sync_censors_to_asset()
         self._sync_overlays_to_asset()
 
-        from doxyedit.pipeline import batch_export_variants
+        from doxyedit.models import PLATFORMS
+        from doxyedit.pipeline import prepare_for_platform
         from doxyedit.imaging import get_export_dir
+        from PySide6.QtWidgets import QProgressDialog
+        from PySide6.QtCore import QCoreApplication
+
         output_dir = str(get_export_dir(self._project_path)) if self._project_path else ""
-        results = batch_export_variants(self._asset, self._project, output_dir=output_dir)
+
+        # Count total slots
+        slots = []
+        for pid in self._project.platforms:
+            plat = PLATFORMS.get(pid)
+            if plat and plat.slots:
+                for s in plat.slots:
+                    slots.append((pid, s.name))
+
+        progress = QProgressDialog("Exporting platform variants...", "Cancel", 0, len(slots), self)
+        progress.setWindowTitle("Export All Platforms")
+        progress.setMinimumDuration(300)
+        progress.setModal(True)
+
+        results = []
+        self._asset.variant_exports.clear()
+        for i, (pid, slot_name) in enumerate(slots):
+            if progress.wasCanceled():
+                break
+            progress.setValue(i)
+            progress.setLabelText(f"Exporting {pid} / {slot_name}...")
+            QCoreApplication.processEvents()
+            try:
+                r = prepare_for_platform(
+                    self._asset, pid, self._project,
+                    slot_name=slot_name, output_dir=output_dir,
+                )
+                results.append(r)
+                if r.success:
+                    self._asset.variant_exports[f"{pid}_{slot_name}"] = r.output_path
+            except Exception as e:
+                print(f"[Export All] {pid}/{slot_name} failed: {e}")
+
+        progress.setValue(len(slots))
+
         ok = sum(1 for r in results if r.success)
         fail = sum(1 for r in results if not r.success)
         msg = f"Exported {ok} platform variant(s)"
         if fail:
             msg += f", {fail} failed"
-        msg += " → _assets/"
         self.info_label.setText(msg)
         self._rebuild_layer_panel()
         self._populate_preview_strip(results)
         if self._project_path:
-            from doxyedit.imaging import get_export_dir
             self._open_export_folder(get_export_dir(self._project_path))
 
     @staticmethod
