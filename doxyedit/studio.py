@@ -1239,9 +1239,12 @@ class StudioEditor(QWidget):
         self._view = StudioView(self._scene)
         self._view._studio_editor = self
         self._view.on_file_dropped = self._on_file_dropped
-        # Install event filter to catch Escape before anything else
-        self._view.installEventFilter(self)
-        self._view.viewport().installEventFilter(self)
+
+        # QShortcut fires regardless of focus — guaranteed Escape handling
+        from PySide6.QtGui import QShortcut, QKeySequence
+        self._esc_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
+        self._esc_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self._esc_shortcut.activated.connect(self._clear_escape_state)
 
         # Snap grid overlay — flag on the scene, drawn via foreground
         self._grid_visible = False
@@ -1424,14 +1427,6 @@ class StudioEditor(QWidget):
             self._scene.removeItem(self._crop_mask_item)
             self._crop_mask_item = None
         self._set_tool(StudioTool.SELECT)
-
-    def eventFilter(self, obj, event):
-        """Catch Escape at the event filter level — guaranteed to fire."""
-        from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Escape:
-            self._clear_escape_state()
-            return True  # consume the event
-        return super().eventFilter(obj, event)
 
     # ---- tool management ----
 
@@ -2221,27 +2216,56 @@ class StudioEditor(QWidget):
         self._sync_overlays_to_asset()
 
         data = self._crop_combo.currentData()
-        if not data or (isinstance(data, (list, tuple)) and len(data) < 4):
-            # No platform selected — show a quick-pick menu
+        if data and isinstance(data, (list, tuple)) and len(data) >= 4:
+            platform_id, slot_name = data[0], data[1]
+        else:
+            # Build menu from crops + scoped overlays/censors on this asset
             from doxyedit.models import PLATFORMS
-            menu = _themed_menu(self)
-            actions = {}
+            relevant: dict[tuple, str] = {}  # (pid, slot) → display label
+
+            # Platforms that have crops drawn
+            crop_labels = {c.label for c in self._asset.crops}
             for pid in self._project.platforms:
                 plat = PLATFORMS.get(pid)
-                if not plat or not plat.slots:
+                if not plat:
                     continue
                 for s in plat.slots:
-                    act = menu.addAction(f"{plat.name} / {s.label} ({s.width}×{s.height})")
-                    actions[act] = (pid, s.name)
-            if not actions:
-                self.info_label.setText("No platforms configured")
+                    if s.name in crop_labels or pid in crop_labels:
+                        relevant[(pid, s.name)] = f"{plat.name} / {s.label} ({s.width}×{s.height})"
+
+            # Platforms scoped on overlays
+            for ov in self._asset.overlays:
+                for pid in ov.platforms:
+                    plat = PLATFORMS.get(pid)
+                    if plat and plat.slots:
+                        s = plat.slots[0]
+                        relevant.setdefault((pid, s.name), f"{plat.name} / {s.label} ({s.width}×{s.height})")
+
+            # Platforms scoped on censors
+            for cr in self._asset.censors:
+                for pid in cr.platforms:
+                    plat = PLATFORMS.get(pid)
+                    if plat and plat.slots:
+                        s = plat.slots[0]
+                        relevant.setdefault((pid, s.name), f"{plat.name} / {s.label} ({s.width}×{s.height})")
+
+            if not relevant:
+                self.info_label.setText("No crops or platform-scoped overlays on this asset")
                 return
-            chosen = menu.exec(self.btn_export_plat.mapToGlobal(self.btn_export_plat.rect().bottomLeft()))
-            if not chosen or chosen not in actions:
-                return
-            platform_id, slot_name = actions[chosen]
-        else:
-            platform_id, slot_name = data[0], data[1]
+
+            if len(relevant) == 1:
+                # Only one option — just use it
+                platform_id, slot_name = next(iter(relevant))
+            else:
+                menu = _themed_menu(self)
+                actions = {}
+                for (pid, sname), label in relevant.items():
+                    act = menu.addAction(label)
+                    actions[act] = (pid, sname)
+                chosen = menu.exec(self.btn_export_plat.mapToGlobal(self.btn_export_plat.rect().bottomLeft()))
+                if not chosen or chosen not in actions:
+                    return
+                platform_id, slot_name = actions[chosen]
 
         from doxyedit.pipeline import prepare_for_platform
         from doxyedit.imaging import get_export_dir
