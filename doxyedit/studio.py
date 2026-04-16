@@ -1240,8 +1240,11 @@ class StudioEditor(QWidget):
         self._view._studio_editor = self
         self._view.on_file_dropped = self._on_file_dropped
 
-        # QShortcut fires regardless of focus — guaranteed Escape handling
+        # F5 = nuclear clear — always fires, clears EVERYTHING
         from PySide6.QtGui import QShortcut, QKeySequence
+        self._f5_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F5), self)
+        self._f5_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self._f5_shortcut.activated.connect(self._nuclear_clear)
         # Escape shortcut — WindowShortcut so it fires even when toolbar has focus
         self._esc_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         self._esc_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
@@ -1411,6 +1414,34 @@ class StudioEditor(QWidget):
         self._view.resetTransform()
         self._view.scale(factor, factor)
         self._zoom_label.setText(f"{int(factor * 100)}%")
+
+    def _nuclear_clear(self):
+        """F5 — force clear absolutely everything. Cannot be intercepted."""
+        if not self.isVisible():
+            return
+        print("[Studio] F5 — NUCLEAR CLEAR")
+        # 1. Clear ALL text items editing + selection
+        for item in self._scene.items():
+            if isinstance(item, OverlayTextItem):
+                cursor = item.textCursor()
+                cursor.clearSelection()
+                item.setTextCursor(cursor)
+                item.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+                item.overlay.text = item.toPlainText()
+            if isinstance(item, QGraphicsTextItem):
+                item.clearFocus()
+        # 2. Clear scene focus and selection
+        self._scene.clearFocus()
+        self._scene.clearSelection()
+        # 3. Remove crop mask
+        if self._crop_mask_item and self._crop_mask_item.scene():
+            self._scene.removeItem(self._crop_mask_item)
+            self._crop_mask_item = None
+        # 4. Reset tool
+        self._set_tool(StudioTool.SELECT)
+        # 5. Give focus back to view
+        self._view.setFocus()
+        self.info_label.setText("F5 — cleared all selections")
 
     def _clear_escape_state(self):
         """Shared cleanup for Escape — clear selection, crop mask, reset tool."""
