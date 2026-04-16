@@ -940,8 +940,6 @@ class PreviewPane(QWidget):
         self._view.wheelEvent = self._wheel_zoom
         layout.addWidget(self._view)
 
-        from PySide6.QtCore import QSettings
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         self.setMinimumWidth(0)  # browse splitter handles collapsing
 
     def update_theme(self, theme):
