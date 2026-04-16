@@ -242,6 +242,14 @@ class ResizableCropItem(QGraphicsRectItem):
                 r.setBottom(pos.y())
             # Normalize (swap if inverted)
             r = r.normalized()
+            # Enforce aspect ratio if set
+            if self._aspect and self._aspect > 0:
+                if h in (3, 4):  # side handles → adjust height
+                    r.setHeight(r.width() / self._aspect)
+                elif h in (1, 6):  # top/bottom handles → adjust width
+                    r.setWidth(r.height() * self._aspect)
+                else:  # corner handles → adjust height to match
+                    r.setHeight(r.width() / self._aspect)
             if r.width() >= 10 and r.height() >= 10:
                 self.prepareGeometryChange()
                 self.setRect(r)

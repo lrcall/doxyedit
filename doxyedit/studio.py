@@ -1006,7 +1006,7 @@ class StudioEditor(QWidget):
             for slot in platform.slots:
                 self._crop_combo.addItem(
                     f"  {slot.label} ({slot.width}x{slot.height})",
-                    (slot.width, slot.height))
+                    (pid, slot.name, slot.width, slot.height))
         toolbar.addWidget(self._crop_combo)
 
         self.btn_note = QPushButton("Note")
@@ -1407,7 +1407,7 @@ class StudioEditor(QWidget):
         data = self._crop_combo.currentData()
         if data is None:
             return None
-        w, h = data
+        w, h = data[2], data[3]
         return w / h if h else None
 
     def _on_censor_style_changed(self, style: str):
@@ -1434,16 +1434,20 @@ class StudioEditor(QWidget):
         # Remove the temp rect drawn by the scene
         if self._scene._temp_item and self._scene._temp_item.scene():
             self._scene.removeItem(self._scene._temp_item)
-        # Determine label from crop combo
+        # Determine label from crop combo — use slot_name for pipeline matching
         data = self._crop_combo.currentData()
-        label = self._crop_combo.currentText().strip() if data else "free"
+        if data and len(data) >= 4:
+            label = data[1]  # slot_name
+        else:
+            label = "free"
         # Save to asset
         crop = CropRegion(x=int(rect.x()), y=int(rect.y()),
                           w=int(rect.width()), h=int(rect.height()), label=label)
         self._asset.crops = [c for c in self._asset.crops if c.label != label]
         self._asset.crops.append(crop)
         # Create editable item
-        crop_item = ResizableCropItem(rect, label=label)
+        aspect = data[2] / data[3] if data and len(data) >= 4 and data[3] else None
+        crop_item = ResizableCropItem(rect, label=label, aspect=aspect)
         crop_item.on_changed = self._on_crop_edited
         self._scene.addItem(crop_item)
         self._crop_items.append(crop_item)
@@ -1499,7 +1503,9 @@ class StudioEditor(QWidget):
             return
         for crop in self._asset.crops:
             rect = QRectF(crop.x, crop.y, crop.w, crop.h)
-            item = ResizableCropItem(rect, label=crop.label)
+            # Derive aspect from crop dimensions (preserves platform ratio)
+            aspect = crop.w / crop.h if crop.w and crop.h else None
+            item = ResizableCropItem(rect, label=crop.label, aspect=aspect)
             item.on_changed = self._on_crop_edited
             self._scene.addItem(item)
             self._crop_items.append(item)
@@ -2166,25 +2172,11 @@ class StudioEditor(QWidget):
         self._sync_overlays_to_asset()
 
         data = self._crop_combo.currentData()
-        if not data:
+        if not data or len(data) < 4:
             self.info_label.setText("Select a platform slot in the crop combo first")
             return
 
-        slot_w, slot_h = data
-        # Find matching platform and slot
-        from doxyedit.models import PLATFORMS
-        platform_id = slot_name = None
-        for pid, plat in PLATFORMS.items():
-            for s in plat.slots:
-                if s.width == slot_w and s.height == slot_h:
-                    platform_id, slot_name = pid, s.name
-                    break
-            if platform_id:
-                break
-
-        if not platform_id:
-            self.info_label.setText("Could not match crop to a platform")
-            return
+        platform_id, slot_name = data[0], data[1]
 
         from doxyedit.pipeline import prepare_for_platform
         from doxyedit.imaging import get_export_dir
