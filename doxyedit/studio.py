@@ -2417,13 +2417,38 @@ class StudioEditor(QWidget):
 
         output_dir = str(get_export_dir(self._project_path)) if self._project_path else ""
 
-        # Count total slots
+        # ONLY export platforms that have crops drawn or scoped overlays/censors
+        crop_labels = {c.label.strip().lower() for c in self._asset.crops}
+        overlay_pids = set()
+        for ov in self._asset.overlays:
+            overlay_pids.update(ov.platforms)
+        for cr in self._asset.censors:
+            overlay_pids.update(cr.platforms)
+
         slots = []
         for pid in self._project.platforms:
             plat = PLATFORMS.get(pid)
-            if plat and plat.slots:
-                for s in plat.slots:
+            if not plat or not plat.slots:
+                continue
+            for s in plat.slots:
+                # Check if this platform/slot has a drawn crop or scoped overlay
+                has_crop = (s.name.lower() in crop_labels
+                            or pid.lower() in crop_labels
+                            or any(pid.lower() in lbl or s.name.lower() in lbl for lbl in crop_labels))
+                has_overlay = pid in overlay_pids
+                # Also check aspect ratio match against drawn crops
+                if not has_crop and s.width and s.height:
+                    target = s.width / s.height
+                    for c in self._asset.crops:
+                        if c.w > 0 and c.h > 0 and abs(c.w / c.h - target) < 0.02:
+                            has_crop = True
+                            break
+                if has_crop or has_overlay:
                     slots.append((pid, s.name))
+
+        if not slots:
+            self.info_label.setText("No crops or platform-scoped overlays on this asset")
+            return
 
         progress = QProgressDialog("Exporting platform variants...", "Cancel", 0, len(slots), self)
         progress.setWindowTitle("Export All Platforms")
