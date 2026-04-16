@@ -416,8 +416,14 @@ class PlatformPanel(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
-        self._cards_widget = QWidget()
+        # Inner widget that doesn't enforce a minimum width —
+        # lets the scroll area (and splitter) shrink freely
+        class _ShrinkableWidget(QWidget):
+            def minimumSizeHint(self):
+                return QSize(0, super().minimumSizeHint().height())
+        self._cards_widget = _ShrinkableWidget()
         scroll.setWidget(self._cards_widget)
 
         self._cards_layout = QVBoxLayout(self._cards_widget)
