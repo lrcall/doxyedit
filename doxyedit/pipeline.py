@@ -289,9 +289,16 @@ def prepare_for_platform(
     else:
         out_base = Path("_exports")
 
-    out_dir = out_base / Path(asset.source_path).stem
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{platform_id}_{slot_name}.png"
+    stem = Path(asset.source_path).stem
+    out_base.mkdir(parents=True, exist_ok=True)
+    out_path = out_base / f"{stem}_{platform_id}_{slot_name}.png"
+    # Deduplicate if collision with a different asset
+    if out_path.exists():
+        for i in range(1, 1000):
+            candidate = out_base / f"{stem}_{platform_id}_{slot_name}_{i:03d}.png"
+            if not candidate.exists():
+                out_path = candidate
+                break
     img.save(str(out_path), "PNG")
 
     # --- 9. Return result ---

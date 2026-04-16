@@ -2169,9 +2169,8 @@ class StudioEditor(QWidget):
 
         if self._project_path:
             from doxyedit.imaging import get_export_dir
-            export_dir = get_export_dir(self._project_path) / src_path.stem
-            export_dir.mkdir(parents=True, exist_ok=True)
-            out = export_dir / "studio_preview.png"
+            export_dir = get_export_dir(self._project_path)
+            out = export_dir / f"{src_path.stem}_studio_preview.png"
             img.save(str(out))
             self.info_label.setText(f"Exported: {src_path.stem}/studio_preview.png")
             self._open_export_folder(export_dir)
@@ -2202,7 +2201,7 @@ class StudioEditor(QWidget):
 
         from doxyedit.pipeline import prepare_for_platform
         from doxyedit.imaging import get_export_dir
-        output_dir = str(get_export_dir(self._project_path) / Path(self._asset.source_path).stem) if self._project_path else ""
+        output_dir = str(get_export_dir(self._project_path)) if self._project_path else ""
         print(f"[Export Platform] output_dir={output_dir}")
         try:
             r = prepare_for_platform(
