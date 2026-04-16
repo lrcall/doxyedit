@@ -383,7 +383,7 @@ class PlatformPanel(QWidget):
         # ── Pane 1: Sidebar (campaign, filter, summary, actions) ─────────
         sidebar = QWidget()
         sidebar.setObjectName("platform_sidebar")
-        sidebar.setMaximumWidth(int(_f * 15))  # cap sidebar width
+        # No maxWidth — user can stretch via splitter handle
         sb_layout = QVBoxLayout(sidebar)
         sb_layout.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
         sb_layout.setSpacing(_pad_lg)
