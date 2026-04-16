@@ -107,6 +107,8 @@ class Theme:
     tag_row_active_alpha: int = 180        # active tag row opacity
     tag_row_dim_alpha: int = 40            # dimmed tag row opacity
     tag_row_hover_alpha: int = 220         # hovered tag row opacity
+    tag_selection_pen_width: int = 1       # rubber-band selection border
+    tag_drop_indicator_pen_width: int = 2  # reorder drop indicator line
     # File browser
     filebrowser_folder_alpha: int = 40     # folder icon tint opacity
     filebrowser_folder_dim_alpha: int = 20 # dimmed folder opacity

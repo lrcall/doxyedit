@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QPointF, QRectF, QLineF, QBuffer, QIODevice
 from PySide6.QtGui import QColor, QPen, QBrush, QFont, QPixmap
 
+DEFAULT_ANNOTATION_PEN_WIDTH = 2  # default pen width for scene annotations
+
 
 def _color_str(color: QColor) -> str:
     return color.name(QColor.NameFormat.HexArgb)
@@ -273,7 +275,7 @@ def import_markdown(scene, path: str):
                 color = _parse_color(attrs.get("color", "#4fc3f7"))
                 line = QGraphicsLineItem(QLineF(0, 0, x2, y2))
                 line.setPos(x, y)
-                line.setPen(QPen(color, 2))
+                line.setPen(QPen(color, attrs.get("width", DEFAULT_ANNOTATION_PEN_WIDTH)))
                 line.setFlags(
                     QGraphicsLineItem.GraphicsItemFlag.ItemIsMovable
                     | QGraphicsLineItem.GraphicsItemFlag.ItemIsSelectable
@@ -286,7 +288,7 @@ def import_markdown(scene, path: str):
                 color = _parse_color(attrs.get("color", "#4fc3f7"))
                 rect = QGraphicsRectItem(QRectF(0, 0, w, h))
                 rect.setPos(x, y)
-                rect.setPen(QPen(color, 2))
+                rect.setPen(QPen(color, attrs.get("width", DEFAULT_ANNOTATION_PEN_WIDTH)))
                 rect.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 30)))
                 rect.setFlags(
                     QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable

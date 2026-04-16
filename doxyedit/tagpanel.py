@@ -85,7 +85,7 @@ class _TagContainer(QWidget):
             rect = QRect(self._drag_start, self._drag_current).normalized()
             sel_color = QColor(_dt.selection_bg)
             sel_color.setAlpha(_dt.tag_row_active_alpha)
-            p.setPen(QPen(sel_color, 1))
+            p.setPen(QPen(sel_color, _dt.tag_selection_pen_width))
             sel_fill = QColor(_dt.selection_bg)
             sel_fill.setAlpha(_dt.tag_row_dim_alpha)
             p.setBrush(QBrush(sel_fill))
@@ -94,7 +94,7 @@ class _TagContainer(QWidget):
         if self._drag_mode == "reorder" and self._drop_indicator_y >= 0:
             accent_color = QColor(_dt.accent_bright)
             accent_color.setAlpha(_dt.tag_row_hover_alpha)
-            p.setPen(QPen(accent_color, 2))
+            p.setPen(QPen(accent_color, _dt.tag_drop_indicator_pen_width))
             p.drawLine(0, self._drop_indicator_y, self.width(), self._drop_indicator_y)
         p.end()
 
