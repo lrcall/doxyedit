@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QGraphicsTextItem, QGraphicsLineItem, QComboBox, QFileDialog, QSlider,
     QFontComboBox, QSpinBox, QColorDialog, QInputDialog, QMenu,
     QListWidget, QListWidgetItem, QSplitter, QScrollArea, QCheckBox,
+    QGridLayout,
 )
 from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal
 from PySide6.QtGui import (
@@ -1334,6 +1335,153 @@ class StudioScene(QGraphicsScene):
 # View
 # ---------------------------------------------------------------------------
 
+class _StudioRuler(QWidget):
+    """Horizontal or vertical ruler that reads the StudioView's transform.
+
+    Draws minor and major tick marks at scene-space intervals, with
+    integer pixel labels at majors. Autoscales the tick spacing so the
+    major step is always at least ~60 screen pixels apart.
+    """
+
+    _TICK_CANDIDATES = (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000)
+    _MAJOR_PX = 60  # target screen-px between major ticks
+
+    def __init__(self, view, orientation: str, theme, parent=None):
+        super().__init__(parent)
+        self._view = view
+        self._orientation = orientation  # 'h' or 'v'
+        self._theme = theme
+        self._cursor_scene = 0.0  # updated from view mouseMove for marker
+        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
+
+    def set_theme(self, theme):
+        self._theme = theme
+        self.update()
+
+    def set_cursor_scene(self, value: float):
+        if value != self._cursor_scene:
+            self._cursor_scene = value
+            self.update()
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.fillRect(self.rect(), QColor(self._theme.bg_deep))
+        if not self._view.scene():
+            return
+        t = self._view.transform()
+        scale = t.m11() if self._orientation == 'h' else t.m22()
+        if scale <= 0:
+            return
+        vp = self._view.viewport().rect()
+        top_left = self._view.mapToScene(vp.topLeft())
+        bot_right = self._view.mapToScene(vp.bottomRight())
+        if self._orientation == 'h':
+            s_start, s_end = top_left.x(), bot_right.x()
+        else:
+            s_start, s_end = top_left.y(), bot_right.y()
+        # Pick a major step whose screen footprint is >= _MAJOR_PX
+        major_step = self._TICK_CANDIDATES[-1]
+        for c in self._TICK_CANDIDATES:
+            if c * scale >= self._MAJOR_PX:
+                major_step = c
+                break
+        minor_step = max(1, major_step // 5)
+        # Set up pens + font — minor ticks are dimmer
+        _minor_color = QColor(self._theme.text_muted)
+        _minor_color.setAlpha(90)
+        pen_minor = QPen(_minor_color)
+        pen_minor.setWidth(1)
+        pen_major = QPen(QColor(self._theme.text_muted))
+        pen_major.setWidth(1)
+        font = p.font()
+        font.setPointSizeF(max(7.0, font.pointSizeF() * 0.80))
+        p.setFont(font)
+
+        s = int((int(s_start) // minor_step) * minor_step)
+        while s <= s_end + minor_step:
+            screen_pos = (s - s_start) * scale
+            is_major = (s % major_step) == 0
+            p.setPen(pen_major if is_major else pen_minor)
+            if self._orientation == 'h':
+                x = int(screen_pos)
+                if is_major:
+                    p.drawLine(x, self.height() - 1, x, self.height() - 8)
+                    p.drawText(x + 2, self.height() - 9, str(s))
+                else:
+                    p.drawLine(x, self.height() - 1, x, self.height() - 4)
+            else:
+                y = int(screen_pos)
+                if is_major:
+                    p.drawLine(self.width() - 1, y, self.width() - 8, y)
+                    p.save()
+                    p.translate(self.width() - 9, y + 2)
+                    p.rotate(-90)
+                    p.drawText(0, 0, str(s))
+                    p.restore()
+                else:
+                    p.drawLine(self.width() - 1, y, self.width() - 4, y)
+            s += minor_step
+        # Cursor indicator line
+        cursor_px = (self._cursor_scene - s_start) * scale
+        if 0 <= cursor_px <= max(self.width(), self.height()):
+            p.setPen(QPen(QColor(self._theme.accent), 1))
+            if self._orientation == 'h':
+                p.drawLine(int(cursor_px), 0, int(cursor_px), self.height())
+            else:
+                p.drawLine(0, int(cursor_px), self.width(), int(cursor_px))
+
+
+class _StudioCanvas(QWidget):
+    """Wraps a StudioView with rulers along the top and left edges."""
+
+    RULER_SIZE = 18
+
+    def __init__(self, view, theme, parent=None):
+        super().__init__(parent)
+        self._view = view
+        self._theme = theme
+        grid = QGridLayout(self)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(0)
+        self._corner = QWidget()
+        self._corner.setFixedSize(self.RULER_SIZE, self.RULER_SIZE)
+        self._corner.setAutoFillBackground(True)
+        _pal = self._corner.palette()
+        _pal.setColor(self._corner.backgroundRole(), QColor(theme.bg_deep))
+        self._corner.setPalette(_pal)
+        self._h_ruler = _StudioRuler(view, 'h', theme)
+        self._h_ruler.setFixedHeight(self.RULER_SIZE)
+        self._v_ruler = _StudioRuler(view, 'v', theme)
+        self._v_ruler.setFixedWidth(self.RULER_SIZE)
+        grid.addWidget(self._corner, 0, 0)
+        grid.addWidget(self._h_ruler, 0, 1)
+        grid.addWidget(self._v_ruler, 1, 0)
+        grid.addWidget(view, 1, 1)
+        grid.setRowStretch(1, 1)
+        grid.setColumnStretch(1, 1)
+        # Repaint rulers whenever the view scrolls or zooms
+        view.horizontalScrollBar().valueChanged.connect(self._h_ruler.update)
+        view.horizontalScrollBar().valueChanged.connect(self._v_ruler.update)
+        view.verticalScrollBar().valueChanged.connect(self._h_ruler.update)
+        view.verticalScrollBar().valueChanged.connect(self._v_ruler.update)
+
+    def set_theme(self, theme):
+        self._theme = theme
+        _pal = self._corner.palette()
+        _pal.setColor(self._corner.backgroundRole(), QColor(theme.bg_deep))
+        self._corner.setPalette(_pal)
+        self._h_ruler.set_theme(theme)
+        self._v_ruler.set_theme(theme)
+
+    def update_cursor(self, scene_pos: QPointF):
+        self._h_ruler.set_cursor_scene(scene_pos.x())
+        self._v_ruler.set_cursor_scene(scene_pos.y())
+
+    def refresh(self):
+        self._h_ruler.update()
+        self._v_ruler.update()
+
+
 class StudioView(QGraphicsView):
     """Zoomable (wheel) + pannable (middle-drag) view."""
 
@@ -1360,6 +1508,8 @@ class StudioView(QGraphicsView):
         _zoom = 1.15
         factor = _zoom if event.angleDelta().y() > 0 else 1 / _zoom
         self.setTransform(self.transform().scale(factor, factor))
+        if self._studio_editor is not None and hasattr(self._studio_editor, "_canvas_wrap"):
+            self._studio_editor._canvas_wrap.refresh()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.MiddleButton:
@@ -1386,6 +1536,8 @@ class StudioView(QGraphicsView):
             if hasattr(self._studio_editor, "_cursor_label"):
                 self._studio_editor._cursor_label.setText(
                     f"{int(sp.x())}, {int(sp.y())}")
+            if hasattr(self._studio_editor, "_canvas_wrap"):
+                self._studio_editor._canvas_wrap.update_cursor(sp)
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
@@ -2033,7 +2185,8 @@ class StudioEditor(QWidget):
         _layer_side.setStretchFactor(1, 0)
 
         self._canvas_split = QSplitter(Qt.Orientation.Horizontal)
-        self._canvas_split.addWidget(self._view)
+        self._canvas_wrap = _StudioCanvas(self._view, self._theme)
+        self._canvas_split.addWidget(self._canvas_wrap)
         self._canvas_split.addWidget(_layer_side)
         self._canvas_split.setSizes([800, 200])
         self._canvas_split.setStretchFactor(0, 1)
@@ -2122,6 +2275,8 @@ class StudioEditor(QWidget):
         """Update scene background to match current theme."""
         self._theme = theme
         self._scene.set_theme(theme)
+        if hasattr(self, "_canvas_wrap"):
+            self._canvas_wrap.set_theme(theme)
 
     def set_project(self, project: Project, project_path: str = ""):
         """Store project ref and populate template dropdown."""
