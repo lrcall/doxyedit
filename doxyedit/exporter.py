@@ -50,9 +50,11 @@ def apply_overlays(img: Image.Image, overlays: list[CanvasOverlay], project_dir:
 
 
 def _composite_shape_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
-    """Render a rectangle or ellipse annotation onto the base image."""
+    """Render a rectangle / ellipse / gradient annotation onto the base image."""
     from PIL import ImageDraw
     import math
+    if ov.shape_kind in ("gradient_linear", "gradient_radial"):
+        return _composite_gradient_overlay(img, ov)
     try:
         def _hex(s):
             c = s.lstrip("#")
@@ -143,6 +145,62 @@ def _composite_shape_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image
                 _dashed((x1, y0), (x1, y1))
                 _dashed((x1, y1), (x0, y1))
                 _dashed((x0, y1), (x0, y0))
+        return Image.alpha_composite(img, layer)
+    except Exception:
+        return img
+
+
+def _composite_gradient_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
+    """Render a linear or radial gradient into a rect region using numpy."""
+    try:
+        import numpy as _np
+        import math as _m
+        w, h = int(ov.shape_w), int(ov.shape_h)
+        if w < 1 or h < 1:
+            return img
+
+        def _parse(s, default):
+            s = s or default
+            h2 = s.lstrip("#")
+            if len(h2) == 8:
+                return (int(h2[0:2], 16), int(h2[2:4], 16),
+                        int(h2[4:6], 16), int(h2[6:8], 16))
+            if len(h2) == 6:
+                return (int(h2[0:2], 16), int(h2[2:4], 16),
+                        int(h2[4:6], 16), 255)
+            return (0, 0, 0, 255)
+
+        c0 = _parse(ov.gradient_start_color, "#000000")
+        c1 = _parse(ov.gradient_end_color, "#ffffff")
+        base_opac = ov.opacity
+        # Grid of normalized positions in [0,1] across the rect
+        ys, xs = _np.mgrid[0:h, 0:w].astype(_np.float32)
+        if ov.shape_kind == "gradient_radial":
+            cx, cy = (w - 1) / 2.0, (h - 1) / 2.0
+            max_r = _m.hypot(cx, cy)
+            if max_r == 0:
+                max_r = 1
+            t = _np.clip(_np.hypot(xs - cx, ys - cy) / max_r, 0, 1)
+        else:
+            ang = _m.radians(ov.gradient_angle or 0)
+            dx, dy = _m.cos(ang), _m.sin(ang)
+            # Project each pixel onto the direction vector; normalize 0..1
+            proj = (xs * dx + ys * dy)
+            pmin = float(proj.min())
+            pmax = float(proj.max())
+            rng = (pmax - pmin) or 1.0
+            t = (proj - pmin) / rng
+        t3 = t[..., None]
+        rgba = _np.zeros((h, w, 4), dtype=_np.float32)
+        c0a = _np.array(c0, dtype=_np.float32)
+        c1a = _np.array(c1, dtype=_np.float32)
+        rgba = c0a * (1 - t3) + c1a * t3
+        rgba[..., 3] = rgba[..., 3] * base_opac
+        layer_np = rgba.clip(0, 255).astype(_np.uint8)
+        from PIL import Image as _Im
+        grad_tile = _Im.fromarray(layer_np, "RGBA")
+        layer = _Im.new("RGBA", img.size, (0, 0, 0, 0))
+        layer.paste(grad_tile, (int(ov.x), int(ov.y)))
         return Image.alpha_composite(img, layer)
     except Exception:
         return img

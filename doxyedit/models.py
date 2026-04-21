@@ -226,6 +226,10 @@ class CanvasOverlay:
     line_style: str = "solid"  # "solid", "dash", "dot" — for arrows/shapes
     blend_mode: str = "normal"  # normal / multiply / screen / overlay / darken / lighten
     corner_radius: int = 0  # for shape type="shape" with shape_kind="rect"
+    # Gradient shapes: stored hex colors + angle in degrees (linear).
+    gradient_start_color: str = ""
+    gradient_end_color: str = ""
+    gradient_angle: int = 0
     # Shape overlay — type="shape" paints a rectangle or ellipse with
     # optional fill + stroke. x, y is the top-left; shape_w / shape_h are
     # the dimensions in image pixels.

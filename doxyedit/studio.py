@@ -624,8 +624,42 @@ class OverlayShapeItem(QGraphicsItem):
             painter.setBrush(QBrush(fill))
         else:
             painter.setBrush(Qt.BrushStyle.NoBrush)
-        if self.overlay.shape_kind == "ellipse":
+        kind = self.overlay.shape_kind
+        if kind == "ellipse":
             painter.drawEllipse(r)
+        elif kind in ("gradient_linear", "gradient_radial"):
+            from PySide6.QtGui import QLinearGradient, QRadialGradient
+            def _parse_hex(s, default):
+                """Accept #RRGGBB or #RRGGBBAA hex strings."""
+                s = s or default
+                h = s.lstrip("#")
+                if len(h) == 8:
+                    return QColor(int(h[0:2], 16), int(h[2:4], 16),
+                                   int(h[4:6], 16), int(h[6:8], 16))
+                return QColor(s)
+            c0 = _parse_hex(self.overlay.gradient_start_color, "#000000")
+            c1 = _parse_hex(self.overlay.gradient_end_color, "#ffffff")
+            # Multiply stored alpha by overall opacity
+            c0.setAlphaF(c0.alphaF() * self.overlay.opacity)
+            c1.setAlphaF(c1.alphaF() * self.overlay.opacity)
+            if kind == "gradient_linear":
+                import math as _m
+                ang = _m.radians(self.overlay.gradient_angle)
+                cx, cy = r.center().x(), r.center().y()
+                half_w = r.width() / 2
+                gx0 = cx - _m.cos(ang) * half_w
+                gy0 = cy - _m.sin(ang) * half_w
+                gx1 = cx + _m.cos(ang) * half_w
+                gy1 = cy + _m.sin(ang) * half_w
+                grad = QLinearGradient(gx0, gy0, gx1, gy1)
+            else:
+                grad = QRadialGradient(r.center(),
+                                         max(r.width(), r.height()) / 2)
+            grad.setColorAt(0.0, c0)
+            grad.setColorAt(1.0, c1)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(grad))
+            painter.drawRect(r)
         else:
             radius = getattr(self.overlay, "corner_radius", 0)
             if radius > 0:
@@ -2136,6 +2170,8 @@ class StudioScene(QGraphicsScene):
         add_text_act = add_menu.addAction("Text Overlay")
         add_rect_act = add_menu.addAction("Rectangle")
         add_ellipse_act = add_menu.addAction("Ellipse")
+        add_lingrad_act = add_menu.addAction("Linear Gradient (dark top)")
+        add_radgrad_act = add_menu.addAction("Radial Gradient (vignette)")
         fit_act = menu.addAction("Fit View  (Ctrl+0)")
         z100_act = menu.addAction("Zoom 100%  (Ctrl+1)")
         menu.addSeparator()
@@ -2167,6 +2203,37 @@ class StudioScene(QGraphicsScene):
                 fill_color="", opacity=1.0,
                 x=int(pos.x() - w / 2), y=int(pos.y() - h / 2),
                 shape_w=w, shape_h=h,
+            )
+            editor._asset.overlays.append(ov)
+            new_item = editor._create_overlay_item(ov)
+            if new_item:
+                new_item.setZValue(200 + len(editor._overlay_items))
+                editor._overlay_items.append(new_item)
+            editor._rebuild_layer_panel()
+        elif chosen in (add_lingrad_act, add_radgrad_act):
+            is_radial = chosen is add_radgrad_act
+            if is_radial and editor._pixmap_item:
+                # Vignette covers the whole image
+                pr = editor._pixmap_item.boundingRect()
+                w, h = int(pr.width()), int(pr.height())
+                x0, y0 = int(pr.left()), int(pr.top())
+                start = "#00000000"  # transparent center
+                end = "#000000cc"    # dark edges
+            else:
+                w, h = 600, 300
+                x0 = int(pos.x() - w / 2)
+                y0 = int(pos.y() - h / 2)
+                start = "#000000cc"
+                end = "#00000000"
+            ov = CanvasOverlay(
+                type="shape", label="Gradient",
+                shape_kind="gradient_radial" if is_radial else "gradient_linear",
+                color="#000000",
+                gradient_start_color=start,
+                gradient_end_color=end,
+                gradient_angle=90,  # vertical by default
+                opacity=1.0,
+                x=x0, y=y0, shape_w=w, shape_h=h,
             )
             editor._asset.overlays.append(ov)
             new_item = editor._create_overlay_item(ov)
