@@ -3102,10 +3102,39 @@ class StudioEditor(QWidget):
         self._update_info()
 
     def _duplicate_selected(self):
-        """Duplicate all selected overlay items."""
+        """Duplicate selected overlays, censors, and crops."""
         for item in list(self._scene.selectedItems()):
             if isinstance(item, (OverlayImageItem, OverlayTextItem)):
                 self._duplicate_overlay_item(item)
+            elif isinstance(item, CensorRectItem):
+                self._duplicate_censor_item(item)
+            elif isinstance(item, ResizableCropItem):
+                self._scene._duplicate_crop(self, item)
+
+    def _duplicate_censor_item(self, item):
+        """Clone a censor with 20px offset — used by Ctrl+D."""
+        cr_src = getattr(item, "_censor_region", None)
+        if cr_src is None or not self._asset:
+            return
+        new_cr = CensorRegion(
+            x=cr_src.x + 20, y=cr_src.y + 20,
+            w=cr_src.w, h=cr_src.h,
+            style=cr_src.style,
+            blur_radius=cr_src.blur_radius,
+            pixelate_ratio=cr_src.pixelate_ratio,
+            rotation=getattr(cr_src, "rotation", 0.0),
+            platforms=list(cr_src.platforms),
+        )
+        self._asset.censors.append(new_cr)
+        new_item = CensorRectItem(
+            QRectF(new_cr.x, new_cr.y, new_cr.w, new_cr.h),
+            new_cr.style, list(new_cr.platforms),
+        )
+        new_item._censor_region = new_cr
+        new_item._editor = self
+        new_item.setZValue(100 + len(self._censor_items))
+        self._scene.addItem(new_item)
+        self._censor_items.append(new_item)
 
     def _flip_selected(self, axis: str):
         """Flip all selected overlay items on the given axis ('h' or 'v')."""
