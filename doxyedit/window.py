@@ -648,6 +648,14 @@ class MainWindow(QMainWindow):
 
         # (Kanban panel moved into Platforms tab above)
 
+        # Register lazy panels: (panel, tab_widget) — refresh_if_stale called
+        # when the tab containing them becomes visible.
+        self._lazy_panels: list[tuple] = [
+            (self.stats_panel, self._overview_split),
+            (self.health_panel, self._overview_split),
+            (self.checklist_panel, self._social_split),
+        ]
+
         # Refresh stats when Overview tab is activated
         self.tabs.currentChanged.connect(self._on_inner_tab_changed)
 
@@ -3753,6 +3761,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.status.showMessage(
             f"Assigned {Path(asset.source_path).name} → {slot_name}", 2000)
 
+    def _refresh_lazy_panels_on_current_tab(self):
+        """Refresh lazy panels living in the currently visible tab. No-op for others."""
+        current = self.tabs.currentWidget()
+        for panel, tab_widget in getattr(self, "_lazy_panels", []):
+            if tab_widget is current:
+                panel.refresh_if_stale()
+
     def _on_inner_tab_changed(self, idx: int):
         widget = self.tabs.widget(idx)
         # Deferred restore for Social tab splitters (Qt needs visible geometry)
@@ -3763,8 +3778,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             QTimer.singleShot(0, lambda: self._social_left_split.setSizes([int(s) for s in saved]))
         if widget is self._overview_split:
             self.stats_panel.folder_bar_color = self._theme.accent_bright
-            self.stats_panel.refresh()
             self._refresh_project_info()
+        # Trigger lazy-refresh on any registered panel whose tab container matches
+        for panel, tab_widget in getattr(self, "_lazy_panels", []):
+            if tab_widget is widget:
+                panel.refresh_if_stale()
 
     def _refresh_project_info(self):
         p = self.project
@@ -6043,12 +6061,15 @@ Ctrl+Click tag — Search by tag
         self.browser.refresh()
         self.platform_panel.project = self.project
         self.platform_panel.refresh()
-        self.stats_panel.project = self.project
+        # Lazy panels: mark stale via set_project. Their refresh runs when
+        # the containing tab becomes active (see _on_inner_tab_changed).
+        self.stats_panel.set_project(self.project)
         self.stats_panel.folder_bar_color = self._theme.accent_bright
-        self.checklist_panel.project = self.project
-        self.checklist_panel.refresh()
-        self.health_panel.project = self.project
-        self.health_panel.refresh()
+        self.checklist_panel.set_project(self.project)
+        self.health_panel.set_project(self.project)
+        # If the user is ALREADY on a tab containing these panels, refresh now
+        # so they see fresh data without needing to switch away and back.
+        self._refresh_lazy_panels_on_current_tab()
         self._file_browser.set_project(self.project)
         if hasattr(self, '_timeline'):
             self._timeline.set_project(self.project)

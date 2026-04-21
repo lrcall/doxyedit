@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QSettings, QThread, Signal
 
 from doxyedit.models import Project, PLATFORMS
+from doxyedit.panel_mixin import LazyRefreshMixin
 
 
 class _DiskSizeThread(QThread):
@@ -28,7 +29,7 @@ class _DiskSizeThread(QThread):
         self.done.emit(total, self._token)
 
 
-class StatsPanel(QWidget):
+class StatsPanel(LazyRefreshMixin, QWidget):
     BAR_LABEL_WIDTH_RATIO = 15       # label column width = _f * 15
     BAR_COUNT_WIDTH_RATIO = 7.5      # count column width = _f * 7.5
 

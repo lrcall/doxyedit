@@ -6,13 +6,14 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QSettings
 from PySide6.QtGui import QKeySequence, QShortcut
+from doxyedit.panel_mixin import LazyRefreshMixin
 
 
 MIN_PROGRESS_HEIGHT = 4
 ADD_BTN_WIDTH_RATIO = 5
 
 
-class ChecklistPanel(QWidget):
+class ChecklistPanel(LazyRefreshMixin, QWidget):
     modified = Signal()  # emitted whenever checklist changes
 
     def __init__(self, project, parent=None):

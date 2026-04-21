@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QSettings
 from doxyedit.models import Project, PLATFORMS
+from doxyedit.panel_mixin import LazyRefreshMixin
 
 ISSUE_DEFS = [
     # (key, severity, label, check_fn(asset, project) -> bool)
@@ -64,7 +65,7 @@ def _detect_path_mode_issues(project) -> str | None:
     return None
 
 
-class HealthPanel(QWidget):
+class HealthPanel(LazyRefreshMixin, QWidget):
     asset_selected = Signal(str)    # navigate browser to this asset_id
     missing_removed = Signal(int)   # emitted with count after removal
 
