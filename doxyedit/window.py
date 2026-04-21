@@ -4294,6 +4294,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             asset = self.project.get_asset(aid)
             if asset:
                 self.censor_editor.load_asset(asset)
+        # Focus Studio so its hotkeys (Q/C/T/X/E/N/I/A/etc.) work without
+        # first needing to click inside the canvas.
+        if widget is self.studio:
+            self.studio.setFocus()
 
     def _on_social_tick(self):
         """Auto-refresh social tab components every 60s if visible."""
