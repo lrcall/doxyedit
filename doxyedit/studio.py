@@ -2039,9 +2039,21 @@ class _GuideLineItem(QGraphicsLineItem):
                 if self in self._editor._guide_items:
                     self._editor._guide_items.remove(self)
             self.scene().removeItem(self)
+            if self._editor:
+                self._editor._save_guides_to_asset()
+                if hasattr(self._editor, "_canvas_wrap"):
+                    self._editor._canvas_wrap.refresh()
             event.accept()
             return
         super().mouseDoubleClickEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        # Persist the new position after a drag
+        if self._editor:
+            self._editor._save_guides_to_asset()
+            if hasattr(self._editor, "_canvas_wrap"):
+                self._editor._canvas_wrap.refresh()
 
     def itemChange(self, change, value):
         # Lock movement to the perpendicular axis
@@ -3476,17 +3488,65 @@ class StudioEditor(QWidget):
         if not hasattr(self, "_guide_items"):
             self._guide_items = []
         self._guide_items.append(line)
+        # Persist onto the asset so guides survive save/load
+        self._save_guides_to_asset()
         # Refresh rulers so the tick marker appears
         if hasattr(self, "_canvas_wrap"):
             self._canvas_wrap.refresh()
 
+    def _save_guides_to_asset(self):
+        """Serialize current guides to asset.guides for persistence."""
+        if not self._asset:
+            return
+        serialized = []
+        for gl in getattr(self, "_guide_items", []):
+            if gl.scene() is None:
+                continue
+            orient = getattr(gl, "_guide_orientation", 'h')
+            off = gl.pos()
+            line = gl.line()
+            pos = (line.y1() + off.y()) if orient == 'h' else (line.x1() + off.x())
+            serialized.append({"orientation": orient, "position": int(pos)})
+        self._asset.guides = serialized
+
+    def _load_saved_guides(self):
+        """Recreate guide lines from asset.guides on project load."""
+        if not self._asset or not self._pixmap_item:
+            return
+        guides = getattr(self._asset, "guides", [])
+        if not guides:
+            return
+        pixmap_rect = self._pixmap_item.boundingRect()
+        from PySide6.QtGui import QPen, QColor
+        for entry in guides:
+            orient = entry.get("orientation", "h")
+            pos = entry.get("position", 0)
+            line = _GuideLineItem()
+            line._guide_orientation = orient
+            line._editor = self
+            line.setCursor(Qt.CursorShape.SizeVerCursor if orient == 'h'
+                            else Qt.CursorShape.SizeHorCursor)
+            pen = QPen(QColor(self._theme.accent), 1, Qt.PenStyle.DashLine)
+            line.setPen(pen)
+            line.setZValue(400)
+            if orient == 'h':
+                line.setLine(pixmap_rect.left(), pos,
+                              pixmap_rect.right(), pos)
+            else:
+                line.setLine(pos, pixmap_rect.top(),
+                              pos, pixmap_rect.bottom())
+            self._scene.addItem(line)
+            self._guide_items.append(line)
+
     def _clear_guides(self):
-        """Remove all guide lines — called when loading a new asset."""
+        """Remove all guide lines — called when the user selects Clear All."""
         for line in getattr(self, "_guide_items", []):
             if line.scene() is self._scene:
                 self._scene.removeItem(line)
         self._guide_items = []
         self._pending_guide = None
+        if self._asset:
+            self._asset.guides = []
         if hasattr(self, "_canvas_wrap"):
             self._canvas_wrap.refresh()
 
@@ -3583,6 +3643,8 @@ class StudioEditor(QWidget):
         # Restore crops + notes (Z 400+)
         self._load_existing_crops()
         self._load_saved_notes()
+        # Restore persisted guides
+        self._load_saved_guides()
 
         self._update_info()
 

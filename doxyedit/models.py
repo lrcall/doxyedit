@@ -547,6 +547,8 @@ class Asset:
     notes: str = ""
     specs: dict = field(default_factory=dict)  # CLI/tool metadata (size, relations, etc.)
     variant_exports: dict[str, str] = field(default_factory=dict)  # "platform_slot" → export path
+    # Studio drag-out guides: list of {"orientation": "h"|"v", "position": int}
+    guides: list = field(default_factory=list)
 
     @property
     def stem(self) -> str:
