@@ -164,7 +164,13 @@ def main():
     app.setApplicationName("DoxyEdit")
     app.setOrganizationName("DoxyEdit")
     from doxyedit.themes import THEMES, DEFAULT_THEME
-    _dt = THEMES[DEFAULT_THEME]
+    # Use the user's saved theme (same QSettings MainWindow reads) so the
+    # splash matches the main window, not the soot default.
+    from PySide6.QtCore import QSettings
+    _saved_tid = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
+    if _saved_tid not in THEMES:
+        _saved_tid = DEFAULT_THEME
+    _dt = THEMES[_saved_tid]
     app.setFont(QFont(_dt.font_family, _dt.font_size))
 
     # Set app icon
