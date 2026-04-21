@@ -328,15 +328,15 @@ def post_to_platform_sync(
 ) -> BrowserPostResult:
     """Synchronous wrapper around post_to_platform for use from Qt."""
     import asyncio
+    loop = asyncio.new_event_loop()
     try:
-        loop = asyncio.new_event_loop()
-        result = loop.run_until_complete(
+        return loop.run_until_complete(
             post_to_platform(
                 platform_id, caption, image_path,
                 base_url, project_dir, cdp_url, auto_submit,
             )
         )
-        loop.close()
-        return result
     except Exception as e:
         return BrowserPostResult(platform=platform_id, error=str(e))
+    finally:
+        loop.close()
