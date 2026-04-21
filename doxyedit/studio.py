@@ -2520,6 +2520,8 @@ class StudioScene(QGraphicsScene):
         menu.addSeparator()
         copy_canvas_act = menu.addAction("Copy Canvas Image to Clipboard")
         export_overlay_act = menu.addAction("Export Overlays as Transparent PNG...")
+        export_selection_act = menu.addAction("Export Selection as Transparent PNG...")
+        export_selection_act.setEnabled(bool(editor._scene.selectedItems()))
         chosen = menu.exec(event.screenPos())
         pos = event.scenePos()
         if chosen is add_text_act:
@@ -2613,6 +2615,8 @@ class StudioScene(QGraphicsScene):
                 editor.info_label.setText("Canvas copied to clipboard")
         elif chosen is export_overlay_act:
             editor._export_overlays_as_transparent_png()
+        elif chosen is export_selection_act:
+            editor._export_selection_as_transparent_png()
         elif chosen in (lock_all_act, unlock_all_act):
             lock = chosen is lock_all_act
             for it in editor._overlay_items:
@@ -7278,6 +7282,67 @@ class StudioEditor(QWidget):
     def _queue_current(self):
         if self._asset:
             self.queue_requested.emit(self._asset.id)
+
+    def _export_selection_as_transparent_png(self):
+        """Render just the currently-selected items onto a transparent PNG
+        the size of the scene, cropped to the selection's bounds. Useful
+        for extracting a single overlay or group as a standalone asset."""
+        sel = self._scene.selectedItems()
+        if not sel or not self._pixmap_item:
+            return
+        from PySide6.QtGui import QImage
+        # Union bbox with small pad
+        bounds = sel[0].sceneBoundingRect()
+        for it in sel[1:]:
+            bounds = bounds.united(it.sceneBoundingRect())
+        bounds = bounds.adjusted(-2, -2, 2, 2)
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export selection as transparent PNG", "",
+            "PNG (*.png);;All Files (*)")
+        if not path:
+            return
+        if not path.lower().endswith(".png"):
+            path += ".png"
+        img = QImage(int(bounds.width()), int(bounds.height()),
+                      QImage.Format.Format_ARGB32)
+        img.fill(Qt.GlobalColor.transparent)
+        # Temporarily deselect, hide base + checker so they don't render
+        was_pixmap = self._pixmap_item.isVisible()
+        checker = getattr(self, "_checker_item", None)
+        was_checker = checker.isVisible() if checker else False
+        prev_sel = {it: it.isSelected() for it in sel}
+        for it in sel:
+            it.setSelected(False)
+        self._pixmap_item.setVisible(False)
+        if checker:
+            checker.setVisible(False)
+        # Hide all non-selected overlays/censors so only the selection renders
+        hidden_by_us = []
+        selected_set = set(sel)
+        for scene_it in self._scene.items():
+            if scene_it in selected_set:
+                continue
+            if isinstance(scene_it, (OverlayImageItem, OverlayTextItem,
+                                       OverlayArrowItem, OverlayShapeItem,
+                                       CensorRectItem, NoteRectItem)):
+                if scene_it.isVisible():
+                    scene_it.setVisible(False)
+                    hidden_by_us.append(scene_it)
+        p = QPainter(img)
+        self._scene.render(p, source=bounds)
+        p.end()
+        # Restore
+        for scene_it in hidden_by_us:
+            scene_it.setVisible(True)
+        self._pixmap_item.setVisible(was_pixmap)
+        if checker:
+            checker.setVisible(was_checker)
+        for it, was in prev_sel.items():
+            it.setSelected(was)
+        if img.save(path, "PNG"):
+            self.info_label.setText(f"Exported selection: {Path(path).name}")
+        else:
+            self.info_label.setText("Export failed")
 
     def _export_overlays_as_transparent_png(self):
         """Render only the overlays/censors/shapes/arrows on a transparent
