@@ -569,6 +569,13 @@ class OverlayShapeItem(QGraphicsItem):
         self._editor = None
         self._dragging_handle = None  # 'tl', 'tr', 'bl', 'br', or None
         self.setZValue(200)
+        # Apply persisted rotation. Transform origin is the rect center so
+        # rotation pivots on the item.
+        if getattr(overlay, "rotation", 0):
+            self.setTransformOriginPoint(
+                overlay.x + overlay.shape_w / 2,
+                overlay.y + overlay.shape_h / 2)
+            self.setRotation(overlay.rotation)
 
     def hoverMoveEvent(self, event):
         # Swap cursor when hovering a handle so users know they can resize
@@ -6201,6 +6208,11 @@ class StudioEditor(QWidget):
                 item._apply_flip()
             elif hasattr(item, "_apply_flip_text"):
                 item._apply_flip_text()
+            elif isinstance(item, OverlayShapeItem):
+                item.setTransformOriginPoint(
+                    ov.x + ov.shape_w / 2, ov.y + ov.shape_h / 2)
+                item.setRotation(ov.rotation)
+                item.update()
             else:
                 item.prepareGeometryChange()
                 item.update()
