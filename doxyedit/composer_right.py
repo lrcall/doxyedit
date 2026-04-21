@@ -640,9 +640,6 @@ class ContentPanel(QWidget):
         # Rebuild per-platform captions if the toggle is expanded
         if hasattr(self, '_per_platform_toggle') and self._per_platform_toggle.isChecked():
             self._rebuild_per_platform_captions()
-        # Rebuild per-platform captions if the section is open
-        if hasattr(self, '_per_platform_toggle') and self._per_platform_toggle.isChecked():
-            self._rebuild_per_platform_captions()
 
     def _on_category_changed(self, _index: int) -> None:
         """Rebuild account checkboxes, captions, and chain when category changes."""
