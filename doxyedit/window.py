@@ -228,6 +228,50 @@ class _SimilarScanThread(QThread):
         self.scanned.emit(parent)
 
 
+class _AutoPostThread(QThread):
+    """Run Playwright browser automation for one post-platform pair off the UI thread.
+
+    Each iteration runs `post_to_platform_sync` (which owns its own asyncio
+    loop) and emits a `result` signal back to the UI thread with the outcome.
+    Cancellation is checked between platforms.
+    """
+    progress = Signal(int, int, str)     # (done, total, current_label)
+    result = Signal(str, str, bool, str) # (post_id, platform_id, success, error)
+    finished_all = Signal(int, int)      # (done, total)
+
+    def __init__(self, tasks, project_dir, parent=None):
+        """tasks: list of (post_id, platform_id, caption, image_path, base_url)"""
+        super().__init__(parent)
+        self._tasks = tasks
+        self._project_dir = project_dir
+        self._cancel = False
+
+    def cancel(self):
+        self._cancel = True
+
+    def run(self):
+        from doxyedit.browserpost import post_to_platform_sync
+        done = 0
+        total = len(self._tasks)
+        for (post_id, plat_id, caption, image_path, base_url, plat_label) in self._tasks:
+            if self._cancel:
+                break
+            self.progress.emit(done, total, plat_label)
+            try:
+                br = post_to_platform_sync(
+                    plat_id, caption, image_path,
+                    base_url=base_url, project_dir=self._project_dir,
+                )
+                if br.success:
+                    done += 1
+                    self.result.emit(post_id, plat_id, True, "")
+                else:
+                    self.result.emit(post_id, plat_id, False, br.error or "unknown error")
+            except Exception as e:
+                self.result.emit(post_id, plat_id, False, str(e))
+        self.finished_all.emit(done, total)
+
+
 class _OneUpFetchThread(QThread):
     """Fetch OneUp account + post state off the UI thread.
 
@@ -5043,58 +5087,83 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         project_dir = str(Path(self._project_path).parent)
         identity = self.project.get_identity()
         total = sum(len(p) for _, p in pending_posts)
-        done = 0
 
-        self.status.showMessage(f"Auto-posting to {total} platform(s)...", 0)
-        QApplication.processEvents()
-
+        # Pre-build every (post, platform) task on the UI thread so the worker
+        # doesn't touch self.project or the ExportCache concurrently. Images
+        # are exported up-front using the shared ExportCache; this also means
+        # the PSD decode happens in one burst on the UI thread, then the
+        # worker only does Playwright automation.
         from doxyedit.export_cache import ExportCache
-        export_cache = ExportCache()  # reused across all posts in this batch
-
+        from doxyedit.quickpost import _export_for_platform
+        export_cache = ExportCache()
+        tasks: list = []
+        self.status.showMessage(f"Preparing {total} export(s)...", 0)
+        QApplication.processEvents()
         for post, pending_plats in pending_posts:
             for plat_id in pending_plats:
                 sub = SUB_PLATFORMS.get(plat_id)
                 if not sub:
                     continue
-
-                # Get caption + image
                 caption = post.captions.get(plat_id, post.caption_default)
                 image_path = ""
                 if post.asset_ids:
                     asset = self.project.get_asset(post.asset_ids[0])
                     if asset and asset.source_path:
-                        from doxyedit.quickpost import _export_for_platform
                         image_path = _export_for_platform(asset, sub, self.project,
                                                          cache=export_cache)
-
-                # Get base URL from identity
                 base_url = getattr(identity, sub.url_field, "") if identity else ""
+                tasks.append((post.id, plat_id, caption, image_path, base_url, sub.name))
 
-                self.status.showMessage(f"Posting to {sub.name}... ({done+1}/{total})", 0)
-                QApplication.processEvents()
+        if not tasks:
+            self.status.showMessage("No posts to auto-post", 3000)
+            return
 
-                result = post_to_platform_sync(
-                    plat_id, caption, image_path,
-                    base_url=base_url,
-                    project_dir=project_dir,
-                )
+        # Progress dialog with a working Cancel button.
+        from PySide6.QtWidgets import QProgressDialog
+        progress = QProgressDialog(f"Posting to {tasks[0][5]}...", "Cancel", 0, len(tasks), self)
+        progress.setWindowTitle("Auto-Post")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
 
-                from datetime import datetime as _dt
-                now = _dt.now().isoformat()
-                if result.success:
-                    post.sub_platform_status[plat_id] = {"status": "posted", "posted_at": now}
-                    done += 1
-                    print(f"[AutoPost] {sub.name}: OK")
-                else:
-                    post.sub_platform_status[plat_id] = {"status": "failed", "error": result.error}
-                    print(f"[AutoPost] {sub.name}: FAILED — {result.error}")
+        worker = _AutoPostThread(tasks, project_dir, self)
+        self._auto_post_thread = worker  # keep alive
 
-                QApplication.processEvents()
+        def _on_progress(done, total_, label):
+            progress.setValue(done)
+            progress.setLabelText(f"Posting to {label}... ({done + 1}/{total_})")
 
-        if done:
-            self._dirty = True
-            self._refresh_social_panels()
-        self.status.showMessage(f"Auto-post complete: {done}/{total} platforms", 5000)
+        def _on_result(post_id, plat_id, success, error):
+            post = self.project.get_post(post_id) if hasattr(self.project, 'get_post') else None
+            if post is None:
+                # Fallback: linear search
+                for p in self.project.posts:
+                    if p.id == post_id:
+                        post = p
+                        break
+            if post is None:
+                return
+            from datetime import datetime as _dt
+            now = _dt.now().isoformat()
+            if success:
+                post.sub_platform_status[plat_id] = {"status": "posted", "posted_at": now}
+                print(f"[AutoPost] {plat_id}: OK")
+            else:
+                post.sub_platform_status[plat_id] = {"status": "failed", "error": error}
+                print(f"[AutoPost] {plat_id}: FAILED — {error}")
+
+        def _on_finished(done, total_):
+            progress.close()
+            if done:
+                self._dirty = True
+                self._refresh_social_panels()
+            self.status.showMessage(f"Auto-post complete: {done}/{total_} platforms", 5000)
+
+        worker.progress.connect(_on_progress)
+        worker.result.connect(_on_result)
+        worker.finished_all.connect(_on_finished)
+        progress.canceled.connect(worker.cancel)
+        worker.start()
 
     def _merge_project(self):
         """Merge another project's assets and notes into the current one."""
