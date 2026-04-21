@@ -5113,6 +5113,14 @@ class StudioEditor(QWidget):
     # ---- tool management ----
 
     def _set_tool(self, tool: StudioTool):
+        # Defensive reset — if spacebar-pan state got stuck (e.g., user held
+        # Space while clicking the Main palette, keyRelease never fired on
+        # Studio), the view stays in ScrollHandDrag and a left-drag becomes
+        # a pan that slides the canvas off-screen. Clear the flag and
+        # restore RubberBandDrag before reconfiguring for the new tool.
+        if getattr(self, "_space_panning", False):
+            self._space_panning = False
+        self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         # Translate the generic SHAPE tool into rect/ellipse based on combo
         if tool == StudioTool.SHAPE_RECT and hasattr(self, "combo_shape_kind"):
             if self.combo_shape_kind.currentText() == "Ellipse":
