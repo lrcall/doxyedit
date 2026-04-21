@@ -6244,17 +6244,23 @@ Ctrl+Click tag — Search by tag
         return paths
 
     def _autosave_collection(self):
-        """Silently overwrite the last-saved collection file if one exists."""
+        """Silently overwrite the last-saved collection file if the project
+        list has actually changed since the last autosave."""
         coll_path = self._settings.value("last_collection", "")
         if not coll_path:
             return
         projects = self._collect_open_project_paths()
         if not projects:
             return
+        # Compare against the last-written project list to avoid redundant writes
+        last = getattr(self, "_last_collection_projects", None)
+        if last == projects:
+            return
         try:
             Path(coll_path).write_text(
                 json.dumps({"_type": "doxycoll", "projects": projects}, indent=2),
                 encoding="utf-8")
+            self._last_collection_projects = list(projects)
         except Exception:
             pass
 
