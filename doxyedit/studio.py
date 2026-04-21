@@ -1389,6 +1389,7 @@ class StudioScene(QGraphicsScene):
             if it is moving_item or it.parentItem() is not None:
                 continue
             if not isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                   OverlayArrowItem,
                                    CensorRectItem, ResizableCropItem,
                                    NoteRectItem, QGraphicsPixmapItem)):
                 continue
@@ -1457,6 +1458,7 @@ class StudioScene(QGraphicsScene):
                 and self.mouseGrabberItem() is not None):
             grabber = self.mouseGrabberItem()
             if isinstance(grabber, (OverlayImageItem, OverlayTextItem,
+                                    OverlayArrowItem,
                                     CensorRectItem, ResizableCropItem, NoteRectItem)):
                 # Let Qt move it first, then snap
                 super().mouseMoveEvent(event)
@@ -2164,6 +2166,7 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_A:
             for it in self._scene.items():
                 if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                   OverlayArrowItem,
                                    CensorRectItem, ResizableCropItem, NoteRectItem)):
                     it.setSelected(True)
             return
@@ -4502,7 +4505,8 @@ class StudioEditor(QWidget):
                 if item in self._censor_items:
                     self._censor_items.remove(item)
                 has_undoable = True
-            elif isinstance(item, (OverlayImageItem, OverlayTextItem)):
+            elif isinstance(item, (OverlayImageItem, OverlayTextItem,
+                                    OverlayArrowItem)):
                 cmd._overlays.append((item.overlay, item))
                 if item in self._overlay_items:
                     self._overlay_items.remove(item)
@@ -4560,6 +4564,7 @@ class StudioEditor(QWidget):
         """Tab / Shift+Tab: cycle through selectable scene items."""
         candidates = [it for it in self._scene.items()
                       if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                          OverlayArrowItem,
                                           CensorRectItem, ResizableCropItem,
                                           NoteRectItem))
                       and it.parentItem() is None]
