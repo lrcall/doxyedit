@@ -1996,6 +1996,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         ie_sub.addAction("&Export All Platforms...", self._export_all, QKeySequence("Ctrl+E"))
         ie_sub.addAction("Paste Image (Ctrl+V)", self._paste_from_clipboard, QKeySequence("Ctrl+V"))
         ie_sub.addAction("Paste Folder", self._paste_folder_from_clipboard)
+        ie_sub.addSeparator()
+        ie_sub.addAction("Export Identity...", self._export_identity)
+        ie_sub.addAction("Import Identity...", self._import_identity)
 
         # Collections submenu
         coll_sub = file_menu.addMenu("Collections")
@@ -2406,6 +2409,103 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 return
 
         self.status.showMessage("No image or path in clipboard", 2000)
+
+    def _export_identity(self):
+        """Export a CollectionIdentity (or all identities) to a JSON file."""
+        if not self.project or not self.project.identities:
+            self.status.showMessage("No identities to export", 3000)
+            return
+        # Ask the user which identity to export (or "All")
+        from PySide6.QtWidgets import QInputDialog
+        names = sorted(self.project.identities.keys())
+        choices = ["(All identities)"] + names
+        chosen, ok = QInputDialog.getItem(
+            self, "Export Identity", "Identity to export:", choices, 0, False)
+        if not ok or not chosen:
+            return
+        if chosen == "(All identities)":
+            payload = {"_type": "doxy_identities", "identities": self.project.identities}
+            default_name = f"{self.project.name or 'project'}_identities.json"
+        else:
+            ident = self.project.identities.get(chosen, {})
+            payload = {"_type": "doxy_identity", "name": chosen, "identity": ident}
+            default_name = f"{chosen}.identity.json"
+        hint = str(Path(self._dialog_dir()) / default_name) if self._dialog_dir() else default_name
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Identity", hint, "DoxyEdit Identity (*.json)")
+        if not path:
+            return
+        if not path.lower().endswith(".json"):
+            path += ".json"
+        try:
+            Path(path).write_text(
+                json.dumps(payload, indent=2, ensure_ascii=False),
+                encoding="utf-8")
+            self._remember_dir(path)
+            self.status.showMessage(f"Exported identity to {Path(path).name}", 5000)
+        except Exception as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Export Identity", f"Failed to write file:\n{e}")
+
+    def _import_identity(self):
+        """Import an identity JSON file into the current project.
+
+        Per CLAUDE.md posting pipeline rule: import only adds/updates the
+        identity record. It does NOT regenerate captions or touch any
+        post's caption_default. User re-drafts captions if they want.
+        """
+        start = self._dialog_dir() or ""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Identity", start, "DoxyEdit Identity (*.json);;All Files (*)")
+        if not path:
+            return
+        try:
+            data = json.loads(Path(path).read_text(encoding="utf-8"))
+        except Exception as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Import Identity", f"Failed to read file:\n{e}")
+            return
+        # Accept both single-identity and multi-identity files
+        to_add: dict = {}
+        if isinstance(data, dict):
+            if data.get("_type") == "doxy_identities":
+                to_add = dict(data.get("identities") or {})
+            elif data.get("_type") == "doxy_identity":
+                name = str(data.get("name") or "").strip()
+                ident = data.get("identity") or {}
+                if name and isinstance(ident, dict):
+                    to_add[name] = ident
+        if not to_add:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Import Identity", "File doesn't contain identity data.")
+            return
+        # Merge into project.identities without overwriting silently: ask on conflict
+        from PySide6.QtWidgets import QMessageBox
+        overwrite_all = False
+        added = updated = skipped = 0
+        for name, ident in to_add.items():
+            if name in self.project.identities and not overwrite_all:
+                reply = QMessageBox.question(
+                    self, "Identity Exists",
+                    f"Identity '{name}' already exists. Overwrite?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    | QMessageBox.StandardButton.YesToAll | QMessageBox.StandardButton.Cancel)
+                if reply == QMessageBox.StandardButton.Cancel:
+                    return
+                if reply == QMessageBox.StandardButton.YesToAll:
+                    overwrite_all = True
+                elif reply == QMessageBox.StandardButton.No:
+                    skipped += 1
+                    continue
+                self.project.identities[name] = ident
+                updated += 1
+            else:
+                self.project.identities[name] = ident
+                added += 1
+        self._dirty = True
+        self._remember_dir(path)
+        self.status.showMessage(
+            f"Imported identities: +{added} added, {updated} updated, {skipped} skipped", 5000)
 
     def _paste_folder_from_clipboard(self):
         """Import a folder whose path is on the clipboard (text or file URL)."""
