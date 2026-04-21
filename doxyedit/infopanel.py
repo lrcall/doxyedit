@@ -20,7 +20,8 @@ class _TagPill(QPushButton):
     """Clickable tag pill with remove button."""
     removed = Signal(str)  # tag_id
 
-    def __init__(self, tag_id: str, removable: bool = True, parent=None):
+    def __init__(self, tag_id: str, removable: bool = True, color: str = "",
+                 parent=None):
         super().__init__(parent)
         self.tag_id = tag_id
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -33,7 +34,15 @@ class _TagPill(QPushButton):
             label += " \u00d7"
             self.clicked.connect(lambda: self.removed.emit(self.tag_id))
         self.setText(label)
-        self.setStyleSheet("")
+        if color:
+            self.setStyleSheet(
+                f"QPushButton {{ background: transparent; color: {color};"
+                f" border: 1px solid {color}; border-radius: {_cb // 2}px;"
+                f" padding: 2px 8px; font-size: {_f}px; font-weight: bold; }}"
+                f"QPushButton:hover {{ background: {color}; color: rgba(0,0,0,0.8); }}"
+            )
+        else:
+            self.setStyleSheet("")
 
 
 class InfoPanel(QWidget):
@@ -129,6 +138,7 @@ class InfoPanel(QWidget):
         self._tag_add_edit.returnPressed.connect(self._finish_add_tag)
         self._tag_add_edit.hide()
         self._available_tags: list[str] = []
+        self._tag_palette: dict[str, str] = {}  # tag_id -> hex color
         self._completer_model = QStringListModel()
         self._completer = QCompleter(self._completer_model)
         self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
@@ -314,6 +324,10 @@ class InfoPanel(QWidget):
         self._available_tags = tags
         self._completer_model.setStringList(tags)
 
+    def set_tag_palette(self, palette: dict) -> None:
+        """Set tag_id -> hex color map for coloring pills."""
+        self._tag_palette = dict(palette)
+
     def _rebuild_tag_pills(self, tags: list[str], removable: bool = True):
         """Rebuild the tag flow with pills for each tag."""
         # Clear existing — remove all widgets except the persistent add button and editor
@@ -325,7 +339,8 @@ class InfoPanel(QWidget):
                 w.deleteLater()
         # Add pills
         for tag_id in tags:
-            pill = _TagPill(tag_id, removable=removable)
+            pill = _TagPill(tag_id, removable=removable,
+                            color=self._tag_palette.get(tag_id, ""))
             if removable:
                 pill.removed.connect(self._remove_tag)
             self._tag_flow.addWidget(pill)

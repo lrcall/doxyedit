@@ -2895,8 +2895,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self.tag_panel.update_tag_counts(self.project.assets)
         if hasattr(self, '_info_panel'):
-            tag_ids = sorted(self.project.get_tags().keys()) if self.project else []
-            self._info_panel.set_available_tags(tag_ids)
+            tags = self.project.get_tags() if self.project else {}
+            self._info_panel.set_available_tags(sorted(tags.keys()))
+            self._info_panel.set_tag_palette({tid: tp.color for tid, tp in tags.items()})
 
     def _on_tags_modified(self):
         """Browser added/removed a custom tag — sync both tag locations."""
@@ -6057,8 +6058,9 @@ Ctrl+Click tag — Search by tag
         if hasattr(self, '_smart_folder_menu'):
             self._rebuild_smart_folder_menu()
         if hasattr(self, '_info_panel'):
-            tag_ids = sorted(self.project.get_tags().keys()) if self.project else []
-            self._info_panel.set_available_tags(tag_ids)
+            tags = self.project.get_tags() if self.project else {}
+            self._info_panel.set_available_tags(sorted(tags.keys()))
+            self._info_panel.set_tag_palette({tid: tp.color for tid, tp in tags.items()})
         self.tag_panel.set_assets([])
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self.tag_panel.update_tag_counts(self.project.assets)
