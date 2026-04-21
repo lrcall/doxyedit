@@ -317,6 +317,10 @@ class OverlayImageItem(QGraphicsPixmapItem):
             self.setTransform(t)
         if overlay.rotation:
             self.setRotation(overlay.rotation)
+        # Locked overlays can't be moved or selected
+        if getattr(overlay, "locked", False):
+            self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsMovable, False)
+            self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsSelectable, False)
 
     def itemChange(self, change, value):
         if change == QGraphicsPixmapItem.GraphicsItemChange.ItemPositionHasChanged:
@@ -1641,6 +1645,13 @@ class StudioEditor(QWidget):
         self.chk_layer_enabled.setObjectName("studio_layer_enabled_chk")
         self.chk_layer_enabled.toggled.connect(self._on_layer_enabled_toggled)
         _props_layout.addWidget(self.chk_layer_enabled)
+        self.chk_layer_locked = QCheckBox("Locked (non-selectable)")
+        self.chk_layer_locked.setObjectName("studio_layer_locked_chk")
+        self.chk_layer_locked.setToolTip(
+            "Lock this layer: can't be moved, resized, or selected in the canvas. "
+            "Useful for background watermarks you want to protect.")
+        self.chk_layer_locked.toggled.connect(self._on_layer_locked_toggled)
+        _props_layout.addWidget(self.chk_layer_locked)
         _layer_props.setEnabled(False)
         self._layer_props_widget = _layer_props
 
@@ -2628,6 +2639,9 @@ class StudioEditor(QWidget):
             self.chk_layer_enabled.blockSignals(True)
             self.chk_layer_enabled.setChecked(ov.enabled)
             self.chk_layer_enabled.blockSignals(False)
+            self.chk_layer_locked.blockSignals(True)
+            self.chk_layer_locked.setChecked(bool(getattr(ov, "locked", False)))
+            self.chk_layer_locked.blockSignals(False)
             self._layer_props_widget.setEnabled(True)
             self._layer_props_selection = ("overlay", idx)
         else:
@@ -2675,6 +2689,35 @@ class StudioEditor(QWidget):
                 break
         # Refresh the layer panel so the row renders greyed-out when disabled
         self._rebuild_layer_panel()
+
+    def _on_layer_locked_toggled(self, checked: bool):
+        """Toggle 'locked' on the selected overlay.
+
+        Locked means the scene item is not selectable/movable, so drag +
+        click can't affect it. Useful for backgrounds / watermarks the
+        user wants to protect from accidental edits.
+        """
+        sel = getattr(self, "_layer_props_selection", None)
+        if not sel or sel[0] != "overlay":
+            return
+        _, idx = sel
+        if not (0 <= idx < len(self._asset.overlays)):
+            return
+        ov = self._asset.overlays[idx]
+        for it in self._scene.items():
+            if getattr(it, "overlay", None) is ov:
+                def _apply_locked(item, v):
+                    from PySide6.QtWidgets import QGraphicsItem
+                    item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, not bool(v))
+                    item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, not bool(v))
+                    if v:
+                        item.setSelected(False)
+                self._push_overlay_attr(
+                    it, "locked", checked,
+                    apply_cb=_apply_locked,
+                    description=("Lock layer" if checked else "Unlock layer"),
+                )
+                break
 
     # ---- sync ----
 

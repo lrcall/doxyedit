@@ -216,6 +216,7 @@ class CanvasOverlay:
     shadow_blur: int = 0      # shadow blur radius
     flip_h: bool = False      # mirror horizontally (negative X scale)
     flip_v: bool = False      # mirror vertically (negative Y scale)
+    locked: bool = False      # lock from selection/drag in Studio canvas
     platforms: list[str] = field(default_factory=list)  # empty = all platforms
 
     def to_dict(self) -> dict:
