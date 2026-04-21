@@ -117,14 +117,56 @@ Scope: weeks per item. Each warrants its own plan-i-Nx file.
 - **Rotate handle on crops** — user-visible inconsistency since
   censors and overlays rotate but crops are axis-only. CropRegion
   would need a `rotation` field; exporter would need to rotate-before-
-  crop. Non-trivial, but rounds out the system.
-- **Grid spacing spinner** — toolbar input for the snap grid spacing
-  (currently hardcoded via `STUDIO_GRID_SPACING`).
+  crop. Non-trivial, but rounds out the system. Deferred during v2.5.
+- ~~**Grid spacing spinner**~~ — done in v2.5 (commit 0134247) plus
+  a grid-on/off checkbox, rule-of-thirds toggle, and QSettings
+  persistence.
 - ~~**"Reset Transform" context menu entry**~~ — done for both image
   and text overlays (commits 24f7f51, d665978).
 - **Per-layer "Use on all platforms" reset** — already available via
   the platform submenu's "All Platforms" entry which clears
   `overlay.platforms`.
+
+### Done in v2.5 Studio full-graphics-product push
+- Eyedropper tool (I key / Pick toolbar button)
+- Arrow annotation tool (A key / Arrow button + endpoint handles)
+- Rulers (horizontal + vertical) with drag-out guides
+- Rule-of-thirds composition overlay
+- Checkerboard transparency background + drop shadow on canvas
+- Undo/Redo toolbar buttons with auto-enable state
+- Active tool highlight via QSS :checked on checkable tool buttons
+- Focus mode (. key / Focus button)
+- Spacebar pan (Photoshop convention)
+- Ctrl+0 / Ctrl+Shift+0 / Ctrl+1 / Ctrl+ / Ctrl- zoom shortcuts
+- Alt+click duplicate, Tab/Shift+Tab cycling, Ctrl+Shift+I invert
+- Number keys 0-9 set opacity on selected overlays
+- Shift-drag constrains censor/crop to square, Shift+rotate to 15°,
+  Shift+arrow-draw snaps to 45°
+- Text background color (new CanvasOverlay.background_color)
+- _wrap_text_to_width helper so export honors text overlay width
+- Save/Reset Default Text Style, Watermark Style, preferred Censor
+  style — all persisted via QSettings
+- Copy Style / Paste Style per-type
+- Rotate 90 CW / CCW context menu
+- Crop right-click Rename / Duplicate / Export / Delete;
+  double-click-to-rename
+- Cursor XY, selection count, and selected-item geometry in status bar
+- X/Y spinboxes in layer properties panel
+- Layer panel section headers, (hidden) prefix, Shift+click hide,
+  Ctrl+click lock, right-click menu, double-click rename
+- Canvas right-click menu (fit, zoom, grid/thirds toggle, copy image,
+  canvas bg color)
+- Ruler corner click = fit view; right-click ruler = Clear All Guides
+- Guides draggable along perp axis, double-click to delete, snap on
+  drag
+- Flip canvas preview (⇄) for composition checks
+- Replace Image on existing watermark/logo
+- Align > Center on Canvas (H / V / Both)
+- Escape returns to Select tool
+- Studio button in preview pane + floating preview dialog (S key too)
+- F1-F6 tab jumps (Shift+F2 for rename)
+- Arrow keys nudge arrows too; arrows participate in snap, select-all,
+  delete, copy/paste style
 
 ### Done (v2.4 polish autonomous batch)
 - Censor context menu reaches parity with overlays (Duplicate +
