@@ -2281,6 +2281,7 @@ class StudioScene(QGraphicsScene):
         lock_all_act = menu.addAction("Lock All Layers")
         unlock_all_act = menu.addAction("Unlock All Layers")
         show_all_act = menu.addAction("Show All Layers")
+        toggle_censors_act = menu.addAction("Toggle All Censors")
         menu.addSeparator()
         copy_canvas_act = menu.addAction("Copy Canvas Image to Clipboard")
         export_overlay_act = menu.addAction("Export Overlays as Transparent PNG...")
@@ -2398,6 +2399,15 @@ class StudioScene(QGraphicsScene):
             editor._sync_overlays_to_asset()
             editor._rebuild_layer_panel()
             editor.info_label.setText("All layers visible")
+        elif chosen is toggle_censors_act:
+            # Flip the visibility of every censor (reveal / hide in bulk)
+            currently_any_visible = any(
+                it.isVisible() for it in editor._censor_items)
+            for it in editor._censor_items:
+                it.setVisible(not currently_any_visible)
+            editor.info_label.setText(
+                "Censors hidden (reveal mode)" if currently_any_visible
+                else "Censors shown")
 
     def _rename_crop(self, editor, target):
         """Prompt for a new label and apply to both CropRegion and item."""
