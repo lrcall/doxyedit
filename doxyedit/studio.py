@@ -1555,8 +1555,8 @@ class StudioEditor(QWidget):
                 self._layer_panel.setVisible(not vis)
                 return
             elif key == Qt.Key.Key_G:
-                self._scene._grid_visible = not self._scene._grid_visible
-                self._scene.update()
+                # Toggle via the checkbox so UI stays in sync
+                self.chk_grid.setChecked(not self.chk_grid.isChecked())
                 return
 
         super().keyPressEvent(event)
@@ -1685,14 +1685,19 @@ class StudioEditor(QWidget):
 
         toolbar.addWidget(QLabel("|"))
 
-        # Group 4c: Grid spacing (visible when grid is on — G key)
-        toolbar.addWidget(QLabel("Grid:"))
+        # Group 4c: Grid toggle + spacing
+        self.chk_grid = QCheckBox("Grid")
+        self.chk_grid.setObjectName("studio_grid_toggle")
+        self.chk_grid.setToolTip("Show snap grid (G to toggle)")
+        self.chk_grid.toggled.connect(self._on_grid_toggled)
+        toolbar.addWidget(self.chk_grid)
+
         self.spin_grid = QSpinBox()
         self.spin_grid.setObjectName("studio_grid_spin")
         self.spin_grid.setRange(5, 500)
         self.spin_grid.setSingleStep(5)
         self.spin_grid.setSuffix(" px")
-        self.spin_grid.setToolTip("Snap grid spacing (G to toggle grid)")
+        self.spin_grid.setToolTip("Grid spacing in pixels")
         self.spin_grid.valueChanged.connect(self._on_grid_spacing_changed)
         toolbar.addWidget(self.spin_grid)
 
@@ -2745,6 +2750,13 @@ class StudioEditor(QWidget):
         _QS("DoxyEdit", "DoxyEdit").setValue("studio_grid_spacing", value)
         if self._scene._grid_visible:
             self._scene.update()
+
+    def _on_grid_toggled(self, on: bool):
+        """Toggle grid visibility from the toolbar checkbox (G hotkey wires
+        through the same path so the two stay in sync)."""
+        self._grid_visible = on
+        self._scene._grid_visible = on
+        self._scene.update()
 
     def _save_as_template(self):
         """Save selected overlay as a reusable project template.
