@@ -1043,7 +1043,21 @@ class OverlayTextItem(QGraphicsTextItem):
         self.setTransformOriginPoint(br.center())
         self.setRotation(self.overlay.rotation)
 
+    _BLEND_MODE_MAP = {
+        "normal": QPainter.CompositionMode.CompositionMode_SourceOver,
+        "multiply": QPainter.CompositionMode.CompositionMode_Multiply,
+        "screen": QPainter.CompositionMode.CompositionMode_Screen,
+        "overlay": QPainter.CompositionMode.CompositionMode_Overlay,
+        "darken": QPainter.CompositionMode.CompositionMode_Darken,
+        "lighten": QPainter.CompositionMode.CompositionMode_Lighten,
+    }
+
     def paint(self, painter, option, widget=None):
+        mode = self._BLEND_MODE_MAP.get(
+            getattr(self.overlay, "blend_mode", "normal"),
+            QPainter.CompositionMode.CompositionMode_SourceOver)
+        if mode != QPainter.CompositionMode.CompositionMode_SourceOver:
+            painter.setCompositionMode(mode)
         # Optional background fill behind the text (sticker/callout effect)
         bg = getattr(self.overlay, "background_color", "")
         if bg:
