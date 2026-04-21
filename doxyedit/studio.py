@@ -2155,7 +2155,26 @@ class StudioScene(QGraphicsScene):
         copy_canvas_act = menu.addAction("Copy Canvas Image to Clipboard")
         export_overlay_act = menu.addAction("Export Overlays as Transparent PNG...")
         chosen = menu.exec(event.screenPos())
-        if chosen is fit_act:
+        pos = event.scenePos()
+        if chosen is add_text_act:
+            editor._add_text_overlay(int(pos.x()), int(pos.y()))
+        elif chosen in (add_rect_act, add_ellipse_act):
+            kind = "ellipse" if chosen is add_ellipse_act else "rect"
+            w, h = 200, 120
+            ov = CanvasOverlay(
+                type="shape", label=kind.title(), shape_kind=kind,
+                color="#ffd700", stroke_color="#ffd700", stroke_width=2,
+                fill_color="", opacity=1.0,
+                x=int(pos.x() - w / 2), y=int(pos.y() - h / 2),
+                shape_w=w, shape_h=h,
+            )
+            editor._asset.overlays.append(ov)
+            new_item = editor._create_overlay_item(ov)
+            if new_item:
+                new_item.setZValue(200 + len(editor._overlay_items))
+                editor._overlay_items.append(new_item)
+            editor._rebuild_layer_panel()
+        elif chosen is fit_act:
             editor._view.fitInView(
                 editor._scene.sceneRect(),
                 Qt.AspectRatioMode.KeepAspectRatio)
