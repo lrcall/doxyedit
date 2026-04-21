@@ -3004,8 +3004,17 @@ class StudioView(QGraphicsView):
         if self._studio_editor is not None:
             sp = self.mapToScene(event.position().toPoint())
             if hasattr(self._studio_editor, "_cursor_label"):
-                self._studio_editor._cursor_label.setText(
-                    f"{int(sp.x())}, {int(sp.y())}")
+                editor = self._studio_editor
+                x_i, y_i = int(sp.x()), int(sp.y())
+                # Append pixel color when hovering inside the base image
+                color_txt = ""
+                if (editor._pixmap_item is not None):
+                    pm = editor._pixmap_item.pixmap()
+                    if 0 <= x_i < pm.width() and 0 <= y_i < pm.height():
+                        img = pm.toImage()
+                        c = img.pixelColor(x_i, y_i)
+                        color_txt = f"  {c.name()}"
+                editor._cursor_label.setText(f"{x_i}, {y_i}{color_txt}")
             if hasattr(self._studio_editor, "_canvas_wrap"):
                 self._studio_editor._canvas_wrap.update_cursor(sp)
         super().mouseMoveEvent(event)
@@ -4125,8 +4134,9 @@ class StudioEditor(QWidget):
 
         self._cursor_label = QLabel("0, 0")
         self._cursor_label.setObjectName("studio_cursor_label")
-        self._cursor_label.setToolTip("Cursor position in image pixels")
-        self._cursor_label.setFixedWidth(int(_dt.font_size * 7))
+        self._cursor_label.setToolTip(
+            "Cursor position in image pixels + color under cursor")
+        self._cursor_label.setFixedWidth(int(_dt.font_size * 14))
         status_bar.addWidget(self._cursor_label)
 
         self._selection_label = QLabel("0 selected")
