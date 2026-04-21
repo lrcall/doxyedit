@@ -1179,6 +1179,53 @@ class StudioScene(QGraphicsScene):
             return
         super().mouseReleaseEvent(event)
 
+    def contextMenuEvent(self, event):
+        """Right-click on a ResizableCropItem → Studio crop menu (Export this crop / Delete).
+
+        ResizableCropItem is defined in preview.py and doesn't know about
+        Studio's export pipeline. Intercepting at the scene level lets us
+        surface Studio-specific actions without coupling preview.py.
+        """
+        # Find the crop item under the cursor
+        target = None
+        for it in self.items(event.scenePos()):
+            if isinstance(it, ResizableCropItem):
+                target = it
+                break
+        if target is None:
+            return super().contextMenuEvent(event)
+
+        # Only surface this menu in Studio — check the view hook
+        editor = None
+        if self.views():
+            editor = getattr(self.views()[0], "_studio_editor", None)
+        if editor is None:
+            return super().contextMenuEvent(event)
+
+        menu = _themed_menu(editor._view)
+        export_act = menu.addAction("Export this crop")
+        menu.addSeparator()
+        delete_act = menu.addAction("Delete crop")
+        chosen = menu.exec(event.screenPos())
+        if chosen is export_act:
+            target.setSelected(True)
+            editor._export_current_platform()
+        elif chosen is delete_act:
+            # Remove from asset.crops by label, then from scene
+            lbl = getattr(target, "label", "")
+            if editor._asset and lbl:
+                editor._asset.crops = [c for c in editor._asset.crops if c.label != lbl]
+            if target.scene() is not None:
+                self.removeItem(target)
+            # Remove from _crop_items list if tracked
+            if hasattr(editor, "_crop_items") and target in editor._crop_items:
+                editor._crop_items.remove(target)
+            # Clear the crop mask if this was the active crop
+            if hasattr(editor, "_crop_mask_item") and editor._crop_mask_item:
+                if editor._crop_mask_item.scene():
+                    self.removeItem(editor._crop_mask_item)
+                editor._crop_mask_item = None
+
 
 # ---------------------------------------------------------------------------
 # View
