@@ -1508,8 +1508,12 @@ class StudioView(QGraphicsView):
         _zoom = 1.15
         factor = _zoom if event.angleDelta().y() > 0 else 1 / _zoom
         self.setTransform(self.transform().scale(factor, factor))
-        if self._studio_editor is not None and hasattr(self._studio_editor, "_canvas_wrap"):
-            self._studio_editor._canvas_wrap.refresh()
+        if self._studio_editor is not None:
+            if hasattr(self._studio_editor, "_canvas_wrap"):
+                self._studio_editor._canvas_wrap.refresh()
+            if hasattr(self._studio_editor, "_zoom_label"):
+                pct = int(self.transform().m11() * 100)
+                self._studio_editor._zoom_label.setText(f"{pct}%")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.MiddleButton:
@@ -1673,9 +1677,15 @@ class StudioEditor(QWidget):
             return
         if ctrl and key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
             self._view.scale(1.25, 1.25)
+            self._zoom_label.setText(f"{int(self._view.transform().m11() * 100)}%")
+            if hasattr(self, "_canvas_wrap"):
+                self._canvas_wrap.refresh()
             return
         if ctrl and key == Qt.Key.Key_Minus:
             self._view.scale(0.8, 0.8)
+            self._zoom_label.setText(f"{int(self._view.transform().m11() * 100)}%")
+            if hasattr(self, "_canvas_wrap"):
+                self._canvas_wrap.refresh()
             return
 
         # Delete
