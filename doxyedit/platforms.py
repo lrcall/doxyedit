@@ -734,7 +734,6 @@ class PlatformPanel(QWidget):
                 self.assign_asset(asset, platform_id, slot.name)
                 self.refresh()
                 return
-        event.acceptProposedAction()
 
     def _slot_context_menu(self, row, pos, pid: str, slot, entries: list):
         from PySide6.QtWidgets import QMenu

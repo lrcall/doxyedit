@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QApplication, QLabel, QProgressBar, QPushButton,
     QSizePolicy, QMenu,
 )
-from PySide6.QtCore import Qt, QTimer, QSettings, QSize, QUrl, QMimeData, QAbstractNativeEventFilter
+from PySide6.QtCore import Qt, QTimer, QSettings, QSize, QUrl, QMimeData, QAbstractNativeEventFilter, QThread, Signal
 from PySide6.QtGui import (
     QAction, QKeySequence, QColor, QPen, QBrush, QShortcut, QImage,
 )
@@ -66,6 +66,77 @@ class _NarrowTabWidget(QTabWidget):
     """QTabWidget that doesn't force width to the widest tab's minimumSizeHint."""
     def minimumSizeHint(self):
         return QSize(200, 200)
+
+
+class _AsyncLoadHandle:
+    """Opaque handle returned from async restore methods.
+
+    Gives the caller (splash) a way to signal cancel without knowing
+    whether a single-project or multi-project load is in flight.
+    """
+    def __init__(self, loader):
+        self._current_loader = loader
+        self._cancelled = False
+        self._state = None  # optional collection state dict
+
+    @property
+    def cancelled(self) -> bool:
+        return self._cancelled
+
+    def cancel(self):
+        """Request cancel. Safe to call from UI thread at any time."""
+        self._cancelled = True
+        if self._current_loader is not None:
+            try:
+                self._current_loader.cancel()
+            except Exception:
+                pass
+
+
+class ProjectLoader(QThread):
+    """Background loader for Project.load().
+
+    Reads + hydrates JSON off the UI thread. Safe because models.py has no
+    Qt imports - Project.from_dict / Project.load is pure data.
+
+    Emit order: either `loaded(project, path)` OR `failed(path, error)` OR
+    `cancelled(path)`. The worker self-polls the `_cancel` flag at the two
+    coarsest chokepoints: after JSON parse, and just before returning the
+    hydrated project. Once emitted, the owner is responsible for discarding
+    the result if it arrived after a cancel.
+    """
+    loaded = Signal(object, str)     # (Project, path)
+    failed = Signal(str, str)        # (path, error_message)
+    cancelled = Signal(str)          # (path)
+
+    def __init__(self, path: str, parent=None):
+        super().__init__(parent)
+        self._path = path
+        self._cancel = False
+
+    def cancel(self):
+        self._cancel = True
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    def run(self):
+        try:
+            if self._cancel:
+                self.cancelled.emit(self._path)
+                return
+            # Project.load reads + hydrates in one call. We can't cheaply
+            # split it without duplicating the method, so we check cancel
+            # once before and once after. The JSON read itself can't be
+            # aborted mid-flight, but a 1MB-ish file is ~50ms anyway.
+            project = Project.load(self._path)
+            if self._cancel:
+                self.cancelled.emit(self._path)
+                return
+            self.loaded.emit(project, self._path)
+        except Exception as e:
+            self.failed.emit(self._path, str(e))
 
 
 class MainWindow(QMainWindow):
@@ -775,6 +846,238 @@ class MainWindow(QMainWindow):
                                 f"Some projects could not be loaded:\n\n" + "\n".join(details))
         return True
 
+    # ── Async startup restore ──────────────────────────────────────────────
+    #
+    # These are the off-UI-thread variants used by main.py at app launch so
+    # the splash's Cancel/Quit buttons stay responsive. They delegate the JSON
+    # read + dataclass hydration to ProjectLoader (QThread). Interactive
+    # File -> Open and other runtime paths keep using the synchronous methods.
+
+    def _restore_last_session_async(self, on_status=None, on_complete=None):
+        """Async startup restore. Returns a handle with .cancel().
+
+        on_status(text): called on UI thread with progress messages.
+        on_complete(kind): called on UI thread when finished.
+            kind is one of 'loaded', 'cancelled', 'blank', 'collection', 'failed'.
+        """
+        outer = _AsyncLoadHandle(None)
+
+        def _fallback_to_single(msg: str = ""):
+            if outer.cancelled:
+                if on_complete:
+                    on_complete("cancelled")
+                return
+            if msg and on_status:
+                on_status(msg)
+            self._restore_last_project_async(
+                on_status=on_status, on_complete=on_complete, outer=outer)
+
+        def _on_coll_complete(kind: str):
+            if kind == "empty":
+                _fallback_to_single("Collection empty, restoring last project...")
+            else:
+                if on_complete:
+                    on_complete(kind)
+
+        last_coll = self._settings.value("last_collection", "")
+        if last_coll and Path(last_coll).exists():
+            ok = self._restore_collection_async(
+                last_coll, on_status=on_status,
+                on_complete=_on_coll_complete, outer=outer)
+            if ok:
+                return outer
+            if on_status:
+                on_status("Collection projects not found, restoring last project...")
+        self._restore_last_project_async(
+            on_status=on_status, on_complete=on_complete, outer=outer)
+        return outer
+
+    def _restore_last_project_async(self, on_status=None, on_complete=None, outer=None):
+        """Async variant of _restore_last_project.
+
+        If `outer` is provided, we track the active loader on it so the caller
+        can Cancel. Otherwise we create a private handle and return it.
+        """
+        handle = outer if outer is not None else _AsyncLoadHandle(None)
+        last_project = self._settings.value("last_project", "")
+        if not (last_project and Path(last_project).exists()):
+            self._register_initial_slot(None, "New Project")
+            last_folder = self._settings.value("last_folder", "")
+            if last_folder and Path(last_folder).exists():
+                n = self.browser.import_folder(last_folder)
+                if n:
+                    self.status.showMessage(
+                        f"Reopened folder: {Path(last_folder).name} ({n} images)")
+            if on_complete:
+                on_complete("blank")
+            return handle
+
+        if handle.cancelled:
+            if on_complete:
+                on_complete("cancelled")
+            return handle
+
+        if on_status:
+            on_status(f"Loading {Path(last_project).name}...")
+
+        loader = ProjectLoader(last_project, parent=self)
+        handle._current_loader = loader
+
+        def _on_loaded(project, path):
+            if handle.cancelled:
+                if on_complete:
+                    on_complete("cancelled")
+                return
+            try:
+                self.project = project
+                self._project_path = path
+                self._register_initial_slot(path, Path(path).stem)
+                self._rebind_project()
+                self._restore_folder_state()
+                self.setWindowTitle(f"DoxyEdit - {Path(path).name}")
+                if self.project.theme_id and self.project.theme_id in THEMES:
+                    self._apply_theme(self.project.theme_id)
+                self.status.showMessage(f"Restored: {Path(path).name}")
+            except Exception:
+                import logging
+                logging.exception("Post-load rebind failed")
+            if on_complete:
+                on_complete("loaded")
+
+        def _on_failed(path, err):
+            self.status.showMessage(f"Failed to load {Path(path).name}: {err}", 5000)
+            self._register_initial_slot(None, "New Project")
+            if on_complete:
+                on_complete("failed")
+
+        def _on_cancelled(path):
+            if on_complete:
+                on_complete("cancelled")
+
+        loader.loaded.connect(_on_loaded)
+        loader.failed.connect(_on_failed)
+        loader.cancelled.connect(_on_cancelled)
+        loader.start()
+        return handle
+
+    def _restore_collection_async(self, coll_path: str, on_status=None, on_complete=None, outer=None):
+        """Async variant of _restore_collection.
+
+        Returns True if the collection is being loaded (handle tracks progress
+        via `outer`), False if the collection is unusable and caller should fall
+        back to single-project restore.
+        """
+        try:
+            data = json.loads(Path(coll_path).read_text(encoding="utf-8"))
+        except Exception:
+            return False
+        all_paths = data.get("projects", [])
+        paths = [p for p in all_paths if Path(p).exists()]
+        missing = [p for p in all_paths if not Path(p).exists()]
+        if not paths:
+            return False
+
+        handle = outer if outer is not None else _AsyncLoadHandle(None)
+        state = {
+            "index": 0,
+            "paths": paths,
+            "missing": missing,
+            "failed": [],
+            "loader": None,
+            "loaded_count": 0,
+        }
+        handle._state = state
+
+        def _finalize():
+            # Called on the UI thread after all projects processed (or abort).
+            if state["loaded_count"] > 0:
+                self._proj_tab_bar.setCurrentIndex(0)
+                self._switch_to_slot(0)
+                self._restore_folder_state()
+                msg = f"Restored collection: {state['loaded_count']} project(s)"
+                if state["missing"]:
+                    msg += f" | {len(state['missing'])} missing"
+                if state["failed"]:
+                    msg += f" | {len(state['failed'])} failed to load"
+                self.status.showMessage(msg, 5000)
+                if state["missing"] or state["failed"]:
+                    from PySide6.QtWidgets import QMessageBox
+                    details = []
+                    if state["missing"]:
+                        details.append("Missing files (not found on disk):")
+                        details.extend(f"  - {p}" for p in state["missing"])
+                    if state["failed"]:
+                        details.append("Failed to load:")
+                        details.extend(f"  - {p}" for p in state["failed"])
+                    QMessageBox.warning(self, "Collection",
+                        "Some projects could not be loaded:\n\n" + "\n".join(details))
+            if on_complete:
+                if handle.cancelled:
+                    on_complete("cancelled")
+                elif state["loaded_count"] == 0:
+                    on_complete("empty")
+                else:
+                    on_complete("collection")
+
+        def _load_next():
+            if handle.cancelled:
+                _finalize()
+                return
+            i = state["index"]
+            if i >= len(state["paths"]):
+                _finalize()
+                return
+            path = state["paths"][i]
+            if on_status:
+                on_status(f"Loading project {i + 1} of {len(state['paths'])}: {Path(path).name}")
+            loader = ProjectLoader(path, parent=self)
+            state["loader"] = loader
+            handle._current_loader = loader
+
+            def _on_loaded(project, p):
+                # Before applying to UI, check cancel: if user cancelled
+                # between the worker emitting and this slot firing, discard.
+                if handle.cancelled:
+                    _finalize()
+                    return
+                try:
+                    if state["index"] == 0:
+                        # First project: seed the initial slot
+                        self.project = project
+                        self._project_path = p
+                        self._register_initial_slot(p, Path(p).stem)
+                        self._rebind_project(clear_folder_state=True)
+                        self.setWindowTitle(f"DoxyEdit - {Path(p).name}")
+                        if self.project.theme_id and self.project.theme_id in THEMES:
+                            self._apply_theme(self.project.theme_id)
+                    else:
+                        # Subsequent projects: add as tabs (without switching visible UI)
+                        self._add_project_tab(project, p, Path(p).stem)
+                    state["loaded_count"] += 1
+                except Exception:
+                    import logging
+                    logging.exception("Post-load rebind failed for %s", p)
+                    state["failed"].append(p)
+                state["index"] += 1
+                _load_next()
+
+            def _on_failed(p, err):
+                state["failed"].append(p)
+                state["index"] += 1
+                _load_next()
+
+            def _on_cancelled(p):
+                _finalize()
+
+            loader.loaded.connect(_on_loaded)
+            loader.failed.connect(_on_failed)
+            loader.cancelled.connect(_on_cancelled)
+            loader.start()
+
+        # Kick off the chain
+        _load_next()
+        return True
+
     # ── Project tab management ──────────────────────────────────────────────
 
     def _register_initial_slot(self, path: str | None, label: str):
@@ -801,6 +1104,8 @@ class MainWindow(QMainWindow):
         if 0 <= self._current_slot < len(self._project_slots):
             slot = self._project_slots[self._current_slot]
             slot["project"] = self.project
+            slot["collapsed_folders"] = set(self.browser._collapsed_folders)
+            slot["hidden_folders"] = set(self.browser._hidden_folders)
             if self._dirty and slot["path"]:
                 self._own_save_pending = getattr(self, '_own_save_pending', 0) + 1
                 self.project.save(slot["path"])
@@ -818,6 +1123,12 @@ class MainWindow(QMainWindow):
         self.project = slot["project"]
         self._project_path = slot["path"]
         self._rebind_project(clear_folder_state=True)
+        if slot.get("collapsed_folders"):
+            self.browser._collapsed_folders = set(slot["collapsed_folders"])
+        if slot.get("hidden_folders"):
+            self.browser._hidden_folders = set(slot["hidden_folders"])
+        if slot.get("collapsed_folders") or slot.get("hidden_folders"):
+            self.browser.refresh()
         self.setWindowTitle(f"DoxyEdit — {slot['label']}")
         self._proj_tab_bar.setTabText(idx, slot["label"])
 
@@ -865,9 +1176,48 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
         slot = self._project_slots[idx]
         menu.addAction("Rename Tab…", lambda: self._rename_proj_tab_dialog(idx))
+        menu.addAction("Open in New Window", lambda: self._detach_proj_tab(idx))
         menu.addSeparator()
         menu.addAction("Close Tab", lambda: self._close_proj_tab(idx))
         menu.exec(global_pos)
+
+    def _detach_proj_tab(self, idx: int):
+        """Pop a project tab out into its own window."""
+        if idx < 0 or idx >= len(self._project_slots):
+            return
+        if idx == self._current_slot:
+            self._save_current_slot()
+        slot = self._project_slots[idx]
+        path = slot.get("path")
+        # Spawn a new window; load from disk if we have a path, otherwise transfer the project object.
+        win = MainWindow(_skip_autoload=True)
+        MainWindow._open_windows.append(win)
+        if path:
+            win._load_project_from(path)
+        else:
+            win.project = slot["project"]
+            win._project_path = None
+            win._rebind_project(clear_folder_state=True)
+            win._register_initial_slot(None, slot["label"])
+            win.setWindowTitle(f"DoxyEdit — {slot['label']}")
+        win.show()
+        win._update_title_bar_color()
+        # Remove the tab from this window. Skip save prompt — we just saved (or it's path-less and transferred).
+        if len(self._project_slots) <= 1:
+            self._new_project_blank()
+            self._register_initial_slot(None, "New Project")
+        else:
+            self._project_slots.pop(idx)
+            self._proj_tab_bar.blockSignals(True)
+            self._proj_tab_bar.removeTab(idx)
+            self._proj_tab_bar.blockSignals(False)
+            new_idx = min(idx, len(self._project_slots) - 1)
+            if self._current_slot == idx:
+                self._current_slot = -1
+                self._proj_tab_bar.setCurrentIndex(new_idx)
+                self._switch_to_slot(new_idx)
+            elif self._current_slot > idx:
+                self._current_slot -= 1
 
     def _rename_proj_tab_dialog(self, idx: int):
         """Prompt user to rename a project tab."""
@@ -895,7 +1245,7 @@ class MainWindow(QMainWindow):
     def _open_project_in_tab(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Project", self._dialog_dir(),
-            "DoxyEdit Projects (*.doxyproj.json)")
+            "DoxyEdit Projects (*.doxy *.doxyproj.json);;All Files (*)")
         if not path:
             return
         self._remember_dir(path)
@@ -2167,9 +2517,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         return v if isinstance(v, list) else ([v] if v else [])
 
     def _rebuild_bookmarks_menu(self):
+        _DIV = "__divider__"
         self._bm_projects_menu.clear()
         for p in self._get_bookmarks("bookmarked_projects"):
-            if Path(p).exists():
+            if p == _DIV:
+                self._bm_projects_menu.addSeparator()
+            elif Path(p).exists():
                 self._bm_projects_menu.addAction(
                     Path(p).stem, lambda path=p: self._open_project_in_tab_from(path))
             else:
@@ -2180,7 +2533,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         self._bm_collections_menu.clear()
         for c in self._get_bookmarks("bookmarked_collections"):
-            if Path(c).exists():
+            if c == _DIV:
+                self._bm_collections_menu.addSeparator()
+            elif Path(c).exists():
                 self._bm_collections_menu.addAction(
                     Path(c).stem, lambda path=c: self._restore_collection_interactive(path))
             else:
@@ -2225,50 +2580,117 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             QMessageBox.warning(self, "Open Collection",
                 f"Could not load collection — some project files may be missing:\n{path}")
 
+    def _other_open_projects(self) -> list:
+        """Return Project objects from all open tabs except the current one."""
+        return [
+            slot["project"] for i, slot in enumerate(self._project_slots)
+            if i != self._current_slot and slot.get("project") is not None
+        ]
+
     def _manage_bookmarks(self):
-        """Dialog to remove stale or unwanted bookmarks."""
-        from PySide6.QtWidgets import QDialog, QListWidget, QListWidgetItem, QDialogButtonBox, QVBoxLayout
+        """Dialog to remove/reorder bookmarks and add dividers."""
+        from PySide6.QtWidgets import (
+            QDialog, QListWidget, QListWidgetItem, QDialogButtonBox,
+            QVBoxLayout, QAbstractItemView,
+        )
+        _DIV = "__divider__"
+
         dlg = QDialog(self)
+        dlg.setObjectName("manage_bookmarks_dialog")
         dlg.setWindowTitle("Manage Bookmarks")
-        dlg.resize(500, 400)
+        dlg.setStyleSheet(self.styleSheet())
+
+        # Restore saved size
+        saved = self._settings.value("manage_bookmarks_size")
+        if saved:
+            dlg.resize(saved)
+        else:
+            dlg.resize(560, 420)
+
         layout = QVBoxLayout(dlg)
 
+        def _make_list(entries: list[str]) -> QListWidget:
+            lst = QListWidget()
+            lst.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+            lst.setDefaultDropAction(Qt.DropAction.MoveAction)
+            lst.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+            for val in entries:
+                if val == _DIV:
+                    item = QListWidgetItem("── divider ──")
+                    item.setData(Qt.ItemDataRole.UserRole, _DIV)
+                    item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable)
+                    item.setForeground(dlg.palette().color(dlg.palette().ColorRole.PlaceholderText))
+                else:
+                    exists = Path(val).exists()
+                    item = QListWidgetItem(f"{'✓' if exists else '✕'} {Path(val).stem}  —  {val}")
+                    item.setData(Qt.ItemDataRole.UserRole, val)
+                    item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled)
+                lst.addItem(item)
+            return lst
+
         layout.addWidget(QLabel("Projects:"))
-        proj_list = QListWidget()
-        for p in self._get_bookmarks("bookmarked_projects"):
-            item = QListWidgetItem(f"{'✓' if Path(p).exists() else '✕'} {Path(p).stem}  —  {p}")
-            item.setData(Qt.ItemDataRole.UserRole, p)
-            proj_list.addItem(item)
+        proj_list = _make_list(self._get_bookmarks("bookmarked_projects"))
         layout.addWidget(proj_list)
 
         layout.addWidget(QLabel("Collections:"))
-        coll_list = QListWidget()
-        for c in self._get_bookmarks("bookmarked_collections"):
-            item = QListWidgetItem(f"{'✓' if Path(c).exists() else '✕'} {Path(c).stem}  —  {c}")
-            item.setData(Qt.ItemDataRole.UserRole, c)
-            coll_list.addItem(item)
+        coll_list = _make_list(self._get_bookmarks("bookmarked_collections"))
         layout.addWidget(coll_list)
 
-        layout.addWidget(QLabel("Select items and press Delete to remove, or use the buttons below."))
+        layout.addWidget(QLabel("Drag to reorder · Select and press Delete or use buttons below."))
 
+        btn_row = QHBoxLayout()
         remove_btn = QPushButton("Remove Selected")
-        def _remove():
-            for lst, key in [(proj_list, "bookmarked_projects"), (coll_list, "bookmarked_collections")]:
-                for item in lst.selectedItems():
-                    bms = self._get_bookmarks(key)
-                    p = item.data(Qt.ItemDataRole.UserRole)
-                    if p in bms:
-                        bms.remove(p)
-                    self._settings.setValue(key, bms)
-                    lst.takeItem(lst.row(item))
+        div_proj_btn = QPushButton("Add Divider to Projects")
+        div_coll_btn = QPushButton("Add Divider to Collections")
+        btn_row.addWidget(remove_btn)
+        btn_row.addWidget(div_proj_btn)
+        btn_row.addWidget(div_coll_btn)
+        layout.addLayout(btn_row)
+
+        def _list_values(lst: QListWidget) -> list[str]:
+            return [lst.item(i).data(Qt.ItemDataRole.UserRole) for i in range(lst.count())]
+
+        def _save():
+            self._settings.setValue("bookmarked_projects", _list_values(proj_list))
+            self._settings.setValue("bookmarked_collections", _list_values(coll_list))
             self._rebuild_bookmarks_menu()
+
+        def _remove():
+            for lst in (proj_list, coll_list):
+                for item in lst.selectedItems():
+                    lst.takeItem(lst.row(item))
+            _save()
+
+        def _add_divider(lst: QListWidget):
+            item = QListWidgetItem("── divider ──")
+            item.setData(Qt.ItemDataRole.UserRole, _DIV)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable)
+            item.setForeground(dlg.palette().color(dlg.palette().ColorRole.PlaceholderText))
+            lst.addItem(item)
+            _save()
+
         remove_btn.clicked.connect(_remove)
-        layout.addWidget(remove_btn)
+        div_proj_btn.clicked.connect(lambda: _add_divider(proj_list))
+        div_coll_btn.clicked.connect(lambda: _add_divider(coll_list))
+
+        # Save on every reorder
+        proj_list.model().rowsMoved.connect(_save)
+        coll_list.model().rowsMoved.connect(_save)
+
+        # Delete key
+        from PySide6.QtGui import QKeySequence, QShortcut
+        QShortcut(QKeySequence.StandardKey.Delete, dlg).activated.connect(_remove)
 
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         btns.rejected.connect(dlg.accept)
         layout.addWidget(btns)
+
+        dlg.show()
+        self._theme_dialog_titlebar(dlg)
         dlg.exec()
+
+        # Persist size
+        self._settings.setValue("manage_bookmarks_size", dlg.size())
 
     # --- Drag-drop project/collection files onto window ---
 
@@ -2276,7 +2698,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 p = url.toLocalFile().lower()
-                if p.endswith(".doxyproj.json") or p.endswith(".doxycoll.json"):
+                if (p.endswith(".doxyproj.json") or p.endswith(".doxycoll.json")
+                        or p.endswith(".doxy") or p.endswith(".doxycoll")
+                        or p.endswith(".doxycol")):
                     event.acceptProposedAction()
                     return
         # Let browser handle image drops
@@ -2289,11 +2713,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         for url in event.mimeData().urls():
             path = url.toLocalFile()
             lp = path.lower()
-            if lp.endswith(".doxycoll.json"):
+            if lp.endswith(".doxycoll.json") or lp.endswith(".doxycoll") or lp.endswith(".doxycol"):
                 self._restore_collection(path)
                 event.acceptProposedAction()
                 return
-            elif lp.endswith(".doxyproj.json"):
+            elif lp.endswith(".doxyproj.json") or lp.endswith(".doxy"):
                 # Check if already open in a tab
                 for i, slot in enumerate(self._project_slots):
                     if slot["path"] == path:
@@ -2670,7 +3094,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _float_composer_dialog(self, post=None, is_new=True):
         """Open composer as a floating QDialog."""
         proj_dir = str(Path(self._project_path).parent) if self._project_path else "."
-        dlg = PostComposer(self.project, post=post, project_dir=proj_dir, parent=self)
+        dlg = PostComposer(self.project, post=post, project_dir=proj_dir, parent=self,
+                           extra_projects=self._other_open_projects())
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         # Capture post/is_new for potential dock toggle
         _post = post
@@ -2723,7 +3148,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         from doxyedit.imaging import get_export_dir
         output_base = str(get_export_dir(self._project_path) / post.id[:8])
 
-        for aid in post.asset_ids[:1]:
+        for aid in post.asset_ids:
             asset = self.project.get_asset(aid)
             if not asset:
                 continue
@@ -2882,7 +3307,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _dock_composer(self, project, post, is_new):
         """Embed the composer widget into the Social tab dock pane."""
         proj_dir = str(Path(self._project_path).parent) if self._project_path else "."
-        widget = PostComposerWidget(project, post, project_dir=proj_dir, parent=self._composer_dock)
+        widget = PostComposerWidget(project, post, project_dir=proj_dir, parent=self._composer_dock,
+                                    extra_projects=self._other_open_projects())
         widget.set_compact(True)
         # Clear old docked widget if any
         layout = self._composer_dock.layout()
@@ -3789,7 +4215,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self.status.showMessage("Select assets to move first", 2000)
             return
         path, _ = QFileDialog.getOpenFileName(
-            self, "Move to Project", "", "DoxyEdit Projects (*.doxyproj.json)")
+            self, "Move to Project", "",
+            "DoxyEdit Projects (*.doxy *.doxyproj.json);;All Files (*)")
         if not path:
             return
         try:
@@ -3816,12 +4243,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if not assets:
             self.status.showMessage("Select assets to move first", 2000)
             return
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Create New Project", "", "DoxyEdit Projects (*.doxyproj.json)")
+        path, selected = QFileDialog.getSaveFileName(
+            self, "Create New Project", "",
+            "DoxyEdit Project (*.doxy);;Legacy JSON (*.doxyproj.json)")
         if not path:
             return
-        if not path.endswith(".doxyproj.json"):
-            path += ".doxyproj.json"
+        if not (path.endswith(".doxy") or path.endswith(".doxyproj.json")):
+            path += ".doxyproj.json" if "doxyproj.json" in selected else ".doxy"
         name = Path(path).stem.replace(".doxyproj", "")
         target = Project(name=name)
         ids_to_remove = {a.id for a in assets}
@@ -4489,7 +4917,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         path, _ = QFileDialog.getOpenFileName(
             self, "Select Project to Merge", self._dialog_dir(),
-            "DoxyEdit Projects (*.doxyproj.json);;All Files (*)",
+            "DoxyEdit Projects (*.doxy *.doxyproj.json);;All Files (*)",
         )
         if not path:
             return
@@ -5619,7 +6047,7 @@ Ctrl+Click tag — Search by tag
     def _open_project(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Project", "",
-            "DoxyEdit Projects (*.doxyproj.json);;All Files (*)"
+            "DoxyEdit Projects (*.doxy *.doxyproj.json);;All Files (*)"
         )
         if path:
             self._load_project_from(path)
@@ -5646,13 +6074,15 @@ Ctrl+Click tag — Search by tag
 
     def _save_project_as(self):
         hint = self._project_path or (
-            str(Path(self._dialog_dir()) / "project.doxyproj.json")
-            if self._dialog_dir() else "project.doxyproj.json")
-        path, _ = QFileDialog.getSaveFileName(
+            str(Path(self._dialog_dir()) / "project.doxy")
+            if self._dialog_dir() else "project.doxy")
+        path, selected = QFileDialog.getSaveFileName(
             self, "Save Project", hint,
-            "DoxyEdit Projects (*.doxyproj.json);;All Files (*)"
+            "DoxyEdit Project (*.doxy);;Legacy JSON (*.doxyproj.json)"
         )
         if path:
+            if not (path.endswith(".doxy") or path.endswith(".doxyproj.json")):
+                path += ".doxyproj.json" if "doxyproj.json" in selected else ".doxy"
             self._remember_dir(path)
             self._own_save_pending = getattr(self, '_own_save_pending', 0) + 1
             self.project.save(path)
@@ -5744,7 +6174,7 @@ Ctrl+Click tag — Search by tag
             self.status.showMessage(f"Save failed: {e}", 5000)
 
     def _save_collection(self):
-        """Save all open project tabs/windows as a named collection (.doxycoll.json)."""
+        """Save all open project tabs/windows as a named collection (.doxycol)."""
         projects = self._collect_open_project_paths()
         if not projects:
             QMessageBox.information(self, "Save Collection",
@@ -5755,15 +6185,18 @@ Ctrl+Click tag — Search by tag
         if last and Path(last).parent.exists():
             default_path = last
         elif projects:
-            default_path = str(Path(projects[0]).parent / "workspace.doxycoll.json")
+            default_path = str(Path(projects[0]).parent / "workspace.doxycol")
         else:
-            default_path = str(Path(self._dialog_dir()) / "workspace.doxycoll.json") \
-                if self._dialog_dir() else "workspace.doxycoll.json"
-        path, _ = QFileDialog.getSaveFileName(
+            default_path = str(Path(self._dialog_dir()) / "workspace.doxycol") \
+                if self._dialog_dir() else "workspace.doxycol"
+        path, selected = QFileDialog.getSaveFileName(
             self, "Save Collection", default_path,
-            "DoxyEdit Collection (*.doxycoll.json);;All Files (*)")
+            "DoxyEdit Collection (*.doxycol);;Legacy JSON (*.doxycoll.json)")
         if not path:
             return
+        if not (path.endswith(".doxycol") or path.endswith(".doxycoll.json")
+                or path.endswith(".doxycoll")):
+            path += ".doxycoll.json" if "doxycoll.json" in selected else ".doxycol"
         try:
             Path(path).write_text(
                 json.dumps({"_type": "doxycoll", "projects": projects}, indent=2),
@@ -5797,7 +6230,7 @@ Ctrl+Click tag — Search by tag
         start = last if last and Path(last).exists() else self._dialog_dir()
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Collection", start,
-            "DoxyEdit Collection (*.doxycoll.json);;All Files (*)")
+            "DoxyEdit Collection (*.doxycol *.doxycoll *.doxycoll.json);;All Files (*)")
         if not path:
             return
         data = json.loads(Path(path).read_text(encoding="utf-8"))
