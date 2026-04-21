@@ -3121,8 +3121,10 @@ class StudioEditor(QWidget):
             return
         if orientation == 'h':
             line.setLine(pixmap_rect.left(), pos, pixmap_rect.right(), pos)
+            self.info_label.setText(f"Guide Y = {int(pos)}")
         else:
             line.setLine(pos, pixmap_rect.top(), pos, pixmap_rect.bottom())
+            self.info_label.setText(f"Guide X = {int(pos)}")
 
     def _commit_preview_guide(self):
         """Drop the pending guide onto the scene permanently (or remove it if
