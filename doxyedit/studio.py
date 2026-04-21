@@ -3935,6 +3935,17 @@ class StudioEditor(QWidget):
             lambda v: self._on_pos_field_changed('y', v))
         _pos_row.addWidget(self.spin_pos_y, 1)
         _props_layout.addLayout(_pos_row)
+
+        # Rotation spinbox — numeric precision beyond R / Shift+R
+        _rot_row = QHBoxLayout()
+        _rot_row.addWidget(QLabel("Rotation"))
+        self.spin_rotation_layer = QSpinBox()
+        self.spin_rotation_layer.setObjectName("studio_rotation_layer_spin")
+        self.spin_rotation_layer.setRange(-360, 360)
+        self.spin_rotation_layer.setSuffix("°")
+        self.spin_rotation_layer.valueChanged.connect(self._on_layer_rotation_changed)
+        _rot_row.addWidget(self.spin_rotation_layer, 1)
+        _props_layout.addLayout(_rot_row)
         _layer_props.setEnabled(False)
         self._layer_props_widget = _layer_props
 
@@ -5985,12 +5996,41 @@ class StudioEditor(QWidget):
             self.spin_pos_y.blockSignals(True)
             self.spin_pos_y.setValue(int(ov.y))
             self.spin_pos_y.blockSignals(False)
+            self.spin_rotation_layer.blockSignals(True)
+            self.spin_rotation_layer.setValue(int(getattr(ov, "rotation", 0)))
+            self.spin_rotation_layer.blockSignals(False)
             self._layer_props_widget.setEnabled(True)
             self._layer_props_selection = ("overlay", idx)
         else:
             # Censors don't have opacity/enabled in CensorRegion
             self._layer_props_widget.setEnabled(False)
             self._layer_props_selection = None
+
+    def _on_layer_rotation_changed(self, value: int):
+        """Rotation spinbox in the layer props panel."""
+        sel = getattr(self, "_layer_props_selection", None)
+        if not sel or sel[0] != "overlay":
+            return
+        idx = sel[1]
+        if idx >= len(self._asset.overlays):
+            return
+        ov = self._asset.overlays[idx]
+        ov.rotation = value % 360
+        for it in self._scene.items():
+            if hasattr(it, "overlay") and it.overlay is ov:
+                if hasattr(it, "_apply_flip"):
+                    it._apply_flip()
+                elif hasattr(it, "_apply_flip_text"):
+                    it._apply_flip_text()
+                elif isinstance(it, OverlayShapeItem):
+                    it.setTransformOriginPoint(
+                        ov.x + ov.shape_w / 2, ov.y + ov.shape_h / 2)
+                    it.setRotation(ov.rotation)
+                    it.update()
+                else:
+                    it.update()
+                break
+        self._sync_overlays_to_asset()
 
     def _on_pos_field_changed(self, axis: str, value: int):
         """Typing X or Y in the props spinboxes repositions the selected overlay."""
