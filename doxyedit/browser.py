@@ -1568,9 +1568,21 @@ class AssetBrowser(QWidget):
             if tid in all_used or tid in getattr(self.project, 'tag_definitions', {}):
                 bar_tags[tid] = preset
         color_idx = 0
+        # Auto-assign a cycle color to tags that are used but missing from bar_tags,
+        # OR whose declared color is the default placeholder ("#888"/"#888888"/empty).
+        # Stable order so the same tag gets the same color across sessions.
+        PLACEHOLDER_COLORS = {"", "#888", "#888888"}
         for t in sorted(all_used):
-            if t not in bar_tags and t not in TAG_PRESETS and t not in TAG_SIZED:
+            if t in TAG_PRESETS or t in TAG_SIZED:
+                continue
+            if t not in bar_tags:
                 bar_tags[t] = TagPreset(id=t, label=t,
+                    color=VINIK_COLORS[color_idx % len(VINIK_COLORS)])
+                color_idx += 1
+            elif (bar_tags[t].color or "").lower() in PLACEHOLDER_COLORS:
+                preset = bar_tags[t]
+                bar_tags[t] = TagPreset(id=preset.id, label=preset.label,
+                    width=preset.width, height=preset.height, ratio=preset.ratio,
                     color=VINIK_COLORS[color_idx % len(VINIK_COLORS)])
                 color_idx += 1
 

@@ -325,8 +325,22 @@ class InfoPanel(QWidget):
         self._completer_model.setStringList(tags)
 
     def set_tag_palette(self, palette: dict) -> None:
-        """Set tag_id -> hex color map for coloring pills."""
-        self._tag_palette = dict(palette)
+        """Set tag_id -> hex color map for coloring pills.
+
+        Tags with a placeholder color (empty / #888 / #888888) get assigned a
+        cycle color so they appear distinct instead of all-grey.
+        """
+        from doxyedit.models import VINIK_COLORS
+        PLACEHOLDER = {"", "#888", "#888888"}
+        normalized: dict[str, str] = {}
+        idx = 0
+        for tid, color in sorted(palette.items()):
+            if (color or "").lower() in PLACEHOLDER:
+                normalized[tid] = VINIK_COLORS[idx % len(VINIK_COLORS)]
+                idx += 1
+            else:
+                normalized[tid] = color
+        self._tag_palette = normalized
 
     def _rebuild_tag_pills(self, tags: list[str], removable: bool = True):
         """Rebuild the tag flow with pills for each tag."""
