@@ -3080,7 +3080,9 @@ class StudioEditor(QWidget):
 
         # Tool shortcuts (only when no modifier)
         if not ctrl and not shift:
-            if key == Qt.Key.Key_Q:
+            # V is the Photoshop Move tool; Q is already Select. Map both
+            # to StudioTool.SELECT for muscle-memory parity.
+            if key == Qt.Key.Key_Q or key == Qt.Key.Key_V:
                 self._set_tool(StudioTool.SELECT)
                 return
             if key == Qt.Key.Key_X:
