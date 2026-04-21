@@ -2394,6 +2394,15 @@ class StudioEditor(QWidget):
                         item.overlay.x = int(item.pos().x())
                         item.overlay.y = int(item.pos().y())
                     moved = True
+                elif isinstance(item, OverlayArrowItem):
+                    # Arrows: translate both endpoints
+                    item.overlay.x += dx
+                    item.overlay.y += dy
+                    item.overlay.end_x += dx
+                    item.overlay.end_y += dy
+                    item.prepareGeometryChange()
+                    item.update()
+                    moved = True
                 elif isinstance(item, ResizableCropItem):
                     item.moveBy(dx, dy)
                     moved_crop = True
