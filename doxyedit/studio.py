@@ -1353,6 +1353,46 @@ class _GuideLineItem(QGraphicsLineItem):
     _guide_orientation = 'h'
 
 
+class _CheckerboardItem(QGraphicsRectItem):
+    """Photoshop-style checkerboard that sits behind the image so transparent
+    pixels show through as the classic gray/white check pattern."""
+
+    TILE = 12
+    C1 = QColor(60, 60, 60)
+    C2 = QColor(84, 84, 84)
+
+    def __init__(self, rect: QRectF, parent=None):
+        super().__init__(rect, parent)
+        self.setPen(QPen(Qt.PenStyle.NoPen))
+        # Not interactive
+        self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable, False)
+        self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable, False)
+
+    def paint(self, painter, option, widget=None):
+        r = self.rect()
+        painter.fillRect(r, self.C1)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(self.C2)
+        t = self.TILE
+        # Only draw tiles inside the rect
+        y0 = int(r.top())
+        x0 = int(r.left())
+        y_end = int(r.bottom())
+        x_end = int(r.right())
+        y = y0
+        row = 0
+        while y < y_end:
+            col = row % 2
+            x = x0 + col * t
+            while x < x_end:
+                painter.drawRect(int(x), int(y),
+                                  min(t, x_end - int(x)),
+                                  min(t, y_end - int(y)))
+                x += 2 * t
+            y += t
+            row += 1
+
+
 class _StudioRuler(QWidget):
     """Horizontal or vertical ruler that reads the StudioView's transform.
 
@@ -2514,6 +2554,13 @@ class StudioEditor(QWidget):
         if pm.isNull():
             self.info_label.setText("Failed to load image")
             return
+
+        # Checkerboard tile shows through any transparent pixels — classic
+        # graphics-editor staple. Sit underneath the pixmap at negative Z.
+        checker = _CheckerboardItem(QRectF(pm.rect()))
+        checker.setZValue(-10)
+        self._scene.addItem(checker)
+        self._checker_item = checker
 
         self._pixmap_item = QGraphicsPixmapItem(pm)
         self._pixmap_item.setZValue(0)
