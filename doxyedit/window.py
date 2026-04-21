@@ -1105,8 +1105,7 @@ class MainWindow(QMainWindow):
             slot["collapsed_folders"] = set(self.browser._collapsed_folders)
             slot["hidden_folders"] = set(self.browser._hidden_folders)
             if self._dirty and slot["path"]:
-                self._own_save_pending = getattr(self, '_own_save_pending', 0) + 1
-                self.project.save(slot["path"])
+                self._save_project_silently(slot["path"])
                 self._dirty = False
 
     def _on_proj_tab_changed(self, idx: int):
@@ -1145,8 +1144,7 @@ class MainWindow(QMainWindow):
             if reply == QMessageBox.StandardButton.Cancel:
                 return
             if reply == QMessageBox.StandardButton.Save:
-                self._own_save_pending = getattr(self, '_own_save_pending', 0) + 1
-                self.project.save(slot["path"])
+                self._save_project_silently(slot["path"])
         self._project_slots.pop(idx)
         self._proj_tab_bar.blockSignals(True)
         self._proj_tab_bar.removeTab(idx)
@@ -1412,7 +1410,7 @@ class MainWindow(QMainWindow):
         self._apply_theme(self._current_theme_id)
         self._dirty = True
         if self._project_path:
-            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
+            self._save_project_silently(self._project_path)
             self._dirty = False
         self.status.showMessage(f"Project accent: {color.name()}", 2000)
 
@@ -1753,7 +1751,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._apply_theme(self._current_theme_id)
         self._dirty = True
         if self._project_path:
-            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
+            self._save_project_silently(self._project_path)
             self._dirty = False
         self.status.showMessage("Project accent cleared", 2000)
 
@@ -2774,7 +2772,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 cfg.save()
             self._dirty = True
             if self._project_path:
-                self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
+                self._save_project_silently(self._project_path)
             self.status.showMessage(f"Shortcut cleared for {tag_id}", 2000)
             return
         if key in TAG_SHORTCUTS:
@@ -2788,7 +2786,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             cfg.save()
         self._dirty = True
         if self._project_path:
-            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
+            self._save_project_silently(self._project_path)
         shortcut = QShortcut(QKeySequence(key), self)
         shortcut.activated.connect(lambda tid=tag_id: self._toggle_tag_shortcut(tid))
         self.status.showMessage(f"Shortcut '{key}' → {tag_id}", 2000)
@@ -5815,8 +5813,7 @@ Ctrl+Click tag — Search by tag
                 self.project.posts.extend(new_posts)
                 # Save merged state immediately so autosave won't clobber
                 if self._project_path:
-                    self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1
-                    self.project.save(self._project_path)
+                    self._save_project_silently(self._project_path)
                     self._dirty = False
                 if hasattr(self, '_timeline'):
                     self._timeline.refresh()
@@ -5837,9 +5834,29 @@ Ctrl+Click tag — Search by tag
         if self._project_path and Path(self._project_path).exists():
             self._file_watcher.addPath(self._project_path)
 
+    def _save_project_silently(self, path: str | None = None):
+        """Save without tripping our own file watcher.
+
+        Removes `path` from the watcher, saves, re-adds. Replaces the fragile
+        `_own_save_pending` counter pattern at save sites. Still increments the
+        counter for any legacy reader. If `path` is None, uses `_project_path`.
+        """
+        target = path or self._project_path
+        if not target:
+            return
+        watched = target in self._file_watcher.files()
+        if watched:
+            self._file_watcher.removePath(target)
+        try:
+            self.project.save(target)
+        finally:
+            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1
+            if watched and Path(target).exists():
+                self._file_watcher.addPath(target)
+
     def _autosave(self):
         if self._dirty and self._project_path:
-            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
+            self._save_project_silently(self._project_path)
             self._dirty = False
             self.status.showMessage("Auto-saved", 3000)
             self._autosave_collection()
@@ -6048,7 +6065,7 @@ Ctrl+Click tag — Search by tag
             self.project.eye_hidden_tags = list(self.browser._eye_hidden_tags)
             self.project.hidden_tags = list(self.tag_panel._hidden_tags)
             self.project.tray_items = self.work_tray.save_state()
-            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
+            self._save_project_silently(self._project_path)
             self._dirty = False
             self._settings.setValue("last_project", self._project_path)
             self._add_recent_project(self._project_path)
@@ -6072,8 +6089,7 @@ Ctrl+Click tag — Search by tag
         if path:
             path = ensure_project_ext(path, prefer_legacy="doxyproj.json" in selected)
             self._remember_dir(path)
-            self._own_save_pending = getattr(self, '_own_save_pending', 0) + 1
-            self.project.save(path)
+            self._save_project_silently(path)
             self._project_path = path
             self._watch_project()
             self._dirty = False
@@ -6515,7 +6531,7 @@ Ctrl+Click tag — Search by tag
             if hasattr(self, '_hotkey_filter'):
                 QApplication.instance().removeNativeEventFilter(self._hotkey_filter)
         if self._dirty and self._project_path:
-            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1; self.project.save(self._project_path)
+            self._save_project_silently(self._project_path)
         # Save splitter and window position/size
         self._settings.setValue("splitter_sizes", self._browse_split.sizes())
         self._settings.setValue("social_splitter_v", self._social_split.sizes())
