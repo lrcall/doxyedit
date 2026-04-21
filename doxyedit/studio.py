@@ -883,6 +883,8 @@ class OverlayShapeItem(QGraphicsItem):
             self.overlay.shape_h = h
             self.prepareGeometryChange()
             self.update()
+            if self._editor is not None:
+                self._editor.info_label.setText(f"Size: {w}x{h}")
             return
         super().mouseMoveEvent(event)
 
