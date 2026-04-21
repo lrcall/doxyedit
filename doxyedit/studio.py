@@ -3123,6 +3123,35 @@ class StudioEditor(QWidget):
             if key == Qt.Key.Key_Tab:
                 self._cycle_selection(+1)
                 return
+            if key == Qt.Key.Key_Home:
+                # Select first alignable item
+                items = [it for it in self._scene.items()
+                          if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                              OverlayArrowItem, OverlayShapeItem,
+                                              CensorRectItem, ResizableCropItem,
+                                              NoteRectItem))
+                          and it.parentItem() is None]
+                if items:
+                    items.sort(key=lambda it: (it.sceneBoundingRect().y(),
+                                                it.sceneBoundingRect().x()))
+                    self._scene.clearSelection()
+                    items[0].setSelected(True)
+                    self._view.centerOn(items[0])
+                return
+            if key == Qt.Key.Key_End:
+                items = [it for it in self._scene.items()
+                          if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                              OverlayArrowItem, OverlayShapeItem,
+                                              CensorRectItem, ResizableCropItem,
+                                              NoteRectItem))
+                          and it.parentItem() is None]
+                if items:
+                    items.sort(key=lambda it: (it.sceneBoundingRect().y(),
+                                                it.sceneBoundingRect().x()))
+                    self._scene.clearSelection()
+                    items[-1].setSelected(True)
+                    self._view.centerOn(items[-1])
+                return
             if key == Qt.Key.Key_Period:
                 # Focus mode toggle
                 self.btn_focus.setChecked(not self.btn_focus.isChecked())
