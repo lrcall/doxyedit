@@ -1977,29 +1977,44 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._tray_btn.setChecked(False)
         self._tray_btn.triggered.connect(lambda checked: self._toggle_work_tray())
 
-        # Studio tools (active when on Studio tab)
+        # Studio tools (active when on Studio tab) — this is the single
+        # "Main" tool palette; Studio's top-toolbar tool buttons are hidden
+        # on the Studio tab so we don't show the same tools twice. Emoji
+        # glyphs keep each button narrow; tooltip carries the full name.
         from doxyedit.studio import StudioTool
         self._canvas_sep_before = tb.addSeparator()
         tools = [
-            ("Select", StudioTool.SELECT, "V"),
-            ("Censor", StudioTool.CENSOR, "W"),
-            ("Watermark", StudioTool.WATERMARK, "E"),
-            ("Text", StudioTool.TEXT_OVERLAY, "T"),
+            ("↖", "Select", StudioTool.SELECT, "Q"),
+            ("▣", "Censor", StudioTool.CENSOR, "X"),
+            ("◰", "Crop", StudioTool.CROP, "C"),
+            ("✎", "Note", StudioTool.NOTE, "N"),
+            ("🖼", "Watermark / logo", StudioTool.WATERMARK, "E"),
+            ("T", "Text overlay", StudioTool.TEXT_OVERLAY, "T"),
+            ("➜", "Arrow", StudioTool.ARROW, "A"),
+            ("▭", "Shape", StudioTool.SHAPE_RECT, None),
+            ("💉", "Eyedropper", StudioTool.EYEDROPPER, "I"),
         ]
         self._tool_actions = []
-        for name, tool, shortcut in tools:
-            action = QAction(name, self)
+        for glyph, name, tool, shortcut in tools:
+            action = QAction(glyph, self)
             action.setCheckable(True)
+            tip = f"{name} tool"
+            if shortcut:
+                tip += f" ({shortcut})"
+            action.setToolTip(tip)
             action.triggered.connect(lambda checked, t=tool: self._set_studio_tool(t))
             tb.addAction(action)
             self._tool_actions.append((action, tool))
         self._tool_actions[0][0].setChecked(True)
 
-        self._color_action = QAction("Color", self, triggered=self._change_color)
+        self._color_action = QAction("🎨", self, triggered=self._change_color)
+        self._color_action.setToolTip("Color")
         tb.addAction(self._color_action)
         self._canvas_sep_after = tb.addSeparator()
 
-        tb.addAction(QAction("Delete", self, triggered=self._handle_delete))
+        _del_action = QAction("🗑", self, triggered=self._handle_delete)
+        _del_action.setToolTip("Delete selected")
+        tb.addAction(_del_action)
 
     def _build_menu(self):
         menu = self.menuBar()
@@ -4287,6 +4302,19 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             action.setVisible(on_canvas)
         self._color_action.setVisible(on_canvas)
         self._canvas_sep_after.setVisible(on_canvas)
+        # Show the whole left toolbar only on Studio so the Main palette
+        # appears as the single source of truth for tool selection.
+        if hasattr(self, "_left_toolbar"):
+            self._left_toolbar.setVisible(on_canvas)
+        # Studio's own top-bar tool buttons become redundant; hide them
+        # when the Main palette is active so users don't see duplicates.
+        if hasattr(self, "studio"):
+            for btn_name in ("btn_select", "btn_censor", "btn_crop",
+                              "btn_note", "btn_watermark", "btn_text",
+                              "btn_arrow", "btn_shape", "btn_eyedropper"):
+                btn = getattr(self.studio, btn_name, None)
+                if btn is not None:
+                    btn.setVisible(not on_canvas)
         # Lazy-load censor editor when its tab becomes active
         widget = self.tabs.widget(index)
         if widget is self.censor_editor and self.browser._selected_ids:

@@ -5142,6 +5142,16 @@ class StudioEditor(QWidget):
         if hasattr(self, "btn_shape"):
             self.btn_shape.setChecked(
                 tool in (StudioTool.SHAPE_RECT, StudioTool.SHAPE_ELLIPSE))
+        # Also sync the main-window's left-toolbar Main palette actions.
+        win = self.window()
+        if win is not None and hasattr(win, "_tool_actions"):
+            for action, act_tool in win._tool_actions:
+                # Treat Shape variants as checked for the one SHAPE_RECT action.
+                if act_tool == StudioTool.SHAPE_RECT:
+                    action.setChecked(
+                        tool in (StudioTool.SHAPE_RECT, StudioTool.SHAPE_ELLIPSE))
+                else:
+                    action.setChecked(act_tool == tool)
         # Update the tool-name label in the status bar
         if hasattr(self, "_tool_label"):
             names = {
