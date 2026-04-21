@@ -309,6 +309,10 @@ def _composite_image_overlay(img: Image.Image, ov: CanvasOverlay, project_dir: s
         if getattr(ov, "flip_v", False):
             wm = wm.transpose(Image.FLIP_TOP_BOTTOM)
 
+        # Rotation (in-place around the image center, expand to fit)
+        if getattr(ov, "rotation", 0):
+            wm = wm.rotate(-ov.rotation, resample=Image.BICUBIC, expand=True)
+
         # Filter (grayscale / invert / blur) — before opacity / composite
         mode = getattr(ov, "filter_mode", "") or ""
         if mode == "grayscale":
