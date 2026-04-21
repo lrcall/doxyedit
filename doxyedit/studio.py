@@ -4075,6 +4075,8 @@ class StudioEditor(QWidget):
                 label = f"T  {ov.text[:20]}" if ov.text else "T  (empty text)"
             elif ov.type == "watermark":
                 label = f"W  {ov.label or Path(ov.image_path).stem}"
+            elif ov.type == "arrow":
+                label = f"→  {ov.label or 'Arrow'}"
             else:
                 label = f"O  {ov.label or ov.type}"
             # Prepend visibility / lock indicators so layer state is
