@@ -1,5 +1,100 @@
 # DoxyEdit Changelog
 
+## v2.4 (2026-04-21) — Studio Export Pipeline, threading, architecture
+
+### Studio Export Pipeline (original v2.4 focus)
+- **Escape in Studio now works**. Deleted app-level event filter and four
+  redundant handlers; single mousePressEvent commits any focused text item.
+- **CropRegion gains platform_id + slot_name** as first-class fields.
+  Pipeline prefers exact platform_id match over label substring. Legacy
+  projects keep working via fallback (now logs a warning on ambiguity).
+- **Export All** per-crop overlay/censor scoping uses platform_id instead
+  of the brittle substring match that could mix "twitter" with "twitter_header".
+- **Export Platform** respects the crop combo selection (already wired;
+  H3.1 made slot_name authoritative).
+- **Identity Import/Export** — File → Import/Export → Identity. JSON
+  round-trip. Import does NOT regenerate captions (CLAUDE.md rule).
+
+### Threading — UI stays responsive during I/O
+- **Splash screen** with Cancel Load / Quit buttons. Window paints before
+  autoload. Splash reads saved theme from QSettings.
+- **Project load off UI thread** — ProjectLoader QThread. Startup
+  autoload, File→Open, Recent, drag-drop, collection restore, Reload (F5)
+  all non-blocking.
+- **Find Duplicates / Find Similar** off UI thread with cancellable progress.
+- **Stats Disk Size** computed off UI thread, cached per asset-count.
+- **Cross-project schedule peek** parallelized across projects.
+- **OneUp sync fetch phase** off UI thread — duplicate-warning dialog stays
+  on UI thread.
+- **Auto-Post Playwright batch** off UI thread with real cancel button.
+- **File watcher suppression** — `_save_project_silently()` replaces
+  fragile `_own_save_pending` counter.
+
+### Perf
+- **Lazy panel refresh** — StatsPanel, HealthPanel, ChecklistPanel,
+  PlatformPanel, GanttPanel, TimelineStream, CalendarPane migrated to
+  LazyRefreshMixin. Tab swap no longer rebuilds 14 panels.
+- **Notes tabs** deferred to Notes tab activation; theme change re-renders
+  only the active preview.
+- **Export cache** — per-batch PSD decode + censor/overlay memoization.
+  5-platform post on a 100MB PSD drops from ~20s to ~4s.
+- **Splitter non-opaque resize** — dragging the tray handle no longer
+  re-lays out the 70k-asset grid on every pixel.
+- **Preview cache eviction** — `~/.doxyedit/preview_cache/` prunes files
+  older than 30 days, caps total at 2 GB.
+- **Browser scaled-cache** gets LRU with 2048-entry cap.
+- **Filebrowser** recursive folder counts O(K²) → O(K·depth) via parent-chain propagation.
+- **Folder compact/expand** asset-path repair: one rglob instead of per-asset.
+- **Health panel** shared rename-index replaces per-asset recursive scans.
+- **autosave_collection** skip-when-unchanged.
+
+### New format / project file
+- **`.doxy`** (projects) and **`.doxycol`** (collections) as default save
+  extensions. Legacy `.doxyproj.json` / `.doxycoll.json` still load; user
+  picks format in save dialog.
+- **formats.py** helper module for extension checks.
+
+### Bug fixes
+- **Tag colors** — tag bar and InfoPanel pills were silently grey because
+  projects saved empty `color` fields. Placeholder colors now promote to
+  VINIK cycle.
+- **Multi-window TAG_SHORTCUTS** no longer stomps other open windows.
+- **GDI handle leak** in `get_shell_thumbnail` on exception paths.
+- **asyncio loop leak** in `post_to_platform_sync` on exception paths.
+- **platforms.py** drop-event NameError on non-asset files.
+- **Export dropped** all but the first asset (`post.asset_ids[:1]`).
+- **Duplicate `_rebuild_per_platform_captions`** call in composer_right.
+- **Composer cross-project identities** — ContentPanel accepts
+  `extra_projects` to reuse identities across related projects.
+- **New-window flash** — windows created for collection open / tab detach
+  now `show()` only after async load fires, instead of flashing an empty
+  tiny frame at center-screen.
+
+### Architecture / code hygiene
+- **Dead modules deleted** (-1300 lines): `canvas.py`, `censor.py`,
+  `kanban.py`, `overlay_editor.py`, `project.py`.
+- **session.py** extracted — AsyncLoadHandle + ProjectLoader.
+- **export_cache.py** new module.
+- **panel_mixin.py** new module with LazyRefreshMixin.
+- **MCP helpers extracted** — `oneup.mcp_init_session()` +
+  `mcp_tool_call()` replace three duplicated init/call blocks.
+- **Hoisted hot-path imports** — theme tokens in preview.py, markdown in
+  window.py.
+- **OneUp sync debug prints** converted to `logging` where useful.
+- **formats.py** + helpers consolidate `.doxy` / `.doxyproj.json` /
+  `.doxycol` / `.doxycoll.json` checks.
+
+### UI polish
+- **Themed splash** reads active theme from QSettings.
+- **Shortcuts dialog** generated from QAction registry (no more drift).
+- **What's New** reads `docs/CHANGELOG.md` (this file).
+- **Tab bar + "new tab" button** styling moved from inline stylesheets
+  to theme QSS.
+- **Tab breakout** — right-click a project tab → Open in New Window.
+- **StatsPanel** folder bar color from theme instead of hardcoded.
+- **Posting state audit** — `docs/state-machine-posts.md` documents the
+  post lifecycle and double-post guards. No bugs found.
+
 ## v2.3.1 (2026-04-16) — Asset Groups, Tokenization & Platform Rework
 
 ### Asset Groups: Duplicates & Variants
