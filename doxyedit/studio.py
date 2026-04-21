@@ -1967,6 +1967,9 @@ class StudioEditor(QWidget):
         self._layer_panel.setMaximumWidth(int(_dt.font_size * LAYER_PANEL_MAX_WIDTH_RATIO))
         self._layer_panel.setDragDropMode(QListWidget.DragDropMode.InternalMove)
         self._layer_panel.itemClicked.connect(self._on_layer_clicked)
+        self._layer_panel.itemDoubleClicked.connect(self._on_layer_double_clicked)
+        self._layer_panel.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._layer_panel.customContextMenuRequested.connect(self._on_layer_context_menu)
         # Drag-reorder wiring: when the user drags a row, the list widget
         # fires rowsMoved. We translate the new visual order back into
         # asset.overlays / asset.censors order (top of list = front).
@@ -3038,6 +3041,86 @@ class StudioEditor(QWidget):
                 if getattr(it, "overlay", None) is ov:
                     it.setZValue(200 + i)
                     break
+
+    def _on_layer_double_clicked(self, item):
+        """Double-click a layer row → rename (overlays) or edit text (text)."""
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+        kind, idx = data
+        if kind == "overlay" and 0 <= idx < len(self._asset.overlays):
+            ov = self._asset.overlays[idx]
+            if ov.type == "text":
+                # Enter inline edit mode on the scene item
+                for scene_item in self._scene.items():
+                    if isinstance(scene_item, OverlayTextItem) and scene_item.overlay is ov:
+                        scene_item.setSelected(True)
+                        scene_item.setTextInteractionFlags(
+                            Qt.TextInteractionFlag.TextEditorInteraction)
+                        scene_item.setFocus()
+                        break
+            else:
+                old = ov.label or ""
+                new_label, ok = QInputDialog.getText(
+                    self, "Rename layer", "Label:", text=old)
+                if ok and new_label.strip():
+                    ov.label = new_label.strip()
+                    self._rebuild_layer_panel()
+
+    def _on_layer_context_menu(self, pos):
+        """Right-click a layer row -> visibility/lock toggle, rename, delete."""
+        item = self._layer_panel.itemAt(pos)
+        if item is None:
+            return
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+        kind, idx = data
+        menu = _themed_menu(self._layer_panel)
+        if kind == "overlay" and 0 <= idx < len(self._asset.overlays):
+            ov = self._asset.overlays[idx]
+            vis_act = menu.addAction("Hide" if ov.enabled else "Show")
+            lock_act = menu.addAction(
+                "Unlock" if getattr(ov, "locked", False) else "Lock")
+            rename_act = menu.addAction("Rename...")
+            menu.addSeparator()
+            delete_act = menu.addAction("Delete")
+            chosen = menu.exec(self._layer_panel.mapToGlobal(pos))
+            if chosen is vis_act:
+                ov.enabled = not ov.enabled
+                for it in self._scene.items():
+                    if hasattr(it, "overlay") and it.overlay is ov:
+                        it.setVisible(ov.enabled)
+                        break
+                self._rebuild_layer_panel()
+            elif chosen is lock_act:
+                ov.locked = not getattr(ov, "locked", False)
+                for it in self._scene.items():
+                    if hasattr(it, "overlay") and it.overlay is ov:
+                        it.setFlag(
+                            it.GraphicsItemFlag.ItemIsMovable, not ov.locked)
+                        it.setFlag(
+                            it.GraphicsItemFlag.ItemIsSelectable, not ov.locked)
+                        break
+                self._rebuild_layer_panel()
+            elif chosen is rename_act:
+                self._on_layer_double_clicked(item)
+            elif chosen is delete_act:
+                for it in self._scene.items():
+                    if hasattr(it, "overlay") and it.overlay is ov:
+                        self._remove_overlay_item(it)
+                        break
+                self._rebuild_layer_panel()
+        elif kind == "censor" and 0 <= idx < len(self._asset.censors):
+            cr = self._asset.censors[idx]
+            delete_act = menu.addAction("Delete")
+            chosen = menu.exec(self._layer_panel.mapToGlobal(pos))
+            if chosen is delete_act:
+                for it in self._scene.items():
+                    if isinstance(it, CensorRectItem) and it._censor_region is cr:
+                        self._remove_censor_item(it)
+                        break
+                self._rebuild_layer_panel()
 
     def _on_layer_clicked(self, item):
         """Select the corresponding scene item when layer is clicked."""
