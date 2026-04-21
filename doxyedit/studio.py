@@ -1554,6 +1554,7 @@ class OverlayTextItem(QGraphicsTextItem):
         shadow_stronger_act = shadow_menu.addAction("Shadow Stronger")
         shadow_softer_act = shadow_menu.addAction("Shadow Softer")
         select_same_act = menu.addAction("Select All Text Overlays")
+        apply_to_all_act = menu.addAction("Apply This Style to All Text")
         find_replace_act = menu.addAction("Find and Replace Text...")
         save_style_act = menu.addAction("Save as Default Text Style")
         reset_style_act = menu.addAction("Reset Default Text Style")
@@ -1675,6 +1676,8 @@ class OverlayTextItem(QGraphicsTextItem):
             for it in self._editor._overlay_items:
                 if isinstance(it, OverlayTextItem):
                     it.setSelected(True)
+        elif chosen is apply_to_all_act and self._editor:
+            self._editor._apply_text_style_to_all(self.overlay)
         elif chosen is find_replace_act and self._editor:
             self._editor._find_replace_text()
         elif chosen is save_style_act and self._editor:
@@ -4922,6 +4925,26 @@ class StudioEditor(QWidget):
         self._zoom_label.setText(f"{int(factor * 100)}%")
         if hasattr(self, "_canvas_wrap"):
             self._canvas_wrap.refresh()
+
+    def _apply_text_style_to_all(self, source_overlay):
+        """Copy the source overlay's text style fields to every other text
+        overlay in the scene. Undo-wrapped per target so users can revert."""
+        count = 0
+        for it in list(self._overlay_items):
+            if isinstance(it, OverlayTextItem) and it.overlay is not source_overlay:
+                for field in self._TEXT_STYLE_FIELDS:
+                    val = getattr(source_overlay, field)
+                    if getattr(it.overlay, field) != val:
+                        self._push_overlay_attr(
+                            it, field, val,
+                            apply_cb=lambda _it, _v: _it._apply_font(),
+                            description="Apply text style")
+                count += 1
+        if count:
+            self._sync_overlays_to_asset()
+            self.info_label.setText(f"Applied style to {count} text overlay(s)")
+        else:
+            self.info_label.setText("No other text overlays to apply to")
 
     def _find_replace_text(self):
         """Prompt for find/replace strings and apply to every text overlay."""
