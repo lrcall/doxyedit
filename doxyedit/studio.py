@@ -665,13 +665,16 @@ class OverlayShapeItem(QGraphicsItem):
     def hoverMoveEvent(self, event):
         # Swap cursor when hovering a handle so users know they can resize
         if self.isSelected():
-            h = self._handle_under(event.scenePos())
-            if h in ('tl', 'br'):
-                self.setCursor(Qt.CursorShape.SizeFDiagCursor)
-            elif h in ('tr', 'bl'):
-                self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+            if self._tail_handle_under(event.scenePos()):
+                self.setCursor(Qt.CursorShape.PointingHandCursor)
             else:
-                self.setCursor(Qt.CursorShape.SizeAllCursor)
+                h = self._handle_under(event.scenePos())
+                if h in ('tl', 'br'):
+                    self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+                elif h in ('tr', 'bl'):
+                    self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+                else:
+                    self.setCursor(Qt.CursorShape.SizeAllCursor)
         super().hoverMoveEvent(event)
 
     def _handle_positions(self) -> dict:
@@ -784,11 +787,39 @@ class OverlayShapeItem(QGraphicsItem):
                 return key
         return None
 
+    def _tail_handle_under(self, scene_pos: QPointF) -> bool:
+        """True if `scene_pos` is near the bubble tail tip handle."""
+        if not self._is_bubble():
+            return False
+        body = QRectF(self.overlay.x, self.overlay.y,
+                      self.overlay.shape_w, self.overlay.shape_h)
+        tip = self._tail_tip(body)
+        r = self.HANDLE_HIT_RADIUS
+        return (abs(scene_pos.x() - tip.x()) <= r
+                and abs(scene_pos.y() - tip.y()) <= r)
+
+    def _is_bubble(self) -> bool:
+        return self.overlay.shape_kind in ("speech_bubble", "thought_bubble")
+
     def boundingRect(self) -> QRectF:
         x, y = self.overlay.x, self.overlay.y
         w, h = self.overlay.shape_w, self.overlay.shape_h
         pad = max(4, (self.overlay.stroke_width or 1))
-        return QRectF(x - pad, y - pad, w + 2 * pad, h + 2 * pad)
+        r = QRectF(x - pad, y - pad, w + 2 * pad, h + 2 * pad)
+        # Bubbles: extend bounding rect so the tail tip is part of the
+        # paint region. Without this, dragging the tail outside the body
+        # bounds leaves paint artifacts when the tail is cut off.
+        if self._is_bubble():
+            body = QRectF(self.overlay.x, self.overlay.y,
+                          self.overlay.shape_w, self.overlay.shape_h)
+            tip = self._tail_tip(body)
+            tail_pad = 12
+            min_x = min(r.left(), tip.x() - tail_pad)
+            min_y = min(r.top(), tip.y() - tail_pad)
+            max_x = max(r.right(), tip.x() + tail_pad)
+            max_y = max(r.bottom(), tip.y() + tail_pad)
+            r = QRectF(min_x, min_y, max_x - min_x, max_y - min_y)
+        return r
 
     def paint(self, painter, option, widget=None):
         r = QRectF(self.overlay.x, self.overlay.y,
@@ -866,6 +897,13 @@ class OverlayShapeItem(QGraphicsItem):
             painter.setBrush(QBrush(QColor(255, 200, 0)))
             for pt in self._handle_positions().values():
                 painter.drawRect(QRectF(pt.x() - _r, pt.y() - _r, 2 * _r, 2 * _r))
+            # Tail tip handle for speech / thought bubbles: a cyan-outlined
+            # circle at the tail point. Drag to move where the bubble points.
+            if self._is_bubble():
+                tip = self._tail_tip(r)
+                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                painter.setBrush(QBrush(QColor(100, 200, 255)))
+                painter.drawEllipse(tip, 6, 6)
             # For linear gradients, also show a direction line + two circles
             # representing the gradient start / end.
             if self.overlay.shape_kind == "gradient_linear":
@@ -887,6 +925,13 @@ class OverlayShapeItem(QGraphicsItem):
 
     def mousePressEvent(self, event):
         if self.isSelected():
+            # Tail handle wins when the shape is a bubble, so dragging the
+            # tail tip never accidentally starts a body resize.
+            if self._tail_handle_under(event.scenePos()):
+                self._dragging_handle = 'tail'
+                self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                event.accept()
+                return
             # Gradient direction handle wins over corner handles when the
             # shape is a linear gradient.
             if self.overlay.shape_kind == "gradient_linear":
@@ -924,6 +969,14 @@ class OverlayShapeItem(QGraphicsItem):
         return None
 
     def mouseMoveEvent(self, event):
+        if self._dragging_handle == 'tail':
+            sp = event.scenePos()
+            self.overlay.tail_x = int(sp.x())
+            self.overlay.tail_y = int(sp.y())
+            self.prepareGeometryChange()
+            self.update()
+            event.accept()
+            return
         if self._dragging_handle in ('grad_start', 'grad_end'):
             # Drag updates the gradient angle, pivoting on the rect center
             import math as _m
