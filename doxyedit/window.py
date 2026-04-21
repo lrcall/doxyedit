@@ -6212,10 +6212,15 @@ Ctrl+Click tag — Search by tag
         self.browser._selected_ids.clear()
         self.browser._eye_hidden_tags.clear()
         self.browser._folder_filter = None
-        # Clear previous project's custom shortcuts from the global TAG_SHORTCUTS dict
-        for key in list(TAG_SHORTCUTS.keys()):
-            if key not in TAG_SHORTCUTS_DEFAULT:
-                del TAG_SHORTCUTS[key]
+        # Track this window's custom shortcuts separately. We used to DELETE
+        # any non-default entry from the global TAG_SHORTCUTS dict here, which
+        # stomped on sibling MainWindows' shortcuts when the user had multiple
+        # windows open (tab-detach). Now: per-window snapshot only; the module
+        # dict holds the union of all open windows' shortcuts, which is fine
+        # for display and doesn't block per-window QShortcut routing.
+        self._custom_shortcuts: dict[str, str] = dict(
+            self.project.custom_shortcuts or {}
+        )
 
         # Sync local mode toggle to the loaded project's setting
         if hasattr(self, '_local_mode_action'):
