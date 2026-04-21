@@ -1058,6 +1058,26 @@ class OverlayShapeItem(QGraphicsItem):
             return
         super().mouseReleaseEvent(event)
 
+    def mouseDoubleClickEvent(self, event):
+        # Bubbles: double-click drops the user into the linked text overlay
+        # for immediate editing. Comic-book standard workflow.
+        if self._is_bubble() and self.overlay.linked_text_id and self._editor:
+            for it in self._editor._overlay_items:
+                if (isinstance(it, OverlayTextItem)
+                        and it.overlay.label == self.overlay.linked_text_id):
+                    self._editor._scene.clearSelection()
+                    it.setSelected(True)
+                    it.setTextInteractionFlags(
+                        Qt.TextInteractionFlag.TextEditorInteraction)
+                    it.setFocus(Qt.FocusReason.MouseFocusReason)
+                    # Put the cursor at the end so new keystrokes append.
+                    cursor = it.textCursor()
+                    cursor.movePosition(cursor.MoveOperation.End)
+                    it.setTextCursor(cursor)
+                    event.accept()
+                    return
+        super().mouseDoubleClickEvent(event)
+
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             pos = self.pos()
