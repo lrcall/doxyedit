@@ -438,10 +438,14 @@ class OverlayImageItem(QGraphicsPixmapItem):
         filter_none_act = filter_menu.addAction("None")
         filter_gray_act = filter_menu.addAction("Grayscale")
         filter_invert_act = filter_menu.addAction("Invert Colors")
+        filter_blur_act = filter_menu.addAction("Blur (soft)")
+        filter_blur_hard_act = filter_menu.addAction("Blur (heavy)")
         current_filter = getattr(self.overlay, "filter_mode", "") or ""
         for a, v in ((filter_none_act, ""),
                       (filter_gray_act, "grayscale"),
-                      (filter_invert_act, "invert")):
+                      (filter_invert_act, "invert"),
+                      (filter_blur_act, "blur3"),
+                      (filter_blur_hard_act, "blur8")):
             a.setCheckable(True)
             a.setChecked(current_filter == v)
         menu.addSeparator()
@@ -490,10 +494,13 @@ class OverlayImageItem(QGraphicsPixmapItem):
             self.update()
             if self._editor:
                 self._editor._sync_overlays_to_asset()
-        elif chosen in (filter_none_act, filter_gray_act, filter_invert_act):
+        elif chosen in (filter_none_act, filter_gray_act,
+                         filter_invert_act, filter_blur_act, filter_blur_hard_act):
             target = (
                 "" if chosen is filter_none_act else
-                "grayscale" if chosen is filter_gray_act else "invert")
+                "grayscale" if chosen is filter_gray_act else
+                "invert" if chosen is filter_invert_act else
+                "blur3" if chosen is filter_blur_act else "blur8")
             self.overlay.filter_mode = target
             # Re-render the pixmap with the filter applied
             if self._editor:
@@ -5065,9 +5072,10 @@ class StudioEditor(QWidget):
             target_w = max(10, int(base_w * ov.scale))
             src = src.scaledToWidth(target_w,
                                      Qt.TransformationMode.SmoothTransformation)
-        # Apply filter via QImage pixel manipulation
+        # Apply filter. Grayscale / invert: per-pixel QImage. Blur: round-
+        # trip through PIL so we get a real gaussian instead of bespoke math.
         mode = getattr(ov, "filter_mode", "") or ""
-        if mode:
+        if mode in ("grayscale", "invert"):
             from PySide6.QtGui import QImage
             qimg = src.toImage().convertToFormat(QImage.Format.Format_ARGB32)
             w, h = qimg.width(), qimg.height()
@@ -5085,6 +5093,20 @@ class StudioEditor(QWidget):
                                   255 - c.blue(), c.alpha())
                     qimg.setPixelColor(x, y, c)
             src = QPixmap.fromImage(qimg)
+        elif mode in ("blur3", "blur8"):
+            radius = 3 if mode == "blur3" else 8
+            from PySide6.QtGui import QImage
+            from PIL import Image as _PImg, ImageFilter as _PF
+            import io as _io
+            buf = _io.BytesIO()
+            src.toImage().save(buf, "PNG")
+            pil_img = _PImg.open(_io.BytesIO(buf.getvalue())).convert("RGBA")
+            pil_img = pil_img.filter(_PF.GaussianBlur(radius=radius))
+            out_buf = _io.BytesIO()
+            pil_img.save(out_buf, "PNG")
+            qimg2 = QImage()
+            qimg2.loadFromData(out_buf.getvalue())
+            src = QPixmap.fromImage(qimg2)
         item.setPixmap(src)
         item.update()
 

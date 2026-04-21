@@ -282,7 +282,7 @@ def _composite_image_overlay(img: Image.Image, ov: CanvasOverlay, project_dir: s
         if getattr(ov, "flip_v", False):
             wm = wm.transpose(Image.FLIP_TOP_BOTTOM)
 
-        # Filter (grayscale / invert) — applied before opacity + compositing
+        # Filter (grayscale / invert / blur) — before opacity / composite
         mode = getattr(ov, "filter_mode", "") or ""
         if mode == "grayscale":
             from PIL import ImageOps
@@ -295,6 +295,10 @@ def _composite_image_overlay(img: Image.Image, ov: CanvasOverlay, project_dir: s
             inv = ImageOps.invert(wm.convert("RGB")).convert("RGBA")
             inv.putalpha(wm.split()[3])
             wm = inv
+        elif mode in ("blur3", "blur8"):
+            from PIL import ImageFilter as _PF
+            radius = 3 if mode == "blur3" else 8
+            wm = wm.filter(_PF.GaussianBlur(radius=radius))
 
         # Apply opacity
         if ov.opacity < 1.0:
