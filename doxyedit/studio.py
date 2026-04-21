@@ -2378,6 +2378,13 @@ class StudioEditor(QWidget):
         self.chk_thirds.toggled.connect(self._on_thirds_toggled)
         toolbar.addWidget(self.chk_thirds)
 
+        self.chk_rulers = QCheckBox("Rulers")
+        self.chk_rulers.setObjectName("studio_rulers_toggle")
+        self.chk_rulers.setToolTip("Show horizontal + vertical rulers")
+        self.chk_rulers.setChecked(True)
+        self.chk_rulers.toggled.connect(self._on_rulers_toggled)
+        toolbar.addWidget(self.chk_rulers)
+
         self.btn_focus = QPushButton("Focus")
         self.btn_focus.setObjectName("studio_btn_focus")
         self.btn_focus.setToolTip("Hide layer panel + filmstrip for a larger canvas (period to toggle)")
@@ -2589,6 +2596,14 @@ class StudioEditor(QWidget):
         self.chk_thirds.blockSignals(True)
         self.chk_thirds.setChecked(_tv)
         self.chk_thirds.blockSignals(False)
+        _rv = _qs.value("studio_rulers_visible", True, type=bool)
+        self.chk_rulers.blockSignals(True)
+        self.chk_rulers.setChecked(_rv)
+        self.chk_rulers.blockSignals(False)
+        if hasattr(self, "_canvas_wrap"):
+            self._canvas_wrap._h_ruler.setVisible(_rv)
+            self._canvas_wrap._v_ruler.setVisible(_rv)
+            self._canvas_wrap._corner.setVisible(_rv)
 
         # Layer panel (right sidebar, collapsible)
         self._layer_panel = QListWidget()
@@ -3799,6 +3814,15 @@ class StudioEditor(QWidget):
             self._preview_strip.setVisible(not on)
         if hasattr(self, "_preview_strip_scroll"):
             self._preview_strip_scroll.setVisible(not on)
+
+    def _on_rulers_toggled(self, on: bool):
+        """Show or hide the ruler widgets."""
+        if hasattr(self, "_canvas_wrap"):
+            self._canvas_wrap._h_ruler.setVisible(on)
+            self._canvas_wrap._v_ruler.setVisible(on)
+            self._canvas_wrap._corner.setVisible(on)
+        from PySide6.QtCore import QSettings as _QS
+        _QS("DoxyEdit", "DoxyEdit").setValue("studio_rulers_visible", on)
 
     def _persist_canvas_split(self, *_):
         """Save the canvas/layer-panel splitter geometry to QSettings."""
