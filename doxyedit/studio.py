@@ -1584,12 +1584,17 @@ class _StudioCanvas(QWidget):
         grid = QGridLayout(self)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setSpacing(0)
-        self._corner = QWidget()
+        self._corner = QLabel("⌖")  # crosshair glyph — click for Fit
+        self._corner.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._corner.setFixedSize(self.RULER_SIZE, self.RULER_SIZE)
+        self._corner.setToolTip("Click to fit view to canvas")
+        self._corner.setCursor(Qt.CursorShape.PointingHandCursor)
         self._corner.setAutoFillBackground(True)
         _pal = self._corner.palette()
         _pal.setColor(self._corner.backgroundRole(), QColor(theme.bg_deep))
+        _pal.setColor(self._corner.foregroundRole(), QColor(theme.text_muted))
         self._corner.setPalette(_pal)
+        self._corner.mousePressEvent = self._on_corner_click
         self._h_ruler = _StudioRuler(view, 'h', theme)
         self._h_ruler.setFixedHeight(self.RULER_SIZE)
         self._v_ruler = _StudioRuler(view, 'v', theme)
@@ -1610,6 +1615,7 @@ class _StudioCanvas(QWidget):
         self._theme = theme
         _pal = self._corner.palette()
         _pal.setColor(self._corner.backgroundRole(), QColor(theme.bg_deep))
+        _pal.setColor(self._corner.foregroundRole(), QColor(theme.text_muted))
         self._corner.setPalette(_pal)
         self._h_ruler.set_theme(theme)
         self._v_ruler.set_theme(theme)
@@ -1621,6 +1627,19 @@ class _StudioCanvas(QWidget):
     def refresh(self):
         self._h_ruler.update()
         self._v_ruler.update()
+
+    def _on_corner_click(self, event):
+        """Click the ruler corner → fit view to canvas (same as Ctrl+0)."""
+        editor = getattr(self._view, "_studio_editor", None)
+        if editor is None:
+            return
+        scene = self._view.scene()
+        if scene and scene.sceneRect():
+            self._view.fitInView(scene.sceneRect(),
+                                  Qt.AspectRatioMode.KeepAspectRatio)
+            if hasattr(editor, "_zoom_label"):
+                editor._zoom_label.setText("Fit")
+            self.refresh()
 
 
 class StudioView(QGraphicsView):
