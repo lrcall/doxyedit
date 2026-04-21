@@ -456,6 +456,7 @@ class OverlayImageItem(QGraphicsPixmapItem):
         menu = _themed_menu(_parent)
         replace_act = menu.addAction("Replace Image...")
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
+        fit_canvas_act = menu.addAction("Fit to Canvas")
         menu.addSeparator()
         save_style_act = menu.addAction("Save as Default Watermark Style")
         reset_style_act = menu.addAction("Reset Default Watermark Style")
@@ -509,6 +510,18 @@ class OverlayImageItem(QGraphicsPixmapItem):
             self._editor._replace_overlay_image(self)
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_overlay_item(self)
+        elif chosen is fit_canvas_act and self._editor:
+            # Rescale + reposition to cover the full image
+            if self._editor._pixmap_item is not None:
+                pm_rect = self._editor._pixmap_item.boundingRect()
+                self.overlay.scale = 1.0
+                self.overlay.x = int(pm_rect.left())
+                self.overlay.y = int(pm_rect.top())
+                self.overlay.position = "custom"
+                # Reload the pixmap at the new scale
+                self._editor._refresh_overlay_image(self)
+                self.setPos(self.overlay.x, self.overlay.y)
+                self._editor._sync_overlays_to_asset()
         elif chosen is save_style_act and self._editor:
             self._editor._save_watermark_style_as_default(self.overlay)
         elif chosen is reset_style_act and self._editor:
