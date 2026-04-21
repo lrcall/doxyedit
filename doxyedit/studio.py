@@ -1184,6 +1184,10 @@ class OverlayTextItem(QGraphicsTextItem):
             font.setBold(True)
         if self.overlay.italic:
             font.setItalic(True)
+        if getattr(self.overlay, "underline", False):
+            font.setUnderline(True)
+        if getattr(self.overlay, "strikethrough", False):
+            font.setStrikeOut(True)
         if self.overlay.letter_spacing:
             font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, self.overlay.letter_spacing)
         self.setFont(font)
@@ -1343,6 +1347,12 @@ class OverlayTextItem(QGraphicsTextItem):
         color_act = menu.addAction("Change Color...")
         bg_act = menu.addAction("Change Background...")
         clear_bg_act = menu.addAction("Clear Background")
+        underline_act = menu.addAction("Underline")
+        underline_act.setCheckable(True)
+        underline_act.setChecked(bool(getattr(self.overlay, "underline", False)))
+        strike_act = menu.addAction("Strikethrough")
+        strike_act.setCheckable(True)
+        strike_act.setChecked(bool(getattr(self.overlay, "strikethrough", False)))
         shadow_menu = menu.addMenu("Drop Shadow")
         shadow_on = bool(self.overlay.shadow_color and self.overlay.shadow_offset)
         shadow_toggle_act = shadow_menu.addAction(
@@ -1390,6 +1400,19 @@ class OverlayTextItem(QGraphicsTextItem):
                 apply_cb=lambda it, _v: it.update(),
                 description="Clear text background",
             )
+            self._editor._sync_overlays_to_asset()
+        elif chosen is underline_act and self._editor:
+            self._editor._push_overlay_attr(
+                self, "underline", not getattr(self.overlay, "underline", False),
+                apply_cb=lambda it, _v: it._apply_font(),
+                description="Toggle underline")
+            self._editor._sync_overlays_to_asset()
+        elif chosen is strike_act and self._editor:
+            self._editor._push_overlay_attr(
+                self, "strikethrough",
+                not getattr(self.overlay, "strikethrough", False),
+                apply_cb=lambda it, _v: it._apply_font(),
+                description="Toggle strikethrough")
             self._editor._sync_overlays_to_asset()
         elif chosen is shadow_toggle_act and self._editor:
             if shadow_on:
@@ -5201,7 +5224,8 @@ class StudioEditor(QWidget):
     # those are per-instance.
     _TEXT_STYLE_FIELDS = (
         "font_family", "font_size", "color", "opacity",
-        "bold", "italic", "letter_spacing", "line_height",
+        "bold", "italic", "underline", "strikethrough",
+        "letter_spacing", "line_height",
         "stroke_color", "stroke_width",
         "shadow_color", "shadow_offset", "shadow_blur",
     )

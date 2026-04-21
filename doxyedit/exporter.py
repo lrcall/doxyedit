@@ -510,6 +510,33 @@ def _composite_text_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
         else:
             draw.text((x, y), render_text, font=font, fill=(r, g, b, a), spacing=spacing)
 
+        # Underline / strikethrough — PIL doesn't expose these as text flags,
+        # so render explicit lines under / through each text row.
+        want_underline = bool(getattr(ov, "underline", False))
+        want_strike = bool(getattr(ov, "strikethrough", False))
+        if want_underline or want_strike:
+            try:
+                ascent, descent = font.getmetrics()
+            except Exception:
+                ascent, descent = int(ov.font_size * 0.8), int(ov.font_size * 0.2)
+            line_w = max(1, ov.stroke_width if ov.stroke_width > 0 else max(1, ov.font_size // 12))
+            lines = render_text.split("\n")
+            line_step = ascent + descent + spacing
+            for i, line in enumerate(lines):
+                if not line:
+                    continue
+                row_top = y + i * line_step
+                seg_bbox = draw.textbbox((x, row_top), line, font=font)
+                x0, y0, x1, y1 = seg_bbox
+                if want_underline:
+                    uy = y0 + ascent + 2
+                    draw.line([(x0, uy), (x1, uy)], fill=(r, g, b, a),
+                              width=line_w)
+                if want_strike:
+                    sy = y0 + int(ascent * 0.6)
+                    draw.line([(x0, sy), (x1, sy)], fill=(r, g, b, a),
+                              width=line_w)
+
         return Image.alpha_composite(img, layer)
     except Exception:
         return img

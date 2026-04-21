@@ -226,6 +226,8 @@ class CanvasOverlay:
     line_style: str = "solid"  # "solid", "dash", "dot" — for arrows/shapes
     blend_mode: str = "normal"  # normal / multiply / screen / overlay / darken / lighten
     filter_mode: str = ""        # "grayscale" / "invert" for image overlays
+    underline: bool = False
+    strikethrough: bool = False
     corner_radius: int = 0  # for shape type="shape" with shape_kind="rect"
     # Gradient shapes: stored hex colors + angle in degrees (linear).
     gradient_start_color: str = ""
