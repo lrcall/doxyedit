@@ -523,8 +523,10 @@ class OverlayShapeItem(QGraphicsItem):
 
     Top-left at (overlay.x, overlay.y), dimensions shape_w × shape_h.
     stroke_color + stroke_width describe the outline; fill_color (empty =
-    hollow) fills the interior. Movable + selectable; endpoint resize is
-    deferred — users can redraw or use the props panel X/Y spinboxes."""
+    hollow) fills the interior. Movable + selectable; corner handles when
+    selected for click-drag resize (Photoshop convention)."""
+
+    HANDLE_HIT_RADIUS = 10
 
     def __init__(self, overlay: "CanvasOverlay", parent=None):
         super().__init__(parent)
@@ -534,7 +536,26 @@ class OverlayShapeItem(QGraphicsItem):
             | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         self._editor = None
+        self._dragging_handle = None  # 'tl', 'tr', 'bl', 'br', or None
         self.setZValue(200)
+
+    def _handle_positions(self) -> dict:
+        """Return {handle_key: QPointF} for the four corners."""
+        x, y = self.overlay.x, self.overlay.y
+        w, h = self.overlay.shape_w, self.overlay.shape_h
+        return {
+            'tl': QPointF(x, y),
+            'tr': QPointF(x + w, y),
+            'bl': QPointF(x, y + h),
+            'br': QPointF(x + w, y + h),
+        }
+
+    def _handle_under(self, scene_pos: QPointF):
+        r = self.HANDLE_HIT_RADIUS
+        for key, pt in self._handle_positions().items():
+            if abs(scene_pos.x() - pt.x()) <= r and abs(scene_pos.y() - pt.y()) <= r:
+                return key
+        return None
 
     def boundingRect(self) -> QRectF:
         x, y = self.overlay.x, self.overlay.y
@@ -563,6 +584,58 @@ class OverlayShapeItem(QGraphicsItem):
             painter.setPen(QPen(QColor(255, 200, 0), 1, Qt.PenStyle.DashLine))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(self.boundingRect())
+            # Corner handles
+            _r = 4
+            painter.setPen(QPen(QColor(0, 0, 0), 1))
+            painter.setBrush(QBrush(QColor(255, 200, 0)))
+            for pt in self._handle_positions().values():
+                painter.drawRect(QRectF(pt.x() - _r, pt.y() - _r, 2 * _r, 2 * _r))
+
+    def mousePressEvent(self, event):
+        if self.isSelected():
+            h = self._handle_under(event.scenePos())
+            if h is not None:
+                self._dragging_handle = h
+                self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._dragging_handle is not None:
+            sp = event.scenePos()
+            x, y = self.overlay.x, self.overlay.y
+            w, h = self.overlay.shape_w, self.overlay.shape_h
+            if self._dragging_handle in ('tl', 'tr'):
+                new_y = int(sp.y())
+                h = max(4, (y + h) - new_y)
+                y = new_y
+            if self._dragging_handle in ('bl', 'br'):
+                h = max(4, int(sp.y()) - y)
+            if self._dragging_handle in ('tl', 'bl'):
+                new_x = int(sp.x())
+                w = max(4, (x + w) - new_x)
+                x = new_x
+            if self._dragging_handle in ('tr', 'br'):
+                w = max(4, int(sp.x()) - x)
+            self.overlay.x = x
+            self.overlay.y = y
+            self.overlay.shape_w = w
+            self.overlay.shape_h = h
+            self.prepareGeometryChange()
+            self.update()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._dragging_handle is not None:
+            self._dragging_handle = None
+            self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
