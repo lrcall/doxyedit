@@ -684,6 +684,98 @@ class OverlayShapeItem(QGraphicsItem):
             'br': QPointF(x + w, y + h),
         }
 
+    def _tail_tip(self, r: QRectF) -> QPointF:
+        """Tail tip scene pos. Default = below-left of the body if unset."""
+        tx = self.overlay.tail_x
+        ty = self.overlay.tail_y
+        if tx == 0 and ty == 0:
+            return QPointF(r.left() - r.width() * 0.15,
+                            r.bottom() + r.height() * 0.35)
+        return QPointF(tx, ty)
+
+    def _paint_speech_bubble(self, painter, r: QRectF):
+        """Rounded-rect body with a triangular tail anchored on the closest
+        edge to tail_tip."""
+        from PySide6.QtGui import QPainterPath
+        pad = min(r.width(), r.height()) * 0.18
+        tip = self._tail_tip(r)
+        # Tail base: pick two points on the body edge closest to the tip
+        cx, cy = r.center().x(), r.center().y()
+        dx, dy = tip.x() - cx, tip.y() - cy
+        horiz = abs(dx) > abs(dy)
+        base_len = min(r.width(), r.height()) * 0.25
+        if horiz:
+            edge_x = r.right() if dx > 0 else r.left()
+            mid_y = max(r.top() + pad,
+                         min(r.bottom() - pad, tip.y() * 0.5 + cy * 0.5))
+            b1 = QPointF(edge_x, mid_y - base_len / 2)
+            b2 = QPointF(edge_x, mid_y + base_len / 2)
+        else:
+            edge_y = r.bottom() if dy > 0 else r.top()
+            mid_x = max(r.left() + pad,
+                         min(r.right() - pad, tip.x() * 0.5 + cx * 0.5))
+            b1 = QPointF(mid_x - base_len / 2, edge_y)
+            b2 = QPointF(mid_x + base_len / 2, edge_y)
+        # Build path: rounded body, add tail triangle
+        path = QPainterPath()
+        path.addRoundedRect(r, pad, pad)
+        tail = QPainterPath()
+        tail.moveTo(b1)
+        tail.lineTo(tip)
+        tail.lineTo(b2)
+        tail.closeSubpath()
+        path = path.united(tail)
+        painter.drawPath(path)
+
+    def _paint_thought_bubble(self, painter, r: QRectF):
+        """Scalloped-cloud body + 2-3 trailing puff circles toward tail."""
+        from PySide6.QtGui import QPainterPath
+        path = QPainterPath()
+        # Build the cloud by unioning a central ellipse with 8 edge puffs.
+        cx, cy = r.center().x(), r.center().y()
+        rx, ry = r.width() / 2, r.height() / 2
+        path.addEllipse(r.adjusted(rx * 0.22, ry * 0.22, -rx * 0.22, -ry * 0.22))
+        import math
+        n_puffs = 10
+        puff_r = min(rx, ry) * 0.28
+        for i in range(n_puffs):
+            ang = (2 * math.pi * i) / n_puffs
+            px = cx + math.cos(ang) * (rx - puff_r * 0.4)
+            py = cy + math.sin(ang) * (ry - puff_r * 0.4)
+            sub = QPainterPath()
+            sub.addEllipse(QPointF(px, py), puff_r, puff_r)
+            path = path.united(sub)
+        painter.drawPath(path)
+        # Trailing small circles toward the tail
+        tip = self._tail_tip(r)
+        dx, dy = tip.x() - cx, tip.y() - cy
+        length = math.hypot(dx, dy)
+        if length > 4:
+            ux, uy = dx / length, dy / length
+            start_offset = min(rx, ry) * 0.85
+            for i, frac in enumerate((0.25, 0.55, 0.85)):
+                pr = puff_r * (0.55 - i * 0.15)
+                ppos = QPointF(cx + ux * (start_offset + length * frac * 0.6),
+                                cy + uy * (start_offset + length * frac * 0.6))
+                painter.drawEllipse(ppos, pr, pr)
+
+    def _paint_burst(self, painter, r: QRectF):
+        """Jagged star/burst polygon with alternating outer/inner radii."""
+        from PySide6.QtGui import QPolygonF
+        import math
+        cx, cy = r.center().x(), r.center().y()
+        rx, ry = r.width() / 2, r.height() / 2
+        points = []
+        n_points = 14
+        inner_scale = 0.62
+        for i in range(n_points * 2):
+            frac = (2 * math.pi * i) / (n_points * 2)
+            s = 1.0 if i % 2 == 0 else inner_scale
+            px = cx + math.cos(frac - math.pi / 2) * rx * s
+            py = cy + math.sin(frac - math.pi / 2) * ry * s
+            points.append(QPointF(px, py))
+        painter.drawPolygon(QPolygonF(points))
+
     def _handle_under(self, scene_pos: QPointF):
         r = self.HANDLE_HIT_RADIUS
         for key, pt in self._handle_positions().items():
@@ -716,7 +808,13 @@ class OverlayShapeItem(QGraphicsItem):
         else:
             painter.setBrush(Qt.BrushStyle.NoBrush)
         kind = self.overlay.shape_kind
-        if kind == "ellipse":
+        if kind == "speech_bubble":
+            self._paint_speech_bubble(painter, r)
+        elif kind == "thought_bubble":
+            self._paint_thought_bubble(painter, r)
+        elif kind == "burst":
+            self._paint_burst(painter, r)
+        elif kind == "ellipse":
             painter.drawEllipse(r)
         elif kind in ("gradient_linear", "gradient_radial"):
             from PySide6.QtGui import QLinearGradient, QRadialGradient
