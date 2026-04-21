@@ -693,6 +693,7 @@ class OverlayShapeItem(QGraphicsItem):
                 from PySide6.QtCore import QSettings as _QS
                 _QS("DoxyEdit", "DoxyEdit").setValue(
                     "studio_shape_stroke_color", new.name())
+                self._editor._add_recent_color(new.name())
         elif chosen is fill_act and self._editor:
             new = QColorDialog.getColor(
                 QColor(self.overlay.fill_color or "#ffffff"),
@@ -705,6 +706,7 @@ class OverlayShapeItem(QGraphicsItem):
                 from PySide6.QtCore import QSettings as _QS
                 _QS("DoxyEdit", "DoxyEdit").setValue(
                     "studio_shape_fill_color", new.name())
+                self._editor._add_recent_color(new.name())
         elif chosen is clear_fill_act and self._editor:
             self.overlay.fill_color = ""
             self.update()
@@ -883,6 +885,7 @@ class OverlayArrowItem(QGraphicsItem):
                 from PySide6.QtCore import QSettings as _QS
                 _QS("DoxyEdit", "DoxyEdit").setValue(
                     "studio_arrow_color", new.name())
+                self._editor._add_recent_color(new.name())
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_arrow_item(self)
         elif chosen is copy_style_act and self._editor:
@@ -3072,6 +3075,20 @@ class StudioEditor(QWidget):
         self.btn_flip_view.toggled.connect(self._on_flip_view_toggled)
         toolbar.addWidget(self.btn_flip_view)
 
+        # Recent-color swatches — click to apply to selected overlays
+        toolbar.addWidget(QLabel("|"))
+        self._swatch_buttons = []
+        for _i in range(self._MAX_RECENT_COLORS):
+            sw = QPushButton("")
+            sw.setFixedSize(18, 18)
+            sw.setObjectName("studio_swatch")
+            sw.setEnabled(False)
+            sw.setStyleSheet("background: transparent; border: 1px dashed #555;")
+            sw.clicked.connect(lambda _, b=sw: self._on_swatch_clicked(b))
+            toolbar.addWidget(sw)
+            self._swatch_buttons.append(sw)
+        self._refresh_recent_swatches()
+
         toolbar.addWidget(QLabel("|"))
 
         # Group 4b: Alignment + distribute (menu dropdown)
@@ -4336,6 +4353,7 @@ class StudioEditor(QWidget):
             description="Change text color",
         )
         self._sync_overlays_to_asset()
+        self._add_recent_color(new_color)
 
     def _pick_text_background(self, text_item):
         """Color picker for text overlay's background rectangle fill."""
@@ -4352,6 +4370,77 @@ class StudioEditor(QWidget):
             description="Change text background",
         )
         self._sync_overlays_to_asset()
+
+    # Recent color history — session-wide ring buffer shown as swatches.
+    # Persisted to QSettings so the palette carries across launches.
+    _MAX_RECENT_COLORS = 8
+
+    def _add_recent_color(self, hex_color: str):
+        """Prepend a hex color to the recent list, capped and deduped."""
+        if not hex_color:
+            return
+        from PySide6.QtCore import QSettings as _QS
+        qs = _QS("DoxyEdit", "DoxyEdit")
+        raw = qs.value("studio_recent_colors", "", type=str)
+        recent = [c for c in raw.split(",") if c]
+        # Move/insert to front
+        recent = [hex_color] + [c for c in recent if c != hex_color]
+        recent = recent[:self._MAX_RECENT_COLORS]
+        qs.setValue("studio_recent_colors", ",".join(recent))
+        self._refresh_recent_swatches()
+
+    def _get_recent_colors(self) -> list:
+        from PySide6.QtCore import QSettings as _QS
+        raw = _QS("DoxyEdit", "DoxyEdit").value(
+            "studio_recent_colors", "", type=str)
+        return [c for c in raw.split(",") if c][:self._MAX_RECENT_COLORS]
+
+    def _refresh_recent_swatches(self):
+        """Redraw the recent-color swatch strip in the toolbar."""
+        if not hasattr(self, "_swatch_buttons"):
+            return
+        colors = self._get_recent_colors()
+        for i, btn in enumerate(self._swatch_buttons):
+            if i < len(colors):
+                btn.setStyleSheet(
+                    f"background: {colors[i]}; border: 1px solid #333;")
+                btn.setToolTip(colors[i])
+                btn.setEnabled(True)
+                btn.setProperty("color", colors[i])
+            else:
+                btn.setStyleSheet("background: transparent; border: 1px dashed #555;")
+                btn.setToolTip("")
+                btn.setEnabled(False)
+                btn.setProperty("color", "")
+
+    def _on_swatch_clicked(self, btn):
+        """Apply the swatch color to selected text / shape / arrow overlays."""
+        hex_color = btn.property("color")
+        if not hex_color:
+            return
+        applied = False
+        for item in self._scene.selectedItems():
+            if isinstance(item, OverlayTextItem):
+                self._push_overlay_attr(
+                    item, "color", hex_color,
+                    apply_cb=lambda it, _v: it._apply_font(),
+                    description="Apply swatch color")
+                applied = True
+            elif isinstance(item, OverlayArrowItem):
+                self._push_overlay_attr(
+                    item, "color", hex_color,
+                    apply_cb=lambda it, _v: it.update(),
+                    description="Apply swatch color")
+                applied = True
+            elif isinstance(item, OverlayShapeItem):
+                self._push_overlay_attr(
+                    item, "stroke_color", hex_color,
+                    apply_cb=lambda it, _v: it.update(),
+                    description="Apply swatch stroke")
+                applied = True
+        if applied:
+            self._sync_overlays_to_asset()
+            self.info_label.setText(f"Applied {hex_color}")
 
     def _apply_picked_color(self, color: QColor):
         """Apply eyedropper-sampled color: to selected text overlays if any,
