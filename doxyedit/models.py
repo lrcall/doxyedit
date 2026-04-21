@@ -218,6 +218,11 @@ class CanvasOverlay:
     flip_v: bool = False      # mirror vertically (negative Y scale)
     locked: bool = False      # lock from selection/drag in Studio canvas
     background_color: str = ""  # solid fill behind text (empty = no bg)
+    # Arrow endpoints (tail is x,y from above; tip is end_x,end_y).
+    # Used when type="arrow" — zero-default for all other overlays.
+    end_x: int = 0
+    end_y: int = 0
+    arrowhead_size: int = 18  # arrowhead length in px
     platforms: list[str] = field(default_factory=list)  # empty = all platforms
 
     def to_dict(self) -> dict:

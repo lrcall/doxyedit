@@ -12,7 +12,8 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGraphicsScene, QGraphicsView, QGraphicsRectItem, QGraphicsPixmapItem,
-    QGraphicsTextItem, QGraphicsLineItem, QComboBox, QFileDialog, QSlider,
+    QGraphicsTextItem, QGraphicsLineItem, QGraphicsItem,
+    QComboBox, QFileDialog, QSlider,
     QFontComboBox, QSpinBox, QColorDialog, QInputDialog, QMenu,
     QListWidget, QListWidgetItem, QSplitter, QScrollArea, QCheckBox,
     QGridLayout,
@@ -119,6 +120,7 @@ class StudioTool(Enum):
     CROP = auto()
     NOTE = auto()
     EYEDROPPER = auto()
+    ARROW = auto()
     ANNOTATE_TEXT = auto()
     ANNOTATE_LINE = auto()
     ANNOTATE_BOX = auto()
@@ -505,6 +507,105 @@ class OverlayImageItem(QGraphicsPixmapItem):
         t.scale(sx, sy)
         self.setTransform(t)
         self.setRotation(self.overlay.rotation)
+
+
+class OverlayArrowItem(QGraphicsItem):
+    """Non-destructive arrow overlay: straight line with arrowhead at end.
+
+    Stores its endpoints on the backing CanvasOverlay (x, y = tail,
+    end_x, end_y = tip) so positions persist with the project file.
+    Paint is deferred to produce a clean triangular arrowhead.
+    """
+
+    def __init__(self, overlay: "CanvasOverlay", parent=None):
+        super().__init__(parent)
+        self.overlay = overlay
+        self.setFlags(
+            QGraphicsItem.GraphicsItemFlag.ItemIsMovable
+            | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
+            | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
+        self._editor = None
+        self.setZValue(200)
+
+    def boundingRect(self) -> QRectF:
+        x1, y1 = self.overlay.x, self.overlay.y
+        x2, y2 = self.overlay.end_x, self.overlay.end_y
+        hs = max(self.overlay.arrowhead_size, 6)
+        r = QRectF(QPointF(x1, y1), QPointF(x2, y2)).normalized()
+        return r.adjusted(-hs, -hs, hs, hs)
+
+    def paint(self, painter, option, widget=None):
+        from PySide6.QtGui import QPainterPath
+        x1, y1 = self.overlay.x, self.overlay.y
+        x2, y2 = self.overlay.end_x, self.overlay.end_y
+        color = QColor(self.overlay.color)
+        color.setAlphaF(self.overlay.opacity)
+        pen = QPen(color, max(1, self.overlay.stroke_width or 4))
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.drawLine(int(x1), int(y1), int(x2), int(y2))
+        # Arrowhead — equilateral triangle at tip
+        import math
+        dx, dy = x2 - x1, y2 - y1
+        length = math.hypot(dx, dy)
+        if length < 1:
+            return
+        ux, uy = dx / length, dy / length  # unit vector along line
+        hs = max(self.overlay.arrowhead_size, 6)
+        # Perpendicular vector
+        px, py = -uy, ux
+        base_x = x2 - ux * hs
+        base_y = y2 - uy * hs
+        p1 = QPointF(base_x + px * hs * 0.5, base_y + py * hs * 0.5)
+        p2 = QPointF(base_x - px * hs * 0.5, base_y - py * hs * 0.5)
+        path = QPainterPath()
+        path.moveTo(x2, y2)
+        path.lineTo(p1)
+        path.lineTo(p2)
+        path.closeSubpath()
+        painter.setBrush(QBrush(color))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPath(path)
+        # Selection highlight
+        if self.isSelected():
+            painter.setPen(QPen(QColor(255, 200, 0), 1, Qt.PenStyle.DashLine))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(self.boundingRect())
+
+    def itemChange(self, change, value):
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
+            # When the whole arrow is dragged, move both endpoints.
+            pos = self.pos()
+            if pos != QPointF(0, 0):
+                dx, dy = int(pos.x()), int(pos.y())
+                self.overlay.x += dx
+                self.overlay.y += dy
+                self.overlay.end_x += dx
+                self.overlay.end_y += dy
+                self.setPos(0, 0)
+                self.prepareGeometryChange()
+        return super().itemChange(change, value)
+
+    def contextMenuEvent(self, event):
+        _parent = self._editor._view if self._editor else None
+        menu = _themed_menu(_parent)
+        color_act = menu.addAction("Change Color...")
+        dup_act = menu.addAction("Duplicate  (Ctrl+D)")
+        del_act = menu.addAction("Delete")
+        chosen = menu.exec(event.screenPos())
+        if chosen is color_act and self._editor:
+            new = QColorDialog.getColor(
+                QColor(self.overlay.color), self._editor,
+                "Arrow color",
+                QColorDialog.ColorDialogOption.ShowAlphaChannel)
+            if new.isValid():
+                self.overlay.color = new.name()
+                self.update()
+                self._editor._sync_overlays_to_asset()
+        elif chosen is dup_act and self._editor:
+            self._editor._duplicate_arrow_item(self)
+        elif chosen is del_act and self._editor:
+            self._editor._remove_overlay_item(self)
 
 
 class OverlayTextItem(QGraphicsTextItem):
@@ -958,6 +1059,7 @@ class StudioScene(QGraphicsScene):
         self._snap_guides: list[tuple[float, float, float, float]] = []
 
         # Callbacks set by StudioEditor
+        self.on_arrow_finished = None    # callable(QLineF)
         self.on_censor_finished = None   # callable(CensorRectItem)
         self.on_annotation_placed = None  # callable(item)
         self.on_crop_finished = None     # callable(QRectF)
@@ -1131,6 +1233,16 @@ class StudioScene(QGraphicsScene):
                 QRectF(pos, pos), self._censor_style
             )
             self._temp_item.setZValue(150)
+            self.addItem(self._temp_item)
+            return
+
+        if self.current_tool == StudioTool.ARROW:
+            self._draw_start = pos
+            self._temp_item = QGraphicsLineItem(QLineF(pos, pos))
+            pen = QPen(QColor("#ff3b30"), 4)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            self._temp_item.setPen(pen)
+            self._temp_item.setZValue(300)
             self.addItem(self._temp_item)
             return
 
@@ -1358,6 +1470,12 @@ class StudioScene(QGraphicsScene):
                     self.on_note_finished(self._temp_item, r)
                 else:
                     self.removeItem(self._temp_item)
+            elif self.current_tool == StudioTool.ARROW:
+                line = self._temp_item.line()
+                length_ok = max(abs(line.dx()), abs(line.dy())) > 10
+                self.removeItem(self._temp_item)
+                if length_ok and self.on_arrow_finished:
+                    self.on_arrow_finished(line)
             self._draw_start = None
             self._temp_item = None
             self.current_tool = StudioTool.SELECT
@@ -2141,6 +2259,9 @@ class StudioEditor(QWidget):
             if key == Qt.Key.Key_I:
                 self._set_tool(StudioTool.EYEDROPPER)
                 return
+            if key == Qt.Key.Key_A:
+                self._set_tool(StudioTool.ARROW)
+                return
             if key == Qt.Key.Key_Tab:
                 self._cycle_selection(+1)
                 return
@@ -2304,6 +2425,13 @@ class StudioEditor(QWidget):
         self.btn_eyedropper.setCheckable(True)
         self.btn_eyedropper.clicked.connect(lambda: self._set_tool(StudioTool.EYEDROPPER))
         toolbar.addWidget(self.btn_eyedropper)
+
+        self.btn_arrow = QPushButton("Arrow")
+        self.btn_arrow.setObjectName("studio_btn_arrow")
+        self.btn_arrow.setToolTip("Arrow annotation (A): click-drag to draw")
+        self.btn_arrow.setCheckable(True)
+        self.btn_arrow.clicked.connect(lambda: self._set_tool(StudioTool.ARROW))
+        toolbar.addWidget(self.btn_arrow)
 
         self.btn_delete = QPushButton("Delete")
         self.btn_delete.setObjectName("studio_btn_delete")
@@ -2557,6 +2685,7 @@ class StudioEditor(QWidget):
         # Scene + View
         self._scene = StudioScene()
         self._scene.on_censor_finished = self._on_censor_drawn
+        self._scene.on_arrow_finished = self._on_arrow_drawn
         self._scene.on_crop_finished = self._on_crop_drawn
         self._scene.on_note_finished = self._on_note_drawn
         self._scene.on_text_overlay_placed = self._on_text_placed
@@ -2978,7 +3107,8 @@ class StudioEditor(QWidget):
 
     def _set_tool(self, tool: StudioTool):
         self._scene.set_tool(tool)
-        if tool in (StudioTool.CENSOR, StudioTool.CROP, StudioTool.NOTE):
+        if tool in (StudioTool.CENSOR, StudioTool.CROP, StudioTool.NOTE,
+                    StudioTool.ARROW):
             self._view.setCursor(Qt.CursorShape.CrossCursor)
             self._view.setDragMode(QGraphicsView.DragMode.NoDrag)
         elif tool == StudioTool.EYEDROPPER:
@@ -3006,6 +3136,7 @@ class StudioEditor(QWidget):
             StudioTool.WATERMARK: self.btn_watermark,
             StudioTool.TEXT_OVERLAY: self.btn_text,
             StudioTool.EYEDROPPER: self.btn_eyedropper,
+            StudioTool.ARROW: self.btn_arrow,
         }
         for t, btn in mapping.items():
             btn.setChecked(t == tool)
@@ -3036,6 +3167,51 @@ class StudioEditor(QWidget):
         self._view.setCursor(Qt.CursorShape.ArrowCursor)
         self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self._update_info()
+
+    def _on_arrow_drawn(self, line: QLineF):
+        """Called when an arrow is finished drawing."""
+        if not self._asset:
+            return
+        ov = CanvasOverlay(
+            type="arrow",
+            label="Arrow",
+            color="#ff3b30",
+            opacity=1.0,
+            stroke_width=4,
+            x=int(line.x1()), y=int(line.y1()),
+            end_x=int(line.x2()), end_y=int(line.y2()),
+            arrowhead_size=18,
+        )
+        self._asset.overlays.append(ov)
+        item = OverlayArrowItem(ov)
+        item._editor = self
+        item.setZValue(200 + len(self._overlay_items))
+        self._scene.addItem(item)
+        self._overlay_items.append(item)
+        self._view.setCursor(Qt.CursorShape.ArrowCursor)
+        self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+        self._update_info()
+
+    def _duplicate_arrow_item(self, item):
+        """Clone an arrow overlay with 20px offset."""
+        ov = item.overlay
+        new_ov = CanvasOverlay(
+            type="arrow",
+            label=ov.label,
+            color=ov.color,
+            opacity=ov.opacity,
+            stroke_width=ov.stroke_width,
+            x=ov.x + 20, y=ov.y + 20,
+            end_x=ov.end_x + 20, end_y=ov.end_y + 20,
+            arrowhead_size=ov.arrowhead_size,
+            platforms=list(ov.platforms),
+        )
+        self._asset.overlays.append(new_ov)
+        new_item = OverlayArrowItem(new_ov)
+        new_item._editor = self
+        new_item.setZValue(200 + len(self._overlay_items))
+        self._scene.addItem(new_item)
+        self._overlay_items.append(new_item)
 
     # ---- crop / note callbacks ----
 
@@ -3204,6 +3380,11 @@ class StudioEditor(QWidget):
             return item
         elif ov.type == "text":
             item = OverlayTextItem(ov)
+            item._editor = self
+            self._scene.addItem(item)
+            return item
+        elif ov.type == "arrow":
+            item = OverlayArrowItem(ov)
             item._editor = self
             self._scene.addItem(item)
             return item

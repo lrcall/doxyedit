@@ -32,7 +32,7 @@ def apply_censors(img: Image.Image, censors: list[CensorRegion]) -> Image.Image:
 
 
 def apply_overlays(img: Image.Image, overlays: list[CanvasOverlay], project_dir: str = "") -> Image.Image:
-    """Apply non-destructive overlays (watermark, text, logo) to a PIL image."""
+    """Apply non-destructive overlays (watermark, text, logo, arrow)."""
     img = img.copy().convert("RGBA")
 
     for ov in overlays:
@@ -42,7 +42,43 @@ def apply_overlays(img: Image.Image, overlays: list[CanvasOverlay], project_dir:
             img = _composite_image_overlay(img, ov, project_dir)
         elif ov.type == "text" and ov.text:
             img = _composite_text_overlay(img, ov)
+        elif ov.type == "arrow":
+            img = _composite_arrow_overlay(img, ov)
     return img
+
+
+def _composite_arrow_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
+    """Render an arrow annotation onto the base image."""
+    from PIL import ImageDraw
+    import math
+
+    try:
+        def _hex(s):
+            c = s.lstrip("#")
+            return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+        r, g, b = _hex(ov.color)
+        a = int(255 * ov.opacity)
+        layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(layer)
+        x1, y1 = ov.x, ov.y
+        x2, y2 = ov.end_x, ov.end_y
+        width = max(1, ov.stroke_width or 4)
+        draw.line([(x1, y1), (x2, y2)], fill=(r, g, b, a), width=width)
+        # Arrowhead triangle at the tip
+        dx, dy = x2 - x1, y2 - y1
+        length = math.hypot(dx, dy)
+        if length > 1:
+            ux, uy = dx / length, dy / length
+            hs = max(ov.arrowhead_size, 6)
+            px, py = -uy, ux
+            base_x = x2 - ux * hs
+            base_y = y2 - uy * hs
+            p1 = (base_x + px * hs * 0.5, base_y + py * hs * 0.5)
+            p2 = (base_x - px * hs * 0.5, base_y - py * hs * 0.5)
+            draw.polygon([(x2, y2), p1, p2], fill=(r, g, b, a))
+        return Image.alpha_composite(img, layer)
+    except Exception:
+        return img
 
 
 def _composite_image_overlay(img: Image.Image, ov: CanvasOverlay, project_dir: str) -> Image.Image:
