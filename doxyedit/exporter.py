@@ -50,11 +50,13 @@ def apply_overlays(img: Image.Image, overlays: list[CanvasOverlay], project_dir:
 
 
 def _composite_shape_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
-    """Render a rectangle / ellipse / gradient annotation onto the base image."""
+    """Render a rectangle / ellipse / gradient / bubble annotation."""
     from PIL import ImageDraw
     import math
     if ov.shape_kind in ("gradient_linear", "gradient_radial"):
         return _composite_gradient_overlay(img, ov)
+    if ov.shape_kind in ("speech_bubble", "thought_bubble", "burst"):
+        return _composite_bubble_overlay(img, ov)
     # Non-zero rotation: render the shape onto its own transparent tile,
     # rotate around its center, paste back. Keeps the main path simple.
     if getattr(ov, "rotation", 0):
@@ -172,6 +174,126 @@ def _composite_shape_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image
                 _dashed((x1, y0), (x1, y1))
                 _dashed((x1, y1), (x0, y1))
                 _dashed((x0, y1), (x0, y0))
+        return Image.alpha_composite(img, layer)
+    except Exception:
+        return img
+
+
+def _composite_bubble_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
+    """Render a speech_bubble / thought_bubble / burst into the export PNG.
+
+    Uses PIL ImageDraw primitives (rounded_rectangle, ellipse, polygon) to
+    match the Studio canvas rendering paths as closely as possible.
+    """
+    from PIL import ImageDraw
+    import math
+    try:
+        def _hex(s):
+            c = (s or "#000000").lstrip("#")
+            return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+        stroke_rgb = _hex(ov.stroke_color or ov.color or "#000000")
+        a = int(255 * ov.opacity)
+        stroke_rgba = (*stroke_rgb, a)
+        if ov.fill_color:
+            fill_rgb = _hex(ov.fill_color)
+            fill_rgba = (*fill_rgb, a)
+        else:
+            fill_rgba = None
+        width = max(1, ov.stroke_width or 2)
+        x, y = int(ov.x), int(ov.y)
+        w, h = int(ov.shape_w), int(ov.shape_h)
+        if w < 2 or h < 2:
+            return img
+        layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(layer)
+
+        kind = ov.shape_kind
+        if kind == "speech_bubble":
+            pad = int(min(w, h) * 0.18)
+            body = (x, y, x + w, y + h)
+            draw.rounded_rectangle(
+                body, radius=pad, fill=fill_rgba, outline=stroke_rgba,
+                width=width)
+            # Tail
+            tx = ov.tail_x or (x - int(w * 0.15))
+            ty = ov.tail_y or (y + h + int(h * 0.35))
+            cx, cy = x + w / 2, y + h / 2
+            dx, dy = tx - cx, ty - cy
+            horiz = abs(dx) > abs(dy)
+            base_len = int(min(w, h) * 0.25)
+            if horiz:
+                edge_x = (x + w) if dx > 0 else x
+                mid_y = int(max(y + pad,
+                                 min(y + h - pad, ty * 0.5 + cy * 0.5)))
+                b1 = (edge_x, mid_y - base_len // 2)
+                b2 = (edge_x, mid_y + base_len // 2)
+            else:
+                edge_y = (y + h) if dy > 0 else y
+                mid_x = int(max(x + pad,
+                                 min(x + w - pad, tx * 0.5 + cx * 0.5)))
+                b1 = (mid_x - base_len // 2, edge_y)
+                b2 = (mid_x + base_len // 2, edge_y)
+            tri = [b1, (int(tx), int(ty)), b2]
+            if fill_rgba is not None:
+                draw.polygon(tri, fill=fill_rgba)
+            draw.line([b1, (int(tx), int(ty))], fill=stroke_rgba, width=width)
+            draw.line([(int(tx), int(ty)), b2], fill=stroke_rgba, width=width)
+        elif kind == "thought_bubble":
+            cx, cy = x + w / 2, y + h / 2
+            rx, ry = w / 2, h / 2
+            # Central ellipse
+            inner = (int(cx - rx * 0.78), int(cy - ry * 0.78),
+                      int(cx + rx * 0.78), int(cy + ry * 0.78))
+            if fill_rgba is not None:
+                draw.ellipse(inner, fill=fill_rgba)
+            draw.ellipse(inner, outline=stroke_rgba, width=width)
+            # 10 edge puffs
+            puff_r = int(min(rx, ry) * 0.28)
+            for i in range(10):
+                ang = (2 * math.pi * i) / 10
+                px = cx + math.cos(ang) * (rx - puff_r * 0.4)
+                py = cy + math.sin(ang) * (ry - puff_r * 0.4)
+                bbox = (int(px - puff_r), int(py - puff_r),
+                         int(px + puff_r), int(py + puff_r))
+                if fill_rgba is not None:
+                    draw.ellipse(bbox, fill=fill_rgba)
+                draw.ellipse(bbox, outline=stroke_rgba, width=width)
+            # Trailing puff circles toward the tail
+            tx = ov.tail_x or int(x - w * 0.3)
+            ty = ov.tail_y or int(y + h + h * 0.5)
+            dx, dy = tx - cx, ty - cy
+            length = math.hypot(dx, dy)
+            if length > 4:
+                ux, uy = dx / length, dy / length
+                start_offset = min(rx, ry) * 0.85
+                for i, frac in enumerate((0.25, 0.55, 0.85)):
+                    pr = max(2, int(puff_r * (0.55 - i * 0.15)))
+                    cxp = int(cx + ux * (start_offset + length * frac * 0.6))
+                    cyp = int(cy + uy * (start_offset + length * frac * 0.6))
+                    bbox = (cxp - pr, cyp - pr, cxp + pr, cyp + pr)
+                    if fill_rgba is not None:
+                        draw.ellipse(bbox, fill=fill_rgba)
+                    draw.ellipse(bbox, outline=stroke_rgba, width=width)
+        elif kind == "burst":
+            cx, cy = x + w / 2, y + h / 2
+            rx, ry = w / 2, h / 2
+            points = []
+            n_points = 14
+            inner_scale = 0.62
+            for i in range(n_points * 2):
+                frac = (2 * math.pi * i) / (n_points * 2)
+                s = 1.0 if i % 2 == 0 else inner_scale
+                px = cx + math.cos(frac - math.pi / 2) * rx * s
+                py = cy + math.sin(frac - math.pi / 2) * ry * s
+                points.append((int(px), int(py)))
+            if fill_rgba is not None:
+                draw.polygon(points, fill=fill_rgba)
+            # Draw outline as consecutive line segments (polygon outline on
+            # PIL ≥ 9.4 but ``width`` kw on polygon is iffy; manual is safe)
+            for i in range(len(points)):
+                p1 = points[i]
+                p2 = points[(i + 1) % len(points)]
+                draw.line([p1, p2], fill=stroke_rgba, width=width)
         return Image.alpha_composite(img, layer)
     except Exception:
         return img
