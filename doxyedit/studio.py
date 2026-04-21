@@ -1093,6 +1093,17 @@ class StudioScene(QGraphicsScene):
             for y in (ob.top(), ob.center().y(), ob.bottom()):
                 candidates_y.append((y, ob.left(), ob.right()))
 
+        # Drag-out guides — treat each as an infinitely-long snap line so
+        # items snap to them exactly like any other edge.
+        for it in self.items():
+            if not isinstance(it, _GuideLineItem):
+                continue
+            line = it.line()
+            if getattr(it, "_guide_orientation", 'h') == 'v':
+                candidates_x.append((line.x1(), line.y1(), line.y2()))
+            else:
+                candidates_y.append((line.y1(), line.x1(), line.x2()))
+
         thr = self.SNAP_THRESHOLD_PX
         best_dx, best_dy = 0.0, 0.0
         best_dx_abs, best_dy_abs = thr + 1, thr + 1
@@ -1334,6 +1345,13 @@ class StudioScene(QGraphicsScene):
 # ---------------------------------------------------------------------------
 # View
 # ---------------------------------------------------------------------------
+
+class _GuideLineItem(QGraphicsLineItem):
+    """Marker subclass used only so StudioScene._compute_snap_guides can
+    recognize drag-out guides as snap candidates without treating every
+    QGraphicsLineItem as a guide."""
+    _guide_orientation = 'h'
+
 
 class _StudioRuler(QWidget):
     """Horizontal or vertical ruler that reads the StudioView's transform.
@@ -2384,10 +2402,10 @@ class StudioEditor(QWidget):
         if not hasattr(self, "_pending_guide"):
             self._pending_guide = None
         pixmap_rect = self._pixmap_item.boundingRect()
-        from PySide6.QtWidgets import QGraphicsLineItem
         from PySide6.QtGui import QPen, QColor
         if self._pending_guide is None:
-            line = QGraphicsLineItem()
+            line = _GuideLineItem()
+            line._guide_orientation = orientation
             pen = QPen(QColor(self._theme.accent), 1, Qt.PenStyle.DashLine)
             line.setPen(pen)
             line.setZValue(400)
