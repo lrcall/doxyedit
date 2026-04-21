@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QGraphicsScene, QGraphicsView, QGraphicsRectItem, QGraphicsPixmapItem,
     QGraphicsTextItem, QGraphicsLineItem, QComboBox, QFileDialog, QSlider,
     QFontComboBox, QSpinBox, QColorDialog, QInputDialog, QMenu,
-    QListWidget, QListWidgetItem, QSplitter, QScrollArea,
+    QListWidget, QListWidgetItem, QSplitter, QScrollArea, QCheckBox,
 )
 from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal
 from PySide6.QtGui import (
@@ -1397,9 +1397,41 @@ class StudioEditor(QWidget):
         # asset.overlays / asset.censors order (top of list = front).
         self._layer_panel.model().rowsMoved.connect(self._on_layer_reorder)
 
+        # Layer properties panel (below the layer list) — shows opacity +
+        # enabled toggle for the selected overlay. Disabled when the
+        # selected layer is a censor (censors have no opacity / enabled
+        # field — style is set via right-click menu).
+        _layer_props = QWidget()
+        _layer_props.setObjectName("studio_layer_props")
+        _props_layout = QVBoxLayout(_layer_props)
+        _props_layout.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)
+        _props_layout.setSpacing(_pad)
+        _op_row = QHBoxLayout()
+        _op_row.addWidget(QLabel("Opacity"))
+        self.slider_layer_opacity = QSlider(Qt.Orientation.Horizontal)
+        self.slider_layer_opacity.setObjectName("studio_layer_opacity_slider")
+        self.slider_layer_opacity.setRange(0, 100)
+        self.slider_layer_opacity.setValue(100)
+        self.slider_layer_opacity.valueChanged.connect(self._on_layer_opacity_changed)
+        _op_row.addWidget(self.slider_layer_opacity, 1)
+        _props_layout.addLayout(_op_row)
+        self.chk_layer_enabled = QCheckBox("Enabled")
+        self.chk_layer_enabled.setObjectName("studio_layer_enabled_chk")
+        self.chk_layer_enabled.toggled.connect(self._on_layer_enabled_toggled)
+        _props_layout.addWidget(self.chk_layer_enabled)
+        _layer_props.setEnabled(False)
+        self._layer_props_widget = _layer_props
+
+        # Vertical splitter so the layer list and props share the sidebar
+        _layer_side = QSplitter(Qt.Orientation.Vertical)
+        _layer_side.addWidget(self._layer_panel)
+        _layer_side.addWidget(_layer_props)
+        _layer_side.setStretchFactor(0, 1)
+        _layer_side.setStretchFactor(1, 0)
+
         self._canvas_split = QSplitter(Qt.Orientation.Horizontal)
         self._canvas_split.addWidget(self._view)
-        self._canvas_split.addWidget(self._layer_panel)
+        self._canvas_split.addWidget(_layer_side)
         self._canvas_split.setSizes([800, 200])
         self._canvas_split.setStretchFactor(0, 1)
         self._canvas_split.setStretchFactor(1, 0)
@@ -2336,6 +2368,68 @@ class StudioEditor(QWidget):
                     scene_item.setSelected(True)
                     self._view.centerOn(scene_item)
                     break
+        # Sync the layer props panel to the clicked layer
+        self._sync_layer_props_panel(kind, idx)
+
+    def _sync_layer_props_panel(self, kind: str, idx: int):
+        """Populate the opacity + enabled controls for the selected layer."""
+        if not hasattr(self, "_layer_props_widget"):
+            return
+        if kind == "overlay" and 0 <= idx < len(self._asset.overlays):
+            ov = self._asset.overlays[idx]
+            self.slider_layer_opacity.blockSignals(True)
+            self.slider_layer_opacity.setValue(int(ov.opacity * 100))
+            self.slider_layer_opacity.blockSignals(False)
+            self.chk_layer_enabled.blockSignals(True)
+            self.chk_layer_enabled.setChecked(ov.enabled)
+            self.chk_layer_enabled.blockSignals(False)
+            self._layer_props_widget.setEnabled(True)
+            self._layer_props_selection = ("overlay", idx)
+        else:
+            # Censors don't have opacity/enabled in CensorRegion
+            self._layer_props_widget.setEnabled(False)
+            self._layer_props_selection = None
+
+    def _on_layer_opacity_changed(self, value: int):
+        sel = getattr(self, "_layer_props_selection", None)
+        if not sel or sel[0] != "overlay":
+            return
+        _, idx = sel
+        if not (0 <= idx < len(self._asset.overlays)):
+            return
+        ov = self._asset.overlays[idx]
+        new_op = value / 100.0
+        # Find the scene item + apply via SetAttrCmd for undo
+        for it in self._scene.items():
+            if getattr(it, "overlay", None) is ov:
+                self._push_overlay_attr(
+                    it, "opacity", new_op,
+                    apply_cb=lambda item, v: item.setOpacity(v),
+                    description="Layer opacity",
+                )
+                break
+
+    def _on_layer_enabled_toggled(self, checked: bool):
+        sel = getattr(self, "_layer_props_selection", None)
+        if not sel or sel[0] != "overlay":
+            return
+        _, idx = sel
+        if not (0 <= idx < len(self._asset.overlays)):
+            return
+        ov = self._asset.overlays[idx]
+        # Find the scene item + toggle visibility and enabled flag
+        for it in self._scene.items():
+            if getattr(it, "overlay", None) is ov:
+                def _apply_enabled(item, v):
+                    item.setVisible(bool(v))
+                self._push_overlay_attr(
+                    it, "enabled", checked,
+                    apply_cb=_apply_enabled,
+                    description=("Enable layer" if checked else "Disable layer"),
+                )
+                break
+        # Refresh the layer panel so the row renders greyed-out when disabled
+        self._rebuild_layer_panel()
 
     # ---- sync ----
 
