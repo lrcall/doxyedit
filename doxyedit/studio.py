@@ -1909,7 +1909,13 @@ class StudioScene(QGraphicsScene):
     """Scene with tool-aware mouse handling for censor/annotation drawing."""
 
     # Smart-guide tuning
-    SNAP_THRESHOLD_PX = 5   # snap when any tracked edge is within this many scene px
+    # Snap proximity. Default is 5px; read from QSettings so users can dial
+    # in looser / tighter snapping for their workflow.
+    @property
+    def SNAP_THRESHOLD_PX(self):
+        from PySide6.QtCore import QSettings as _QS
+        return _QS("DoxyEdit", "DoxyEdit").value(
+            "studio_snap_threshold_px", 5, type=int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -2562,6 +2568,8 @@ class StudioScene(QGraphicsScene):
         export_overlay_act = menu.addAction("Export Overlays as Transparent PNG...")
         export_selection_act = menu.addAction("Export Selection as Transparent PNG...")
         export_selection_act.setEnabled(bool(editor._scene.selectedItems()))
+        menu.addSeparator()
+        snap_threshold_act = menu.addAction("Snap Proximity...")
         chosen = menu.exec(event.screenPos())
         pos = event.scenePos()
         if chosen is add_text_act:
@@ -2687,6 +2695,17 @@ class StudioScene(QGraphicsScene):
             editor._export_overlays_as_transparent_png()
         elif chosen is export_selection_act:
             editor._export_selection_as_transparent_png()
+        elif chosen is snap_threshold_act:
+            from PySide6.QtCore import QSettings as _QS
+            qs = _QS("DoxyEdit", "DoxyEdit")
+            cur = qs.value("studio_snap_threshold_px", 5, type=int)
+            value, ok = QInputDialog.getInt(
+                editor, "Snap proximity",
+                "Distance (px) within which items snap to other edges / guides:",
+                value=cur, minValue=0, maxValue=50)
+            if ok:
+                qs.setValue("studio_snap_threshold_px", value)
+                editor.info_label.setText(f"Snap proximity: {value}px")
         elif chosen in (lock_all_act, unlock_all_act):
             lock = chosen is lock_all_act
             for it in editor._overlay_items:
