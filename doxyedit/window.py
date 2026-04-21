@@ -44,6 +44,7 @@ from doxyedit.formats import (
     is_project_path, is_collection_path,
     ensure_project_ext, ensure_collection_ext,
 )
+from doxyedit.project_io import SaveLoadMixin
 
 AUTOSAVE_INTERVAL_MS = 30_000
 
@@ -258,7 +259,7 @@ class _OneUpFetchThread(QThread):
             self.failed.emit(str(e))
 
 
-class MainWindow(QMainWindow):
+class MainWindow(SaveLoadMixin, QMainWindow):
     _open_windows: list["MainWindow"] = []  # keep extra windows alive (prevent GC)
 
     # ── Layout tokens (change here to rescale all MainWindow widgets) ──
@@ -6133,41 +6134,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._rebind_project()
         self.status.showMessage("Project reloaded (external change detected)", 3000)
 
-    def _watch_project(self):
-        """Start watching the current project file for external changes."""
-        # Clear old watches
-        old = self._file_watcher.files()
-        if old:
-            self._file_watcher.removePaths(old)
-        if self._project_path and Path(self._project_path).exists():
-            self._file_watcher.addPath(self._project_path)
-
-    def _save_project_silently(self, path: str | None = None):
-        """Save without tripping our own file watcher.
-
-        Removes `path` from the watcher, saves, re-adds. Replaces the fragile
-        `_own_save_pending` counter pattern at save sites. Still increments the
-        counter for any legacy reader. If `path` is None, uses `_project_path`.
-        """
-        target = path or self._project_path
-        if not target:
-            return
-        watched = target in self._file_watcher.files()
-        if watched:
-            self._file_watcher.removePath(target)
-        try:
-            self.project.save(target)
-        finally:
-            self._own_save_pending = getattr(self, "_own_save_pending", 0) + 1
-            if watched and Path(target).exists():
-                self._file_watcher.addPath(target)
-
-    def _autosave(self):
-        if self._dirty and self._project_path:
-            self._save_project_silently(self._project_path)
-            self._dirty = False
-            self.status.showMessage("Auto-saved", 3000)
-            self._autosave_collection()
+    # _watch_project, _save_project_silently, _autosave, _autosave_collection
+    # live on SaveLoadMixin (doxyedit/project_io.py) so window.py stays lean.
 
     # --- Project file ops ---
 
@@ -6427,26 +6395,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                         seen.add(p)
         return paths
 
-    def _autosave_collection(self):
-        """Silently overwrite the last-saved collection file if the project
-        list has actually changed since the last autosave."""
-        coll_path = self._settings.value("last_collection", "")
-        if not coll_path:
-            return
-        projects = self._collect_open_project_paths()
-        if not projects:
-            return
-        # Compare against the last-written project list to avoid redundant writes
-        last = getattr(self, "_last_collection_projects", None)
-        if last == projects:
-            return
-        try:
-            Path(coll_path).write_text(
-                json.dumps({"_type": "doxycoll", "projects": projects}, indent=2),
-                encoding="utf-8")
-            self._last_collection_projects = list(projects)
-        except Exception:
-            pass
+    # _autosave_collection lives on SaveLoadMixin (see above).
 
     def _locate_last_collection(self):
         """Show where the last saved collection is (or was) on disk."""
