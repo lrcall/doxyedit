@@ -803,6 +803,18 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         QShortcut(QKeySequence("Ctrl+Shift+C"), self).activated.connect(self._copy_full_path)
         # Shift+E notes overlay
         QShortcut(QKeySequence("Shift+E"), self).activated.connect(self._show_notes_overlay)
+        # F1-F6 = jump to main tab (Assets / Studio / Social / Platforms / Overview / Notes)
+        self._fkey_tab_map = [
+            (Qt.Key.Key_F1, self._browse_split),
+            (Qt.Key.Key_F2, self.studio),
+            (Qt.Key.Key_F3, self._social_split),
+            (Qt.Key.Key_F4, self._plat_full),
+            (Qt.Key.Key_F5, self._overview_split),
+            (Qt.Key.Key_F6, self._notes_tabs),
+        ]
+        for fkey, target in self._fkey_tab_map:
+            QShortcut(QKeySequence(fkey), self).activated.connect(
+                lambda t=target: self.tabs.setCurrentWidget(t))
 
         # --- Status bar with progress ---
         self.status = QStatusBar()
@@ -2058,7 +2070,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         edit_menu.addAction("Select &None", self._select_none, QKeySequence("Ctrl+Shift+D"))
         edit_menu.addAction("&Invert Selection", self._invert_selection)
         edit_menu.addSeparator()
-        edit_menu.addAction("&Rename File on Disk", self._rename_selected, QKeySequence("F2"))
+        edit_menu.addAction("&Rename File on Disk", self._rename_selected)
         edit_menu.addAction("&Delete Selected (Ignore)", self._handle_delete, QKeySequence("Delete"))
         edit_menu.addAction("&Remove from Project", self._remove_selected)
         edit_menu.addSeparator()
