@@ -3564,7 +3564,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         direct_count = 0
         try:
             import json as _json
-            from urllib.request import Request as _Req, urlopen as _urlopen
             from datetime import datetime as _dt
 
             api_key = ""
@@ -3575,18 +3574,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 api_key = (self.project.oneup_config or {}).get("api_key", "")
 
             if api_key:
-                mcp_url = f"https://feed.oneupapp.io/mcp/oneup?apiKey={api_key}"
-                init = {"jsonrpc": "2.0", "id": 1, "method": "initialize",
-                        "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                                   "clientInfo": {"name": "doxyedit", "version": "2.3"}}}
-                req = _Req(mcp_url, data=_json.dumps(init).encode(),
-                           headers={"Content-Type": "application/json"})
-                resp = _urlopen(req, timeout=15)
-                resp.read()
-                sid = resp.headers.get("MCP-Session-Id", "")
-                hdrs = {"Content-Type": "application/json"}
-                if sid:
-                    hdrs["MCP-Session-Id"] = sid
+                from doxyedit.oneup import mcp_init_session, mcp_tool_call
+                mcp_url, hdrs = mcp_init_session(api_key)
 
                 # Fetch OneUp state: fingerprint → status + count
                 oneup_state: dict[str, str] = {}  # caption[:40] → scheduled|published|failed
@@ -3596,11 +3585,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     ("get-published-posts-tool", "published"),
                     ("get-failed-posts-tool", "failed"),
                 ]:
-                    call = {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                            "params": {"name": tool, "arguments": {}}}
-                    r2 = _Req(mcp_url, data=_json.dumps(call).encode(), headers=hdrs)
-                    rsp = _urlopen(r2, timeout=15)
-                    txt = _json.loads(rsp.read().decode()).get("result", {}).get("content", [{}])[0].get("text", "")
+                    txt = mcp_tool_call(mcp_url, hdrs, tool, {})
                     try:
                         posts_list = _json.loads(txt).get("posts", [])
                         for p in posts_list:

@@ -20,6 +20,45 @@ class OneUpResult:
     error: str = ""
 
 
+def mcp_init_session(api_key: str, timeout: int = 15) -> tuple[str, dict]:
+    """Open an MCP session and return (mcp_url, headers) for subsequent calls.
+
+    Raises on network error. Headers include Content-Type and (if present)
+    MCP-Session-Id. Used by both the scheduling and sync paths.
+    """
+    mcp_url = f"https://feed.oneupapp.io/mcp/oneup?apiKey={api_key}"
+    init = {
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {"name": "doxyedit", "version": "2.3"},
+        },
+    }
+    req = Request(mcp_url, data=json.dumps(init).encode(),
+                  headers={"Content-Type": "application/json"})
+    resp = urlopen(req, timeout=timeout)
+    resp.read()
+    sid = resp.headers.get("MCP-Session-Id", "")
+    headers = {"Content-Type": "application/json"}
+    if sid:
+        headers["MCP-Session-Id"] = sid
+    return mcp_url, headers
+
+
+def mcp_tool_call(mcp_url: str, headers: dict, tool: str, arguments: dict,
+                  call_id: int = 2, timeout: int = 15) -> str:
+    """Invoke an MCP tool and return its first text content, or "" on malformed response."""
+    call = {
+        "jsonrpc": "2.0", "id": call_id, "method": "tools/call",
+        "params": {"name": tool, "arguments": arguments},
+    }
+    req = Request(mcp_url, data=json.dumps(call).encode(), headers=headers)
+    resp = urlopen(req, timeout=timeout)
+    data = json.loads(resp.read().decode())
+    return data.get("result", {}).get("content", [{}])[0].get("text", "")
+
+
 class OneUpClient:
     """Thin wrapper around OneUp REST API. Uses stdlib urllib — no extra deps.
 
