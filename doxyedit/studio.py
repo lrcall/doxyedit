@@ -1207,6 +1207,15 @@ class StudioEditor(QWidget):
 
         toolbar.addWidget(QLabel("|"))
 
+        # Group 4b: Alignment + distribute (menu dropdown)
+        self.btn_align = QPushButton("Align ▾")
+        self.btn_align.setObjectName("studio_btn_align")
+        self.btn_align.setToolTip("Align or distribute 2+ selected items")
+        self.btn_align.clicked.connect(self._show_align_menu)
+        toolbar.addWidget(self.btn_align)
+
+        toolbar.addWidget(QLabel("|"))
+
         # Group 5: Export
         self.btn_export = QPushButton("Export Preview")
         self.btn_export.setObjectName("studio_btn_export")
@@ -2436,6 +2445,134 @@ class StudioEditor(QWidget):
         for item in list(self._scene.selectedItems()):
             if isinstance(item, (OverlayImageItem, OverlayTextItem)):
                 self._duplicate_overlay_item(item)
+
+    # ---- alignment + distribute ----
+
+    def _show_align_menu(self):
+        """Dropdown from the Align toolbar button with 6 alignment actions."""
+        from PySide6.QtWidgets import QMenu
+        menu = _themed_menu(self)
+        a_left = menu.addAction("Align Left")
+        a_right = menu.addAction("Align Right")
+        a_top = menu.addAction("Align Top")
+        a_bottom = menu.addAction("Align Bottom")
+        menu.addSeparator()
+        a_ch = menu.addAction("Center Horizontal")
+        a_cv = menu.addAction("Center Vertical")
+        menu.addSeparator()
+        a_dh = menu.addAction("Distribute Horizontal")
+        a_dv = menu.addAction("Distribute Vertical")
+        # Anchor below the button
+        pos = self.btn_align.mapToGlobal(self.btn_align.rect().bottomLeft())
+        chosen = menu.exec(pos)
+        if chosen is a_left:
+            self._align_selected("left")
+        elif chosen is a_right:
+            self._align_selected("right")
+        elif chosen is a_top:
+            self._align_selected("top")
+        elif chosen is a_bottom:
+            self._align_selected("bottom")
+        elif chosen is a_ch:
+            self._align_selected("center_h")
+        elif chosen is a_cv:
+            self._align_selected("center_v")
+        elif chosen is a_dh:
+            self._distribute_selected("h")
+        elif chosen is a_dv:
+            self._distribute_selected("v")
+
+    def _alignable_items(self):
+        """Return selected items we can align/distribute (overlays, censors, crops, notes)."""
+        return [it for it in self._scene.selectedItems()
+                if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                   CensorRectItem, ResizableCropItem, NoteRectItem))]
+
+    def _align_selected(self, edge: str):
+        items = self._alignable_items()
+        if len(items) < 2:
+            self.info_label.setText("Select 2+ items to align")
+            return
+        rects = [it.sceneBoundingRect() for it in items]
+        if edge == "left":
+            target = min(r.left() for r in rects)
+            for it, r in zip(items, rects):
+                it.moveBy(target - r.left(), 0)
+        elif edge == "right":
+            target = max(r.right() for r in rects)
+            for it, r in zip(items, rects):
+                it.moveBy(target - r.right(), 0)
+        elif edge == "top":
+            target = min(r.top() for r in rects)
+            for it, r in zip(items, rects):
+                it.moveBy(0, target - r.top())
+        elif edge == "bottom":
+            target = max(r.bottom() for r in rects)
+            for it, r in zip(items, rects):
+                it.moveBy(0, target - r.bottom())
+        elif edge == "center_h":
+            target = sum(r.center().x() for r in rects) / len(rects)
+            for it, r in zip(items, rects):
+                it.moveBy(target - r.center().x(), 0)
+        elif edge == "center_v":
+            target = sum(r.center().y() for r in rects) / len(rects)
+            for it, r in zip(items, rects):
+                it.moveBy(0, target - r.center().y())
+        self._sync_after_align(items)
+
+    def _distribute_selected(self, axis: str):
+        items = self._alignable_items()
+        if len(items) < 3:
+            self.info_label.setText("Select 3+ items to distribute")
+            return
+        pairs = [(it, it.sceneBoundingRect()) for it in items]
+        if axis == "h":
+            pairs.sort(key=lambda p: p[1].center().x())
+            xs = [p[1].center().x() for p in pairs]
+            span = xs[-1] - xs[0]
+            if span <= 0:
+                return
+            step = span / (len(pairs) - 1)
+            for i, (it, r) in enumerate(pairs[1:-1], start=1):
+                target = xs[0] + step * i
+                it.moveBy(target - r.center().x(), 0)
+        else:  # v
+            pairs.sort(key=lambda p: p[1].center().y())
+            ys = [p[1].center().y() for p in pairs]
+            span = ys[-1] - ys[0]
+            if span <= 0:
+                return
+            step = span / (len(pairs) - 1)
+            for i, (it, r) in enumerate(pairs[1:-1], start=1):
+                target = ys[0] + step * i
+                it.moveBy(0, target - r.center().y())
+        self._sync_after_align(items)
+
+    def _sync_after_align(self, items):
+        """Write mutated positions back to asset data."""
+        overlay_moved = False
+        censor_moved = False
+        crop_moved = False
+        note_moved = False
+        for it in items:
+            if isinstance(it, (OverlayImageItem, OverlayTextItem)):
+                it.overlay.x = int(it.pos().x())
+                it.overlay.y = int(it.pos().y())
+                overlay_moved = True
+            elif isinstance(it, CensorRectItem):
+                censor_moved = True
+            elif isinstance(it, ResizableCropItem):
+                crop_moved = True
+                if getattr(it, "on_changed", None):
+                    it.on_changed(it)
+            elif isinstance(it, NoteRectItem):
+                note_moved = True
+        if overlay_moved:
+            self._sync_overlays_to_asset()
+        if censor_moved:
+            self._sync_censors_to_asset()
+        if note_moved:
+            self._save_notes_to_asset()
 
     # ---- copy / paste ----
 
