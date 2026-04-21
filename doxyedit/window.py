@@ -5921,46 +5921,36 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         QMessageBox.information(self, "Keyboard Shortcuts", shortcuts_text.strip())
 
     def _show_whats_new(self):
+        """Read docs/CHANGELOG.md and show the latest entries in a dialog."""
         from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
-        dlg = QDialog(self)
         from doxyedit import __version__
+
+        # Find docs/CHANGELOG.md next to the installed package
+        changelog_text = ""
+        for candidate in (
+            Path(__file__).parent.parent / "docs" / "CHANGELOG.md",
+            Path(__file__).parent / "docs" / "CHANGELOG.md",
+        ):
+            try:
+                if candidate.exists():
+                    changelog_text = candidate.read_text(encoding="utf-8")
+                    break
+            except Exception:
+                continue
+        if not changelog_text:
+            changelog_text = (
+                f"# DoxyEdit v{__version__}\n\n"
+                "CHANGELOG.md not found at docs/CHANGELOG.md.\n"
+                "See git log for recent changes."
+            )
+
+        dlg = QDialog(self)
         dlg.setWindowTitle(f"What's New in v{__version__}")
-        dlg.resize(560, 540)
+        dlg.resize(640, 560)
         layout = QVBoxLayout(dlg)
         text = QTextEdit()
         text.setReadOnly(True)
-        text.setMarkdown(
-            f"# What's New in v{__version__}\n\n"
-            "## Asset Groups: Duplicates & Variants\n"
-            "- **Link Mode** — toggle on toolbar, click asset to highlight its group\n"
-            "- **Corner dots** — red = duplicate group, teal = variant set\n"
-            "- **4 creation paths** — duplicate scanner, similar scanner, manual linking, filename auto-detect\n"
-            "- **Right-click management** — Select All, Mark as Keeper, Add to Set, Remove, Dissolve\n\n"
-            "## Rich Copy/Paste\n"
-            "- **Ctrl+C/V across project tabs** carries tags, crops, censors, overlays, notes\n"
-            "- Plain paste from Explorer still works\n\n"
-            "## Platform Panel Rework\n"
-            "- **3-pane splitter** — sidebar | cards | dashboard side by side\n"
-            "- **Campaign management** — edit, delete, selection persists\n"
-            "- **Dashboard** wraps cells to new rows, shows thumbnails\n\n"
-            "## Performance\n"
-            "- **Lazy censor editor** — only loads PSD when censor tab active\n"
-            "- **Faster tab switch** — deferred file watchers + notes rendering\n"
-            "- **Shared cache** keeps thumbnails in memory across project switches\n"
-            "- **Social tab** auto-refreshes every 60s\n\n"
-            "## UI Improvements\n"
-            "- **Vertical screen support** — window narrows to ~400px\n"
-            "- **Compact grid cells** — tighter ratios, less dead space\n"
-            "- **Fill Thumbnails** persists across sessions\n"
-            "- **Light theme contrast** — all 13 themes pass WCAG accessibility\n"
-            "- **Info panel** — accent-colored section headers for better readability\n"
-            "- **Quick Tag** — used/custom tags flat at top, presets in More Tags\n"
-            "- **Drag-drop** .doxyproj/.doxycoll files onto window to load\n"
-            "- **Styled dialogs** — tag input dialogs inherit app theme\n\n"
-            "## Tokenization\n"
-            "- Entire codebase tokenized — 125+ hardcoded values replaced\n"
-            "- All visual properties derive from Theme dataclass or font_size ratios\n"
-        )
+        text.setMarkdown(changelog_text)
         layout.addWidget(text)
         close = QPushButton("Close")
         close.clicked.connect(dlg.accept)
