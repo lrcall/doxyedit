@@ -4019,6 +4019,9 @@ class StudioEditor(QWidget):
         self._asset.crops.append(region)
         r = item.rect().translated(item.pos())
         self._update_crop_mask(r)
+        # Live-update the info label so users see dimensions as they drag
+        self.info_label.setText(
+            f"Crop '{region.label}': {region.w}x{region.h} at ({region.x},{region.y})")
 
     def _update_crop_mask(self, crop_rect: QRectF):
         """Draw dark overlay outside the crop region."""
