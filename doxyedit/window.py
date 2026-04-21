@@ -3504,7 +3504,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 msgs = [r.message for r in reminders[:3]]
                 self.status.showMessage(" | ".join(msgs), 10000)
         except Exception:
-            pass
+            logging.exception("Reminder check failed")
 
     def _check_autopost(self):
         """Auto-push queued posts whose scheduled_time has passed."""
