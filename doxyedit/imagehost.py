@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 import json
 import hashlib
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -20,8 +21,25 @@ class UploadResult:
     error: str = ""
 
 
-# Module-level cache: file_hash -> url (avoids re-uploading same image)
-_upload_cache: dict[str, str] = {}
+# Module-level LRU cache: file_hash -> url (avoids re-uploading same image).
+# Bounded so long-running sessions don't accumulate megabytes of stale mappings.
+_UPLOAD_CACHE_MAX = 512
+_upload_cache: "OrderedDict[str, str]" = OrderedDict()
+
+
+def _cache_get(fhash: str) -> str | None:
+    """Return cached URL + bump as recently used."""
+    url = _upload_cache.get(fhash)
+    if url is not None:
+        _upload_cache.move_to_end(fhash)
+    return url
+
+
+def _cache_set(fhash: str, url: str) -> None:
+    _upload_cache[fhash] = url
+    _upload_cache.move_to_end(fhash)
+    while len(_upload_cache) > _UPLOAD_CACHE_MAX:
+        _upload_cache.popitem(last=False)
 
 
 def _file_hash(path: str) -> str:
@@ -45,8 +63,8 @@ def upload_to_imgur(image_path: str, client_id: str = "") -> UploadResult:
         client_id = "546c25a59c58ad7"  # DoxyEdit default (anonymous, rate limited)
 
     fhash = _file_hash(image_path)
-    if fhash in _upload_cache:
-        return UploadResult(success=True, url=_upload_cache[fhash])
+    if (_cached_url := _cache_get(fhash)) is not None:
+        return UploadResult(success=True, url=_cached_url)
 
     try:
         img_data = base64.b64encode(Path(image_path).read_bytes()).decode("utf-8")
@@ -67,7 +85,7 @@ def upload_to_imgur(image_path: str, client_id: str = "") -> UploadResult:
         if data.get("success"):
             url = data["data"]["link"]
             delete_hash = data["data"].get("deletehash", "")
-            _upload_cache[fhash] = url
+            _cache_set(fhash, url)
             print(f"[Imgur] Uploaded: {url}")
             return UploadResult(success=True, url=url, delete_hash=delete_hash)
         return UploadResult(error=data.get("data", {}).get("error", "Unknown error"))
@@ -85,8 +103,8 @@ def upload_to_imgbb(image_path: str, api_key: str) -> UploadResult:
     Get API key from https://api.imgbb.com/
     """
     fhash = _file_hash(image_path)
-    if fhash in _upload_cache:
-        return UploadResult(success=True, url=_upload_cache[fhash])
+    if (_cached_url := _cache_get(fhash)) is not None:
+        return UploadResult(success=True, url=_cached_url)
 
     try:
         img_data = base64.b64encode(Path(image_path).read_bytes()).decode("utf-8")
@@ -104,7 +122,7 @@ def upload_to_imgbb(image_path: str, api_key: str) -> UploadResult:
 
         if data.get("success"):
             url = data["data"]["url"]
-            _upload_cache[fhash] = url
+            _cache_set(fhash, url)
             print(f"[imgbb] Uploaded: {url}")
             return UploadResult(success=True, url=url)
         return UploadResult(error=data.get("error", {}).get("message", "Unknown error"))
