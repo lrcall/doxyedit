@@ -1302,6 +1302,17 @@ class OverlayTextItem(QGraphicsTextItem):
         if self.overlay.letter_spacing:
             font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, self.overlay.letter_spacing)
         self.setFont(font)
+        # Horizontal alignment via document option
+        from PySide6.QtGui import QTextOption
+        align_map = {
+            "left": Qt.AlignmentFlag.AlignLeft,
+            "center": Qt.AlignmentFlag.AlignHCenter,
+            "right": Qt.AlignmentFlag.AlignRight,
+        }
+        opt = QTextOption(align_map.get(
+            getattr(self.overlay, "text_align", "left"),
+            Qt.AlignmentFlag.AlignLeft))
+        self.document().setDefaultTextOption(opt)
         self.setDefaultTextColor(QColor(self.overlay.color))
         if self.overlay.text_width > 0:
             self.setTextWidth(self.overlay.text_width)
@@ -1464,6 +1475,16 @@ class OverlayTextItem(QGraphicsTextItem):
         strike_act = menu.addAction("Strikethrough")
         strike_act.setCheckable(True)
         strike_act.setChecked(bool(getattr(self.overlay, "strikethrough", False)))
+        align_menu = menu.addMenu("Align Text")
+        align_left_act = align_menu.addAction("Left")
+        align_center_act = align_menu.addAction("Center")
+        align_right_act = align_menu.addAction("Right")
+        cur_align = getattr(self.overlay, "text_align", "left")
+        for a, v in ((align_left_act, "left"),
+                     (align_center_act, "center"),
+                     (align_right_act, "right")):
+            a.setCheckable(True)
+            a.setChecked(cur_align == v)
         shadow_menu = menu.addMenu("Drop Shadow")
         shadow_on = bool(self.overlay.shadow_color and self.overlay.shadow_offset)
         shadow_toggle_act = shadow_menu.addAction(
@@ -1511,6 +1532,15 @@ class OverlayTextItem(QGraphicsTextItem):
                 apply_cb=lambda it, _v: it.update(),
                 description="Clear text background",
             )
+            self._editor._sync_overlays_to_asset()
+        elif chosen in (align_left_act, align_center_act, align_right_act) and self._editor:
+            tgt = (
+                "left" if chosen is align_left_act else
+                "center" if chosen is align_center_act else "right")
+            self._editor._push_overlay_attr(
+                self, "text_align", tgt,
+                apply_cb=lambda it, _v: it._apply_font(),
+                description="Text alignment")
             self._editor._sync_overlays_to_asset()
         elif chosen is underline_act and self._editor:
             self._editor._push_overlay_attr(
@@ -5383,6 +5413,7 @@ class StudioEditor(QWidget):
     _TEXT_STYLE_FIELDS = (
         "font_family", "font_size", "color", "opacity",
         "bold", "italic", "underline", "strikethrough",
+        "text_align",
         "letter_spacing", "line_height",
         "stroke_color", "stroke_width",
         "shadow_color", "shadow_offset", "shadow_blur",

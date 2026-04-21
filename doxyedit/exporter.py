@@ -505,14 +505,17 @@ def _composite_text_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
             else:
                 draw.text((sx, sy), render_text, font=font, fill=(sr, sg, sb, sa), spacing=spacing)
 
-        # Text outline/stroke
+        # Text outline/stroke (+ horizontal alignment for multiline)
+        align = getattr(ov, "text_align", "left")
         if ov.stroke_color and ov.stroke_width > 0:
             or_, og, ob = _hex(ov.stroke_color)
             draw.text((x, y), render_text, font=font,
                        fill=(r, g, b, a), stroke_width=ov.stroke_width,
-                       stroke_fill=(or_, og, ob, a), spacing=spacing)
+                       stroke_fill=(or_, og, ob, a), spacing=spacing,
+                       align=align)
         else:
-            draw.text((x, y), render_text, font=font, fill=(r, g, b, a), spacing=spacing)
+            draw.text((x, y), render_text, font=font, fill=(r, g, b, a),
+                      spacing=spacing, align=align)
 
         # Underline / strikethrough — PIL doesn't expose these as text flags,
         # so render explicit lines under / through each text row.
