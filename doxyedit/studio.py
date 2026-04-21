@@ -2213,6 +2213,14 @@ class StudioEditor(QWidget):
                                    CensorRectItem, ResizableCropItem, NoteRectItem)):
                     it.setSelected(True)
             return
+        # Ctrl+Shift+I — invert selection among selectable items
+        if ctrl and shift and key == Qt.Key.Key_I:
+            for it in self._scene.items():
+                if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                   OverlayArrowItem,
+                                   CensorRectItem, ResizableCropItem, NoteRectItem)):
+                    it.setSelected(not it.isSelected())
+            return
         # Ctrl+Shift+H / Ctrl+Shift+V — flip selected overlays
         if ctrl and shift and key == Qt.Key.Key_H:
             self._flip_selected("h")
