@@ -282,6 +282,20 @@ def _composite_image_overlay(img: Image.Image, ov: CanvasOverlay, project_dir: s
         if getattr(ov, "flip_v", False):
             wm = wm.transpose(Image.FLIP_TOP_BOTTOM)
 
+        # Filter (grayscale / invert) — applied before opacity + compositing
+        mode = getattr(ov, "filter_mode", "") or ""
+        if mode == "grayscale":
+            from PIL import ImageOps
+            gray = ImageOps.grayscale(wm.convert("RGB")).convert("RGBA")
+            # Keep original alpha so transparent edges stay transparent
+            gray.putalpha(wm.split()[3])
+            wm = gray
+        elif mode == "invert":
+            from PIL import ImageOps
+            inv = ImageOps.invert(wm.convert("RGB")).convert("RGBA")
+            inv.putalpha(wm.split()[3])
+            wm = inv
+
         # Apply opacity
         if ov.opacity < 1.0:
             alpha = wm.split()[3]

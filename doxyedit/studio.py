@@ -434,6 +434,17 @@ class OverlayImageItem(QGraphicsPixmapItem):
         copy_style_act = menu.addAction("Copy Style")
         paste_style_act = menu.addAction("Paste Style")
         menu.addSeparator()
+        filter_menu = menu.addMenu("Filter")
+        filter_none_act = filter_menu.addAction("None")
+        filter_gray_act = filter_menu.addAction("Grayscale")
+        filter_invert_act = filter_menu.addAction("Invert Colors")
+        current_filter = getattr(self.overlay, "filter_mode", "") or ""
+        for a, v in ((filter_none_act, ""),
+                      (filter_gray_act, "grayscale"),
+                      (filter_invert_act, "invert")):
+            a.setCheckable(True)
+            a.setChecked(current_filter == v)
+        menu.addSeparator()
         blend_menu = menu.addMenu("Blend Mode")
         blend_acts = {}
         for bm in ("normal", "multiply", "screen", "overlay", "darken", "lighten"):
@@ -478,6 +489,15 @@ class OverlayImageItem(QGraphicsPixmapItem):
             self.overlay.blend_mode = blend_acts[chosen]
             self.update()
             if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen in (filter_none_act, filter_gray_act, filter_invert_act):
+            target = (
+                "" if chosen is filter_none_act else
+                "grayscale" if chosen is filter_gray_act else "invert")
+            self.overlay.filter_mode = target
+            # Re-render the pixmap with the filter applied
+            if self._editor:
+                self._editor._refresh_overlay_image(self)
                 self._editor._sync_overlays_to_asset()
         elif chosen is select_same_blend_act and self._editor:
             bm = getattr(self.overlay, "blend_mode", "normal")
@@ -4949,6 +4969,9 @@ class StudioEditor(QWidget):
             item = OverlayImageItem(pm, ov)
             item._editor = self
             self._scene.addItem(item)
+            # Filter applies after construction so the stored pixmap reflects it
+            if getattr(ov, "filter_mode", ""):
+                self._refresh_overlay_image(item)
             return item
         elif ov.type == "text":
             item = OverlayTextItem(ov)
@@ -5027,6 +5050,43 @@ class StudioEditor(QWidget):
         from PySide6.QtCore import QSettings as _QS
         _QS("DoxyEdit", "DoxyEdit").remove("studio_watermark_defaults")
         self.info_label.setText("Reset default watermark style")
+
+    def _refresh_overlay_image(self, item):
+        """Reload the pixmap for an image overlay and re-apply filter_mode."""
+        ov = item.overlay
+        if not ov.image_path:
+            return
+        src = QPixmap(ov.image_path)
+        if src.isNull():
+            return
+        # Re-scale
+        if self._pixmap_item:
+            base_w = self._pixmap_item.pixmap().width()
+            target_w = max(10, int(base_w * ov.scale))
+            src = src.scaledToWidth(target_w,
+                                     Qt.TransformationMode.SmoothTransformation)
+        # Apply filter via QImage pixel manipulation
+        mode = getattr(ov, "filter_mode", "") or ""
+        if mode:
+            from PySide6.QtGui import QImage
+            qimg = src.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+            w, h = qimg.width(), qimg.height()
+            for y in range(h):
+                for x in range(w):
+                    c = qimg.pixelColor(x, y)
+                    if c.alpha() == 0:
+                        continue
+                    if mode == "grayscale":
+                        g = int(0.299 * c.red() + 0.587 * c.green()
+                                 + 0.114 * c.blue())
+                        c.setRgb(g, g, g, c.alpha())
+                    elif mode == "invert":
+                        c.setRgb(255 - c.red(), 255 - c.green(),
+                                  255 - c.blue(), c.alpha())
+                    qimg.setPixelColor(x, y, c)
+            src = QPixmap.fromImage(qimg)
+        item.setPixmap(src)
+        item.update()
 
     def _replace_overlay_image(self, item):
         """Swap the image file for an existing watermark/logo overlay."""
