@@ -6025,7 +6025,11 @@ class StudioEditor(QWidget):
 
         # Overlays (top of list = front)
         if self._asset.overlays:
-            hdr = QListWidgetItem("-- Overlays --")
+            count_ovs = len(self._asset.overlays)
+            hidden_ovs = sum(1 for o in self._asset.overlays if not o.enabled)
+            tag_ovs = f" ({count_ovs})" if hidden_ovs == 0 else \
+                f" ({count_ovs - hidden_ovs}/{count_ovs})"
+            hdr = QListWidgetItem(f"-- Overlays{tag_ovs} --")
             hdr.setFlags(Qt.ItemFlag.NoItemFlags)
             hdr.setForeground(Qt.GlobalColor.gray)
             self._layer_panel.addItem(hdr)
@@ -6081,7 +6085,8 @@ class StudioEditor(QWidget):
 
         # Censors
         if self._asset.censors:
-            hdr = QListWidgetItem("-- Censors --")
+            count_cr = len(self._asset.censors)
+            hdr = QListWidgetItem(f"-- Censors ({count_cr}) --")
             hdr.setFlags(Qt.ItemFlag.NoItemFlags)
             hdr.setForeground(Qt.GlobalColor.gray)
             self._layer_panel.addItem(hdr)
