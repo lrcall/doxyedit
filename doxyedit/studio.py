@@ -3786,6 +3786,11 @@ class StudioEditor(QWidget):
                 # Focus mode toggle
                 self.btn_focus.setChecked(not self.btn_focus.isChecked())
                 return
+            if key == Qt.Key.Key_M:
+                # Minimap toggle (Photoshop: M = marquee; we repurpose)
+                if hasattr(self, "chk_minimap"):
+                    self.chk_minimap.setChecked(not self.chk_minimap.isChecked())
+                return
             # Number keys 0-9 set opacity on selected non-text overlays and
             # censors. Photoshop convention: 1=10%, 5=50%, 0=100%.
             _num_keys = (Qt.Key.Key_0, Qt.Key.Key_1, Qt.Key.Key_2,
