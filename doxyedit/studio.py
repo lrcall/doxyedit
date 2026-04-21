@@ -3730,11 +3730,35 @@ class StudioEditor(QWidget):
                 self._rebuild_layer_panel()
 
     def _on_layer_clicked(self, item):
-        """Select the corresponding scene item when layer is clicked."""
+        """Select the corresponding scene item when layer is clicked.
+        Shift+click toggles visibility; Ctrl+click toggles lock."""
         data = item.data(Qt.ItemDataRole.UserRole)
         if not data:
             return
         kind, idx = data
+        from PySide6.QtWidgets import QApplication
+        mods = QApplication.keyboardModifiers()
+        if kind == "overlay" and 0 <= idx < len(self._asset.overlays):
+            ov = self._asset.overlays[idx]
+            if mods & Qt.KeyboardModifier.ShiftModifier:
+                ov.enabled = not ov.enabled
+                for it in self._scene.items():
+                    if hasattr(it, "overlay") and it.overlay is ov:
+                        it.setVisible(ov.enabled)
+                        break
+                self._rebuild_layer_panel()
+                return
+            if mods & Qt.KeyboardModifier.ControlModifier:
+                ov.locked = not getattr(ov, "locked", False)
+                for it in self._scene.items():
+                    if hasattr(it, "overlay") and it.overlay is ov:
+                        it.setFlag(
+                            it.GraphicsItemFlag.ItemIsMovable, not ov.locked)
+                        it.setFlag(
+                            it.GraphicsItemFlag.ItemIsSelectable, not ov.locked)
+                        break
+                self._rebuild_layer_panel()
+                return
         self._scene.clearSelection()
         # Find matching scene item
         for scene_item in self._scene.items():
