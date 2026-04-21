@@ -1057,6 +1057,18 @@ class OverlayTextItem(QGraphicsTextItem):
                 painter.setBrush(bg_color)
                 painter.drawRoundedRect(br, _pad, _pad)
                 painter.restore()
+        # Drop shadow — draw the text at offset in shadow color before the
+        # main pass. Simple, readable; exporter already has a blurred version.
+        if self.overlay.shadow_color and self.overlay.shadow_offset:
+            painter.save()
+            off = self.overlay.shadow_offset
+            orig_color = self.defaultTextColor()
+            self.setDefaultTextColor(QColor(self.overlay.shadow_color))
+            painter.translate(off, off)
+            super().paint(painter, option, widget)
+            painter.translate(-off, -off)
+            self.setDefaultTextColor(orig_color)
+            painter.restore()
         # Draw text outline if stroke is configured
         if self.overlay.stroke_width > 0 and self.overlay.stroke_color:
             from PySide6.QtGui import QPainterPath, QPainterPathStroker
@@ -1147,6 +1159,13 @@ class OverlayTextItem(QGraphicsTextItem):
         color_act = menu.addAction("Change Color...")
         bg_act = menu.addAction("Change Background...")
         clear_bg_act = menu.addAction("Clear Background")
+        shadow_menu = menu.addMenu("Drop Shadow")
+        shadow_on = bool(self.overlay.shadow_color and self.overlay.shadow_offset)
+        shadow_toggle_act = shadow_menu.addAction(
+            "Disable Shadow" if shadow_on else "Enable Shadow (soft black)")
+        shadow_color_act = shadow_menu.addAction("Shadow Color...")
+        shadow_stronger_act = shadow_menu.addAction("Shadow Stronger")
+        shadow_softer_act = shadow_menu.addAction("Shadow Softer")
         select_same_act = menu.addAction("Select All Text Overlays")
         save_style_act = menu.addAction("Save as Default Text Style")
         reset_style_act = menu.addAction("Reset Default Text Style")
@@ -1186,6 +1205,60 @@ class OverlayTextItem(QGraphicsTextItem):
                 apply_cb=lambda it, _v: it.update(),
                 description="Clear text background",
             )
+            self._editor._sync_overlays_to_asset()
+        elif chosen is shadow_toggle_act and self._editor:
+            if shadow_on:
+                for attr, val in (("shadow_color", ""),
+                                   ("shadow_offset", 0),
+                                   ("shadow_blur", 0)):
+                    self._editor._push_overlay_attr(
+                        self, attr, val,
+                        apply_cb=lambda it, _v: it.update(),
+                        description="Disable text shadow")
+            else:
+                for attr, val in (("shadow_color", "#000000"),
+                                   ("shadow_offset", 3),
+                                   ("shadow_blur", 3)):
+                    self._editor._push_overlay_attr(
+                        self, attr, val,
+                        apply_cb=lambda it, _v: it.update(),
+                        description="Enable text shadow")
+            self._editor._sync_overlays_to_asset()
+        elif chosen is shadow_color_act and self._editor:
+            initial = QColor(self.overlay.shadow_color or "#000000")
+            new = QColorDialog.getColor(
+                initial, self._editor, "Text shadow color",
+                QColorDialog.ColorDialogOption.ShowAlphaChannel)
+            if new.isValid():
+                self._editor._push_overlay_attr(
+                    self, "shadow_color", new.name(),
+                    apply_cb=lambda it, _v: it.update(),
+                    description="Change shadow color")
+                self._editor._sync_overlays_to_asset()
+        elif chosen is shadow_stronger_act and self._editor:
+            self._editor._push_overlay_attr(
+                self, "shadow_offset", self.overlay.shadow_offset + 2,
+                apply_cb=lambda it, _v: it.update(),
+                description="Stronger shadow")
+            self._editor._push_overlay_attr(
+                self, "shadow_blur", self.overlay.shadow_blur + 2,
+                apply_cb=lambda it, _v: it.update(),
+                description="Stronger shadow")
+            if not self.overlay.shadow_color:
+                self._editor._push_overlay_attr(
+                    self, "shadow_color", "#000000",
+                    apply_cb=lambda it, _v: it.update(),
+                    description="Shadow color")
+            self._editor._sync_overlays_to_asset()
+        elif chosen is shadow_softer_act and self._editor:
+            self._editor._push_overlay_attr(
+                self, "shadow_offset", max(0, self.overlay.shadow_offset - 2),
+                apply_cb=lambda it, _v: it.update(),
+                description="Softer shadow")
+            self._editor._push_overlay_attr(
+                self, "shadow_blur", max(0, self.overlay.shadow_blur - 2),
+                apply_cb=lambda it, _v: it.update(),
+                description="Softer shadow")
             self._editor._sync_overlays_to_asset()
         elif chosen is select_same_act and self._editor:
             self._editor._scene.clearSelection()
