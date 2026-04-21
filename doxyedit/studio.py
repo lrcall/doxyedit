@@ -1324,6 +1324,7 @@ class OverlayTextItem(QGraphicsTextItem):
         shadow_stronger_act = shadow_menu.addAction("Shadow Stronger")
         shadow_softer_act = shadow_menu.addAction("Shadow Softer")
         select_same_act = menu.addAction("Select All Text Overlays")
+        find_replace_act = menu.addAction("Find and Replace Text...")
         save_style_act = menu.addAction("Save as Default Text Style")
         reset_style_act = menu.addAction("Reset Default Text Style")
         copy_style_act = menu.addAction("Copy Style")
@@ -1422,6 +1423,8 @@ class OverlayTextItem(QGraphicsTextItem):
             for it in self._editor._overlay_items:
                 if isinstance(it, OverlayTextItem):
                     it.setSelected(True)
+        elif chosen is find_replace_act and self._editor:
+            self._editor._find_replace_text()
         elif chosen is save_style_act and self._editor:
             self._editor._save_text_style_as_default(self.overlay)
         elif chosen is reset_style_act and self._editor:
@@ -4364,6 +4367,33 @@ class StudioEditor(QWidget):
         self._zoom_label.setText(f"{int(factor * 100)}%")
         if hasattr(self, "_canvas_wrap"):
             self._canvas_wrap.refresh()
+
+    def _find_replace_text(self):
+        """Prompt for find/replace strings and apply to every text overlay."""
+        if not self._asset:
+            return
+        find_str, ok = QInputDialog.getText(
+            self, "Find and Replace", "Find text (substring):")
+        if not ok or not find_str:
+            return
+        repl_str, ok = QInputDialog.getText(
+            self, "Find and Replace", f"Replace '{find_str}' with:")
+        if not ok:
+            return
+        count = 0
+        for it in list(self._overlay_items):
+            if isinstance(it, OverlayTextItem) and find_str in it.overlay.text:
+                new_text = it.overlay.text.replace(find_str, repl_str)
+                self._push_overlay_attr(
+                    it, "text", new_text,
+                    apply_cb=lambda itm, v: itm.setPlainText(v),
+                    description="Find / replace text")
+                count += 1
+        if count:
+            self._sync_overlays_to_asset()
+            self.info_label.setText(f"Replaced in {count} text overlay(s)")
+        else:
+            self.info_label.setText(f"No text overlays matched '{find_str}'")
 
     def _show_undo_history(self):
         """Display the undo stack as a clickable list so users can jump to
