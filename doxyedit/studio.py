@@ -1008,8 +1008,22 @@ class OverlayShapeItem(QGraphicsItem):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             pos = self.pos()
             if pos != QPointF(0, 0):
-                self.overlay.x += int(pos.x())
-                self.overlay.y += int(pos.y())
+                dx, dy = int(pos.x()), int(pos.y())
+                self.overlay.x += dx
+                self.overlay.y += dy
+                # Drag the tail with the body so the pointer stays anchored
+                if self.overlay.tail_x or self.overlay.tail_y:
+                    self.overlay.tail_x += dx
+                    self.overlay.tail_y += dy
+                # Paired text overlay tracks the bubble
+                if self.overlay.linked_text_id and self._editor is not None:
+                    for it in self._editor._overlay_items:
+                        if (isinstance(it, OverlayTextItem)
+                                and it.overlay.label == self.overlay.linked_text_id):
+                            it.overlay.x += dx
+                            it.overlay.y += dy
+                            it.setPos(it.overlay.x, it.overlay.y)
+                            break
                 self.setPos(0, 0)
                 self.prepareGeometryChange()
         return super().itemChange(change, value)
