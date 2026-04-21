@@ -535,9 +535,22 @@ class OverlayShapeItem(QGraphicsItem):
             QGraphicsItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
+        self.setAcceptHoverEvents(True)
         self._editor = None
         self._dragging_handle = None  # 'tl', 'tr', 'bl', 'br', or None
         self.setZValue(200)
+
+    def hoverMoveEvent(self, event):
+        # Swap cursor when hovering a handle so users know they can resize
+        if self.isSelected():
+            h = self._handle_under(event.scenePos())
+            if h in ('tl', 'br'):
+                self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+            elif h in ('tr', 'bl'):
+                self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+            else:
+                self.setCursor(Qt.CursorShape.SizeAllCursor)
+        super().hoverMoveEvent(event)
 
     def _handle_positions(self) -> dict:
         """Return {handle_key: QPointF} for the four corners."""
@@ -719,9 +732,19 @@ class OverlayArrowItem(QGraphicsItem):
             QGraphicsItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
+        self.setAcceptHoverEvents(True)
         self._editor = None
         self._dragging_endpoint = None  # 'start', 'end', or None
         self.setZValue(200)
+
+    def hoverMoveEvent(self, event):
+        if self.isSelected():
+            ep = self._endpoint_under(event.scenePos())
+            if ep is not None:
+                self.setCursor(Qt.CursorShape.CrossCursor)
+            else:
+                self.setCursor(Qt.CursorShape.SizeAllCursor)
+        super().hoverMoveEvent(event)
 
     def boundingRect(self) -> QRectF:
         x1, y1 = self.overlay.x, self.overlay.y
