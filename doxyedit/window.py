@@ -854,7 +854,13 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         # --- Auto-save timer ---
         self._autosave_timer = QTimer(self)
         self._autosave_timer.timeout.connect(self._autosave)
-        self._autosave_timer.start(AUTOSAVE_INTERVAL_MS)
+        # User-configurable via QSettings("autosave_interval_ms"). Default
+        # 30s. Clamp to a sensible range so a typo can't lock the user
+        # into saving every 100ms or never saving at all.
+        _interval = int(self._settings.value(
+            "autosave_interval_ms", AUTOSAVE_INTERVAL_MS, type=int))
+        _interval = max(5_000, min(600_000, _interval))  # 5s to 10min
+        self._autosave_timer.start(_interval)
         self._dirty = False
 
         # --- Progress update timer ---
