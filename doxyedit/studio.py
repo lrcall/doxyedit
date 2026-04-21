@@ -2240,32 +2240,44 @@ class StudioEditor(QWidget):
     def _on_font_changed(self, font: QFont):
         for item in self._selected_overlay_items():
             if isinstance(item, OverlayTextItem):
-                item.overlay.font_family = font.family()
-                item._apply_font()
+                self._push_overlay_attr(
+                    item, "font_family", font.family(),
+                    apply_cb=lambda it, _v: it._apply_font(),
+                    description="Change font",
+                )
         self._sync_overlays_to_asset()
 
     def _on_font_size_changed(self, value: int):
         self._font_size_label.setText(str(value))
         for item in self._selected_overlay_items():
             if isinstance(item, OverlayTextItem):
-                item.overlay.font_size = value
-                item._apply_font()
+                self._push_overlay_attr(
+                    item, "font_size", value,
+                    apply_cb=lambda it, _v: it._apply_font(),
+                    description="Change font size",
+                )
         self._sync_overlays_to_asset()
 
     def _on_bold_changed(self):
         checked = self.btn_bold.isChecked()
         for item in self._selected_overlay_items():
             if isinstance(item, OverlayTextItem):
-                item.overlay.bold = checked
-                item._apply_font()
+                self._push_overlay_attr(
+                    item, "bold", checked,
+                    apply_cb=lambda it, _v: it._apply_font(),
+                    description=("Bold on" if checked else "Bold off"),
+                )
         self._sync_overlays_to_asset()
 
     def _on_italic_changed(self):
         checked = self.btn_italic.isChecked()
         for item in self._selected_overlay_items():
             if isinstance(item, OverlayTextItem):
-                item.overlay.italic = checked
-                item._apply_font()
+                self._push_overlay_attr(
+                    item, "italic", checked,
+                    apply_cb=lambda it, _v: it._apply_font(),
+                    description=("Italic on" if checked else "Italic off"),
+                )
         self._sync_overlays_to_asset()
 
     def _on_color_pick(self):
@@ -2277,8 +2289,11 @@ class StudioEditor(QWidget):
         if color.isValid():
             for item in items:
                 if isinstance(item, OverlayTextItem):
-                    item.overlay.color = color.name()
-                    item._apply_font()
+                    self._push_overlay_attr(
+                        item, "color", color.name(),
+                        apply_cb=lambda it, _v: it._apply_font(),
+                        description="Change text color",
+                    )
             self._sync_overlays_to_asset()
 
     def _on_outline_color_pick(self):
@@ -2290,13 +2305,21 @@ class StudioEditor(QWidget):
         if color.isValid():
             for item in items:
                 if isinstance(item, OverlayTextItem):
-                    item.overlay.stroke_color = color.name()
+                    self._push_overlay_attr(
+                        item, "stroke_color", color.name(),
+                        apply_cb=lambda it, _v: it.update(),
+                        description="Change outline color",
+                    )
                     if item.overlay.stroke_width == 0:
-                        item.overlay.stroke_width = 2
+                        # Also bump width to 2 so the color change is visible
+                        self._push_overlay_attr(
+                            item, "stroke_width", 2,
+                            apply_cb=lambda it, _v: it.update(),
+                            description="Set outline width",
+                        )
                         self.slider_outline.blockSignals(True)
                         self.slider_outline.setValue(2)
                         self.slider_outline.blockSignals(False)
-                    item.update()
             self._sync_overlays_to_asset()
 
     def _on_outline_changed(self, value: int):
