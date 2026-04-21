@@ -926,6 +926,8 @@ class StudioEditor(QWidget):
             elif key == Qt.Key.Key_Down:
                 dy = delta
             moved = False
+            moved_crop = False
+            moved_note = False
             for item in self._scene.selectedItems():
                 if isinstance(item, (CensorRectItem, OverlayImageItem, OverlayTextItem)):
                     item.moveBy(dx, dy)
@@ -933,9 +935,19 @@ class StudioEditor(QWidget):
                         item.overlay.x = int(item.pos().x())
                         item.overlay.y = int(item.pos().y())
                     moved = True
+                elif isinstance(item, ResizableCropItem):
+                    item.moveBy(dx, dy)
+                    moved_crop = True
+                    if getattr(item, "on_changed", None):
+                        item.on_changed(item)
+                elif isinstance(item, NoteRectItem):
+                    item.moveBy(dx, dy)
+                    moved_note = True
             if moved:
                 self._sync_censors_to_asset()
                 self._sync_overlays_to_asset()
+            if moved_note:
+                self._save_notes_to_asset()
             return
 
         # Escape is handled by StudioScene.keyPressEvent (scene focus) or
