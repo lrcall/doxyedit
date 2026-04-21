@@ -4337,7 +4337,25 @@ class StudioEditor(QWidget):
 
         toolbar.addStretch()
 
-        root.addLayout(toolbar)
+        # Wrap in a horizontal QScrollArea so the toolbar keeps its natural
+        # width at narrow window widths (a horizontal scrollbar appears
+        # instead of the widgets crushing into each other).
+        _toolbar_wrap = QWidget()
+        _toolbar_wrap.setLayout(toolbar)
+        _toolbar_scroll = QScrollArea()
+        _toolbar_scroll.setObjectName("studio_toolbar_scroll")
+        _toolbar_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        _toolbar_scroll.setWidget(_toolbar_wrap)
+        _toolbar_scroll.setWidgetResizable(False)
+        _toolbar_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _toolbar_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # Ensure the wrap widget sizes itself to the toolbar's natural size
+        _toolbar_wrap.adjustSize()
+        _toolbar_scroll.setFixedHeight(
+            _toolbar_wrap.sizeHint().height() + 4)
+        root.addWidget(_toolbar_scroll)
 
         # Row 2: Overlay properties (visible when text/watermark selected)
         self._props_row = QWidget()

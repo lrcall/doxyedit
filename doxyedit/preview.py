@@ -177,7 +177,12 @@ class ResizableCropItem(QGraphicsRectItem):
             view = self.scene().views()[0] if self.scene() and self.scene().views() else None
             scale = view.transform().m11() if view else 1.0
             _t = self._theme
-            font.setPixelSize(max(_t.crop_label_min_font, int(_t.font_size * _t.crop_label_scale_ratio / max(scale, 0.01))))
+            # Clamp to a positive minimum — Qt logs "Pixel size <= 0" if
+            # this ever becomes 0, which happened during zoom-wheel spam.
+            _px = max(_t.crop_label_min_font or 12,
+                       int((_t.font_size or 12) * _t.crop_label_scale_ratio
+                           / max(abs(scale), 0.01)))
+            font.setPixelSize(max(1, _px))
             font.setBold(True)
             painter.setFont(font)
             inv = 1.0 / max(scale, 0.01)
