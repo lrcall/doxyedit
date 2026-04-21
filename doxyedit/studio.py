@@ -1843,6 +1843,8 @@ class StudioEditor(QWidget):
         self.btn_select = QPushButton("Select")
         self.btn_select.setObjectName("studio_btn_select")
         self.btn_select.setToolTip("Select tool (Q)")
+        self.btn_select.setCheckable(True)
+        self.btn_select.setChecked(True)  # initial tool
         self.btn_select.clicked.connect(lambda: self._set_tool(StudioTool.SELECT))
         toolbar.addWidget(self.btn_select)
 
@@ -1852,6 +1854,7 @@ class StudioEditor(QWidget):
         self.btn_censor = QPushButton("Censor")
         self.btn_censor.setObjectName("studio_btn_censor")
         self.btn_censor.setToolTip("Censor tool (X)")
+        self.btn_censor.setCheckable(True)
         self.btn_censor.clicked.connect(lambda: self._set_tool(StudioTool.CENSOR))
         toolbar.addWidget(self.btn_censor)
 
@@ -1870,6 +1873,7 @@ class StudioEditor(QWidget):
         self.btn_crop = QPushButton("Crop")
         self.btn_crop.setObjectName("studio_btn_crop")
         self.btn_crop.setToolTip("Crop tool (C)")
+        self.btn_crop.setCheckable(True)
         self.btn_crop.clicked.connect(lambda: self._set_tool(StudioTool.CROP))
         toolbar.addWidget(self.btn_crop)
 
@@ -1893,6 +1897,7 @@ class StudioEditor(QWidget):
         self.btn_note = QPushButton("Note")
         self.btn_note.setObjectName("studio_btn_note")
         self.btn_note.setToolTip("Note tool (N)")
+        self.btn_note.setCheckable(True)
         self.btn_note.clicked.connect(lambda: self._set_tool(StudioTool.NOTE))
         toolbar.addWidget(self.btn_note)
 
@@ -1907,12 +1912,14 @@ class StudioEditor(QWidget):
         self.btn_watermark = QPushButton("Watermark")
         self.btn_watermark.setObjectName("studio_btn_watermark")
         self.btn_watermark.setToolTip("Watermark / logo tool (E)")
+        self.btn_watermark.setCheckable(True)
         self.btn_watermark.clicked.connect(lambda: self._set_tool(StudioTool.WATERMARK))
         toolbar.addWidget(self.btn_watermark)
 
         self.btn_text = QPushButton("Text")
         self.btn_text.setObjectName("studio_btn_text")
         self.btn_text.setToolTip("Text overlay tool (T)")
+        self.btn_text.setCheckable(True)
         self.btn_text.clicked.connect(lambda: self._set_tool(StudioTool.TEXT_OVERLAY))
         toolbar.addWidget(self.btn_text)
 
@@ -2445,12 +2452,27 @@ class StudioEditor(QWidget):
         elif tool == StudioTool.WATERMARK:
             self._add_watermark()
             self._scene.set_tool(StudioTool.SELECT)
+            tool = StudioTool.SELECT  # reflect the post-dialog state on buttons
         elif tool == StudioTool.TEXT_OVERLAY:
             self._view.setCursor(Qt.CursorShape.CrossCursor)
             self._view.setDragMode(QGraphicsView.DragMode.NoDrag)
         else:
             self._view.setCursor(Qt.CursorShape.ArrowCursor)
             self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+        self._sync_tool_buttons(tool)
+
+    def _sync_tool_buttons(self, tool: StudioTool):
+        """Highlight the button for the active tool — uses QSS :checked."""
+        mapping = {
+            StudioTool.SELECT: self.btn_select,
+            StudioTool.CENSOR: self.btn_censor,
+            StudioTool.CROP: self.btn_crop,
+            StudioTool.NOTE: self.btn_note,
+            StudioTool.WATERMARK: self.btn_watermark,
+            StudioTool.TEXT_OVERLAY: self.btn_text,
+        }
+        for t, btn in mapping.items():
+            btn.setChecked(t == tool)
 
     def _get_crop_aspect(self) -> float | None:
         """Return target W/H aspect ratio from crop combo, or None for free crop."""
