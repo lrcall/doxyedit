@@ -44,13 +44,57 @@ def load_psd_thumb(path: str, min_size: int = 0) -> tuple[PILImage.Image, int, i
 
 
 _PREVIEW_CACHE_DIR: Path | None = None
+_PREVIEW_CACHE_MAX_AGE_DAYS = 30
+_PREVIEW_CACHE_MAX_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 
 def _get_preview_cache_dir() -> Path:
     global _PREVIEW_CACHE_DIR
     if _PREVIEW_CACHE_DIR is None:
         _PREVIEW_CACHE_DIR = Path.home() / ".doxyedit" / "preview_cache"
         _PREVIEW_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _prune_preview_cache(_PREVIEW_CACHE_DIR)
     return _PREVIEW_CACHE_DIR
+
+
+def _prune_preview_cache(cache_dir: Path) -> None:
+    """One-shot cleanup: delete files older than MAX_AGE_DAYS, then enforce size cap.
+
+    Called once per process the first time the cache dir is touched. Silent on
+    errors; the cache is best-effort. Not a hot path.
+    """
+    try:
+        import os, time
+        now = time.time()
+        cutoff = now - _PREVIEW_CACHE_MAX_AGE_DAYS * 86400
+        entries = []
+        total = 0
+        for entry in os.scandir(cache_dir):
+            if not entry.is_file():
+                continue
+            try:
+                st = entry.stat()
+            except OSError:
+                continue
+            if st.st_mtime < cutoff:
+                try:
+                    os.remove(entry.path)
+                except OSError:
+                    pass
+                continue
+            entries.append((st.st_mtime, st.st_size, entry.path))
+            total += st.st_size
+        if total > _PREVIEW_CACHE_MAX_BYTES:
+            entries.sort()  # oldest first
+            for _, sz, p in entries:
+                if total <= _PREVIEW_CACHE_MAX_BYTES:
+                    break
+                try:
+                    os.remove(p)
+                    total -= sz
+                except OSError:
+                    pass
+    except Exception:
+        pass
 
 def _preview_cache_key(path: str) -> str:
     import hashlib
