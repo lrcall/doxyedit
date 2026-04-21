@@ -4414,7 +4414,22 @@ class StudioEditor(QWidget):
         props.addStretch()
         # Always visible but disabled when no overlay selected (prevents layout shift)
         self._props_row.setEnabled(False)
-        root.addWidget(self._props_row)
+        # Float the text-property sliders in their own non-modal popup so
+        # they only show up when a text overlay (or the text tool) is
+        # active. Prevents the permanent second-row clutter. The popup is
+        # moveable (Qt.Tool window flag) and does not interrupt drag/drawing.
+        from PySide6.QtWidgets import QDialog as _QDlg
+        self._text_controls_dlg = _QDlg(self)
+        self._text_controls_dlg.setWindowTitle("Text Controls")
+        self._text_controls_dlg.setWindowFlags(
+            Qt.WindowType.Tool |
+            Qt.WindowType.CustomizeWindowHint |
+            Qt.WindowType.WindowTitleHint |
+            Qt.WindowType.WindowCloseButtonHint)
+        _dlg_layout = QVBoxLayout(self._text_controls_dlg)
+        _dlg_layout.setContentsMargins(_pad, _pad, _pad, _pad)
+        _dlg_layout.addWidget(self._props_row)
+        # Don't add to root — the dialog owns the widget now.
 
         # Scene + View
         self._scene = StudioScene()
@@ -5144,6 +5159,7 @@ class StudioEditor(QWidget):
             self._view.setCursor(Qt.CursorShape.ArrowCursor)
             self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self._sync_tool_buttons(tool)
+        self._sync_text_controls_visibility()
         # Persist the last-used tool so the next Studio session starts there.
         # Watermark is excluded because it's a one-shot file-dialog flow.
         if tool != StudioTool.WATERMARK:
@@ -6019,7 +6035,33 @@ class StudioEditor(QWidget):
                     description="Change scale",
                 )
 
+    def _sync_text_controls_visibility(self):
+        """Show the floating text-controls dialog only when text context is
+        active (text tool selected or a text overlay selected). Position
+        above the canvas so it doesn't block the cursor."""
+        if not hasattr(self, "_text_controls_dlg"):
+            return
+        active_tool = getattr(self._scene, "current_tool", None)
+        has_text_tool = active_tool == StudioTool.TEXT_OVERLAY
+        has_text_selected = any(
+            isinstance(it, OverlayTextItem)
+            for it in self._scene.selectedItems())
+        if has_text_tool or has_text_selected:
+            if not self._text_controls_dlg.isVisible():
+                self._text_controls_dlg.show()
+                # Position top-right of the canvas on first show
+                gv = self._view
+                if gv is not None:
+                    gp = gv.mapToGlobal(gv.viewport().rect().topRight())
+                    self._text_controls_dlg.move(
+                        gp.x() - self._text_controls_dlg.width() - 12,
+                        gp.y() + 12)
+        else:
+            self._text_controls_dlg.hide()
+
     def _on_selection_changed(self):
+        # Text-controls popup follows selection
+        self._sync_text_controls_visibility()
         # Total selected (overlays + censors + crops + notes) for status bar
         all_sel = self._scene.selectedItems()
         total = len(all_sel)
