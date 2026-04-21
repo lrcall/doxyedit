@@ -55,6 +55,33 @@ def _composite_shape_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image
     import math
     if ov.shape_kind in ("gradient_linear", "gradient_radial"):
         return _composite_gradient_overlay(img, ov)
+    # Non-zero rotation: render the shape onto its own transparent tile,
+    # rotate around its center, paste back. Keeps the main path simple.
+    if getattr(ov, "rotation", 0):
+        try:
+            tile = Image.new("RGBA", (max(1, int(ov.shape_w)),
+                                        max(1, int(ov.shape_h))),
+                              (0, 0, 0, 0))
+            # Build a flat copy of the overlay at origin so we can reuse
+            # the straight rendering path
+            import copy as _cp
+            flat = _cp.copy(ov)
+            flat.rotation = 0
+            flat.x = 0
+            flat.y = 0
+            tile_img = _composite_shape_overlay(tile, flat)
+            rotated = tile_img.rotate(-ov.rotation, resample=Image.BICUBIC,
+                                        expand=True)
+            # Center the rotated tile at the original rect center
+            cx = ov.x + ov.shape_w / 2
+            cy = ov.y + ov.shape_h / 2
+            paste_x = int(cx - rotated.width / 2)
+            paste_y = int(cy - rotated.height / 2)
+            layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+            layer.paste(rotated, (paste_x, paste_y), rotated)
+            return Image.alpha_composite(img, layer)
+        except Exception:
+            return img
     try:
         def _hex(s):
             c = s.lstrip("#")
