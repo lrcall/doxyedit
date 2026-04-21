@@ -1339,6 +1339,9 @@ class StudioView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
         self.setAcceptDrops(True)
+        # Track cursor when no button is pressed so the status bar X,Y label
+        # updates live as the user hovers.
+        self.setMouseTracking(True)
         self._panning = False
         self._pan_start = QPointF()
         self.on_file_dropped = None  # callback(path, scene_pos)
@@ -1367,6 +1370,12 @@ class StudioView(QGraphicsView):
                 self.verticalScrollBar().value() - int(delta.y())
             )
             return
+        # Update the Studio status bar cursor-position label in scene coords
+        if self._studio_editor is not None:
+            sp = self.mapToScene(event.position().toPoint())
+            if hasattr(self._studio_editor, "_cursor_label"):
+                self._studio_editor._cursor_label.setText(
+                    f"{int(sp.x())}, {int(sp.y())}")
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
@@ -2013,6 +2022,20 @@ class StudioEditor(QWidget):
 
         status_bar.addWidget(QLabel("|"))
 
+        # Cursor position + selection count — graphics-editor staples
+        self._cursor_label = QLabel("0, 0")
+        self._cursor_label.setObjectName("studio_cursor_label")
+        self._cursor_label.setToolTip("Cursor position in image pixels")
+        self._cursor_label.setFixedWidth(int(_dt.font_size * 7))
+        status_bar.addWidget(self._cursor_label)
+
+        self._selection_label = QLabel("0 selected")
+        self._selection_label.setObjectName("studio_selection_label")
+        self._selection_label.setToolTip("Number of selected items")
+        status_bar.addWidget(self._selection_label)
+
+        status_bar.addWidget(QLabel("|"))
+
         self._asset_info = QLabel("")
         self._asset_info.setObjectName("studio_asset_info")
         status_bar.addWidget(self._asset_info)
@@ -2565,6 +2588,14 @@ class StudioEditor(QWidget):
                 )
 
     def _on_selection_changed(self):
+        # Total selected (overlays + censors + crops + notes) for status bar
+        total = len(self._scene.selectedItems())
+        if hasattr(self, "_selection_label"):
+            self._selection_label.setText(
+                "0 selected" if total == 0 else
+                "1 selected" if total == 1 else
+                f"{total} selected")
+
         sel = [i for i in self._scene.selectedItems()
                if isinstance(i, (OverlayImageItem, OverlayTextItem))]
         if not sel:
