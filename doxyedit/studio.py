@@ -628,6 +628,7 @@ class OverlayTextItem(QGraphicsTextItem):
         menu = _themed_menu(_parent)
         edit_act = menu.addAction("Edit Text")
         save_style_act = menu.addAction("Save as Default Text Style")
+        reset_style_act = menu.addAction("Reset Default Text Style")
         menu.addSeparator()
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         menu.addSeparator()
@@ -652,6 +653,8 @@ class OverlayTextItem(QGraphicsTextItem):
             self.setFocus()
         elif chosen is save_style_act and self._editor:
             self._editor._save_text_style_as_default(self.overlay)
+        elif chosen is reset_style_act and self._editor:
+            self._editor._reset_text_style_defaults()
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_overlay_item(self)
         elif chosen is flip_h_act:
@@ -2434,6 +2437,13 @@ class StudioEditor(QWidget):
         _QS("DoxyEdit", "DoxyEdit").setValue(
             "studio_text_defaults", _json.dumps(payload, ensure_ascii=False))
         self.info_label.setText("Saved default text style")
+
+    def _reset_text_style_defaults(self):
+        """Clear the saved text style defaults (revert to CanvasOverlay()
+        dataclass fields)."""
+        from PySide6.QtCore import QSettings as _QS
+        _QS("DoxyEdit", "DoxyEdit").remove("studio_text_defaults")
+        self.info_label.setText("Reset default text style")
 
     def _add_text_overlay(self, x: int = 50, y: int = 50):
         """Add a text overlay at the given position."""
