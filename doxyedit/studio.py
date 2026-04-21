@@ -1344,6 +1344,10 @@ class StudioEditor(QWidget):
         self._layer_panel.setMaximumWidth(int(_dt.font_size * LAYER_PANEL_MAX_WIDTH_RATIO))
         self._layer_panel.setDragDropMode(QListWidget.DragDropMode.InternalMove)
         self._layer_panel.itemClicked.connect(self._on_layer_clicked)
+        # Drag-reorder wiring: when the user drags a row, the list widget
+        # fires rowsMoved. We translate the new visual order back into
+        # asset.overlays / asset.censors order (top of list = front).
+        self._layer_panel.model().rowsMoved.connect(self._on_layer_reorder)
 
         self._canvas_split = QSplitter(Qt.Orientation.Horizontal)
         self._canvas_split.addWidget(self._view)
@@ -2199,6 +2203,71 @@ class StudioEditor(QWidget):
             self._layer_panel.addItem(item)
 
     _refresh_layer_panel = _rebuild_layer_panel
+
+    def _on_layer_reorder(self, *_args):
+        """Remap asset.overlays + asset.censors order from the layer panel row order.
+
+        Rules:
+        - Top of the list = front (higher z, drawn on top).
+        - Layer panel contains overlays first, then censors. We keep that
+          band separation: if a user drags a censor above overlays (or vice
+          versa), we clamp the band back after the drag so censors stay in
+          the censor band.
+        """
+        if not self._asset:
+            return
+        new_overlays = []
+        new_censors = []
+        misordered = False
+        seen_first_censor = False
+        for row in range(self._layer_panel.count()):
+            it = self._layer_panel.item(row)
+            data = it.data(Qt.ItemDataRole.UserRole)
+            if not data:
+                continue
+            kind, idx = data
+            if kind == "overlay":
+                if seen_first_censor:
+                    misordered = True
+                if 0 <= idx < len(self._asset.overlays):
+                    new_overlays.append(self._asset.overlays[idx])
+            elif kind == "censor":
+                seen_first_censor = True
+                if 0 <= idx < len(self._asset.censors):
+                    new_censors.append(self._asset.censors[idx])
+
+        # Overlays in list order are top-to-bottom = front-to-back. Reverse
+        # so asset.overlays goes back-to-front (matches rebuild order).
+        new_overlays.reverse()
+        self._asset.overlays = new_overlays
+        self._asset.censors = new_censors
+
+        # Re-apply z-values on scene items
+        self._reassign_layer_z_values()
+        # Rebuild the panel to re-bind UserRole indices to the new order
+        self._rebuild_layer_panel()
+
+        if misordered:
+            # User dragged across the band. We kept the overlays-first /
+            # censors-second order; inform via status bar.
+            self.info_label.setText("Layer reorder: overlays stay in front of censors")
+
+    def _reassign_layer_z_values(self):
+        """Walk overlays + censors in their new list order and set Z on scene items."""
+        if not self._asset:
+            return
+        # Censors: Z 100..199 — bottom of list first
+        for i, cr in enumerate(self._asset.censors):
+            for it in self._scene.items():
+                if getattr(it, "_censor_region", None) is cr:
+                    it.setZValue(100 + i)
+                    break
+        # Overlays: Z 200..299 — bottom of list first (last overlay = highest Z = front)
+        for i, ov in enumerate(self._asset.overlays):
+            for it in self._scene.items():
+                if getattr(it, "overlay", None) is ov:
+                    it.setZValue(200 + i)
+                    break
 
     def _on_layer_clicked(self, item):
         """Select the corresponding scene item when layer is clicked."""
