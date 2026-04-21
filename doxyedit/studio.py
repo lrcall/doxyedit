@@ -3388,6 +3388,12 @@ class StudioEditor(QWidget):
         status_bar.addWidget(QLabel("|"))
 
         # Cursor position + selection count — graphics-editor staples
+        self._tool_label = QLabel("Select")
+        self._tool_label.setObjectName("studio_tool_label")
+        self._tool_label.setToolTip("Active Studio tool")
+        self._tool_label.setFixedWidth(int(_dt.font_size * 9))
+        status_bar.addWidget(self._tool_label)
+
         self._cursor_label = QLabel("0, 0")
         self._cursor_label.setObjectName("studio_cursor_label")
         self._cursor_label.setToolTip("Cursor position in image pixels")
@@ -3765,6 +3771,21 @@ class StudioEditor(QWidget):
         if hasattr(self, "btn_shape"):
             self.btn_shape.setChecked(
                 tool in (StudioTool.SHAPE_RECT, StudioTool.SHAPE_ELLIPSE))
+        # Update the tool-name label in the status bar
+        if hasattr(self, "_tool_label"):
+            names = {
+                StudioTool.SELECT: "Select",
+                StudioTool.CENSOR: "Censor",
+                StudioTool.CROP: "Crop",
+                StudioTool.NOTE: "Note",
+                StudioTool.WATERMARK: "Watermark",
+                StudioTool.TEXT_OVERLAY: "Text",
+                StudioTool.EYEDROPPER: "Eyedropper",
+                StudioTool.ARROW: "Arrow",
+                StudioTool.SHAPE_RECT: "Shape (rect)",
+                StudioTool.SHAPE_ELLIPSE: "Shape (ellipse)",
+            }
+            self._tool_label.setText(names.get(tool, "Select"))
 
     def _get_crop_aspect(self) -> float | None:
         """Return target W/H aspect ratio from crop combo, or None for free crop."""
