@@ -2989,7 +2989,8 @@ class StudioView(QGraphicsView):
                             editor.spin_rotation_layer.blockSignals(False)
                             break
                 return
-        _zoom = 1.15
+        # Ctrl+wheel zooms 1.5x per tick (faster). Plain wheel 1.15x.
+        _zoom = 1.5 if (event.modifiers() & Qt.KeyboardModifier.ControlModifier) else 1.15
         factor = _zoom if event.angleDelta().y() > 0 else 1 / _zoom
         self.setTransform(self.transform().scale(factor, factor))
         if self._studio_editor is not None:
