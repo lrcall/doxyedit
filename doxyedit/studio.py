@@ -1506,6 +1506,19 @@ class StudioScene(QGraphicsScene):
         if self._draw_start and self._temp_item:
             pos = event.scenePos()
             if isinstance(self._temp_item, QGraphicsLineItem):
+                # Shift constrains arrow direction to 45° steps
+                if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                    import math
+                    dx = pos.x() - self._draw_start.x()
+                    dy = pos.y() - self._draw_start.y()
+                    length = math.hypot(dx, dy)
+                    if length > 0:
+                        angle = math.atan2(dy, dx)
+                        step = math.pi / 4  # 45° in radians
+                        angle = round(angle / step) * step
+                        pos = QPointF(
+                            self._draw_start.x() + math.cos(angle) * length,
+                            self._draw_start.y() + math.sin(angle) * length)
                 self._temp_item.setLine(QLineF(self._draw_start, pos))
             elif isinstance(self._temp_item, QGraphicsRectItem):
                 r = QRectF(self._draw_start, pos).normalized()
