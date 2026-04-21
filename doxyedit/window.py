@@ -414,6 +414,7 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         self._preview_pane = PreviewPane()
         self._preview_pane.navigated.connect(self._navigate_to_asset_in_browser)
         self._preview_pane.popout_requested.connect(self._popout_preview)
+        self._preview_pane.studio_requested.connect(self._studio_from_preview_pane)
         self._preview_pane.hide()
         self._browse_split.addWidget(self._preview_pane)
         # Info panel — inside tag panel's vertical splitter (below tags)
@@ -4157,6 +4158,22 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self.studio.load_asset(asset)
             self.tabs.setCurrentWidget(self.studio)
 
+    def _studio_from_preview_pane(self):
+        """Studio button on the docked preview pane."""
+        asset = getattr(self._preview_pane, "_asset", None)
+        if asset is not None:
+            self._send_to_studio(asset.id)
+
+    def _studio_from_preview_dlg(self):
+        """Studio button on the floating preview dialog — closes the dialog."""
+        dlg = self._preview_dlg
+        if dlg is None:
+            return
+        asset = getattr(dlg, "_asset", None)
+        if asset is not None:
+            self._send_to_studio(asset.id)
+            dlg.close()
+
     def _on_asset_preview(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
         if not asset:
@@ -4186,6 +4203,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         dlg.finished.connect(self._on_preview_closed)
         dlg.navigated.connect(self._navigate_to_asset_in_browser)
         dlg.dock_requested.connect(self._dock_preview_from_dialog)
+        dlg.studio_requested.connect(self._studio_from_preview_dlg)
         self._preview_dlg = dlg
         dlg.show()
         self._theme_dialog_titlebar(dlg)

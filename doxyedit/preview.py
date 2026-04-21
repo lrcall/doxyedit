@@ -291,6 +291,7 @@ class ImagePreviewDialog(QDialog):
 
     navigated = Signal(str)   # emitted with asset_id when user navigates to a different asset
     dock_requested = Signal()  # emitted when user clicks the Dock button
+    studio_requested = Signal()  # emitted when user clicks the Studio button
 
     DIALOG_MIN_WIDTH_RATIO = 66.7      # preview dialog minimum width
     DIALOG_MIN_HEIGHT_RATIO = 50.0     # preview dialog minimum height
@@ -363,6 +364,14 @@ class ImagePreviewDialog(QDialog):
         info.setObjectName("preview_info")
         info_bar.addWidget(info)
         info_bar.addStretch()
+
+        # Studio button — jump this asset into Studio
+        self._studio_btn = QPushButton("Studio")
+        self._studio_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._studio_btn.setToolTip("Open this asset in Studio")
+        self._studio_btn.clicked.connect(
+            lambda: self.studio_requested.emit() if self._asset else None)
+        info_bar.addWidget(self._studio_btn)
 
         # Note button — NoFocus so Space/Tab never get captured by button
         self._note_btn = QPushButton("Add Note")
@@ -907,6 +916,7 @@ class PreviewPane(QWidget):
 
     navigated = Signal(str)  # asset_id when user navigates via arrow keys
     popout_requested = Signal()  # request to pop out to floating window
+    studio_requested = Signal()  # open current asset in Studio
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -935,6 +945,12 @@ class PreviewPane(QWidget):
         self._fit_btn.setToolTip("Fit image to view (Ctrl+0)")
         self._fit_btn.clicked.connect(self._fit_to_view)
         info_layout.addWidget(self._fit_btn)
+        self._studio_btn = QPushButton("Studio")
+        self._studio_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._studio_btn.setToolTip("Open this asset in Studio")
+        self._studio_btn.clicked.connect(
+            lambda: self.studio_requested.emit() if self._asset else None)
+        info_layout.addWidget(self._studio_btn)
         self._popout_btn = QPushButton("Pop Out")
         self._popout_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._popout_btn.setToolTip("Open in floating preview window")
