@@ -3603,9 +3603,17 @@ class StudioEditor(QWidget):
             if hasattr(self, "chk_thirds"):
                 self.chk_thirds.setChecked(not self.chk_thirds.isChecked())
             return
+        alt = bool(mods & Qt.KeyboardModifier.AltModifier)
+        # Alt+Up / Alt+Down — reorder selected layer by 1 in z-order.
+        # Alias of Ctrl+] / Ctrl+[ for users who find bracket keys awkward.
+        if alt and not ctrl and not shift and key == Qt.Key.Key_Up:
+            self._z_shift_selected(+1)
+            return
+        if alt and not ctrl and not shift and key == Qt.Key.Key_Down:
+            self._z_shift_selected(-1)
+            return
         # Ctrl+Alt+L / Ctrl+Alt+E — align selected text left / center
         # (Ctrl+Shift+R is rotate; Ctrl+Alt keeps the combo unique.)
-        alt = bool(mods & Qt.KeyboardModifier.AltModifier)
         if ctrl and alt and key in (Qt.Key.Key_L, Qt.Key.Key_E, Qt.Key.Key_R):
             align = "left" if key == Qt.Key.Key_L else (
                 "center" if key == Qt.Key.Key_E else "right")
