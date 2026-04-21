@@ -223,6 +223,13 @@ class CanvasOverlay:
     end_x: int = 0
     end_y: int = 0
     arrowhead_size: int = 18  # arrowhead length in px
+    # Shape overlay — type="shape" paints a rectangle or ellipse with
+    # optional fill + stroke. x, y is the top-left; shape_w / shape_h are
+    # the dimensions in image pixels.
+    shape_kind: str = "rect"   # "rect" or "ellipse"
+    shape_w: int = 0
+    shape_h: int = 0
+    fill_color: str = ""       # empty = hollow
     platforms: list[str] = field(default_factory=list)  # empty = all platforms
 
     def to_dict(self) -> dict:

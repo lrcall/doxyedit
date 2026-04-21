@@ -32,7 +32,7 @@ def apply_censors(img: Image.Image, censors: list[CensorRegion]) -> Image.Image:
 
 
 def apply_overlays(img: Image.Image, overlays: list[CanvasOverlay], project_dir: str = "") -> Image.Image:
-    """Apply non-destructive overlays (watermark, text, logo, arrow)."""
+    """Apply non-destructive overlays (watermark, text, logo, arrow, shape)."""
     img = img.copy().convert("RGBA")
 
     for ov in overlays:
@@ -44,7 +44,41 @@ def apply_overlays(img: Image.Image, overlays: list[CanvasOverlay], project_dir:
             img = _composite_text_overlay(img, ov)
         elif ov.type == "arrow":
             img = _composite_arrow_overlay(img, ov)
+        elif ov.type == "shape":
+            img = _composite_shape_overlay(img, ov)
     return img
+
+
+def _composite_shape_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
+    """Render a rectangle or ellipse annotation onto the base image."""
+    from PIL import ImageDraw
+    try:
+        def _hex(s):
+            c = s.lstrip("#")
+            return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+        stroke_hex = ov.stroke_color or ov.color
+        sr, sg, sb = _hex(stroke_hex)
+        a = int(255 * ov.opacity)
+        layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(layer)
+        x0, y0 = ov.x, ov.y
+        x1, y1 = ov.x + ov.shape_w, ov.y + ov.shape_h
+        fill = None
+        if ov.fill_color:
+            fr, fg, fb = _hex(ov.fill_color)
+            fill = (fr, fg, fb, a)
+        width = max(1, ov.stroke_width or 2)
+        if ov.shape_kind == "ellipse":
+            draw.ellipse([(x0, y0), (x1, y1)],
+                          outline=(sr, sg, sb, a),
+                          fill=fill, width=width)
+        else:
+            draw.rectangle([(x0, y0), (x1, y1)],
+                            outline=(sr, sg, sb, a),
+                            fill=fill, width=width)
+        return Image.alpha_composite(img, layer)
+    except Exception:
+        return img
 
 
 def _composite_arrow_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:

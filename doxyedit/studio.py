@@ -121,6 +121,8 @@ class StudioTool(Enum):
     NOTE = auto()
     EYEDROPPER = auto()
     ARROW = auto()
+    SHAPE_RECT = auto()
+    SHAPE_ELLIPSE = auto()
     ANNOTATE_TEXT = auto()
     ANNOTATE_LINE = auto()
     ANNOTATE_BOX = auto()
@@ -514,6 +516,100 @@ class OverlayImageItem(QGraphicsPixmapItem):
         t.scale(sx, sy)
         self.setTransform(t)
         self.setRotation(self.overlay.rotation)
+
+
+class OverlayShapeItem(QGraphicsItem):
+    """Non-destructive shape overlay (rectangle or ellipse).
+
+    Top-left at (overlay.x, overlay.y), dimensions shape_w × shape_h.
+    stroke_color + stroke_width describe the outline; fill_color (empty =
+    hollow) fills the interior. Movable + selectable; endpoint resize is
+    deferred — users can redraw or use the props panel X/Y spinboxes."""
+
+    def __init__(self, overlay: "CanvasOverlay", parent=None):
+        super().__init__(parent)
+        self.overlay = overlay
+        self.setFlags(
+            QGraphicsItem.GraphicsItemFlag.ItemIsMovable
+            | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
+            | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
+        self._editor = None
+        self.setZValue(200)
+
+    def boundingRect(self) -> QRectF:
+        x, y = self.overlay.x, self.overlay.y
+        w, h = self.overlay.shape_w, self.overlay.shape_h
+        pad = max(4, (self.overlay.stroke_width or 1))
+        return QRectF(x - pad, y - pad, w + 2 * pad, h + 2 * pad)
+
+    def paint(self, painter, option, widget=None):
+        r = QRectF(self.overlay.x, self.overlay.y,
+                    self.overlay.shape_w, self.overlay.shape_h)
+        stroke = QColor(self.overlay.stroke_color or self.overlay.color)
+        stroke.setAlphaF(self.overlay.opacity)
+        pen = QPen(stroke, max(1, self.overlay.stroke_width or 2))
+        painter.setPen(pen)
+        if self.overlay.fill_color:
+            fill = QColor(self.overlay.fill_color)
+            fill.setAlphaF(self.overlay.opacity)
+            painter.setBrush(QBrush(fill))
+        else:
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+        if self.overlay.shape_kind == "ellipse":
+            painter.drawEllipse(r)
+        else:
+            painter.drawRect(r)
+        if self.isSelected():
+            painter.setPen(QPen(QColor(255, 200, 0), 1, Qt.PenStyle.DashLine))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(self.boundingRect())
+
+    def itemChange(self, change, value):
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
+            pos = self.pos()
+            if pos != QPointF(0, 0):
+                self.overlay.x += int(pos.x())
+                self.overlay.y += int(pos.y())
+                self.setPos(0, 0)
+                self.prepareGeometryChange()
+        return super().itemChange(change, value)
+
+    def contextMenuEvent(self, event):
+        _parent = self._editor._view if self._editor else None
+        menu = _themed_menu(_parent)
+        stroke_act = menu.addAction("Stroke Color...")
+        fill_act = menu.addAction("Fill Color...")
+        clear_fill_act = menu.addAction("Clear Fill")
+        menu.addSeparator()
+        dup_act = menu.addAction("Duplicate  (Ctrl+D)")
+        del_act = menu.addAction("Delete")
+        chosen = menu.exec(event.screenPos())
+        if chosen is stroke_act and self._editor:
+            new = QColorDialog.getColor(
+                QColor(self.overlay.stroke_color or self.overlay.color),
+                self._editor, "Shape stroke color",
+                QColorDialog.ColorDialogOption.ShowAlphaChannel)
+            if new.isValid():
+                self.overlay.stroke_color = new.name()
+                self.update()
+                self._editor._sync_overlays_to_asset()
+        elif chosen is fill_act and self._editor:
+            new = QColorDialog.getColor(
+                QColor(self.overlay.fill_color or "#ffffff"),
+                self._editor, "Shape fill color",
+                QColorDialog.ColorDialogOption.ShowAlphaChannel)
+            if new.isValid():
+                self.overlay.fill_color = new.name()
+                self.update()
+                self._editor._sync_overlays_to_asset()
+        elif chosen is clear_fill_act and self._editor:
+            self.overlay.fill_color = ""
+            self.update()
+            self._editor._sync_overlays_to_asset()
+        elif chosen is dup_act and self._editor:
+            self._editor._duplicate_shape_item(self)
+        elif chosen is del_act and self._editor:
+            self._editor._remove_overlay_item(self)
 
 
 class OverlayArrowItem(QGraphicsItem):
@@ -1136,6 +1232,7 @@ class StudioScene(QGraphicsScene):
 
         # Callbacks set by StudioEditor
         self.on_arrow_finished = None    # callable(QLineF)
+        self.on_shape_finished = None    # callable(QRectF, str)
         self.on_censor_finished = None   # callable(CensorRectItem)
         self.on_annotation_placed = None  # callable(item)
         self.on_crop_finished = None     # callable(QRectF)
@@ -1326,6 +1423,16 @@ class StudioScene(QGraphicsScene):
             pen = QPen(QColor("#ff3b30"), 4)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             self._temp_item.setPen(pen)
+            self._temp_item.setZValue(300)
+            self.addItem(self._temp_item)
+            return
+
+        if self.current_tool in (StudioTool.SHAPE_RECT, StudioTool.SHAPE_ELLIPSE):
+            self._draw_start = pos
+            self._temp_item = QGraphicsRectItem(QRectF(pos, pos))
+            pen = QPen(QColor("#ffd700"), 2)
+            self._temp_item.setPen(pen)
+            self._temp_item.setBrush(Qt.BrushStyle.NoBrush)
             self._temp_item.setZValue(300)
             self.addItem(self._temp_item)
             return
@@ -1581,6 +1688,12 @@ class StudioScene(QGraphicsScene):
                 self.removeItem(self._temp_item)
                 if length_ok and self.on_arrow_finished:
                     self.on_arrow_finished(line)
+            elif self.current_tool in (StudioTool.SHAPE_RECT, StudioTool.SHAPE_ELLIPSE):
+                r = self._temp_item.rect()
+                self.removeItem(self._temp_item)
+                if r.width() > 8 and r.height() > 8 and self.on_shape_finished:
+                    kind = "ellipse" if self.current_tool == StudioTool.SHAPE_ELLIPSE else "rect"
+                    self.on_shape_finished(r, kind)
             self._draw_start = None
             self._temp_item = None
             self.current_tool = StudioTool.SELECT
@@ -2629,6 +2742,19 @@ class StudioEditor(QWidget):
         self.btn_arrow.clicked.connect(lambda: self._set_tool(StudioTool.ARROW))
         toolbar.addWidget(self.btn_arrow)
 
+        self.btn_shape = QPushButton("Shape")
+        self.btn_shape.setObjectName("studio_btn_shape")
+        self.btn_shape.setToolTip("Shape (rectangle/ellipse) - click-drag to draw")
+        self.btn_shape.setCheckable(True)
+        self.btn_shape.clicked.connect(lambda: self._set_tool(StudioTool.SHAPE_RECT))
+        toolbar.addWidget(self.btn_shape)
+
+        self.combo_shape_kind = QComboBox()
+        self.combo_shape_kind.setObjectName("studio_shape_kind")
+        self.combo_shape_kind.addItems(["Rectangle", "Ellipse"])
+        self.combo_shape_kind.setToolTip("Shape kind — click Shape then drag to draw")
+        toolbar.addWidget(self.combo_shape_kind)
+
         self.btn_delete = QPushButton("Delete")
         self.btn_delete.setObjectName("studio_btn_delete")
         self.btn_delete.clicked.connect(self._delete_selected)
@@ -2890,6 +3016,7 @@ class StudioEditor(QWidget):
         self._scene = StudioScene()
         self._scene.on_censor_finished = self._on_censor_drawn
         self._scene.on_arrow_finished = self._on_arrow_drawn
+        self._scene.on_shape_finished = self._on_shape_drawn
         self._scene.on_crop_finished = self._on_crop_drawn
         self._scene.on_note_finished = self._on_note_drawn
         self._scene.on_text_overlay_placed = self._on_text_placed
@@ -3360,9 +3487,13 @@ class StudioEditor(QWidget):
     # ---- tool management ----
 
     def _set_tool(self, tool: StudioTool):
+        # Translate the generic SHAPE tool into rect/ellipse based on combo
+        if tool == StudioTool.SHAPE_RECT and hasattr(self, "combo_shape_kind"):
+            if self.combo_shape_kind.currentText() == "Ellipse":
+                tool = StudioTool.SHAPE_ELLIPSE
         self._scene.set_tool(tool)
         if tool in (StudioTool.CENSOR, StudioTool.CROP, StudioTool.NOTE,
-                    StudioTool.ARROW):
+                    StudioTool.ARROW, StudioTool.SHAPE_RECT, StudioTool.SHAPE_ELLIPSE):
             self._view.setCursor(Qt.CursorShape.CrossCursor)
             self._view.setDragMode(QGraphicsView.DragMode.NoDrag)
         elif tool == StudioTool.EYEDROPPER:
@@ -3394,6 +3525,9 @@ class StudioEditor(QWidget):
         }
         for t, btn in mapping.items():
             btn.setChecked(t == tool)
+        if hasattr(self, "btn_shape"):
+            self.btn_shape.setChecked(
+                tool in (StudioTool.SHAPE_RECT, StudioTool.SHAPE_ELLIPSE))
 
     def _get_crop_aspect(self) -> float | None:
         """Return target W/H aspect ratio from crop combo, or None for free crop."""
@@ -3452,6 +3586,60 @@ class StudioEditor(QWidget):
         self._view.setCursor(Qt.CursorShape.ArrowCursor)
         self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self._update_info()
+
+    def _on_shape_drawn(self, rect: QRectF, kind: str):
+        """Called when a shape rect or ellipse is finished drawing."""
+        if not self._asset:
+            return
+        from PySide6.QtCore import QSettings as _QS
+        _qs = _QS("DoxyEdit", "DoxyEdit")
+        stroke = _qs.value("studio_shape_stroke_color", "#ffd700", type=str)
+        fill = _qs.value("studio_shape_fill_color", "", type=str)
+        sw = _qs.value("studio_shape_stroke_width", 2, type=int)
+        ov = CanvasOverlay(
+            type="shape",
+            label="Shape",
+            shape_kind=kind,
+            color=stroke,
+            stroke_color=stroke,
+            stroke_width=sw,
+            fill_color=fill,
+            opacity=1.0,
+            x=int(rect.x()), y=int(rect.y()),
+            shape_w=int(rect.width()), shape_h=int(rect.height()),
+        )
+        self._asset.overlays.append(ov)
+        item = OverlayShapeItem(ov)
+        item._editor = self
+        item.setZValue(200 + len(self._overlay_items))
+        self._scene.addItem(item)
+        self._overlay_items.append(item)
+        self._view.setCursor(Qt.CursorShape.ArrowCursor)
+        self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+        self._update_info()
+
+    def _duplicate_shape_item(self, item):
+        """Clone a shape overlay with 20px offset."""
+        ov = item.overlay
+        new_ov = CanvasOverlay(
+            type="shape",
+            label=ov.label,
+            shape_kind=ov.shape_kind,
+            color=ov.color,
+            stroke_color=ov.stroke_color,
+            stroke_width=ov.stroke_width,
+            fill_color=ov.fill_color,
+            opacity=ov.opacity,
+            x=ov.x + 20, y=ov.y + 20,
+            shape_w=ov.shape_w, shape_h=ov.shape_h,
+            platforms=list(ov.platforms),
+        )
+        self._asset.overlays.append(new_ov)
+        new_item = OverlayShapeItem(new_ov)
+        new_item._editor = self
+        new_item.setZValue(200 + len(self._overlay_items))
+        self._scene.addItem(new_item)
+        self._overlay_items.append(new_item)
 
     def _duplicate_arrow_item(self, item):
         """Clone an arrow overlay with 20px offset."""
@@ -3646,6 +3834,11 @@ class StudioEditor(QWidget):
             return item
         elif ov.type == "arrow":
             item = OverlayArrowItem(ov)
+            item._editor = self
+            self._scene.addItem(item)
+            return item
+        elif ov.type == "shape":
+            item = OverlayShapeItem(ov)
             item._editor = self
             self._scene.addItem(item)
             return item
