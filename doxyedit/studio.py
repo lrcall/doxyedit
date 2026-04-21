@@ -408,6 +408,8 @@ class OverlayImageItem(QGraphicsPixmapItem):
         menu.addSeparator()
         flip_h_act = menu.addAction("Flip Horizontal  (Ctrl+Shift+H)")
         flip_v_act = menu.addAction("Flip Vertical  (Ctrl+Shift+V)")
+        rot_cw_act = menu.addAction("Rotate 90° CW")
+        rot_ccw_act = menu.addAction("Rotate 90° CCW")
         reset_xform_act = menu.addAction("Reset Transform")
         menu.addSeparator()
         fwd_act = menu.addAction("Bring Forward  (Ctrl+])")
@@ -446,6 +448,16 @@ class OverlayImageItem(QGraphicsPixmapItem):
             self.overlay.flip_v = False
             self.setTransform(QTransform())
             self.setRotation(0)
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen is rot_cw_act:
+            self.overlay.rotation = (self.overlay.rotation + 90) % 360
+            self._apply_flip()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen is rot_ccw_act:
+            self.overlay.rotation = (self.overlay.rotation - 90) % 360
+            self._apply_flip()
             if self._editor:
                 self._editor._sync_overlays_to_asset()
         elif plat_actions and (chosen is all_act or chosen in plat_actions):
@@ -659,6 +671,8 @@ class OverlayTextItem(QGraphicsTextItem):
         menu.addSeparator()
         flip_h_act = menu.addAction("Flip Horizontal  (Ctrl+Shift+H)")
         flip_v_act = menu.addAction("Flip Vertical  (Ctrl+Shift+V)")
+        rot_cw_act = menu.addAction("Rotate 90° CW")
+        rot_ccw_act = menu.addAction("Rotate 90° CCW")
         reset_xform_act = menu.addAction("Reset Transform")
         menu.addSeparator()
         fwd_act = menu.addAction("Bring Forward  (Ctrl+])")
@@ -710,6 +724,16 @@ class OverlayTextItem(QGraphicsTextItem):
             self.overlay.flip_v = False
             self.setTransform(QTransform())
             self.setRotation(0)
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen is rot_cw_act:
+            self.overlay.rotation = (self.overlay.rotation + 90) % 360
+            self._apply_flip_text()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen is rot_ccw_act:
+            self.overlay.rotation = (self.overlay.rotation - 90) % 360
+            self._apply_flip_text()
             if self._editor:
                 self._editor._sync_overlays_to_asset()
         elif plat_actions and (chosen is all_act or chosen in plat_actions):
