@@ -217,6 +217,7 @@ class CanvasOverlay:
     flip_h: bool = False      # mirror horizontally (negative X scale)
     flip_v: bool = False      # mirror vertically (negative Y scale)
     locked: bool = False      # lock from selection/drag in Studio canvas
+    background_color: str = ""  # solid fill behind text (empty = no bg)
     platforms: list[str] = field(default_factory=list)  # empty = all platforms
 
     def to_dict(self) -> dict:

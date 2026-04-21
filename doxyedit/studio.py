@@ -549,6 +549,19 @@ class OverlayTextItem(QGraphicsTextItem):
         self.setRotation(self.overlay.rotation)
 
     def paint(self, painter, option, widget=None):
+        # Optional background fill behind the text (sticker/callout effect)
+        bg = getattr(self.overlay, "background_color", "")
+        if bg:
+            bg_color = QColor(bg)
+            if bg_color.isValid():
+                # Expand slightly so the rect reads as a pill around text
+                _pad = max(4, int(self.overlay.font_size * 0.2))
+                br = self.boundingRect().adjusted(-_pad, -_pad, _pad, _pad)
+                painter.save()
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(bg_color)
+                painter.drawRoundedRect(br, _pad, _pad)
+                painter.restore()
         # Draw text outline if stroke is configured
         if self.overlay.stroke_width > 0 and self.overlay.stroke_color:
             from PySide6.QtGui import QPainterPath, QPainterPathStroker
@@ -637,6 +650,8 @@ class OverlayTextItem(QGraphicsTextItem):
         menu = _themed_menu(_parent)
         edit_act = menu.addAction("Edit Text")
         color_act = menu.addAction("Change Color...")
+        bg_act = menu.addAction("Change Background...")
+        clear_bg_act = menu.addAction("Clear Background")
         save_style_act = menu.addAction("Save as Default Text Style")
         reset_style_act = menu.addAction("Reset Default Text Style")
         menu.addSeparator()
@@ -663,6 +678,15 @@ class OverlayTextItem(QGraphicsTextItem):
             self.setFocus()
         elif chosen is color_act and self._editor:
             self._editor._pick_text_color(self)
+        elif chosen is bg_act and self._editor:
+            self._editor._pick_text_background(self)
+        elif chosen is clear_bg_act and self._editor:
+            self._editor._push_overlay_attr(
+                self, "background_color", "",
+                apply_cb=lambda it, _v: it.update(),
+                description="Clear text background",
+            )
+            self._editor._sync_overlays_to_asset()
         elif chosen is save_style_act and self._editor:
             self._editor._save_text_style_as_default(self.overlay)
         elif chosen is reset_style_act and self._editor:
@@ -3074,6 +3098,22 @@ class StudioEditor(QWidget):
             text_item, "color", new_color,
             apply_cb=lambda it, _v: it._apply_font(),
             description="Change text color",
+        )
+        self._sync_overlays_to_asset()
+
+    def _pick_text_background(self, text_item):
+        """Color picker for text overlay's background rectangle fill."""
+        initial = QColor(text_item.overlay.background_color or "#ffffff")
+        color = QColorDialog.getColor(
+            initial, self, "Text background color",
+            QColorDialog.ColorDialogOption.ShowAlphaChannel,
+        )
+        if not color.isValid():
+            return
+        self._push_overlay_attr(
+            text_item, "background_color", color.name(),
+            apply_cb=lambda it, _v: it.update(),
+            description="Change text background",
         )
         self._sync_overlays_to_asset()
 

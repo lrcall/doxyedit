@@ -174,6 +174,18 @@ def _composite_text_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
 
         x, y = _resolve_position(img.size, (tw, th), ov.position, ov.x, ov.y)
 
+        # Optional background fill behind the text (callout/pill style)
+        bg_hex = getattr(ov, "background_color", "") or ""
+        if bg_hex:
+            try:
+                br, bgc, bbc = _hex(bg_hex)
+                pad = max(4, int(ov.font_size * 0.2))
+                bg_bbox = (x - pad, y - pad, x + tw + pad, y + th + pad)
+                draw.rounded_rectangle(bg_bbox, radius=pad,
+                                        fill=(br, bgc, bbc, a))
+            except Exception:
+                pass
+
         # Drop shadow (tight crop for performance)
         if ov.shadow_color and ov.shadow_offset:
             sr, sg, sb = _hex(ov.shadow_color)
