@@ -501,6 +501,8 @@ class ImagePreviewDialog(QDialog):
         QShortcut(QKeySequence("N"), self, lambda: self._note_btn.toggle())
         QShortcut(QKeySequence("C"), self, lambda: self._crop_btn.toggle())
         QShortcut(QKeySequence("V"), self, lambda: self._view_notes_btn.toggle())
+        QShortcut(QKeySequence("S"), self,
+                   lambda: self.studio_requested.emit() if self._asset else None)
         QShortcut(QKeySequence("Delete"), self, self._delete_selected_note)
         QShortcut(QKeySequence("F11"), self, self._toggle_fullscreen)
         # Navigation keys are intercepted at dialog level so they always fire
