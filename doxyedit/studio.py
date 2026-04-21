@@ -582,6 +582,11 @@ class OverlayShapeItem(QGraphicsItem):
         stroke = QColor(self.overlay.stroke_color or self.overlay.color)
         stroke.setAlphaF(self.overlay.opacity)
         pen = QPen(stroke, max(1, self.overlay.stroke_width or 2))
+        style = getattr(self.overlay, "line_style", "solid")
+        if style == "dash":
+            pen.setStyle(Qt.PenStyle.DashLine)
+        elif style == "dot":
+            pen.setStyle(Qt.PenStyle.DotLine)
         painter.setPen(pen)
         if self.overlay.fill_color:
             fill = QColor(self.overlay.fill_color)
@@ -677,6 +682,13 @@ class OverlayShapeItem(QGraphicsItem):
         stroke_act = menu.addAction("Stroke Color...")
         fill_act = menu.addAction("Fill Color...")
         clear_fill_act = menu.addAction("Clear Fill")
+        style_menu = menu.addMenu("Stroke Style")
+        solid_act = style_menu.addAction("Solid")
+        dash_act = style_menu.addAction("Dashed")
+        dot_act = style_menu.addAction("Dotted")
+        for a, s in ((solid_act, "solid"), (dash_act, "dash"), (dot_act, "dot")):
+            a.setCheckable(True)
+            a.setChecked(getattr(self.overlay, "line_style", "solid") == s)
         menu.addSeparator()
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         del_act = menu.addAction("Delete")
@@ -711,6 +723,14 @@ class OverlayShapeItem(QGraphicsItem):
             self.overlay.fill_color = ""
             self.update()
             self._editor._sync_overlays_to_asset()
+        elif chosen in (solid_act, dash_act, dot_act):
+            self.overlay.line_style = (
+                "dash" if chosen is dash_act
+                else "dot" if chosen is dot_act
+                else "solid")
+            self.update()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_shape_item(self)
         elif chosen is del_act and self._editor:
