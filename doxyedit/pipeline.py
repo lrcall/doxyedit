@@ -216,16 +216,45 @@ def prepare_for_platform(
             crop_source = "assignment"
             break
 
-    # Then check asset.crops by label
+    # Prefer first-class platform_id match (H3.1)
+    if crop_box is None:
+        for cr in asset.crops:
+            if not getattr(cr, "platform_id", ""):
+                continue
+            if cr.platform_id != platform_id:
+                continue
+            # platform_id matches; if slot_name is set on the crop, require match
+            cr_slot = getattr(cr, "slot_name", "")
+            if cr_slot and cr_slot != slot_name:
+                continue
+            crop_box = (cr.x, cr.y, cr.w, cr.h)
+            crop_source = f"platform_id ('{cr.label or platform_id}')"
+            break
+
+    # Fall back to label exact-match (cheap, unambiguous)
     if crop_box is None:
         for cr in asset.crops:
             lbl = cr.label.strip().lower()
-            if (lbl == slot_name.lower()
-                    or lbl == platform_id.lower()
-                    or slot_name.lower() in lbl
-                    or platform_id.lower() in lbl):
+            if lbl == slot_name.lower() or lbl == platform_id.lower():
                 crop_box = (cr.x, cr.y, cr.w, cr.h)
-                crop_source = f"label_match ('{cr.label}')"
+                crop_source = f"label_exact ('{cr.label}')"
+                break
+
+    # Last-resort label substring fallback — flagged as ambiguous.
+    # Retained for backwards compatibility with pre-H3.1 projects; users
+    # who hit this warning should use Studio's "Assign Platforms to Crops"
+    # to set platform_id explicitly.
+    if crop_box is None:
+        import logging as _logging
+        for cr in asset.crops:
+            lbl = cr.label.strip().lower()
+            if (slot_name.lower() in lbl or platform_id.lower() in lbl):
+                crop_box = (cr.x, cr.y, cr.w, cr.h)
+                crop_source = f"label_substring_fallback ('{cr.label}')"
+                _logging.warning(
+                    "Ambiguous crop match: asset %s crop '%s' matched platform '%s' slot '%s' by substring",
+                    getattr(asset, "id", "?"), cr.label, platform_id, slot_name,
+                )
                 break
 
     # Match by aspect ratio (5% tolerance)

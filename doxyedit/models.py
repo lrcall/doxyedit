@@ -157,12 +157,20 @@ def check_fitness(img_w: int, img_h: int, tag: TagPreset) -> str:
 
 @dataclass
 class CropRegion:
-    """A rectangular crop selection on an asset."""
+    """A rectangular crop selection on an asset.
+
+    `platform_id` scopes a crop to a specific platform (matches pipeline's
+    resolution by exact platform_id). Empty string means legacy label-only
+    matching. New crops created against a platform should set it; existing
+    crops still resolve via the label fallback chain in pipeline.py.
+    """
     x: int = 0
     y: int = 0
     w: int = 0
     h: int = 0
     label: str = ""
+    platform_id: str = ""
+    slot_name: str = ""
 
 
 @dataclass

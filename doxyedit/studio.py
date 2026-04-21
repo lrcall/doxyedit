@@ -1531,11 +1531,16 @@ class StudioEditor(QWidget):
         data = self._crop_combo.currentData()
         if data and len(data) >= 4:
             label = data[1]  # slot_name
+            platform_id = data[0]  # platform_id
+            slot_name = data[1]
         else:
             label = "free"
-        # Save to asset
+            platform_id = ""
+            slot_name = ""
+        # Save to asset (first-class platform_id; label kept for display)
         crop = CropRegion(x=int(rect.x()), y=int(rect.y()),
-                          w=int(rect.width()), h=int(rect.height()), label=label)
+                          w=int(rect.width()), h=int(rect.height()),
+                          label=label, platform_id=platform_id, slot_name=slot_name)
         self._asset.crops = [c for c in self._asset.crops if c.label != label]
         self._asset.crops.append(crop)
         # Create editable item
@@ -1554,6 +1559,13 @@ class StudioEditor(QWidget):
         if not self._asset:
             return
         region = item.get_crop_region()
+        # Preserve platform_id / slot_name from the crop being replaced so
+        # editing doesn't silently downgrade a platform-scoped crop.
+        for c in self._asset.crops:
+            if c.label == region.label:
+                region.platform_id = getattr(c, "platform_id", "") or region.platform_id
+                region.slot_name = getattr(c, "slot_name", "") or region.slot_name
+                break
         self._asset.crops = [c for c in self._asset.crops if c.label != region.label]
         self._asset.crops.append(region)
         r = item.rect().translated(item.pos())
