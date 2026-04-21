@@ -5403,6 +5403,13 @@ class StudioEditor(QWidget):
                 if item in self._notes:
                     self._notes.remove(item)
                 self._save_notes_to_asset()
+            elif isinstance(item, _GuideLineItem):
+                self._scene.removeItem(item)
+                if item in getattr(self, "_guide_items", []):
+                    self._guide_items.remove(item)
+                self._save_guides_to_asset()
+                if hasattr(self, "_canvas_wrap"):
+                    self._canvas_wrap.refresh()
             elif isinstance(item, (AnnotationTextItem, QGraphicsRectItem, QGraphicsLineItem)):
                 self._scene.removeItem(item)
         if has_undoable:
