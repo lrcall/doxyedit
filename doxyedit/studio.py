@@ -5410,6 +5410,25 @@ class StudioEditor(QWidget):
             if thumb is not None:
                 from PySide6.QtGui import QIcon
                 item.setIcon(QIcon(thumb))
+            # Hover tooltip — fuller details than the list row can show
+            tip_lines = [f"Type: {ov.type}"]
+            if ov.type == "text" and ov.text:
+                tip_lines.append(f"Text: {ov.text[:80]}")
+            if ov.label:
+                tip_lines.append(f"Label: {ov.label}")
+            tip_lines.append(f"Opacity: {int(ov.opacity * 100)}%")
+            tip_lines.append(f"Position: {ov.x}, {ov.y}")
+            if getattr(ov, "rotation", 0):
+                tip_lines.append(f"Rotation: {int(ov.rotation)}°")
+            if ov.platforms:
+                tip_lines.append(f"Platforms: {', '.join(ov.platforms)}")
+            if ov.blend_mode and ov.blend_mode != "normal":
+                tip_lines.append(f"Blend: {ov.blend_mode}")
+            if getattr(ov, "locked", False):
+                tip_lines.append("Locked")
+            if not ov.enabled:
+                tip_lines.append("Hidden")
+            item.setToolTip("\n".join(tip_lines))
             self._layer_panel.addItem(item)
 
         # Censors
