@@ -1672,7 +1672,8 @@ class StudioEditor(QWidget):
         self._asset: Asset | None = None
         self._project: Project | None = None
         self._project_path: str = ""
-        self._theme = None
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        self._theme = THEMES[DEFAULT_THEME]
         self._pixmap_item: QGraphicsPixmapItem | None = None
         self._censor_items: list[CensorRectItem] = []
         self._overlay_items: list[OverlayImageItem | OverlayTextItem] = []
@@ -1685,9 +1686,11 @@ class StudioEditor(QWidget):
         self._notes: list[NoteRectItem] = []
         self._note_start: QPointF | None = None
         self._note_temp: NoteRectItem | None = None
-        self._build()
+        # Undo stack must exist before _build() because the toolbar wires
+        # the undo/redo buttons to it.
         self._undo_stack = QUndoStack(self)
         self._undo_stack.setUndoLimit(50)
+        self._build()
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     # ---- keyboard shortcuts ----
