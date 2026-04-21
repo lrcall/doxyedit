@@ -279,15 +279,22 @@ def _composite_arrow_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image
                 ux, uy = dx / length, dy / length
                 hs = max(ov.arrowhead_size, 6)
                 px, py = -uy, ux
-                base_x = x2 - ux * hs
-                base_y = y2 - uy * hs
-                p1 = (base_x + px * hs * 0.5, base_y + py * hs * 0.5)
-                p2 = (base_x - px * hs * 0.5, base_y - py * hs * 0.5)
-                if head_style == "outline":
-                    draw.polygon([(x2, y2), p1, p2],
-                                   outline=(r, g, b, a), width=width)
-                else:
-                    draw.polygon([(x2, y2), p1, p2], fill=(r, g, b, a))
+
+                def _draw_head(tip_x, tip_y, direction):
+                    base_x = tip_x - direction * ux * hs
+                    base_y = tip_y - direction * uy * hs
+                    p1 = (base_x + px * hs * 0.5, base_y + py * hs * 0.5)
+                    p2 = (base_x - px * hs * 0.5, base_y - py * hs * 0.5)
+                    if head_style == "outline":
+                        draw.polygon([(tip_x, tip_y), p1, p2],
+                                       outline=(r, g, b, a), width=width)
+                    else:
+                        draw.polygon([(tip_x, tip_y), p1, p2],
+                                       fill=(r, g, b, a))
+
+                _draw_head(x2, y2, 1)
+                if getattr(ov, "double_headed", False):
+                    _draw_head(x1, y1, -1)
         return Image.alpha_composite(img, layer)
     except Exception:
         return img

@@ -1131,22 +1131,28 @@ class OverlayArrowItem(QGraphicsItem):
             hs = max(self.overlay.arrowhead_size, 6)
             # Perpendicular vector
             px, py = -uy, ux
-            base_x = x2 - ux * hs
-            base_y = y2 - uy * hs
-            p1 = QPointF(base_x + px * hs * 0.5, base_y + py * hs * 0.5)
-            p2 = QPointF(base_x - px * hs * 0.5, base_y - py * hs * 0.5)
-            path = QPainterPath()
-            path.moveTo(x2, y2)
-            path.lineTo(p1)
-            path.lineTo(p2)
-            path.closeSubpath()
-            if head_style == "outline":
-                painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.setPen(QPen(color, max(1, self.overlay.stroke_width or 2)))
-            else:
-                painter.setBrush(QBrush(color))
-                painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawPath(path)
+
+            def _head(tip_x, tip_y, direction):
+                base_x = tip_x - direction * ux * hs
+                base_y = tip_y - direction * uy * hs
+                p1 = QPointF(base_x + px * hs * 0.5, base_y + py * hs * 0.5)
+                p2 = QPointF(base_x - px * hs * 0.5, base_y - py * hs * 0.5)
+                path = QPainterPath()
+                path.moveTo(tip_x, tip_y)
+                path.lineTo(p1)
+                path.lineTo(p2)
+                path.closeSubpath()
+                if head_style == "outline":
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.setPen(QPen(color, max(1, self.overlay.stroke_width or 2)))
+                else:
+                    painter.setBrush(QBrush(color))
+                    painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawPath(path)
+
+            _head(x2, y2, 1)
+            if getattr(self.overlay, "double_headed", False):
+                _head(x1, y1, -1)
         # Selection highlight + endpoint handles
         if self.isSelected():
             painter.setPen(QPen(QColor(255, 200, 0), 1, Qt.PenStyle.DashLine))
@@ -1241,6 +1247,9 @@ class OverlayArrowItem(QGraphicsItem):
                       (head_none_act, "none")):
             a.setCheckable(True)
             a.setChecked(getattr(self.overlay, "arrowhead_style", "filled") == s)
+        double_head_act = menu.addAction("Double-Headed")
+        double_head_act.setCheckable(True)
+        double_head_act.setChecked(bool(getattr(self.overlay, "double_headed", False)))
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         menu.addSeparator()
         copy_style_act = menu.addAction("Copy Style")
@@ -1277,6 +1286,12 @@ class OverlayArrowItem(QGraphicsItem):
                 "outline" if chosen is head_outline_act
                 else "none" if chosen is head_none_act
                 else "filled")
+            self.update()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen is double_head_act:
+            self.overlay.double_headed = not getattr(
+                self.overlay, "double_headed", False)
             self.update()
             if self._editor:
                 self._editor._sync_overlays_to_asset()

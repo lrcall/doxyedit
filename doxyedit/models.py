@@ -224,6 +224,7 @@ class CanvasOverlay:
     end_y: int = 0
     arrowhead_size: int = 18  # arrowhead length in px
     arrowhead_style: str = "filled"  # filled / outline / none
+    double_headed: bool = False      # also draw head at start (for arrows)
     line_style: str = "solid"  # "solid", "dash", "dot" — for arrows/shapes
     blend_mode: str = "normal"  # normal / multiply / screen / overlay / darken / lighten
     filter_mode: str = ""        # "grayscale" / "invert" for image overlays
