@@ -156,6 +156,12 @@ class HealthPanel(LazyRefreshMixin, QWidget):
         self._remove_missing_btn.setEnabled(has_missing)
         self._auto_locate_btn.setEnabled(has_missing)
 
+        # Build one rename-index scan to share across every missing row.
+        # This is O(unique_roots) total instead of O(missing) passes, so
+        # 500 missing assets in a moved folder resolve in one rglob, not 500.
+        self._rename_index = self._build_rename_index(self._missing_assets) \
+            if has_missing else {}
+
         # Detect local_mode / path mismatch before showing individual results
         path_warning = _detect_path_mode_issues(self.project)
         if path_warning:
@@ -275,8 +281,9 @@ class HealthPanel(LazyRefreshMixin, QWidget):
         folder_lbl.setProperty("role", "muted")
         h.addWidget(folder_lbl)
 
-        # Check for rename candidates immediately
-        candidates = self._find_rename_candidates(asset)
+        # Check for rename candidates using the shared index (built once per scan)
+        candidates = self._find_rename_candidates(
+            asset, index=getattr(self, "_rename_index", None))
 
         if candidates:
             best = candidates[0]
@@ -308,21 +315,88 @@ class HealthPanel(LazyRefreshMixin, QWidget):
         outer_layout.addWidget(row)
         return outer
 
-    def _find_rename_candidates(self, asset) -> list[Path]:
-        """Search for a renamed or moved file.
+    def _build_rename_index(self, missing_assets: list) -> dict[str, list]:
+        """One-shot filesystem scan shared across all missing assets.
 
-        Strategy (in order of confidence):
-        1. Exact same filename anywhere under the original folder's parent tree (folder move)
-        2. Same extension + same file size in original folder or parent folder tree (rename)
-        Returns candidates sorted: exact name match first, then size match, then alpha.
-        Limits search to 3 levels up from original folder to avoid scanning the whole drive.
+        Previously _find_rename_candidates ran a recursive rglob per asset.
+        For 500 missing assets that's 500 full scans of the same folder
+        tree. Now: collect every search root once, scan each root once,
+        key results by (ext, stem) for O(1) per-asset lookup.
+
+        Returns dict[str, list[Path]] keyed by `{ext}|{stem}` lowercased.
+        """
+        known_paths = {a.source_path for a in self.project.assets}
+        roots: dict[str, Path] = {}
+        for asset in missing_assets:
+            src = Path(asset.source_path)
+            p = src.parent
+            for _ in range(4):
+                if p.exists():
+                    key = str(p).lower()
+                    if key not in roots:
+                        roots[key] = p
+                    break
+                p = p.parent
+                if len(p.parts) <= 1:
+                    break
+            if not src.parent.exists() and src.parent.parent.exists():
+                key = str(src.parent.parent).lower()
+                if key not in roots:
+                    roots[key] = src.parent.parent
+
+        # One pass per unique root, bucket everything we find
+        index: dict[str, list[Path]] = {}
+
+        def _scan(root: Path, max_depth: int = 3):
+            try:
+                for f in root.iterdir():
+                    if f.is_file():
+                        if str(f) in known_paths:
+                            continue
+                        k = f"{f.suffix.lower()}|{f.stem.lower()}"
+                        index.setdefault(k, []).append(f)
+                        # Also bucket by extension-only for ambiguous fallback
+                        k2 = f"{f.suffix.lower()}|"
+                        index.setdefault(k2, []).append(f)
+                    elif f.is_dir() and max_depth > 0:
+                        _scan(f, max_depth - 1)
+            except PermissionError:
+                pass
+
+        for root in roots.values():
+            _scan(root)
+        return index
+
+    def _find_rename_candidates(self, asset, index: dict | None = None) -> list[Path]:
+        """Return rename candidates for a missing asset.
+
+        If `index` is provided (built by _build_rename_index), uses O(1) lookup.
+        Otherwise falls back to per-asset scan (backwards-compatible; kept for
+        callers that haven't been migrated yet).
         """
         src = Path(asset.source_path)
         ext = src.suffix.lower()
         stem = src.stem.lower()
-        known_paths = {a.source_path for a in self.project.assets}
 
-        # Walk up at most 3 levels from the missing file's folder
+        if index is not None:
+            # Fast path: stem-exact match preferred, ext-only fallback
+            exact = list(index.get(f"{ext}|{stem}", ()))
+            if exact:
+                found = list(exact)
+            else:
+                found = list(index.get(f"{ext}|", ()))
+            if not found:
+                return []
+
+            def _score(p: Path):
+                name_match = p.stem.lower() == stem
+                return (0 if name_match else 1, p.name.lower())
+
+            found.sort(key=_score)
+            return found[:10]
+
+        # Slow path (legacy single-asset lookup)
+        known_paths = {a.source_path for a in self.project.assets}
         search_roots = []
         p = src.parent
         for _ in range(4):
@@ -332,12 +406,10 @@ class HealthPanel(LazyRefreshMixin, QWidget):
             p = p.parent
             if len(p.parts) <= 1:
                 break
-        if not search_roots:
-            # Even the drive root might work — try parent of parent
-            if src.parent.parent.exists():
-                search_roots.append(src.parent.parent)
+        if not search_roots and src.parent.parent.exists():
+            search_roots.append(src.parent.parent)
 
-        candidates: dict[str, Path] = {}  # str path → Path, dedup
+        candidates: dict[str, Path] = {}
 
         def _scan(root: Path, max_depth: int = 3):
             try:
@@ -406,11 +478,15 @@ class HealthPanel(LazyRefreshMixin, QWidget):
         missing = list(self._missing_assets)
         if not missing:
             return
+        # Reuse the rename index from the last scan if available; otherwise build one.
+        index = getattr(self, "_rename_index", None)
+        if not index:
+            index = self._build_rename_index(missing)
         updated = 0
         ambiguous = 0
         not_found = 0
         for asset in missing:
-            candidates = self._find_rename_candidates(asset)
+            candidates = self._find_rename_candidates(asset, index=index)
             if len(candidates) == 1:
                 asset.source_path = str(candidates[0])
                 asset.source_folder = str(candidates[0].parent)
