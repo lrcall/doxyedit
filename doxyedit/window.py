@@ -36,6 +36,10 @@ from doxyedit.tray import WorkTray
 from doxyedit.stats import StatsPanel
 from doxyedit.checklist import ChecklistPanel
 from doxyedit.health import HealthPanel
+from doxyedit.formats import (
+    is_project_path, is_collection_path,
+    ensure_project_ext, ensure_collection_ext,
+)
 
 AUTOSAVE_INTERVAL_MS = 30_000
 
@@ -2687,9 +2691,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 p = url.toLocalFile().lower()
-                if (p.endswith(".doxyproj.json") or p.endswith(".doxycoll.json")
-                        or p.endswith(".doxy") or p.endswith(".doxycoll")
-                        or p.endswith(".doxycol")):
+                if is_project_path(p) or is_collection_path(p):
                     event.acceptProposedAction()
                     return
         # Let browser handle image drops
@@ -2702,11 +2704,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         for url in event.mimeData().urls():
             path = url.toLocalFile()
             lp = path.lower()
-            if lp.endswith(".doxycoll.json") or lp.endswith(".doxycoll") or lp.endswith(".doxycol"):
+            if is_collection_path(lp):
                 self._restore_collection(path)
                 event.acceptProposedAction()
                 return
-            elif lp.endswith(".doxyproj.json") or lp.endswith(".doxy"):
+            elif is_project_path(lp):
                 # Check if already open in a tab
                 for i, slot in enumerate(self._project_slots):
                     if slot["path"] == path:
@@ -4236,8 +4238,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             "DoxyEdit Project (*.doxy);;Legacy JSON (*.doxyproj.json)")
         if not path:
             return
-        if not (path.endswith(".doxy") or path.endswith(".doxyproj.json")):
-            path += ".doxyproj.json" if "doxyproj.json" in selected else ".doxy"
+        path = ensure_project_ext(path, prefer_legacy="doxyproj.json" in selected)
         name = Path(path).stem.replace(".doxyproj", "")
         target = Project(name=name)
         ids_to_remove = {a.id for a in assets}
@@ -6069,8 +6070,7 @@ Ctrl+Click tag — Search by tag
             "DoxyEdit Project (*.doxy);;Legacy JSON (*.doxyproj.json)"
         )
         if path:
-            if not (path.endswith(".doxy") or path.endswith(".doxyproj.json")):
-                path += ".doxyproj.json" if "doxyproj.json" in selected else ".doxy"
+            path = ensure_project_ext(path, prefer_legacy="doxyproj.json" in selected)
             self._remember_dir(path)
             self._own_save_pending = getattr(self, '_own_save_pending', 0) + 1
             self.project.save(path)
@@ -6182,9 +6182,7 @@ Ctrl+Click tag — Search by tag
             "DoxyEdit Collection (*.doxycol);;Legacy JSON (*.doxycoll.json)")
         if not path:
             return
-        if not (path.endswith(".doxycol") or path.endswith(".doxycoll.json")
-                or path.endswith(".doxycoll")):
-            path += ".doxycoll.json" if "doxycoll.json" in selected else ".doxycol"
+        path = ensure_collection_ext(path, prefer_legacy="doxycoll.json" in selected)
         try:
             Path(path).write_text(
                 json.dumps({"_type": "doxycoll", "projects": projects}, indent=2),
