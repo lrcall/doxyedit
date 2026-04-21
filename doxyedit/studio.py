@@ -3327,10 +3327,13 @@ class StudioEditor(QWidget):
         self.info_label.setText("F10 — cleared")
 
     def _clear_escape_state(self):
-        """Shared cleanup for Escape — the two things that actually work."""
+        """Shared cleanup for Escape — reset tool, clear text-edit state,
+        remove crop mask."""
         if not self.isVisible():
             return
-        print("[Studio] ESC — clearing")
+        # Reset to the Select tool if a drawing tool is active
+        if self._scene.current_tool not in (StudioTool.SELECT,):
+            self._set_tool(StudioTool.SELECT)
         # Step 2: Clear text selection on ALL text items
         for item in self._scene.items():
             if isinstance(item, OverlayTextItem):
