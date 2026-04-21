@@ -2927,6 +2927,10 @@ class StudioEditor(QWidget):
         if shift and not ctrl and key == Qt.Key.Key_Backtab:
             self._cycle_selection(-1)
             return
+        # Shift+R — rotate 90 CCW (plain R is 90 CW)
+        if shift and not ctrl and key == Qt.Key.Key_R:
+            self._rotate_selected(-90)
+            return
         # Ctrl+] / Ctrl+[ — bring forward / send backward
         if ctrl and key == Qt.Key.Key_BracketRight:
             self._z_shift_selected(+1)
@@ -3119,6 +3123,9 @@ class StudioEditor(QWidget):
                 return
             if key == Qt.Key.Key_A:
                 self._set_tool(StudioTool.ARROW)
+                return
+            if key == Qt.Key.Key_R:
+                self._rotate_selected(90)
                 return
             if key == Qt.Key.Key_Tab:
                 self._cycle_selection(+1)
@@ -6019,6 +6026,25 @@ class StudioEditor(QWidget):
             new_item.setZValue(200 + len(self._overlay_items))
             self._overlay_items.append(new_item)
         self._update_info()
+
+    def _rotate_selected(self, step: int):
+        """Add step degrees to the rotation of every selected overlay."""
+        touched = False
+        for item in self._scene.selectedItems():
+            ov = getattr(item, "overlay", None)
+            if ov is None:
+                continue
+            ov.rotation = (getattr(ov, "rotation", 0) + step) % 360
+            if hasattr(item, "_apply_flip"):
+                item._apply_flip()
+            elif hasattr(item, "_apply_flip_text"):
+                item._apply_flip_text()
+            else:
+                item.prepareGeometryChange()
+                item.update()
+            touched = True
+        if touched:
+            self._sync_overlays_to_asset()
 
     def _cycle_selection(self, direction: int):
         """Tab / Shift+Tab: cycle through selectable scene items."""
