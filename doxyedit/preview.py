@@ -1024,6 +1024,11 @@ class PreviewPane(QWidget):
         if key == Qt.Key.Key_C and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self._copy_image_to_clipboard()
             return
+        # Press S to jump current asset into Studio (matches the "Studio"
+        # button on the info bar).
+        if key == Qt.Key.Key_S and self._asset:
+            self.studio_requested.emit()
+            return
         if self._assets:
             if key in (Qt.Key.Key_Right, Qt.Key.Key_Down, Qt.Key.Key_Space):
                 self._navigate(1)
