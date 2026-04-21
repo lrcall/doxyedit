@@ -267,6 +267,11 @@ class CensorRectItem(QGraphicsRectItem):
                 act = menu.addAction(label)
                 act.setData(key)
         menu.addSeparator()
+        dup_act = menu.addAction("Duplicate  (Ctrl+D)")
+        menu.addSeparator()
+        fwd_act = menu.addAction("Bring Forward  (Ctrl+])")
+        bwd_act = menu.addAction("Send Backward  (Ctrl+[)")
+        menu.addSeparator()
         plat_sub = all_act = plat_actions = None
         if self._editor and self._editor._project:
             plat_sub, all_act, plat_actions = _add_platform_submenu(menu, self.platforms, self._editor)
@@ -279,6 +284,36 @@ class CensorRectItem(QGraphicsRectItem):
         if chosen is delete_act:
             if self._editor:
                 self._editor._remove_censor_item(self)
+        elif chosen is dup_act and self._editor:
+            # Duplicate: clone region with 20px offset; reuse existing append + scene add pattern
+            cr_src = getattr(self, "_censor_region", None)
+            if cr_src is not None:
+                new_cr = CensorRegion(
+                    x=cr_src.x + 20, y=cr_src.y + 20,
+                    w=cr_src.w, h=cr_src.h,
+                    style=cr_src.style,
+                    blur_radius=cr_src.blur_radius,
+                    pixelate_ratio=cr_src.pixelate_ratio,
+                    rotation=getattr(cr_src, "rotation", 0.0),
+                    platforms=list(cr_src.platforms),
+                )
+                self._editor._asset.censors.append(new_cr)
+                new_item = CensorRectItem(
+                    QRectF(new_cr.x, new_cr.y, new_cr.w, new_cr.h),
+                    new_cr.style, list(new_cr.platforms),
+                )
+                new_item._censor_region = new_cr
+                new_item._editor = self._editor
+                new_item.setZValue(100 + len(self._editor._censor_items))
+                self._editor._scene.addItem(new_item)
+                self._editor._censor_items.append(new_item)
+                self._editor._refresh_layer_panel()
+        elif chosen is fwd_act and self._editor:
+            cmd = SetZValueCmd(self, self.zValue(), self.zValue() + 1, "Bring forward")
+            self._editor._undo_stack.push(cmd)
+        elif chosen is bwd_act and self._editor:
+            cmd = SetZValueCmd(self, self.zValue(), max(100, self.zValue() - 1), "Send backward")
+            self._editor._undo_stack.push(cmd)
         elif plat_actions and (chosen is all_act or chosen in plat_actions):
             self.platforms = _resolve_platform_menu(chosen, all_act, plat_actions, self.platforms)
             if self._editor:
