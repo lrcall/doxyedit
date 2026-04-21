@@ -785,6 +785,17 @@ class OverlayShapeItem(QGraphicsItem):
         fill_act = menu.addAction("Fill Color...")
         clear_fill_act = menu.addAction("Clear Fill")
         radius_act = menu.addAction("Corner Radius...")
+        convert_menu = menu.addMenu("Convert To")
+        conv_rect_act = convert_menu.addAction("Rectangle")
+        conv_ellipse_act = convert_menu.addAction("Ellipse")
+        conv_lingrad_act = convert_menu.addAction("Linear Gradient")
+        conv_radgrad_act = convert_menu.addAction("Radial Gradient")
+        for a, k in ((conv_rect_act, "rect"),
+                       (conv_ellipse_act, "ellipse"),
+                       (conv_lingrad_act, "gradient_linear"),
+                       (conv_radgrad_act, "gradient_radial")):
+            a.setCheckable(True)
+            a.setChecked(self.overlay.shape_kind == k)
         style_menu = menu.addMenu("Stroke Style")
         solid_act = style_menu.addAction("Solid")
         dash_act = style_menu.addAction("Dashed")
@@ -880,6 +891,21 @@ class OverlayShapeItem(QGraphicsItem):
                 self.overlay.corner_radius = value
                 self.update()
                 self._editor._sync_overlays_to_asset()
+        elif chosen in (conv_rect_act, conv_ellipse_act,
+                         conv_lingrad_act, conv_radgrad_act) and self._editor:
+            target = (
+                "rect" if chosen is conv_rect_act else
+                "ellipse" if chosen is conv_ellipse_act else
+                "gradient_linear" if chosen is conv_lingrad_act else
+                "gradient_radial")
+            self.overlay.shape_kind = target
+            # Seed default gradient colors when converting into a gradient
+            if target.startswith("gradient") and not self.overlay.gradient_start_color:
+                self.overlay.gradient_start_color = "#000000ff"
+                self.overlay.gradient_end_color = "#00000000"
+            self.update()
+            self._editor._sync_overlays_to_asset()
+            self._editor._rebuild_layer_panel()
         elif chosen in (solid_act, dash_act, dot_act):
             self.overlay.line_style = (
                 "dash" if chosen is dash_act
