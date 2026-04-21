@@ -18,6 +18,7 @@ run.onefile-build/
 launcher.build/
 launcher.dist/
 launcher.onefile-build/
+build_pyqt_tmp/
 *.lnk
 .doxyedit_cache/
 *.doxyproj.json

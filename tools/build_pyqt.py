@@ -63,6 +63,16 @@ _QTCORE_PAREN_RE = re.compile(
     re.DOTALL,
 )
 
+# Classes PySide6 exposes in one Qt module that PyQt6 exposes in another.
+# Each entry: class_name -> (PySide6_module, PyQt6_module). The codemod
+# strips the class from the old import and injects a single-name import
+# from the new module. Add entries as new binding deltas surface.
+_PYQT_CLASS_MOVES: dict[str, tuple[str, str]] = {
+    # PySide6 re-exports QFileSystemModel from QtWidgets for backward-compat;
+    # PyQt6 only has it in QtGui.
+    "QFileSystemModel": ("QtWidgets", "QtGui"),
+}
+
 
 def _translate_signal_slot(body: str) -> str:
     """Inside a QtCore import body, rewrite bare ``Signal`` / ``Slot`` to
@@ -80,6 +90,53 @@ def _translate_signal_slot(body: str) -> str:
     return body
 
 
+def _move_class(text: str, cls: str, old_mod: str, new_mod: str) -> str:
+    """Strip `cls` from ``from PyQt6.{old_mod} import ...`` (single-line or
+    parenthesized) and prepend ``from PyQt6.{new_mod} import {cls}``. Safe
+    if `cls` isn't present."""
+    paren_re = re.compile(
+        rf"(from PyQt6\.{old_mod} import\s*\()([^)]*)(\))",
+        re.DOTALL,
+    )
+
+    def _prune(items: list[str]) -> list[str]:
+        return [s for s in (x.strip() for x in items) if s and s != cls]
+
+    moved = False
+    def _paren_sub(m: re.Match) -> str:
+        nonlocal moved
+        body = m.group(2)
+        raw_items = body.split(",")
+        if cls not in (x.strip() for x in raw_items):
+            return m.group(0)
+        moved = True
+        items = _prune(raw_items)
+        # Preserve the trailing comma convention used in the codebase
+        new_body = ",\n    ".join(items) if "\n" in body else ", ".join(items)
+        trailing = ",\n" if "\n" in body else ""
+        return (f"from PyQt6.{new_mod} import {cls}\n"
+                f"{m.group(1)}\n    {new_body}{trailing}{m.group(3)}"
+                if "\n" in body else
+                f"from PyQt6.{new_mod} import {cls}\n"
+                f"{m.group(1)}{new_body}{m.group(3)}")
+    text = paren_re.sub(_paren_sub, text)
+    if moved:
+        return text
+    single_re = re.compile(
+        rf"^(from PyQt6\.{old_mod} import )([^\n(][^\n]*)$",
+        re.MULTILINE,
+    )
+    def _single_sub(m: re.Match) -> str:
+        body = m.group(2)
+        raw_items = body.split(",")
+        if cls not in (x.strip() for x in raw_items):
+            return m.group(0)
+        items = _prune(raw_items)
+        return (f"from PyQt6.{new_mod} import {cls}\n"
+                f"{m.group(1)}{', '.join(items)}")
+    return single_re.sub(_single_sub, text)
+
+
 def _apply_subs(text: str) -> str:
     for pattern, repl in _PACKAGE_SUBS:
         text = re.sub(pattern, repl, text)
@@ -88,6 +145,8 @@ def _apply_subs(text: str) -> str:
     text = _QTCORE_PAREN_RE.sub(
         lambda m: m.group(1) + _translate_signal_slot(m.group(2)) + m.group(3),
         text)
+    for cls, (old_mod, new_mod) in _PYQT_CLASS_MOVES.items():
+        text = _move_class(text, cls, old_mod, new_mod)
     return text
 
 
