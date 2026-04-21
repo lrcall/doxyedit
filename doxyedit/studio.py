@@ -3012,9 +3012,14 @@ class StudioEditor(QWidget):
                 label = f"W  {ov.label or Path(ov.image_path).stem}"
             else:
                 label = f"O  {ov.label or ov.type}"
-            # Prepend lock icon for locked layers
+            # Prepend visibility / lock indicators so layer state is
+            # readable at a glance
+            prefix = ""
+            if not ov.enabled:
+                prefix += "(hidden) "
             if getattr(ov, "locked", False):
-                label = "\U0001F512 " + label  # 🔒
+                prefix += "\U0001F512 "  # 🔒
+            label = prefix + label
             label += _scope_tag(ov.platforms)
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, ("overlay", len(self._asset.overlays) - 1 - i))
