@@ -1452,6 +1452,15 @@ class StudioEditor(QWidget):
         ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
         shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
 
+        # Spacebar — temporary hand/pan tool (Photoshop convention)
+        if key == Qt.Key.Key_Space and not ctrl and not shift and not event.isAutoRepeat():
+            if not getattr(self, "_space_panning", False):
+                self._space_panning = True
+                self._space_prev_drag_mode = self._view.dragMode()
+                self._view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+                self._view.setCursor(Qt.CursorShape.OpenHandCursor)
+            return
+
         # Ctrl combos
         if ctrl and key == Qt.Key.Key_Z:
             self._undo_stack.undo()
@@ -1489,6 +1498,23 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_BracketLeft:
             self._z_shift_selected(-1)
             return
+        # Zoom shortcuts — standard in every graphics editor
+        if ctrl and key == Qt.Key.Key_0:
+            # Fit view
+            if self._scene.sceneRect():
+                self._view.fitInView(self._scene.sceneRect(),
+                                      Qt.AspectRatioMode.KeepAspectRatio)
+                self._zoom_label.setText("Fit")
+            return
+        if ctrl and key == Qt.Key.Key_1:
+            self._set_zoom(1.0)
+            return
+        if ctrl and key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
+            self._view.scale(1.25, 1.25)
+            return
+        if ctrl and key == Qt.Key.Key_Minus:
+            self._view.scale(0.8, 0.8)
+            return
 
         # Delete
         if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
@@ -1500,6 +1526,19 @@ class StudioEditor(QWidget):
             else:
                 self._delete_selected()
             return
+
+    def keyReleaseEvent(self, event: QKeyEvent):
+        # Release spacebar pan — restore previous drag mode
+        if (event.key() == Qt.Key.Key_Space
+                and not event.isAutoRepeat()
+                and getattr(self, "_space_panning", False)):
+            self._space_panning = False
+            prev = getattr(self, "_space_prev_drag_mode",
+                           QGraphicsView.DragMode.RubberBandDrag)
+            self._view.setDragMode(prev)
+            self._view.setCursor(Qt.CursorShape.ArrowCursor)
+            return
+        super().keyReleaseEvent(event)
 
         # Arrow nudge
         if key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
