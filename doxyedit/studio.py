@@ -2367,6 +2367,101 @@ class _StudioRuler(QWidget):
                 p.drawLine(0, int(cursor_px), self.width(), int(cursor_px))
 
 
+class _StudioMinimap(QWidget):
+    """Small navigator showing the full image + the current viewport rect.
+    Clicking inside the minimap re-centers the view there."""
+
+    MINI_SIZE = 140
+
+    def __init__(self, view, parent=None):
+        super().__init__(parent)
+        self._view = view
+        self.setObjectName("studio_minimap")
+        self.setFixedSize(self.MINI_SIZE, self.MINI_SIZE)
+        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
+        self._dragging = False
+        self.setMouseTracking(True)
+        # Refresh on any scroll/zoom
+        view.horizontalScrollBar().valueChanged.connect(self.update)
+        view.verticalScrollBar().valueChanged.connect(self.update)
+
+    def _pixmap(self):
+        editor = getattr(self._view, "_studio_editor", None)
+        if editor and editor._pixmap_item:
+            return editor._pixmap_item.pixmap()
+        return None
+
+    def _scale(self):
+        pm = self._pixmap()
+        if pm is None or pm.isNull():
+            return 1.0
+        return min(self.width() / pm.width(), self.height() / pm.height())
+
+    def _image_rect_in_minimap(self):
+        pm = self._pixmap()
+        if pm is None:
+            return QRectF()
+        s = self._scale()
+        iw, ih = pm.width() * s, pm.height() * s
+        ox = (self.width() - iw) / 2
+        oy = (self.height() - ih) / 2
+        return QRectF(ox, oy, iw, ih)
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.fillRect(self.rect(), QColor(20, 20, 20, 200))
+        pm = self._pixmap()
+        if pm is None or pm.isNull():
+            p.setPen(QColor(150, 150, 150))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No image")
+            return
+        ir = self._image_rect_in_minimap()
+        scaled = pm.scaled(int(ir.width()), int(ir.height()),
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation)
+        p.drawPixmap(int(ir.x()), int(ir.y()), scaled)
+        # Draw viewport rect in image coordinates, projected to minimap
+        vp = self._view.viewport().rect()
+        tl = self._view.mapToScene(vp.topLeft())
+        br = self._view.mapToScene(vp.bottomRight())
+        s = self._scale()
+        rx = ir.x() + tl.x() * s
+        ry = ir.y() + tl.y() * s
+        rw = (br.x() - tl.x()) * s
+        rh = (br.y() - tl.y()) * s
+        p.setPen(QPen(QColor(255, 210, 0, 220), 1))
+        p.setBrush(QColor(255, 210, 0, 40))
+        p.drawRect(QRectF(rx, ry, rw, rh))
+        # Border
+        p.setPen(QPen(QColor(80, 80, 80), 1))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawRect(self.rect().adjusted(0, 0, -1, -1))
+
+    def _center_view_on(self, widget_pt):
+        pm = self._pixmap()
+        if pm is None:
+            return
+        ir = self._image_rect_in_minimap()
+        s = self._scale()
+        if s == 0:
+            return
+        scene_x = (widget_pt.x() - ir.x()) / s
+        scene_y = (widget_pt.y() - ir.y()) / s
+        self._view.centerOn(scene_x, scene_y)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._dragging = True
+            self._center_view_on(event.position())
+
+    def mouseMoveEvent(self, event):
+        if self._dragging:
+            self._center_view_on(event.position())
+
+    def mouseReleaseEvent(self, event):
+        self._dragging = False
+
+
 class _StudioCanvas(QWidget):
     """Wraps a StudioView with rulers along the top and left edges."""
 
@@ -2400,6 +2495,12 @@ class _StudioCanvas(QWidget):
         grid.addWidget(view, 1, 1)
         grid.setRowStretch(1, 1)
         grid.setColumnStretch(1, 1)
+        # Minimap — floating overlay in the bottom-right of the view
+        self._minimap = _StudioMinimap(view, parent=view)
+        self._minimap.move(12, 12)
+        self._minimap.setVisible(False)
+        # Reposition minimap whenever the view resizes
+        view.resizeEvent = self._wrap_view_resize(view.resizeEvent)
         # Repaint rulers whenever the view scrolls or zooms
         view.horizontalScrollBar().valueChanged.connect(self._h_ruler.update)
         view.horizontalScrollBar().valueChanged.connect(self._v_ruler.update)
@@ -2422,6 +2523,21 @@ class _StudioCanvas(QWidget):
     def refresh(self):
         self._h_ruler.update()
         self._v_ruler.update()
+        if hasattr(self, "_minimap"):
+            self._minimap.update()
+
+    def _wrap_view_resize(self, orig):
+        def _resize(event):
+            orig(event)
+            if hasattr(self, "_minimap"):
+                v = self._view
+                self._minimap.move(
+                    v.width() - self._minimap.width() - 12,
+                    v.height() - self._minimap.height() - 12)
+        return _resize
+
+    def set_minimap_visible(self, on: bool):
+        self._minimap.setVisible(on)
 
     def _on_corner_click(self, event):
         """Click the ruler corner → fit view to canvas (same as Ctrl+0)."""
@@ -3100,6 +3216,12 @@ class StudioEditor(QWidget):
         self.chk_rulers.toggled.connect(self._on_rulers_toggled)
         toolbar.addWidget(self.chk_rulers)
 
+        self.chk_minimap = QCheckBox("Map")
+        self.chk_minimap.setObjectName("studio_minimap_toggle")
+        self.chk_minimap.setToolTip("Show navigator minimap (bottom-right)")
+        self.chk_minimap.toggled.connect(self._on_minimap_toggled)
+        toolbar.addWidget(self.chk_minimap)
+
         self.btn_focus = QPushButton("Focus")
         self.btn_focus.setObjectName("studio_btn_focus")
         self.btn_focus.setToolTip("Hide layer panel + filmstrip for a larger canvas (period to toggle)")
@@ -3343,6 +3465,12 @@ class StudioEditor(QWidget):
             self._canvas_wrap._h_ruler.setVisible(_rv)
             self._canvas_wrap._v_ruler.setVisible(_rv)
             self._canvas_wrap._corner.setVisible(_rv)
+        _mv = _qs.value("studio_minimap_visible", False, type=bool)
+        self.chk_minimap.blockSignals(True)
+        self.chk_minimap.setChecked(_mv)
+        self.chk_minimap.blockSignals(False)
+        if hasattr(self, "_canvas_wrap") and _mv:
+            self._canvas_wrap.set_minimap_visible(True)
 
         # Layer panel (right sidebar, collapsible)
         self._layer_panel = QListWidget()
@@ -4935,6 +5063,20 @@ class StudioEditor(QWidget):
             self._canvas_wrap._corner.setVisible(on)
         from PySide6.QtCore import QSettings as _QS
         _QS("DoxyEdit", "DoxyEdit").setValue("studio_rulers_visible", on)
+
+    def _on_minimap_toggled(self, on: bool):
+        """Show or hide the navigator minimap."""
+        if hasattr(self, "_canvas_wrap"):
+            self._canvas_wrap.set_minimap_visible(on)
+            if on:
+                # Position in bottom-right
+                v = self._view
+                mm = self._canvas_wrap._minimap
+                mm.move(v.width() - mm.width() - 12,
+                         v.height() - mm.height() - 12)
+                mm.update()
+        from PySide6.QtCore import QSettings as _QS
+        _QS("DoxyEdit", "DoxyEdit").setValue("studio_minimap_visible", on)
 
     def _on_flip_view_toggled(self, on: bool):
         """Mirror the view horizontally for composition checking.
