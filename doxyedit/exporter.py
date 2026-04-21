@@ -52,6 +52,7 @@ def apply_overlays(img: Image.Image, overlays: list[CanvasOverlay], project_dir:
 def _composite_shape_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
     """Render a rectangle or ellipse annotation onto the base image."""
     from PIL import ImageDraw
+    import math
     try:
         def _hex(s):
             c = s.lstrip("#")
@@ -68,14 +69,68 @@ def _composite_shape_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image
             fr, fg, fb = _hex(ov.fill_color)
             fill = (fr, fg, fb, a)
         width = max(1, ov.stroke_width or 2)
+        style = getattr(ov, "line_style", "solid")
         if ov.shape_kind == "ellipse":
-            draw.ellipse([(x0, y0), (x1, y1)],
-                          outline=(sr, sg, sb, a),
-                          fill=fill, width=width)
+            # Fill pass (always solid since dashed fills look wrong)
+            if fill:
+                draw.ellipse([(x0, y0), (x1, y1)], fill=fill)
+            # Stroke pass — PIL has no dashed ellipse so fall back to solid
+            if style == "solid":
+                draw.ellipse([(x0, y0), (x1, y1)],
+                              outline=(sr, sg, sb, a), width=width)
+            else:
+                # Trace an elliptical arc as segmented line points
+                import math as _m
+                cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+                rx, ry = (x1 - x0) / 2.0, (y1 - y0) / 2.0
+                on_len, off_len = (12, 6) if style == "dash" else (2, 4)
+                period = on_len + off_len
+                # Approximate circumference for step count
+                circ = 2 * _m.pi * _m.hypot(rx, ry) / 2
+                steps = max(64, int(circ))
+                points = [(cx + rx * _m.cos(2 * _m.pi * i / steps),
+                           cy + ry * _m.sin(2 * _m.pi * i / steps))
+                          for i in range(steps + 1)]
+                acc = 0.0
+                prev = points[0]
+                drawing = True
+                for pt in points[1:]:
+                    seg = _m.hypot(pt[0] - prev[0], pt[1] - prev[1])
+                    if drawing:
+                        draw.line([prev, pt], fill=(sr, sg, sb, a), width=width)
+                    acc += seg
+                    if acc >= (on_len if drawing else off_len):
+                        drawing = not drawing
+                        acc = 0.0
+                    prev = pt
         else:
-            draw.rectangle([(x0, y0), (x1, y1)],
-                            outline=(sr, sg, sb, a),
-                            fill=fill, width=width)
+            if fill:
+                draw.rectangle([(x0, y0), (x1, y1)], fill=fill)
+            if style == "solid":
+                draw.rectangle([(x0, y0), (x1, y1)],
+                                outline=(sr, sg, sb, a), width=width)
+            else:
+                # Four sides as dashed/dotted segments
+                on_len, off_len = (12, 6) if style == "dash" else (2, 4)
+                def _dashed(p1, p2):
+                    dx = p2[0] - p1[0]
+                    dy = p2[1] - p1[1]
+                    total = math.hypot(dx, dy)
+                    if total == 0:
+                        return
+                    ux, uy = dx / total, dy / total
+                    t = 0.0
+                    while t < total:
+                        e = min(t + on_len, total)
+                        draw.line([
+                            (p1[0] + ux * t, p1[1] + uy * t),
+                            (p1[0] + ux * e, p1[1] + uy * e),
+                        ], fill=(sr, sg, sb, a), width=width)
+                        t = e + off_len
+                _dashed((x0, y0), (x1, y0))
+                _dashed((x1, y0), (x1, y1))
+                _dashed((x1, y1), (x0, y1))
+                _dashed((x0, y1), (x0, y0))
         return Image.alpha_composite(img, layer)
     except Exception:
         return img
