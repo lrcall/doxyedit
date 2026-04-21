@@ -9,6 +9,7 @@ Layered QGraphicsScene:
 from enum import Enum, auto
 from pathlib import Path
 
+from PySide6 import QtCore, QtWidgets
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGraphicsScene, QGraphicsView, QGraphicsRectItem, QGraphicsPixmapItem,
@@ -3381,6 +3382,83 @@ class _StudioRuler(QWidget):
                 p.drawLine(0, int(cursor_px), self.width(), int(cursor_px))
 
 
+class _FlowLayout(QtWidgets.QLayout):
+    """Wrapping horizontal layout — like QHBoxLayout but children fold onto
+    the next row when they don't fit the available width. Adapted from the
+    Qt 'Flow Layout Example' and tuned for Studio's toolbar density."""
+
+    def __init__(self, parent=None, margin: int = 0, hSpacing: int = 4, vSpacing: int = 4):
+        super().__init__(parent)
+        if parent is not None:
+            self.setContentsMargins(margin, margin, margin, margin)
+        self._hspace = hSpacing
+        self._vspace = vSpacing
+        self._items: list = []
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def horizontalSpacing(self):
+        return self._hspace
+
+    def verticalSpacing(self):
+        return self._vspace
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, index):
+        return self._items[index] if 0 <= index < len(self._items) else None
+
+    def takeAt(self, index):
+        return self._items.pop(index) if 0 <= index < len(self._items) else None
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._do_layout(QtCore.QRect(0, 0, width, 0), test_only=True)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._do_layout(rect, test_only=False)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        size = QtCore.QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        m = self.contentsMargins()
+        return size + QtCore.QSize(m.left() + m.right(), m.top() + m.bottom())
+
+    def _do_layout(self, rect, test_only):
+        m = self.contentsMargins()
+        effective = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
+        x = effective.x()
+        y = effective.y()
+        line_height = 0
+        for item in self._items:
+            wid = item.widget()
+            hspace = self._hspace
+            vspace = self._vspace
+            next_x = x + item.sizeHint().width() + hspace
+            if next_x - hspace > effective.right() and line_height > 0:
+                x = effective.x()
+                y = y + line_height + vspace
+                next_x = x + item.sizeHint().width() + hspace
+                line_height = 0
+            if not test_only:
+                item.setGeometry(QtCore.QRect(QtCore.QPoint(x, y), item.sizeHint()))
+            x = next_x
+            line_height = max(line_height, item.sizeHint().height())
+        return y + line_height - rect.y() + m.bottom()
+
+
 class _StudioMinimap(QWidget):
     """Small navigator showing the full image + the current viewport rect.
     Clicking inside the minimap re-centers the view there."""
@@ -4195,7 +4273,13 @@ class StudioEditor(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
 
-        toolbar = QHBoxLayout()
+        toolbar = _FlowLayout(hSpacing=4, vSpacing=3)
+        # FlowLayout's addWidget is inherited; addStretch isn't meaningful
+        # (it stacks rows). We just provide a no-op addStretch for the
+        # existing call site below.
+        def _noop_stretch(*_a, **_kw):
+            pass
+        toolbar.addStretch = _noop_stretch
 
         # Group 0: Undo / Redo — reliably-rendered glyphs (↶ is U+21B6
         # 'anticlockwise top semicircle arrow' which some Windows fonts
@@ -4516,25 +4600,12 @@ class StudioEditor(QWidget):
 
         toolbar.addStretch()
 
-        # Wrap in a horizontal QScrollArea so the toolbar keeps its natural
-        # width at narrow window widths (a horizontal scrollbar appears
-        # instead of the widgets crushing into each other).
+        # FlowLayout wraps buttons to the next row when the window narrows
+        # instead of crushing them. Container keeps the theme background.
         _toolbar_wrap = QWidget()
+        _toolbar_wrap.setObjectName("studio_toolbar_wrap")
         _toolbar_wrap.setLayout(toolbar)
-        _toolbar_scroll = QScrollArea()
-        _toolbar_scroll.setObjectName("studio_toolbar_scroll")
-        _toolbar_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        _toolbar_scroll.setWidget(_toolbar_wrap)
-        _toolbar_scroll.setWidgetResizable(False)
-        _toolbar_scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        _toolbar_scroll.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        # Ensure the wrap widget sizes itself to the toolbar's natural size
-        _toolbar_wrap.adjustSize()
-        _toolbar_scroll.setFixedHeight(
-            _toolbar_wrap.sizeHint().height() + 4)
-        root.addWidget(_toolbar_scroll)
+        root.addWidget(_toolbar_wrap)
 
         # Row 2: Overlay properties (visible when text/watermark selected)
         self._props_row = QWidget()
