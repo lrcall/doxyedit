@@ -2508,6 +2508,45 @@ class _GuideLineItem(QGraphicsLineItem):
             return
         super().mouseDoubleClickEvent(event)
 
+    def contextMenuEvent(self, event):
+        # Numeric position editor + delete — nicer than double-click removal
+        if self._editor is None:
+            return super().contextMenuEvent(event)
+        menu = _themed_menu(self._editor._view)
+        set_pos_act = menu.addAction("Set Position...")
+        delete_act = menu.addAction("Delete Guide")
+        chosen = menu.exec(event.screenPos())
+        if chosen is set_pos_act:
+            line = self.line()
+            off = self.pos()
+            orient = getattr(self, "_guide_orientation", 'h')
+            current = int(line.y1() + off.y()) if orient == 'h' else int(
+                line.x1() + off.x())
+            label = "Y position (px):" if orient == 'h' else "X position (px):"
+            value, ok = QInputDialog.getInt(
+                self._editor, "Set guide position", label, value=current,
+                minValue=-50000, maxValue=50000)
+            if ok:
+                # Recompute the line at the new position and reset pos offset
+                pm_rect = self._editor._pixmap_item.boundingRect() if self._editor._pixmap_item else QRectF()
+                if orient == 'h':
+                    self.setLine(pm_rect.left(), value,
+                                  pm_rect.right(), value)
+                else:
+                    self.setLine(value, pm_rect.top(),
+                                  value, pm_rect.bottom())
+                self.setPos(0, 0)
+                self._editor._save_guides_to_asset()
+                if hasattr(self._editor, "_canvas_wrap"):
+                    self._editor._canvas_wrap.refresh()
+        elif chosen is delete_act:
+            if self in getattr(self._editor, "_guide_items", []):
+                self._editor._guide_items.remove(self)
+            self.scene().removeItem(self)
+            self._editor._save_guides_to_asset()
+            if hasattr(self._editor, "_canvas_wrap"):
+                self._editor._canvas_wrap.refresh()
+
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
         # Persist the new position after a drag
