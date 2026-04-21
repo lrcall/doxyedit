@@ -169,58 +169,29 @@ class OneUpClient:
                          reddit_options: dict | None = None,
                          title: str = "") -> OneUpResult:
         """Schedule a post via the OneUp MCP server (more reliable than REST)."""
-        import json as _json
-        mcp_url = f"https://feed.oneupapp.io/mcp/oneup?apiKey={self.api_key}"
         cat = category_id or (int(self.category_id) if self.category_id else 0)
-
+        args = {
+            "content": content,
+            "social_network_id": social_network_id,
+            "scheduled_date_time": scheduled_date_time,
+        }
+        if cat:
+            args["category_id"] = cat
+        if reddit_options:
+            args["reddit"] = reddit_options
+        if title:
+            args["title"] = title
         try:
-            # Initialize MCP session
-            init = {
-                "jsonrpc": "2.0", "id": 1, "method": "initialize",
-                "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                           "clientInfo": {"name": "doxyedit", "version": "2.3"}},
-            }
-            req = Request(mcp_url, data=_json.dumps(init).encode(),
-                          headers={"Content-Type": "application/json"})
-            resp = urlopen(req, timeout=15)
-            resp.read()
-            sid = resp.headers.get("MCP-Session-Id", "")
-
-            # Schedule post
-            args = {
-                "content": content,
-                "social_network_id": social_network_id,
-                "scheduled_date_time": scheduled_date_time,
-            }
-            if cat:
-                args["category_id"] = cat
-            if reddit_options:
-                args["reddit"] = reddit_options
-            if title:
-                args["title"] = title
-
-            call = {
-                "jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                "params": {"name": "schedule-text-post-tool", "arguments": args},
-            }
-            headers = {"Content-Type": "application/json"}
-            if sid:
-                headers["MCP-Session-Id"] = sid
-            req2 = Request(mcp_url, data=_json.dumps(call).encode(), headers=headers)
-            resp2 = urlopen(req2, timeout=15)
-            data = _json.loads(resp2.read().decode())
-
-            text = data.get("result", {}).get("content", [{}])[0].get("text", "")
+            mcp_url, headers = mcp_init_session(self.api_key)
+            text = mcp_tool_call(mcp_url, headers, "schedule-text-post-tool", args)
             try:
-                result = _json.loads(text)
-            except (_json.JSONDecodeError, TypeError):
+                result = json.loads(text) if text else {}
+            except (json.JSONDecodeError, TypeError):
                 result = {"message": text}
-
             if result.get("success"):
                 return OneUpResult(success=True, data=result)
-            else:
-                return OneUpResult(success=False, data=result,
-                                  error=result.get("message", text))
+            return OneUpResult(success=False, data=result,
+                               error=result.get("message", text))
         except Exception as e:
             return OneUpResult(success=False, data={}, error=str(e))
 
@@ -408,37 +379,11 @@ def sync_accounts_from_mcp(project_dir: str) -> list[dict]:
     if not api_key:
         return []
 
-    mcp_url = f"https://feed.oneupapp.io/mcp/oneup?apiKey={api_key}"
-
     try:
-        # Initialize MCP session
-        init = {
-            "jsonrpc": "2.0", "id": 1, "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "doxyedit", "version": "1.0"},
-            },
-        }
-        req = Request(mcp_url, data=_json.dumps(init).encode(),
-                      headers={"Content-Type": "application/json"})
-        resp = urlopen(req, timeout=15)
-        resp.read()
-        sid = resp.headers.get("MCP-Session-Id", "")
+        mcp_url, headers = mcp_init_session(api_key)
 
-        # Fetch accounts
-        call = {
-            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
-            "params": {"name": "list-social-accounts-tool", "arguments": {}},
-        }
-        headers = {"Content-Type": "application/json"}
-        if sid:
-            headers["MCP-Session-Id"] = sid
-        req2 = Request(mcp_url, data=_json.dumps(call).encode(), headers=headers)
-        resp2 = urlopen(req2, timeout=15)
-        data = _json.loads(resp2.read().decode())
-        text = data.get("result", {}).get("content", [{}])[0].get("text", "")
-        raw_accounts = _json.loads(text).get("accounts", [])
+        text = mcp_tool_call(mcp_url, headers, "list-social-accounts-tool", {})
+        raw_accounts = _json.loads(text).get("accounts", []) if text else []
 
         # Convert to config format
         connected = []
@@ -449,33 +394,18 @@ def sync_accounts_from_mcp(project_dir: str) -> list[dict]:
                 "platform": a["social_network_type"],
             })
 
-        # Fetch categories and their accounts
+        # Fetch categories and their accounts (best-effort)
         categories = []
         try:
-            cat_call = {
-                "jsonrpc": "2.0", "id": 3, "method": "tools/call",
-                "params": {"name": "list-categories-tool", "arguments": {}},
-            }
-            req3 = Request(mcp_url, data=_json.dumps(cat_call).encode(), headers=headers)
-            resp3 = urlopen(req3, timeout=15)
-            cat_data = _json.loads(resp3.read().decode())
-            cat_text = cat_data.get("result", {}).get("content", [{}])[0].get("text", "")
-            raw_cats = _json.loads(cat_text).get("categories", [])
+            cat_text = mcp_tool_call(mcp_url, headers, "list-categories-tool", {}, call_id=3)
+            raw_cats = _json.loads(cat_text).get("categories", []) if cat_text else []
 
             for cat in raw_cats:
                 cat_id = cat["id"]
                 cat_name = cat.get("category_name", str(cat_id))
-                # Fetch accounts for this category
-                ca_call = {
-                    "jsonrpc": "2.0", "id": 4, "method": "tools/call",
-                    "params": {"name": "list-category-accounts-tool",
-                               "arguments": {"category_id": cat_id}},
-                }
-                req4 = Request(mcp_url, data=_json.dumps(ca_call).encode(), headers=headers)
-                resp4 = urlopen(req4, timeout=15)
-                ca_data = _json.loads(resp4.read().decode())
-                ca_text = ca_data.get("result", {}).get("content", [{}])[0].get("text", "")
-                raw_ca = _json.loads(ca_text).get("accounts", [])
+                ca_text = mcp_tool_call(mcp_url, headers, "list-category-accounts-tool",
+                                        {"category_id": cat_id}, call_id=4)
+                raw_ca = _json.loads(ca_text).get("accounts", []) if ca_text else []
 
                 cat_accounts = []
                 for ca in raw_ca:
