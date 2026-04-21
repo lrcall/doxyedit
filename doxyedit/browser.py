@@ -1729,24 +1729,49 @@ class AssetBrowser(QWidget):
             self._folder_scan_timer.stop()
 
     def _scan_folders(self):
-        """Scan known source folders for new images (runs in background thread)."""
+        """Scan known source folders for new images (runs in background thread).
+
+        Only folders the user explicitly imported via "Import Folder" or
+        folder-drag-drop are scanned. Individual file drops add a
+        type='file' import_sources entry that does NOT contribute to the
+        scan set — so dropping 7 files from art/ipad won't pull in the
+        other 100 files in that folder on the next scan.
+
+        Whether a scanned folder is walked recursively is decided by the
+        Recursive checkbox at scan time AND by whether the folder was
+        imported with recursive=True in the first place. If the user
+        imported a folder non-recursively, we respect that even if the
+        Recursive checkbox is on (they chose not to recurse; don't
+        override).
+        """
         if self._scan_running:
             return
         self._scan_running = True
-        folders = set()
-        for a in self.project.assets:
-            folders.add(a.source_folder or str(Path(a.source_path).parent))
+        import_sources = list(self.project.import_sources)
+        recursive_ui = self.recursive_check.isChecked()
+
+        # Build (folder_path, per_folder_recursive) tuples from import_sources
+        folder_entries: list[tuple[str, bool]] = []
+        seen_folders: set[str] = set()
+        for src in import_sources:
+            if src.get("type") != "folder":
+                continue
+            p = src.get("path") or ""
+            if not p or p in seen_folders:
+                continue
+            seen_folders.add(p)
+            # Per-folder recursive = original import choice AND UI toggle
+            per_recursive = bool(src.get("recursive", False)) and recursive_ui
+            folder_entries.append((p, per_recursive))
+
         existing = frozenset(a.source_path for a in self.project.assets)
-        recursive = self.recursive_check.isChecked()
         excluded = frozenset(getattr(self.project, 'excluded_paths', set()))
 
         # Collect all folders into one worker to avoid spawning many threads
         all_new: list[str] = []
 
-        import_sources = list(self.project.import_sources)
-
         def _do_scan():
-            for folder in folders:
+            for folder, per_recursive in folder_entries:
                 fp = Path(folder)
                 if not fp.exists():
                     continue
@@ -1761,7 +1786,7 @@ class AssetBrowser(QWidget):
                         cutoff = datetime.fromisoformat(source["filter_newer_than"]).timestamp()
                     except ValueError:
                         pass
-                it = fp.rglob("*") if recursive else fp.iterdir()
+                it = fp.rglob("*") if per_recursive else fp.iterdir()
                 try:
                     for f in it:
                         if (f.is_file() and f.suffix.lower() in IMAGE_EXTS
