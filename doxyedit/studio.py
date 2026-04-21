@@ -3526,6 +3526,10 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_D:
             self._duplicate_selected()
             return
+        if ctrl and key == Qt.Key.Key_J:
+            # Photoshop Ctrl+J = Duplicate Layer — alias to Ctrl+D
+            self._duplicate_selected()
+            return
         if ctrl and key == Qt.Key.Key_C:
             self._copy_selected_items()
             return
