@@ -763,6 +763,11 @@ class OverlayArrowItem(QGraphicsItem):
         color.setAlphaF(self.overlay.opacity)
         pen = QPen(color, max(1, self.overlay.stroke_width or 4))
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        style = getattr(self.overlay, "line_style", "solid")
+        if style == "dash":
+            pen.setStyle(Qt.PenStyle.DashLine)
+        elif style == "dot":
+            pen.setStyle(Qt.PenStyle.DotLine)
         painter.setPen(pen)
         painter.drawLine(int(x1), int(y1), int(x2), int(y2))
         # Arrowhead — equilateral triangle at tip
@@ -865,6 +870,13 @@ class OverlayArrowItem(QGraphicsItem):
         _parent = self._editor._view if self._editor else None
         menu = _themed_menu(_parent)
         color_act = menu.addAction("Change Color...")
+        style_menu = menu.addMenu("Line Style")
+        solid_act = style_menu.addAction("Solid")
+        dash_act = style_menu.addAction("Dashed")
+        dot_act = style_menu.addAction("Dotted")
+        for a, s in ((solid_act, "solid"), (dash_act, "dash"), (dot_act, "dot")):
+            a.setCheckable(True)
+            a.setChecked(getattr(self.overlay, "line_style", "solid") == s)
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         menu.addSeparator()
         copy_style_act = menu.addAction("Copy Style")
@@ -888,6 +900,14 @@ class OverlayArrowItem(QGraphicsItem):
                 self._editor._add_recent_color(new.name())
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_arrow_item(self)
+        elif chosen in (solid_act, dash_act, dot_act):
+            self.overlay.line_style = (
+                "dash" if chosen is dash_act
+                else "dot" if chosen is dot_act
+                else "solid")
+            self.update()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
         elif chosen is copy_style_act and self._editor:
             self._editor._copy_style(self.overlay)
         elif chosen is paste_style_act and self._editor:

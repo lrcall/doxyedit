@@ -97,7 +97,27 @@ def _composite_arrow_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image
         x1, y1 = ov.x, ov.y
         x2, y2 = ov.end_x, ov.end_y
         width = max(1, ov.stroke_width or 4)
-        draw.line([(x1, y1), (x2, y2)], fill=(r, g, b, a), width=width)
+        style = getattr(ov, "line_style", "solid")
+        if style == "solid":
+            draw.line([(x1, y1), (x2, y2)], fill=(r, g, b, a), width=width)
+        else:
+            # Dashed / dotted — walk the line segmenting by (on, off) pattern
+            on_len, off_len = (12, 6) if style == "dash" else (2, 4)
+            dx = x2 - x1
+            dy = y2 - y1
+            total = math.hypot(dx, dy)
+            if total > 0:
+                ux, uy = dx / total, dy / total
+                t = 0.0
+                while t < total:
+                    seg_end = min(t + on_len, total)
+                    sx = x1 + ux * t
+                    sy = y1 + uy * t
+                    ex = x1 + ux * seg_end
+                    ey = y1 + uy * seg_end
+                    draw.line([(sx, sy), (ex, ey)],
+                              fill=(r, g, b, a), width=width)
+                    t = seg_end + off_len
         # Arrowhead triangle at the tip
         dx, dy = x2 - x1, y2 - y1
         length = math.hypot(dx, dy)
