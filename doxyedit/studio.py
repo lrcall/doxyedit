@@ -405,6 +405,8 @@ class OverlayImageItem(QGraphicsPixmapItem):
         menu.addSeparator()
         save_style_act = menu.addAction("Save as Default Watermark Style")
         reset_style_act = menu.addAction("Reset Default Watermark Style")
+        copy_style_act = menu.addAction("Copy Style")
+        paste_style_act = menu.addAction("Paste Style")
         menu.addSeparator()
         flip_h_act = menu.addAction("Flip Horizontal  (Ctrl+Shift+H)")
         flip_v_act = menu.addAction("Flip Vertical  (Ctrl+Shift+V)")
@@ -430,6 +432,10 @@ class OverlayImageItem(QGraphicsPixmapItem):
             self._editor._save_watermark_style_as_default(self.overlay)
         elif chosen is reset_style_act and self._editor:
             self._editor._reset_watermark_style_defaults()
+        elif chosen is copy_style_act and self._editor:
+            self._editor._copy_style(self.overlay)
+        elif chosen is paste_style_act and self._editor:
+            self._editor._paste_style(self.overlay, self)
         elif chosen is flip_h_act:
             self.overlay.flip_h = not getattr(self.overlay, "flip_h", False)
             self._apply_flip()
@@ -666,6 +672,8 @@ class OverlayTextItem(QGraphicsTextItem):
         clear_bg_act = menu.addAction("Clear Background")
         save_style_act = menu.addAction("Save as Default Text Style")
         reset_style_act = menu.addAction("Reset Default Text Style")
+        copy_style_act = menu.addAction("Copy Style")
+        paste_style_act = menu.addAction("Paste Style")
         menu.addSeparator()
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         menu.addSeparator()
@@ -705,6 +713,10 @@ class OverlayTextItem(QGraphicsTextItem):
             self._editor._save_text_style_as_default(self.overlay)
         elif chosen is reset_style_act and self._editor:
             self._editor._reset_text_style_defaults()
+        elif chosen is copy_style_act and self._editor:
+            self._editor._copy_style(self.overlay)
+        elif chosen is paste_style_act and self._editor:
+            self._editor._paste_style(self.overlay, self)
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_overlay_item(self)
         elif chosen is flip_h_act:
@@ -3124,6 +3136,40 @@ class StudioEditor(QWidget):
         from PySide6.QtCore import QSettings as _QS
         _QS("DoxyEdit", "DoxyEdit").remove("studio_watermark_defaults")
         self.info_label.setText("Reset default watermark style")
+
+    # Copy/Paste Style between overlays — session-only, separate slot per type.
+    # For text-to-text: all text style fields. For image-to-image: watermark
+    # fields. Position, size, content remain untouched.
+    _copy_style_slot: dict = {}
+
+    def _copy_style(self, ov):
+        """Stash style fields from an overlay into a per-type slot."""
+        if ov.type == "text":
+            fields = self._TEXT_STYLE_FIELDS
+        else:
+            fields = self._WATERMARK_STYLE_FIELDS
+        self._copy_style_slot[ov.type] = {f: getattr(ov, f) for f in fields}
+        self.info_label.setText(f"Copied {ov.type} style")
+
+    def _paste_style(self, ov, scene_item):
+        """Apply the stashed style to the target overlay (same type only)."""
+        payload = self._copy_style_slot.get(ov.type, {})
+        if not payload:
+            self.info_label.setText(f"No copied {ov.type} style to paste")
+            return
+        for k, v in payload.items():
+            setattr(ov, k, v)
+        # Refresh the scene item's visual state — text needs font rebuild,
+        # image needs flip/rotation re-apply.
+        if hasattr(scene_item, "_apply_font"):
+            scene_item._apply_font()
+        if hasattr(scene_item, "_apply_flip"):
+            scene_item._apply_flip()
+        if hasattr(scene_item, "_apply_flip_text"):
+            scene_item._apply_flip_text()
+        scene_item.update()
+        self._sync_overlays_to_asset()
+        self.info_label.setText(f"Pasted {ov.type} style")
 
     def _on_text_placed(self, pos: QPointF):
         """Handle click-to-place text overlay from scene."""
