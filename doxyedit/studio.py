@@ -224,11 +224,15 @@ class CensorRectItem(QGraphicsRectItem):
     def _on_rotate_handle_moved(self, scene_pos):
         """Compute angle from rect center to the handle position and apply setRotation."""
         import math
+        from PySide6.QtWidgets import QApplication
         center_scene = self.mapToScene(self.rect().center())
         dx = scene_pos.x() - center_scene.x()
         dy = scene_pos.y() - center_scene.y()
         # Handle is at 12 o'clock (dy < 0) at 0°. Angle grows clockwise.
         angle = math.degrees(math.atan2(dy, dx)) + 90.0
+        # Shift snaps to 15-degree increments (Photoshop convention)
+        if QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier:
+            angle = round(angle / 15.0) * 15.0
         self.setTransformOriginPoint(self.rect().center())
         self.setRotation(angle)
         # Persist to CensorRegion (add rotation field if present; fall back silently)
