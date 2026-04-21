@@ -401,6 +401,9 @@ class OverlayImageItem(QGraphicsPixmapItem):
         menu = _themed_menu(_parent)
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         menu.addSeparator()
+        save_style_act = menu.addAction("Save as Default Watermark Style")
+        reset_style_act = menu.addAction("Reset Default Watermark Style")
+        menu.addSeparator()
         flip_h_act = menu.addAction("Flip Horizontal  (Ctrl+Shift+H)")
         flip_v_act = menu.addAction("Flip Vertical  (Ctrl+Shift+V)")
         reset_xform_act = menu.addAction("Reset Transform")
@@ -419,6 +422,10 @@ class OverlayImageItem(QGraphicsPixmapItem):
             return
         if chosen is dup_act and self._editor:
             self._editor._duplicate_overlay_item(self)
+        elif chosen is save_style_act and self._editor:
+            self._editor._save_watermark_style_as_default(self.overlay)
+        elif chosen is reset_style_act and self._editor:
+            self._editor._reset_watermark_style_defaults()
         elif chosen is flip_h_act:
             self.overlay.flip_h = not getattr(self.overlay, "flip_h", False)
             self._apply_flip()
@@ -2458,12 +2465,47 @@ class StudioEditor(QWidget):
             position="custom",
             x=50, y=50,
         )
+        for k, v in self._load_watermark_style_defaults().items():
+            setattr(ov, k, v)
         self._asset.overlays.append(ov)
         item = self._create_overlay_item(ov)
         if item:
             item.setZValue(200 + len(self._overlay_items))
             self._overlay_items.append(item)
         self._update_info()
+
+    # Watermark / logo default-style persistence — mirrors text defaults.
+    # Excludes image_path / label / x / y / text which are per-instance.
+    _WATERMARK_STYLE_FIELDS = (
+        "scale", "opacity", "rotation", "position", "flip_h", "flip_v",
+    )
+
+    def _load_watermark_style_defaults(self) -> dict:
+        from PySide6.QtCore import QSettings as _QS
+        import json as _json
+        raw = _QS("DoxyEdit", "DoxyEdit").value(
+            "studio_watermark_defaults", "", type=str)
+        if not raw:
+            return {}
+        try:
+            d = _json.loads(raw)
+            return {k: v for k, v in d.items()
+                    if k in self._WATERMARK_STYLE_FIELDS}
+        except Exception:
+            return {}
+
+    def _save_watermark_style_as_default(self, ov: CanvasOverlay):
+        from PySide6.QtCore import QSettings as _QS
+        import json as _json
+        payload = {k: getattr(ov, k) for k in self._WATERMARK_STYLE_FIELDS}
+        _QS("DoxyEdit", "DoxyEdit").setValue(
+            "studio_watermark_defaults", _json.dumps(payload, ensure_ascii=False))
+        self.info_label.setText("Saved default watermark style")
+
+    def _reset_watermark_style_defaults(self):
+        from PySide6.QtCore import QSettings as _QS
+        _QS("DoxyEdit", "DoxyEdit").remove("studio_watermark_defaults")
+        self.info_label.setText("Reset default watermark style")
 
     def _on_text_placed(self, pos: QPointF):
         """Handle click-to-place text overlay from scene."""
