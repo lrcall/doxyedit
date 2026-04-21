@@ -5802,70 +5802,21 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         dlg.exec()
 
     def _show_checklist(self):
-        """Per-project posting checklist — items prefixed [ ] or [x]."""
-        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
-            QListWidget, QListWidgetItem, QDialogButtonBox, QLineEdit, QPushButton)
-        dlg = QDialog(self)
-        dlg.setWindowTitle(f"Posting Checklist — {self.project.name}")
-        dlg.resize(480, 400)
-        layout = QVBoxLayout(dlg)
+        """Jump to the ChecklistPanel on the Social tab (the canonical UI).
 
-        lst = QListWidget()
-        lst.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
-        for item_text in self.project.checklist:
-            done = item_text.startswith("[x]")
-            label = item_text[4:] if item_text.startswith("[x] ") or item_text.startswith("[ ] ") else item_text
-            wi = QListWidgetItem(label)
-            wi.setCheckState(Qt.CheckState.Checked if done else Qt.CheckState.Unchecked)
-            lst.addItem(wi)
-        layout.addWidget(lst)
-
-        # Add / remove row
-        add_row = QHBoxLayout()
-        entry = QLineEdit()
-        entry.setPlaceholderText("New checklist item…")
-        add_row.addWidget(entry, 1)
-        add_btn = QPushButton("Add")
-        add_row.addWidget(add_btn)
-        del_btn = QPushButton("Remove")
-        add_row.addWidget(del_btn)
-        layout.addLayout(add_row)
-
-        def _add():
-            text = entry.text().strip()
-            if not text:
-                return
-            wi = QListWidgetItem(text)
-            wi.setCheckState(Qt.CheckState.Unchecked)
-            lst.addItem(wi)
-            entry.clear()
-
-        def _remove():
-            row = lst.currentRow()
-            if row >= 0:
-                lst.takeItem(row)
-
-        add_btn.clicked.connect(_add)
-        del_btn.clicked.connect(_remove)
-        entry.returnPressed.connect(_add)
-
-        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Save |
-                                QDialogButtonBox.StandardButton.Close)
-        layout.addWidget(btns)
-
-        def _save():
-            items = []
-            for i in range(lst.count()):
-                wi = lst.item(i)
-                prefix = "[x] " if wi.checkState() == Qt.CheckState.Checked else "[ ] "
-                items.append(prefix + wi.text())
-            self.project.checklist = items
-            self._dirty = True
-            dlg.accept()
-
-        btns.accepted.connect(_save)
-        btns.rejected.connect(dlg.reject)
-        dlg.exec()
+        The modal version this menu used to open was a duplicate with
+        a subset of ChecklistPanel's features. Menu entry retained for
+        muscle memory; it now routes to the real panel.
+        """
+        # Switch to Social tab
+        if hasattr(self, '_social_split'):
+            idx = self.tabs.indexOf(self._social_split)
+            if idx >= 0:
+                self.tabs.setCurrentIndex(idx)
+        # Checklist lives inside _social_left_split; surface the panel
+        if hasattr(self, 'checklist_panel'):
+            self.checklist_panel.refresh_if_stale()
+            self.checklist_panel.setFocus()
 
     def _show_tag_stats(self):
         from PySide6.QtWidgets import QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem, QDialogButtonBox
