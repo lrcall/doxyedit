@@ -20,14 +20,8 @@ from PySide6.QtGui import (
 
 from doxyedit.models import Project, PLATFORMS, TAG_ALL, TAG_SHORTCUTS, TAG_SHORTCUTS_DEFAULT, toggle_tags
 from doxyedit import windroptarget
-# Canvas/Censor merged into Studio — keep TagItem for legacy instanceof check
-try:
-    from doxyedit.canvas import TagItem
-except ImportError:
-    TagItem = None
 from doxyedit.browser import AssetBrowser, IMAGE_EXTS, THUMB_GEN_SIZE
 from doxyedit.themes import THEMES, DEFAULT_THEME, generate_stylesheet, Theme
-# CensorEditor merged into Studio
 from doxyedit.platforms import PlatformPanel
 from doxyedit.timeline import TimelineStream
 from doxyedit.calendar_pane import CalendarPane
@@ -39,7 +33,6 @@ from doxyedit.preview import ImagePreviewDialog, PreviewPane
 from doxyedit.filebrowser import FileBrowserPanel
 from doxyedit.infopanel import InfoPanel
 from doxyedit.tray import WorkTray
-from doxyedit.project import save_project, load_project
 from doxyedit.stats import StatsPanel
 from doxyedit.checklist import ChecklistPanel
 from doxyedit.health import HealthPanel
@@ -5698,7 +5691,7 @@ Ctrl+Click tag — Search by tag
                 pen = item.pen()
                 pen.setColor(color)
                 item.setPen(pen)
-                if isinstance(item, QGraphicsRectItem) and not isinstance(item, TagItem):
+                if isinstance(item, QGraphicsRectItem):
                     item.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 30)))
 
     # --- Auto-save ---
