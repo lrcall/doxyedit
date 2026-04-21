@@ -627,7 +627,11 @@ class OverlayShapeItem(QGraphicsItem):
         if self.overlay.shape_kind == "ellipse":
             painter.drawEllipse(r)
         else:
-            painter.drawRect(r)
+            radius = getattr(self.overlay, "corner_radius", 0)
+            if radius > 0:
+                painter.drawRoundedRect(r, radius, radius)
+            else:
+                painter.drawRect(r)
         if self.isSelected():
             painter.setPen(QPen(QColor(255, 200, 0), 1, Qt.PenStyle.DashLine))
             painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -730,6 +734,7 @@ class OverlayShapeItem(QGraphicsItem):
         stroke_act = menu.addAction("Stroke Color...")
         fill_act = menu.addAction("Fill Color...")
         clear_fill_act = menu.addAction("Clear Fill")
+        radius_act = menu.addAction("Corner Radius...")
         style_menu = menu.addMenu("Stroke Style")
         solid_act = style_menu.addAction("Solid")
         dash_act = style_menu.addAction("Dashed")
@@ -771,6 +776,16 @@ class OverlayShapeItem(QGraphicsItem):
             self.overlay.fill_color = ""
             self.update()
             self._editor._sync_overlays_to_asset()
+        elif chosen is radius_act and self._editor:
+            value, ok = QInputDialog.getInt(
+                self._editor, "Corner radius",
+                "Radius (px, 0 = sharp corners):",
+                value=max(0, getattr(self.overlay, "corner_radius", 0)),
+                minValue=0, maxValue=500)
+            if ok:
+                self.overlay.corner_radius = value
+                self.update()
+                self._editor._sync_overlays_to_asset()
         elif chosen in (solid_act, dash_act, dot_act):
             self.overlay.line_style = (
                 "dash" if chosen is dash_act

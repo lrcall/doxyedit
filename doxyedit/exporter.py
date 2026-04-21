@@ -104,6 +104,18 @@ def _composite_shape_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image
                         acc = 0.0
                     prev = pt
         else:
+            radius = max(0, getattr(ov, "corner_radius", 0))
+            if radius > 0 and hasattr(draw, "rounded_rectangle"):
+                if fill:
+                    draw.rounded_rectangle([(x0, y0), (x1, y1)],
+                                             radius=radius, fill=fill)
+                if style == "solid":
+                    draw.rounded_rectangle([(x0, y0), (x1, y1)],
+                                             radius=radius,
+                                             outline=(sr, sg, sb, a),
+                                             width=width)
+                # Dashed/dotted rounded corners fall back to solid for simplicity
+                return Image.alpha_composite(img, layer)
             if fill:
                 draw.rectangle([(x0, y0), (x1, y1)], fill=fill)
             if style == "solid":
