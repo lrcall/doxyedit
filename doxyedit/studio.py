@@ -2022,13 +2022,13 @@ class StudioScene(QGraphicsScene):
     """Scene with tool-aware mouse handling for censor/annotation drawing."""
 
     # Smart-guide tuning
-    # Snap proximity. Default is 5px; read from QSettings so users can dial
-    # in looser / tighter snapping for their workflow.
+    # Snap proximity. 0 = snap off. User pref, read per-use so toggles
+    # via the canvas menu "Snap Proximity..." apply without restart.
     @property
     def SNAP_THRESHOLD_PX(self):
         from PySide6.QtCore import QSettings as _QS
         return _QS("DoxyEdit", "DoxyEdit").value(
-            "studio_snap_threshold_px", 5, type=int)
+            "studio_snap_threshold_px", 0, type=int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
