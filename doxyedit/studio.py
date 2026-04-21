@@ -2225,6 +2225,43 @@ class _StudioRuler(QWidget):
                 else:
                     p.drawLine(self.width() - 1, y, self.width() - 4, y)
             s += minor_step
+        # Guide tick marks — small accent triangles at each guide's position.
+        # Horizontal guide (spans image width at a Y) -> marker on V ruler.
+        # Vertical guide (spans image height at an X) -> marker on H ruler.
+        editor = getattr(self._view, "_studio_editor", None)
+        if editor is not None:
+            from PySide6.QtGui import QPolygonF
+            guides = getattr(editor, "_guide_items", [])
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QBrush(QColor(self._theme.accent)))
+            for gl in guides:
+                if gl.scene() is None:
+                    continue
+                orient = getattr(gl, "_guide_orientation", 'h')
+                # Only render the guide on the opposing-axis ruler
+                if orient == 'h' and self._orientation != 'v':
+                    continue
+                if orient == 'v' and self._orientation != 'h':
+                    continue
+                line = gl.line()
+                off = gl.pos()
+                if orient == 'h':
+                    gpos = line.y1() + off.y()
+                else:
+                    gpos = line.x1() + off.x()
+                screen_pos = (gpos - s_start) * scale
+                if not (0 <= screen_pos <= max(self.width(), self.height())):
+                    continue
+                sp = int(screen_pos)
+                if self._orientation == 'h':
+                    tri = [QPointF(sp, self.height()),
+                           QPointF(sp - 4, self.height() - 5),
+                           QPointF(sp + 4, self.height() - 5)]
+                else:
+                    tri = [QPointF(self.width(), sp),
+                           QPointF(self.width() - 5, sp - 4),
+                           QPointF(self.width() - 5, sp + 4)]
+                p.drawPolygon(QPolygonF(tri))
         # Cursor indicator line
         cursor_px = (self._cursor_scene - s_start) * scale
         if 0 <= cursor_px <= max(self.width(), self.height()):
@@ -3371,16 +3408,23 @@ class StudioEditor(QWidget):
                 y = line.line().y1()
                 if not (rect.top() <= y <= rect.bottom()):
                     self._scene.removeItem(line)
+                    if hasattr(self, "_canvas_wrap"):
+                        self._canvas_wrap.refresh()
                     return
             else:
                 x = line.line().x1()
                 if not (rect.left() <= x <= rect.right()):
                     self._scene.removeItem(line)
+                    if hasattr(self, "_canvas_wrap"):
+                        self._canvas_wrap.refresh()
                     return
         # Track it so load_asset can clean up next time
         if not hasattr(self, "_guide_items"):
             self._guide_items = []
         self._guide_items.append(line)
+        # Refresh rulers so the tick marker appears
+        if hasattr(self, "_canvas_wrap"):
+            self._canvas_wrap.refresh()
 
     def _clear_guides(self):
         """Remove all guide lines — called when loading a new asset."""
@@ -3389,6 +3433,8 @@ class StudioEditor(QWidget):
                 self._scene.removeItem(line)
         self._guide_items = []
         self._pending_guide = None
+        if hasattr(self, "_canvas_wrap"):
+            self._canvas_wrap.refresh()
 
     def set_project(self, project: Project, project_path: str = ""):
         """Store project ref and populate template dropdown."""
