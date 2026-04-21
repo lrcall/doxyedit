@@ -3603,6 +3603,11 @@ class StudioEditor(QWidget):
             if hasattr(self, "chk_thirds"):
                 self.chk_thirds.setChecked(not self.chk_thirds.isChecked())
             return
+        # Ctrl+G — toggle snap grid (alternate of plain G)
+        if ctrl and not shift and key == Qt.Key.Key_G:
+            if hasattr(self, "chk_grid"):
+                self.chk_grid.setChecked(not self.chk_grid.isChecked())
+            return
         alt = bool(mods & Qt.KeyboardModifier.AltModifier)
         # Alt+Up / Alt+Down — reorder selected layer by 1 in z-order.
         # Alias of Ctrl+] / Ctrl+[ for users who find bracket keys awkward.
