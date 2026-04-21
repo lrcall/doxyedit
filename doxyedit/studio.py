@@ -2164,9 +2164,17 @@ class StudioScene(QGraphicsScene):
             return
 
         if self.current_tool == StudioTool.TEXT_OVERLAY:
-            if self.on_text_overlay_placed:
-                self.on_text_overlay_placed(pos)
-            self.current_tool = StudioTool.SELECT
+            # Start a drag-to-size rubber band; classified on release as
+            # either a click-place (short drag) or a sized text box.
+            self._draw_start = pos
+            self._temp_item = QGraphicsRectItem(QRectF(pos, pos))
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            _dt = THEMES[DEFAULT_THEME]
+            pen = QPen(QColor(_dt.accent), 1, Qt.PenStyle.DashLine)
+            self._temp_item.setPen(pen)
+            self._temp_item.setBrush(Qt.BrushStyle.NoBrush)
+            self._temp_item.setZValue(400)
+            self.addItem(self._temp_item)
             return
 
         if self.current_tool == StudioTool.ANNOTATE_TEXT:
@@ -2414,9 +2422,28 @@ class StudioScene(QGraphicsScene):
                 if r.width() > 8 and r.height() > 8 and self.on_shape_finished:
                     kind = "ellipse" if self.current_tool == StudioTool.SHAPE_ELLIPSE else "rect"
                     self.on_shape_finished(r, kind)
+            elif self.current_tool == StudioTool.TEXT_OVERLAY:
+                # Classify: <6 px drag → click-place (auto-width text);
+                # >=6 px → drag-to-size (text_width locked to drag width).
+                r = self._temp_item.rect()
+                self.removeItem(self._temp_item)
+                if max(r.width(), r.height()) < 6:
+                    if self.on_text_overlay_placed:
+                        self.on_text_overlay_placed(self._draw_start, 0)
+                else:
+                    if self.on_text_overlay_placed:
+                        self.on_text_overlay_placed(
+                            r.topLeft(), int(r.width()))
             self._draw_start = None
             self._temp_item = None
-            self.current_tool = StudioTool.SELECT
+            # Sticky tool: Text / Shape / Censor / Crop / Note / Arrow stay
+            # active after a drawn item so comic / layout workflows don't
+            # keep re-selecting the tool. User pref opt-out via QSettings.
+            from PySide6.QtCore import QSettings as _QS
+            sticky = _QS("DoxyEdit", "DoxyEdit").value(
+                "studio_sticky_tools", True, type=bool)
+            if not sticky:
+                self.current_tool = StudioTool.SELECT
             return
         super().mouseReleaseEvent(event)
 
@@ -5761,11 +5788,18 @@ class StudioEditor(QWidget):
         self._sync_overlays_to_asset()
         self.info_label.setText(f"Pasted {ov.type} style")
 
-    def _on_text_placed(self, pos: QPointF):
-        """Handle click-to-place text overlay from scene."""
-        self._add_text_overlay(int(pos.x()), int(pos.y()))
-        self._view.setCursor(Qt.CursorShape.ArrowCursor)
-        self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+    def _on_text_placed(self, pos: QPointF, width: int = 0):
+        """Handle click-to-place or drag-to-size text overlay from scene.
+        width == 0 means click-place (auto-width); otherwise the text box is
+        locked to that pixel width so multi-line bubbles wrap to fit."""
+        self._add_text_overlay(int(pos.x()), int(pos.y()), text_width=width)
+        # Sticky tool means cursor should stay cross; otherwise arrow.
+        from PySide6.QtCore import QSettings as _QS
+        sticky = _QS("DoxyEdit", "DoxyEdit").value(
+            "studio_sticky_tools", True, type=bool)
+        if not sticky:
+            self._view.setCursor(Qt.CursorShape.ArrowCursor)
+            self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
 
     # Fields copied into the CanvasOverlay when the user "Saves as Default
     # Text Style". Position/size/text fields are intentionally excluded --
@@ -5964,8 +5998,11 @@ class StudioEditor(QWidget):
             QApplication.clipboard().setText(hex_)
             self.info_label.setText(f"Eyedropper: {hex_} copied to clipboard")
 
-    def _add_text_overlay(self, x: int = 50, y: int = 50):
-        """Add a text overlay at the given position."""
+    def _add_text_overlay(self, x: int = 50, y: int = 50, text_width: int = 0):
+        """Add a text overlay at the given position.
+        If text_width > 0, the text box wraps to that pixel width (comic
+        bubble-style drag-to-size). 0 means auto-width.
+        """
         if not self._asset:
             return
         ov = CanvasOverlay(
@@ -5975,15 +6012,31 @@ class StudioEditor(QWidget):
             opacity=self.slider_opacity.value() / 100.0,
             position="custom",
             x=x, y=y,
+            text_width=int(text_width) if text_width > 0 else 0,
         )
         # Apply the user's saved default text style, if one exists
         for k, v in self._load_text_style_defaults().items():
+            # Don't let the default override an explicit drag-to-size width
+            if k == "text_width" and text_width > 0:
+                continue
             setattr(ov, k, v)
         self._asset.overlays.append(ov)
         item = self._create_overlay_item(ov)
         if item:
             item.setZValue(200 + len(self._overlay_items))
             self._overlay_items.append(item)
+            # Auto-select the new overlay + enter edit mode so the user can
+            # start typing immediately. Critical for comic bubble flow.
+            self._scene.clearSelection()
+            item.setSelected(True)
+            if hasattr(item, "setTextInteractionFlags"):
+                item.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.TextEditorInteraction)
+                item.setFocus()
+                # Select the placeholder "Your text" so typing replaces it
+                cursor = item.textCursor()
+                cursor.select(cursor.SelectionType.Document)
+                item.setTextCursor(cursor)
         self._update_info()
 
     def _apply_template(self, index: int):
