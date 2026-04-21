@@ -1376,12 +1376,14 @@ class StudioScene(QGraphicsScene):
                     editor._duplicate_overlay_item(top)
                 elif isinstance(top, OverlayArrowItem):
                     editor._duplicate_arrow_item(top)
+                elif isinstance(top, OverlayShapeItem):
+                    editor._duplicate_shape_item(top)
                 elif isinstance(top, CensorRectItem):
                     editor._duplicate_censor_item(top)
                 # New item is added at top-of-stack; select it so the drag
                 # propagates naturally.
                 self.clearSelection()
-                if editor._overlay_items and isinstance(top, (OverlayImageItem, OverlayTextItem, OverlayArrowItem)):
+                if editor._overlay_items and isinstance(top, (OverlayImageItem, OverlayTextItem, OverlayArrowItem, OverlayShapeItem)):
                     editor._overlay_items[-1].setSelected(True)
                 elif editor._censor_items and isinstance(top, CensorRectItem):
                     editor._censor_items[-1].setSelected(True)
@@ -1523,7 +1525,7 @@ class StudioScene(QGraphicsScene):
             if it is moving_item or it.parentItem() is not None:
                 continue
             if not isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                   OverlayArrowItem,
+                                   OverlayArrowItem, OverlayShapeItem,
                                    CensorRectItem, ResizableCropItem,
                                    NoteRectItem, QGraphicsPixmapItem)):
                 continue
@@ -1598,7 +1600,7 @@ class StudioScene(QGraphicsScene):
                 and self.mouseGrabberItem() is not None):
             grabber = self.mouseGrabberItem()
             if isinstance(grabber, (OverlayImageItem, OverlayTextItem,
-                                    OverlayArrowItem,
+                                    OverlayArrowItem, OverlayShapeItem,
                                     CensorRectItem, ResizableCropItem, NoteRectItem)):
                 # Let Qt move it first, then snap
                 super().mouseMoveEvent(event)
@@ -2398,7 +2400,7 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_A:
             for it in self._scene.items():
                 if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                   OverlayArrowItem,
+                                   OverlayArrowItem, OverlayShapeItem,
                                    CensorRectItem, ResizableCropItem, NoteRectItem)):
                     it.setSelected(True)
             return
@@ -2406,7 +2408,7 @@ class StudioEditor(QWidget):
         if ctrl and shift and key == Qt.Key.Key_I:
             for it in self._scene.items():
                 if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                   OverlayArrowItem,
+                                   OverlayArrowItem, OverlayShapeItem,
                                    CensorRectItem, ResizableCropItem, NoteRectItem)):
                     it.setSelected(not it.isSelected())
             return
@@ -4988,7 +4990,7 @@ class StudioEditor(QWidget):
                     self._censor_items.remove(item)
                 has_undoable = True
             elif isinstance(item, (OverlayImageItem, OverlayTextItem,
-                                    OverlayArrowItem)):
+                                    OverlayArrowItem, OverlayShapeItem)):
                 cmd._overlays.append((item.overlay, item))
                 if item in self._overlay_items:
                     self._overlay_items.remove(item)
@@ -5046,7 +5048,7 @@ class StudioEditor(QWidget):
         """Tab / Shift+Tab: cycle through selectable scene items."""
         candidates = [it for it in self._scene.items()
                       if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                          OverlayArrowItem,
+                                          OverlayArrowItem, OverlayShapeItem,
                                           CensorRectItem, ResizableCropItem,
                                           NoteRectItem))
                       and it.parentItem() is None]
@@ -5066,12 +5068,14 @@ class StudioEditor(QWidget):
         self._view.centerOn(new)
 
     def _duplicate_selected(self):
-        """Duplicate selected overlays, censors, arrows, and crops."""
+        """Duplicate selected overlays, censors, arrows, shapes, and crops."""
         for item in list(self._scene.selectedItems()):
             if isinstance(item, (OverlayImageItem, OverlayTextItem)):
                 self._duplicate_overlay_item(item)
             elif isinstance(item, OverlayArrowItem):
                 self._duplicate_arrow_item(item)
+            elif isinstance(item, OverlayShapeItem):
+                self._duplicate_shape_item(item)
             elif isinstance(item, CensorRectItem):
                 self._duplicate_censor_item(item)
             elif isinstance(item, ResizableCropItem):
@@ -5316,7 +5320,7 @@ class StudioEditor(QWidget):
         overlays, censors = [], []
         for it in self._scene.selectedItems():
             if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                OverlayArrowItem)):
+                                OverlayArrowItem, OverlayShapeItem)):
                 overlays.append(it.overlay.to_dict())
             elif isinstance(it, CensorRectItem):
                 cr = getattr(it, "_censor_region", None)
