@@ -4189,28 +4189,28 @@ class StudioEditor(QWidget):
         self.chk_thirds.toggled.connect(self._on_thirds_toggled)
         toolbar.addWidget(self.chk_thirds)
 
-        self.chk_rulers = QCheckBox("📏")
+        self.chk_rulers = QCheckBox("⫼")
         self.chk_rulers.setObjectName("studio_rulers_toggle")
         self.chk_rulers.setToolTip("Show horizontal + vertical rulers")
         self.chk_rulers.setChecked(True)
         self.chk_rulers.toggled.connect(self._on_rulers_toggled)
         toolbar.addWidget(self.chk_rulers)
 
-        self.chk_notes = QCheckBox("📝")
+        self.chk_notes = QCheckBox("≣")
         self.chk_notes.setObjectName("studio_notes_toggle")
         self.chk_notes.setToolTip("Show note annotations")
         self.chk_notes.setChecked(True)
         self.chk_notes.toggled.connect(self._on_notes_toggled)
         toolbar.addWidget(self.chk_notes)
 
-        self.chk_base = QCheckBox("🖼")
+        self.chk_base = QCheckBox("▦")
         self.chk_base.setObjectName("studio_base_toggle")
         self.chk_base.setToolTip("Show base image (uncheck to work on overlays only)")
         self.chk_base.setChecked(True)
         self.chk_base.toggled.connect(self._on_base_toggled)
         toolbar.addWidget(self.chk_base)
 
-        self.chk_minimap = QCheckBox("🗺")
+        self.chk_minimap = QCheckBox("⊟")
         self.chk_minimap.setObjectName("studio_minimap_toggle")
         self.chk_minimap.setToolTip("Show navigator minimap (bottom-right)")
         self.chk_minimap.toggled.connect(self._on_minimap_toggled)
@@ -4265,26 +4265,26 @@ class StudioEditor(QWidget):
         toolbar.addWidget(QLabel("|"))
 
         # Group 5: Export
-        self.btn_export = QPushButton("👁")
+        self.btn_export = QPushButton("◉")
         self.btn_export.setObjectName("studio_btn_export")
         self.btn_export.setToolTip("Export preview PNG")
         self.btn_export.clicked.connect(self._export_preview)
         toolbar.addWidget(self.btn_export)
 
-        self.btn_export_plat = QPushButton("📤")
+        self.btn_export_plat = QPushButton("↥")
         self.btn_export_plat.setObjectName("studio_btn_export_plat")
         self.btn_export_plat.setToolTip(
             "Export current platform (crop selected in combo)")
         self.btn_export_plat.clicked.connect(self._export_current_platform)
         toolbar.addWidget(self.btn_export_plat)
 
-        self.btn_export_all = QPushButton("📦")
+        self.btn_export_all = QPushButton("⇑")
         self.btn_export_all.setObjectName("studio_btn_export_all")
         self.btn_export_all.setToolTip("Export all platforms")
         self.btn_export_all.clicked.connect(self._export_all_platforms)
         toolbar.addWidget(self.btn_export_all)
 
-        btn_queue = QPushButton("⌛")
+        btn_queue = QPushButton("◷")
         btn_queue.setObjectName("studio_queue_btn")
         btn_queue.setToolTip("Queue this asset for posting")
         btn_queue.clicked.connect(self._queue_current)

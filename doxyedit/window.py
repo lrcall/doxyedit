@@ -1988,11 +1988,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             ("▣", "Censor", StudioTool.CENSOR, "X"),
             ("◰", "Crop", StudioTool.CROP, "C"),
             ("✎", "Note", StudioTool.NOTE, "N"),
-            ("🖼", "Watermark / logo", StudioTool.WATERMARK, "E"),
+            ("▦", "Watermark / logo", StudioTool.WATERMARK, "E"),
             ("T", "Text overlay", StudioTool.TEXT_OVERLAY, "T"),
             ("➜", "Arrow", StudioTool.ARROW, "A"),
             ("▭", "Shape", StudioTool.SHAPE_RECT, None),
-            ("💉", "Eyedropper", StudioTool.EYEDROPPER, "I"),
+            ("⦿", "Eyedropper", StudioTool.EYEDROPPER, "I"),
         ]
         self._tool_actions = []
         for glyph, name, tool, shortcut in tools:
@@ -2007,12 +2007,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._tool_actions.append((action, tool))
         self._tool_actions[0][0].setChecked(True)
 
-        self._color_action = QAction("🎨", self, triggered=self._change_color)
+        self._color_action = QAction("◑", self, triggered=self._change_color)
         self._color_action.setToolTip("Color")
         tb.addAction(self._color_action)
         self._canvas_sep_after = tb.addSeparator()
 
-        _del_action = QAction("🗑", self, triggered=self._handle_delete)
+        _del_action = QAction("✕", self, triggered=self._handle_delete)
         _del_action.setToolTip("Delete selected")
         tb.addAction(_del_action)
 
