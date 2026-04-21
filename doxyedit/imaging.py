@@ -191,30 +191,32 @@ def get_shell_thumbnail(path: str, size: int = 256) -> PILImage.Image | None:
         if hr2 != 0 or not hbitmap.value:
             return None
 
-        # Extract bitmap pixels using pure ctypes (no win32gui/win32ui needed)
-        bm = BITMAP()
-        ctypes.windll.gdi32.GetObjectW(hbitmap, ctypes.sizeof(BITMAP), byref(bm))
-        w, h = bm.bmWidth, abs(bm.bmHeight)
-        if w <= 0 or h <= 0:
+        # hbitmap is owned from here on; ensure it's released on all paths.
+        try:
+            bm = BITMAP()
+            ctypes.windll.gdi32.GetObjectW(hbitmap, ctypes.sizeof(BITMAP), byref(bm))
+            w, h = bm.bmWidth, abs(bm.bmHeight)
+            if w <= 0 or h <= 0:
+                return None
+
+            bi = BITMAPINFOHEADER()
+            bi.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+            bi.biWidth = w
+            bi.biHeight = -h   # negative = top-down DIB
+            bi.biPlanes = 1
+            bi.biBitCount = 32
+            bi.biCompression = 0  # BI_RGB
+
+            buf = (ctypes.c_byte * (w * h * 4))()
+            hdc = ctypes.windll.user32.GetDC(None)
+            try:
+                ctypes.windll.gdi32.GetDIBits(hdc, hbitmap, 0, h, buf, byref(bi), 0)
+            finally:
+                ctypes.windll.user32.ReleaseDC(None, hdc)
+
+            return PILImage.frombuffer('RGBA', (w, h), bytes(buf), 'raw', 'BGRA', 0, 1)
+        finally:
             ctypes.windll.gdi32.DeleteObject(hbitmap)
-            return None
-
-        bi = BITMAPINFOHEADER()
-        bi.biSize = ctypes.sizeof(BITMAPINFOHEADER)
-        bi.biWidth = w
-        bi.biHeight = -h   # negative = top-down DIB
-        bi.biPlanes = 1
-        bi.biBitCount = 32
-        bi.biCompression = 0  # BI_RGB
-
-        buf = (ctypes.c_byte * (w * h * 4))()
-        hdc = ctypes.windll.user32.GetDC(None)
-        ctypes.windll.gdi32.GetDIBits(hdc, hbitmap, 0, h, buf, byref(bi), 0)
-        ctypes.windll.user32.ReleaseDC(None, hdc)
-        ctypes.windll.gdi32.DeleteObject(hbitmap)
-
-        img = PILImage.frombuffer('RGBA', (w, h), bytes(buf), 'raw', 'BGRA', 0, 1)
-        return img
     except Exception:
         return None
 
