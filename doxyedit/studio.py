@@ -2564,8 +2564,26 @@ class StudioEditor(QWidget):
 
         self._pixmap_item = QGraphicsPixmapItem(pm)
         self._pixmap_item.setZValue(0)
+        # Drop shadow so the image feels like a document on a workspace.
+        # Apply to the checkerboard (which matches the pixmap rect) rather
+        # than the pixmap itself so the shadow is visible even when the
+        # pixmap has full-opacity pixels covering every edge.
+        try:
+            from PySide6.QtWidgets import QGraphicsDropShadowEffect
+            shadow = QGraphicsDropShadowEffect()
+            shadow.setBlurRadius(30)
+            shadow.setOffset(0, 8)
+            shadow.setColor(QColor(0, 0, 0, 160))
+            checker.setGraphicsEffect(shadow)
+        except Exception:
+            pass
         self._scene.addItem(self._pixmap_item)
-        self._scene.setSceneRect(QRectF(pm.rect()))
+        # Give the scene extra rect around the image so there's margin for
+        # the shadow + workspace feel
+        _pm_rect = QRectF(pm.rect())
+        _margin = max(200, int(max(pm.width(), pm.height()) * 0.1))
+        self._scene.setSceneRect(_pm_rect.adjusted(
+            -_margin, -_margin, _margin, _margin))
         self._view.fitInView(self._pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
 
         # Restore censors (Z 100-199)
