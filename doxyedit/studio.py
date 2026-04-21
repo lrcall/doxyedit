@@ -332,13 +332,14 @@ class OverlayImageItem(QGraphicsPixmapItem):
     def contextMenuEvent(self, event):
         _parent = self._editor._view if self._editor else None
         menu = _themed_menu(_parent)
-        dup_act = menu.addAction("Duplicate")
+        dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         menu.addSeparator()
-        flip_h_act = menu.addAction("Flip Horizontal")
-        flip_v_act = menu.addAction("Flip Vertical")
+        flip_h_act = menu.addAction("Flip Horizontal  (Ctrl+Shift+H)")
+        flip_v_act = menu.addAction("Flip Vertical  (Ctrl+Shift+V)")
+        reset_xform_act = menu.addAction("Reset Transform")
         menu.addSeparator()
-        fwd_act = menu.addAction("Bring Forward")
-        bwd_act = menu.addAction("Send Backward")
+        fwd_act = menu.addAction("Bring Forward  (Ctrl+])")
+        bwd_act = menu.addAction("Send Backward  (Ctrl+[)")
         menu.addSeparator()
         plat_sub = all_act = plat_actions = None
         if self._editor and self._editor._project:
@@ -359,6 +360,16 @@ class OverlayImageItem(QGraphicsPixmapItem):
         elif chosen is flip_v_act:
             self.overlay.flip_v = not getattr(self.overlay, "flip_v", False)
             self._apply_flip()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen is reset_xform_act:
+            # Reset rotation + flip_h + flip_v. Keep position + scale.
+            from PySide6.QtGui import QTransform
+            self.overlay.rotation = 0.0
+            self.overlay.flip_h = False
+            self.overlay.flip_v = False
+            self.setTransform(QTransform())
+            self.setRotation(0)
             if self._editor:
                 self._editor._sync_overlays_to_asset()
         elif plat_actions and (chosen is all_act or chosen in plat_actions):
