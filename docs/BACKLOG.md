@@ -130,6 +130,11 @@ Scope: weeks per item. Each warrants its own plan-i-Nx file.
 ### Done in v2.5 Studio full-graphics-product push
 - Eyedropper tool (I key / Pick toolbar button)
 - Arrow annotation tool (A key / Arrow button + endpoint handles)
+- Shape annotation tool — rectangle / ellipse with stroke/fill,
+  corner resize handles (Shift = square), snap-integrated
+- Layer panel thumbnails for all overlay/censor types
+- Persistent guides (saved to Asset.guides)
+- Recent-color swatches strip in toolbar
 - Rulers (horizontal + vertical) with drag-out guides
 - Rule-of-thirds composition overlay
 - Checkerboard transparency background + drop shadow on canvas
