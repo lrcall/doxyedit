@@ -1448,13 +1448,13 @@ class StudioEditor(QWidget):
             if key == Qt.Key.Key_Q:
                 self._set_tool(StudioTool.SELECT)
                 return
-            if key == Qt.Key.Key_W:
+            if key == Qt.Key.Key_X:
                 self._set_tool(StudioTool.CENSOR)
                 return
             if key == Qt.Key.Key_E:
                 self._set_tool(StudioTool.WATERMARK)
                 return
-            if key == Qt.Key.Key_R:
+            if key == Qt.Key.Key_T:
                 self._set_tool(StudioTool.TEXT_OVERLAY)
                 return
             if key == Qt.Key.Key_C:
@@ -1509,6 +1509,7 @@ class StudioEditor(QWidget):
         # Group 1: Selection
         self.btn_select = QPushButton("Select")
         self.btn_select.setObjectName("studio_btn_select")
+        self.btn_select.setToolTip("Select tool (Q)")
         self.btn_select.clicked.connect(lambda: self._set_tool(StudioTool.SELECT))
         toolbar.addWidget(self.btn_select)
 
@@ -1517,6 +1518,7 @@ class StudioEditor(QWidget):
         # Group 2: Censor tools
         self.btn_censor = QPushButton("Censor")
         self.btn_censor.setObjectName("studio_btn_censor")
+        self.btn_censor.setToolTip("Censor tool (X)")
         self.btn_censor.clicked.connect(lambda: self._set_tool(StudioTool.CENSOR))
         toolbar.addWidget(self.btn_censor)
 
@@ -1528,6 +1530,7 @@ class StudioEditor(QWidget):
 
         self.btn_crop = QPushButton("Crop")
         self.btn_crop.setObjectName("studio_btn_crop")
+        self.btn_crop.setToolTip("Crop tool (C)")
         self.btn_crop.clicked.connect(lambda: self._set_tool(StudioTool.CROP))
         toolbar.addWidget(self.btn_crop)
 
@@ -1550,6 +1553,7 @@ class StudioEditor(QWidget):
 
         self.btn_note = QPushButton("Note")
         self.btn_note.setObjectName("studio_btn_note")
+        self.btn_note.setToolTip("Note tool (N)")
         self.btn_note.clicked.connect(lambda: self._set_tool(StudioTool.NOTE))
         toolbar.addWidget(self.btn_note)
 
@@ -1563,11 +1567,13 @@ class StudioEditor(QWidget):
         # Group 3: Overlay tools
         self.btn_watermark = QPushButton("Watermark")
         self.btn_watermark.setObjectName("studio_btn_watermark")
+        self.btn_watermark.setToolTip("Watermark / logo tool (E)")
         self.btn_watermark.clicked.connect(lambda: self._set_tool(StudioTool.WATERMARK))
         toolbar.addWidget(self.btn_watermark)
 
         self.btn_text = QPushButton("Text")
         self.btn_text.setObjectName("studio_btn_text")
+        self.btn_text.setToolTip("Text overlay tool (T)")
         self.btn_text.clicked.connect(lambda: self._set_tool(StudioTool.TEXT_OVERLAY))
         toolbar.addWidget(self.btn_text)
 
