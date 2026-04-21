@@ -407,6 +407,7 @@ class OverlayImageItem(QGraphicsPixmapItem):
     def contextMenuEvent(self, event):
         _parent = self._editor._view if self._editor else None
         menu = _themed_menu(_parent)
+        replace_act = menu.addAction("Replace Image...")
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         menu.addSeparator()
         save_style_act = menu.addAction("Save as Default Watermark Style")
@@ -432,7 +433,9 @@ class OverlayImageItem(QGraphicsPixmapItem):
         chosen = menu.exec(event.screenPos())
         if not chosen:
             return
-        if chosen is dup_act and self._editor:
+        if chosen is replace_act and self._editor:
+            self._editor._replace_overlay_image(self)
+        elif chosen is dup_act and self._editor:
             self._editor._duplicate_overlay_item(self)
         elif chosen is save_style_act and self._editor:
             self._editor._save_watermark_style_as_default(self.overlay)
@@ -3694,6 +3697,31 @@ class StudioEditor(QWidget):
         from PySide6.QtCore import QSettings as _QS
         _QS("DoxyEdit", "DoxyEdit").remove("studio_watermark_defaults")
         self.info_label.setText("Reset default watermark style")
+
+    def _replace_overlay_image(self, item):
+        """Swap the image file for an existing watermark/logo overlay."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Replace watermark image", "",
+            "Images (*.png *.jpg *.jpeg *.webp *.bmp);;All Files (*)",
+        )
+        if not path:
+            return
+        pm = QPixmap(path)
+        if pm.isNull():
+            self.info_label.setText("Failed to load image")
+            return
+        item.overlay.image_path = path
+        item.overlay.label = Path(path).stem
+        # Re-scale to current scale fraction against base image width
+        if self._pixmap_item:
+            base_w = self._pixmap_item.pixmap().width()
+            target_w = max(10, int(base_w * item.overlay.scale))
+            pm = pm.scaledToWidth(
+                target_w, Qt.TransformationMode.SmoothTransformation)
+        item.setPixmap(pm)
+        self._sync_overlays_to_asset()
+        self._rebuild_layer_panel()
+        self.info_label.setText(f"Replaced with {Path(path).name}")
 
     # Copy/Paste Style between overlays — session-only, separate slot per type.
     # For text-to-text: all text style fields. For image-to-image: watermark
