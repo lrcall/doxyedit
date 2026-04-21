@@ -270,18 +270,24 @@ def _composite_arrow_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image
                     draw.line([(sx, sy), (ex, ey)],
                               fill=(r, g, b, a), width=width)
                     t = seg_end + off_len
-        # Arrowhead triangle at the tip
-        dx, dy = x2 - x1, y2 - y1
-        length = math.hypot(dx, dy)
-        if length > 1:
-            ux, uy = dx / length, dy / length
-            hs = max(ov.arrowhead_size, 6)
-            px, py = -uy, ux
-            base_x = x2 - ux * hs
-            base_y = y2 - uy * hs
-            p1 = (base_x + px * hs * 0.5, base_y + py * hs * 0.5)
-            p2 = (base_x - px * hs * 0.5, base_y - py * hs * 0.5)
-            draw.polygon([(x2, y2), p1, p2], fill=(r, g, b, a))
+        # Arrowhead triangle at the tip — filled / outline / none
+        head_style = getattr(ov, "arrowhead_style", "filled")
+        if head_style != "none":
+            dx, dy = x2 - x1, y2 - y1
+            length = math.hypot(dx, dy)
+            if length > 1:
+                ux, uy = dx / length, dy / length
+                hs = max(ov.arrowhead_size, 6)
+                px, py = -uy, ux
+                base_x = x2 - ux * hs
+                base_y = y2 - uy * hs
+                p1 = (base_x + px * hs * 0.5, base_y + py * hs * 0.5)
+                p2 = (base_x - px * hs * 0.5, base_y - py * hs * 0.5)
+                if head_style == "outline":
+                    draw.polygon([(x2, y2), p1, p2],
+                                   outline=(r, g, b, a), width=width)
+                else:
+                    draw.polygon([(x2, y2), p1, p2], fill=(r, g, b, a))
         return Image.alpha_composite(img, layer)
     except Exception:
         return img
