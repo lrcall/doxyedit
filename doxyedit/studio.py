@@ -677,6 +677,9 @@ class OverlayShapeItem(QGraphicsItem):
                 self.overlay.stroke_color = new.name()
                 self.update()
                 self._editor._sync_overlays_to_asset()
+                from PySide6.QtCore import QSettings as _QS
+                _QS("DoxyEdit", "DoxyEdit").setValue(
+                    "studio_shape_stroke_color", new.name())
         elif chosen is fill_act and self._editor:
             new = QColorDialog.getColor(
                 QColor(self.overlay.fill_color or "#ffffff"),
@@ -686,6 +689,9 @@ class OverlayShapeItem(QGraphicsItem):
                 self.overlay.fill_color = new.name()
                 self.update()
                 self._editor._sync_overlays_to_asset()
+                from PySide6.QtCore import QSettings as _QS
+                _QS("DoxyEdit", "DoxyEdit").setValue(
+                    "studio_shape_fill_color", new.name())
         elif chosen is clear_fill_act and self._editor:
             self.overlay.fill_color = ""
             self.update()
