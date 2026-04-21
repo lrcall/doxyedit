@@ -2835,6 +2835,13 @@ class StudioEditor(QWidget):
         self._undo_stack.canRedoChanged.connect(self.btn_redo.setEnabled)
         self.btn_undo.setEnabled(self._undo_stack.canUndo())
         self.btn_redo.setEnabled(self._undo_stack.canRedo())
+        # Tooltip reflects the next action on the stack
+        self._undo_stack.undoTextChanged.connect(
+            lambda txt: self.btn_undo.setToolTip(
+                f"Undo {txt} (Ctrl+Z)" if txt else "Undo (Ctrl+Z)"))
+        self._undo_stack.redoTextChanged.connect(
+            lambda txt: self.btn_redo.setToolTip(
+                f"Redo {txt} (Ctrl+Y)" if txt else "Redo (Ctrl+Y)"))
         toolbar.addWidget(self.btn_undo)
         toolbar.addWidget(self.btn_redo)
         toolbar.addWidget(QLabel("|"))
