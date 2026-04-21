@@ -3,9 +3,17 @@
 ## v2.4 (2026-04-21) — Studio v2, Export Pipeline, threading, architecture
 
 ### Studio v2 — closer to a real graphics program
-- **Complete undo for slider mutations** — opacity, scale, rotation,
-  outline, kerning, line height, text width. Consecutive ticks fuse
-  into one undo step via merge-by-(target, attr).
+- **Complete undo for slider + font + color mutations** — opacity,
+  scale, rotation, outline, kerning, line height, text width, font
+  family, font size, bold/italic, text color, outline color. Plus
+  Z-order (Bring Forward / Send Backward) and platform scope changes
+  via the right-click menu. Consecutive ticks fuse into one undo step
+  via merge-by-(target, attr).
+- **Lock/unlock layer** — checkbox in Layer Properties panel makes
+  an overlay non-selectable, non-movable. Useful for background
+  watermarks. Undoable. Persists to CanvasOverlay.locked.
+- **Keyboard shortcuts**: Ctrl+A (select all), Ctrl+Shift+H/V (flip),
+  Ctrl+]/[ (bring forward / send backward).
 - **Layer panel drag-reorder** — dragging a row rewrites asset.overlays
   and asset.censors, re-assigns Z-values. Band separation preserved
   (censors stay below overlays).
@@ -26,6 +34,13 @@
   opacity slider + enabled checkbox update via undo-wrapped commands.
 - **Arrow-key nudge** now covers crops and notes too (previously only
   censors + overlays).
+
+### Architecture
+- **SaveLoadMixin** (`doxyedit/project_io.py`) — extracts
+  `_watch_project`, `_save_project_silently`, `_autosave`,
+  `_autosave_collection` out of window.py. First stage of a staged
+  god-object decomposition; follow-ups will move interactive save/
+  load paths once their dialog dependencies are cleaned.
 
 
 
