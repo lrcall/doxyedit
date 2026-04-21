@@ -1748,12 +1748,28 @@ class StudioEditor(QWidget):
             self._z_shift_selected(-1)
             return
         # Zoom shortcuts — standard in every graphics editor
+        if ctrl and shift and key == Qt.Key.Key_0:
+            # Zoom to selection (fall back to canvas if none)
+            selected = self._scene.selectedItems()
+            if selected:
+                bounds = selected[0].sceneBoundingRect()
+                for it in selected[1:]:
+                    bounds = bounds.united(it.sceneBoundingRect())
+                bounds.adjust(-20, -20, 20, 20)  # small margin
+                self._view.fitInView(bounds, Qt.AspectRatioMode.KeepAspectRatio)
+                self._zoom_label.setText(
+                    f"{int(self._view.transform().m11() * 100)}%")
+                if hasattr(self, "_canvas_wrap"):
+                    self._canvas_wrap.refresh()
+            return
         if ctrl and key == Qt.Key.Key_0:
             # Fit view
             if self._scene.sceneRect():
                 self._view.fitInView(self._scene.sceneRect(),
                                       Qt.AspectRatioMode.KeepAspectRatio)
                 self._zoom_label.setText("Fit")
+                if hasattr(self, "_canvas_wrap"):
+                    self._canvas_wrap.refresh()
             return
         if ctrl and key == Qt.Key.Key_1:
             self._set_zoom(1.0)
