@@ -1195,6 +1195,27 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_V:
             self._paste_items_from_clipboard()
             return
+        # Ctrl+A — select all scene items
+        if ctrl and key == Qt.Key.Key_A:
+            for it in self._scene.items():
+                if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                   CensorRectItem, ResizableCropItem, NoteRectItem)):
+                    it.setSelected(True)
+            return
+        # Ctrl+Shift+H / Ctrl+Shift+V — flip selected overlays
+        if ctrl and shift and key == Qt.Key.Key_H:
+            self._flip_selected("h")
+            return
+        if ctrl and shift and key == Qt.Key.Key_V:
+            self._flip_selected("v")
+            return
+        # Ctrl+] / Ctrl+[ — bring forward / send backward
+        if ctrl and key == Qt.Key.Key_BracketRight:
+            self._z_shift_selected(+1)
+            return
+        if ctrl and key == Qt.Key.Key_BracketLeft:
+            self._z_shift_selected(-1)
+            return
 
         # Delete
         if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
@@ -2763,6 +2784,35 @@ class StudioEditor(QWidget):
         for item in list(self._scene.selectedItems()):
             if isinstance(item, (OverlayImageItem, OverlayTextItem)):
                 self._duplicate_overlay_item(item)
+
+    def _flip_selected(self, axis: str):
+        """Flip all selected overlay items on the given axis ('h' or 'v')."""
+        attr = "flip_h" if axis == "h" else "flip_v"
+        for item in list(self._scene.selectedItems()):
+            if isinstance(item, OverlayImageItem):
+                cur = getattr(item.overlay, attr, False)
+                def _apply_flip_cb(it, v, _attr=attr):
+                    # Re-apply both flips via QTransform after setattr wrote
+                    it._apply_flip() if hasattr(it, "_apply_flip") else None
+                self._push_overlay_attr(
+                    item, attr, not cur,
+                    apply_cb=_apply_flip_cb,
+                    description=f"Flip {axis}",
+                )
+        self._sync_overlays_to_asset()
+
+    def _z_shift_selected(self, direction: int):
+        """Bring forward (+1) or send backward (-1) all selected overlays."""
+        for item in list(self._scene.selectedItems()):
+            if isinstance(item, (OverlayImageItem, OverlayTextItem)):
+                new_z = item.zValue() + direction
+                if direction < 0:
+                    new_z = max(200, new_z)
+                cmd = SetZValueCmd(
+                    item, item.zValue(), new_z,
+                    "Bring forward" if direction > 0 else "Send backward",
+                )
+                self._undo_stack.push(cmd)
 
     # ---- alignment + distribute ----
 
