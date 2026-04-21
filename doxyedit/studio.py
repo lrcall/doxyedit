@@ -1904,6 +1904,20 @@ class StudioScene(QGraphicsScene):
                 return
         if self._draw_start and self._temp_item:
             pos = event.scenePos()
+            # Live-feedback: width x height for rects, length for lines, shown
+            # through the editor's info label.
+            editor = None
+            if self.views():
+                editor = getattr(self.views()[0], "_studio_editor", None)
+            if editor is not None:
+                w = abs(int(pos.x() - self._draw_start.x()))
+                h = abs(int(pos.y() - self._draw_start.y()))
+                if isinstance(self._temp_item, QGraphicsLineItem):
+                    import math as _m
+                    length = int(_m.hypot(w, h))
+                    editor.info_label.setText(f"Length: {length}px")
+                else:
+                    editor.info_label.setText(f"Size: {w}x{h}")
             if isinstance(self._temp_item, QGraphicsLineItem):
                 # Shift constrains arrow direction to 45° steps
                 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
