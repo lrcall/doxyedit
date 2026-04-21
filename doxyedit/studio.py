@@ -1673,6 +1673,12 @@ class StudioEditor(QWidget):
         self.combo_censor_style = QComboBox()
         self.combo_censor_style.setObjectName("studio_censor_style")
         self.combo_censor_style.addItems(["black", "blur", "pixelate"])
+        # Restore the user's preferred censor style from prior sessions
+        from PySide6.QtCore import QSettings as _QSC
+        _saved_censor = _QSC("DoxyEdit", "DoxyEdit").value(
+            "studio_censor_default_style", "black", type=str)
+        if _saved_censor in ("black", "blur", "pixelate"):
+            self.combo_censor_style.setCurrentText(_saved_censor)
         self.combo_censor_style.currentTextChanged.connect(self._on_censor_style_changed)
         toolbar.addWidget(self.combo_censor_style)
 
@@ -1939,6 +1945,8 @@ class StudioEditor(QWidget):
         self._scene.on_note_finished = self._on_note_drawn
         self._scene.on_text_overlay_placed = self._on_text_placed
         self._scene.get_crop_aspect = self._get_crop_aspect
+        # Propagate the restored censor style preference to the scene
+        self._scene.set_censor_style(self.combo_censor_style.currentText())
         self._view = StudioView(self._scene)
         self._view._studio_editor = self
         self._view.on_file_dropped = self._on_file_dropped
@@ -2261,6 +2269,10 @@ class StudioEditor(QWidget):
 
     def _on_censor_style_changed(self, style: str):
         self._scene.set_censor_style(style)
+        # Persist so next Studio launch defaults to the user's preferred style
+        from PySide6.QtCore import QSettings as _QS
+        _QS("DoxyEdit", "DoxyEdit").setValue(
+            "studio_censor_default_style", style)
 
     # ---- censor callbacks ----
 
