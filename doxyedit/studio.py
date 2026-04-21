@@ -3797,6 +3797,10 @@ class StudioEditor(QWidget):
             sw.setEnabled(False)
             sw.setStyleSheet("background: transparent; border: 1px dashed #555;")
             sw.clicked.connect(lambda _, b=sw: self._on_swatch_clicked(b))
+            # Right-click a swatch for Clear All / Remove This Color
+            sw.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            sw.customContextMenuRequested.connect(
+                lambda pos, b=sw: self._swatch_context_menu(b, pos))
             toolbar.addWidget(sw)
             self._swatch_buttons.append(sw)
         self._refresh_recent_swatches()
@@ -5292,6 +5296,34 @@ class StudioEditor(QWidget):
                 btn.setToolTip("")
                 btn.setEnabled(False)
                 btn.setProperty("color", "")
+
+    def _swatch_context_menu(self, btn, pos):
+        """Right-click a swatch: remove this color, or clear all recent colors."""
+        color = btn.property("color") or ""
+        if not color:
+            # Empty slot — only offer Clear All
+            menu = _themed_menu(btn)
+            clear_all_act = menu.addAction("Clear All Recent Colors")
+            chosen = menu.exec(btn.mapToGlobal(pos))
+            if chosen is clear_all_act:
+                from PySide6.QtCore import QSettings as _QS
+                _QS("DoxyEdit", "DoxyEdit").setValue("studio_recent_colors", "")
+                self._refresh_recent_swatches()
+            return
+        menu = _themed_menu(btn)
+        remove_act = menu.addAction(f"Remove {color}")
+        clear_all_act = menu.addAction("Clear All Recent Colors")
+        chosen = menu.exec(btn.mapToGlobal(pos))
+        from PySide6.QtCore import QSettings as _QS
+        qs = _QS("DoxyEdit", "DoxyEdit")
+        if chosen is remove_act:
+            recent = [c for c in qs.value("studio_recent_colors", "", type=str).split(",")
+                       if c and c != color]
+            qs.setValue("studio_recent_colors", ",".join(recent))
+            self._refresh_recent_swatches()
+        elif chosen is clear_all_act:
+            qs.setValue("studio_recent_colors", "")
+            self._refresh_recent_swatches()
 
     def _on_swatch_clicked(self, btn):
         """Apply the swatch color to selected text / shape / arrow overlays."""
