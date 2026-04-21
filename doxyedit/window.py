@@ -313,14 +313,10 @@ class MainWindow(QMainWindow):
 
         # --- Project tab bar (above inner tabs) ---
         self._proj_tab_bar = QTabBar()
+        self._proj_tab_bar.setObjectName("proj_tab_bar")
         self._proj_tab_bar.setTabsClosable(True)
         self._proj_tab_bar.setMovable(True)
         self._proj_tab_bar.setExpanding(False)
-        self._proj_tab_bar.setStyleSheet(
-            "QTabBar { background: transparent; }"
-            "QTabBar::tab { padding: 4px 12px; }"
-            "QTabBar::tab:selected { font-weight: bold; }"
-        )
         self._proj_tab_bar.currentChanged.connect(self._on_proj_tab_changed)
         self._proj_tab_bar.tabCloseRequested.connect(self._close_proj_tab)
         self._proj_tab_bar.tabMoved.connect(self._on_proj_tab_moved)
@@ -332,15 +328,9 @@ class MainWindow(QMainWindow):
 
         # + button to open a new folder tab
         self._new_tab_btn = QPushButton("+")
+        self._new_tab_btn.setObjectName("new_tab_btn")
         self._new_tab_btn.setFixedSize(self._control_size, self._control_size)
         self._new_tab_btn.setToolTip("New tab — open project, folder, or new project (Ctrl+T)")
-        self._new_tab_btn.setStyleSheet(
-            f"QPushButton {{ font-size: {int(self._font_size * 1.33)}px; font-weight: bold; border-radius: {max(2, self._ui_padding // 2)}px;"
-            " background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);"
-            " color: rgba(200,200,200,0.8); padding: 0; }"
-            " QPushButton:hover { background: rgba(255,255,255,0.18);"
-            " color: white; border-color: rgba(255,255,255,0.3); }"
-            " QPushButton:pressed { background: rgba(255,255,255,0.25); }")
         self._new_tab_btn.clicked.connect(self._add_folder_preset_dialog)
 
         _proj_bar_widget = QWidget()

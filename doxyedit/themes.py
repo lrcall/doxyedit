@@ -1481,6 +1481,34 @@ def generate_stylesheet(theme: Theme) -> str:
             border: 2px solid {theme.accent};
         }}
 
+        /* ── Project tab bar (top of window) ──────────────────────────── */
+        QTabBar#proj_tab_bar {{
+            background: transparent;
+        }}
+        QTabBar#proj_tab_bar::tab {{
+            padding: {pad}px {pad_lg * 2}px;
+        }}
+        QTabBar#proj_tab_bar::tab:selected {{
+            font-weight: bold;
+        }}
+        QPushButton#new_tab_btn {{
+            font-size: {int(theme.font_size * 1.33)}px;
+            font-weight: bold;
+            border-radius: {rad}px;
+            background: {theme.bg_raised};
+            border: 1px solid {theme.border_light};
+            color: {theme.text_muted};
+            padding: 0;
+        }}
+        QPushButton#new_tab_btn:hover {{
+            background: {theme.bg_hover};
+            color: {theme.text_primary};
+            border-color: {theme.border};
+        }}
+        QPushButton#new_tab_btn:pressed {{
+            background: {theme.accent_dim};
+        }}
+
         /* ── Browser tag bar ───────────────────────────────────────────── */
         QWidget#tag_bar_frame {{
             border-bottom: 1px solid {theme.border_light};
