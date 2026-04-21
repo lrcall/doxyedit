@@ -1353,6 +1353,57 @@ class _StudioRuler(QWidget):
         self._theme = theme
         self._cursor_scene = 0.0  # updated from view mouseMove for marker
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
+        # Drag-to-create guide state (editor owns the pending line item)
+        self._drag_guide = False
+        # Cursor hint on hover
+        self.setCursor(Qt.CursorShape.SplitHCursor if orientation == 'h'
+                        else Qt.CursorShape.SplitVCursor)
+
+    def mousePressEvent(self, event):
+        if event.button() != Qt.MouseButton.LeftButton:
+            return super().mousePressEvent(event)
+        self._drag_guide = True
+        self._update_drag_guide(event.pos())
+        event.accept()
+
+    def mouseMoveEvent(self, event):
+        if self._drag_guide:
+            self._update_drag_guide(event.pos())
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._drag_guide and event.button() == Qt.MouseButton.LeftButton:
+            self._drag_guide = False
+            self._commit_pending_guide()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def _update_drag_guide(self, widget_pos):
+        """Project the local mouse position to scene space and show a pending guide."""
+        scene = self._view.scene()
+        if scene is None:
+            return
+        # Convert ruler-local coords to view coords, then to scene
+        # Ruler sits adjacent to the view, so offsetting is needed.
+        if self._orientation == 'h':
+            view_pos = self._view.mapFromGlobal(self.mapToGlobal(widget_pos))
+            scene_pos = self._view.mapToScene(view_pos)
+            pos = scene_pos.y()
+        else:
+            view_pos = self._view.mapFromGlobal(self.mapToGlobal(widget_pos))
+            scene_pos = self._view.mapToScene(view_pos)
+            pos = scene_pos.x()
+        editor = getattr(self._view, "_studio_editor", None)
+        if editor is not None and hasattr(editor, "_preview_guide"):
+            editor._preview_guide(self._orientation, pos)
+
+    def _commit_pending_guide(self):
+        editor = getattr(self._view, "_studio_editor", None)
+        if editor is not None and hasattr(editor, "_commit_preview_guide"):
+            editor._commit_preview_guide()
 
     def set_theme(self, theme):
         self._theme = theme
@@ -2315,6 +2366,63 @@ class StudioEditor(QWidget):
         if hasattr(self, "_canvas_wrap"):
             self._canvas_wrap.set_theme(theme)
 
+    def _preview_guide(self, orientation: str, pos: float):
+        """Show (or move) a pending-guide line while the user drags from the ruler."""
+        if not self._pixmap_item:
+            return
+        if not hasattr(self, "_pending_guide"):
+            self._pending_guide = None
+        pixmap_rect = self._pixmap_item.boundingRect()
+        from PySide6.QtWidgets import QGraphicsLineItem
+        from PySide6.QtGui import QPen, QColor
+        if self._pending_guide is None:
+            line = QGraphicsLineItem()
+            pen = QPen(QColor(self._theme.accent), 1, Qt.PenStyle.DashLine)
+            line.setPen(pen)
+            line.setZValue(400)
+            self._scene.addItem(line)
+            self._pending_guide = (orientation, line)
+        orient, line = self._pending_guide
+        if orientation != orient:
+            return
+        if orientation == 'h':
+            line.setLine(pixmap_rect.left(), pos, pixmap_rect.right(), pos)
+        else:
+            line.setLine(pos, pixmap_rect.top(), pos, pixmap_rect.bottom())
+
+    def _commit_preview_guide(self):
+        """Drop the pending guide onto the scene permanently (or remove it if
+        dragged back off the canvas)."""
+        if self._pending_guide is None:
+            return
+        orient, line = self._pending_guide
+        self._pending_guide = None
+        # If the committed guide is outside the canvas, discard it
+        if self._pixmap_item:
+            rect = self._pixmap_item.boundingRect()
+            if orient == 'h':
+                y = line.line().y1()
+                if not (rect.top() <= y <= rect.bottom()):
+                    self._scene.removeItem(line)
+                    return
+            else:
+                x = line.line().x1()
+                if not (rect.left() <= x <= rect.right()):
+                    self._scene.removeItem(line)
+                    return
+        # Track it so load_asset can clean up next time
+        if not hasattr(self, "_guide_items"):
+            self._guide_items = []
+        self._guide_items.append(line)
+
+    def _clear_guides(self):
+        """Remove all guide lines — called when loading a new asset."""
+        for line in getattr(self, "_guide_items", []):
+            if line.scene() is self._scene:
+                self._scene.removeItem(line)
+        self._guide_items = []
+        self._pending_guide = None
+
     def set_project(self, project: Project, project_path: str = ""):
         """Store project ref and populate template dropdown."""
         self._project = project
@@ -2335,6 +2443,10 @@ class StudioEditor(QWidget):
         self._notes.clear()
         self._crop_mask_item = None
         self._pixmap_item = None
+        # Drag-out guides are session-only — scene.clear() removed the items,
+        # so just reset the tracking state.
+        self._pending_guide = None
+        self._guide_items = []
 
         # Load base image
         src = Path(asset.source_path)
