@@ -2514,12 +2514,21 @@ class StudioEditor(QWidget):
         _layer_side.setStretchFactor(1, 0)
 
         self._canvas_split = QSplitter(Qt.Orientation.Horizontal)
+        self._canvas_split.setObjectName("studio_canvas_split")
         self._canvas_wrap = _StudioCanvas(self._view, self._theme)
         self._canvas_split.addWidget(self._canvas_wrap)
         self._canvas_split.addWidget(_layer_side)
-        self._canvas_split.setSizes([800, 200])
+        # Restore the user's splitter sizes from the last session
+        from PySide6.QtCore import QSettings as _QSP
+        _split_state = _QSP("DoxyEdit", "DoxyEdit").value(
+            "studio_canvas_split_state", None)
+        if _split_state is not None:
+            self._canvas_split.restoreState(_split_state)
+        else:
+            self._canvas_split.setSizes([800, 200])
         self._canvas_split.setStretchFactor(0, 1)
         self._canvas_split.setStretchFactor(1, 0)
+        self._canvas_split.splitterMoved.connect(self._persist_canvas_split)
         root.addWidget(self._canvas_split, 1)
 
         # Platform preview strip (collapsible filmstrip)
@@ -3610,6 +3619,12 @@ class StudioEditor(QWidget):
         from PySide6.QtCore import QSettings as _QS
         _QS("DoxyEdit", "DoxyEdit").setValue("studio_grid_visible", on)
         self._scene.update()
+
+    def _persist_canvas_split(self, *_):
+        """Save the canvas/layer-panel splitter geometry to QSettings."""
+        from PySide6.QtCore import QSettings as _QS
+        _QS("DoxyEdit", "DoxyEdit").setValue(
+            "studio_canvas_split_state", self._canvas_split.saveState())
 
     def _save_as_template(self):
         """Save selected overlay as a reusable project template.
