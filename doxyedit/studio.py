@@ -3193,6 +3193,9 @@ class StudioEditor(QWidget):
         self._layer_panel.setObjectName("studio_layer_panel")
         self._layer_panel.setMaximumWidth(int(_dt.font_size * LAYER_PANEL_MAX_WIDTH_RATIO))
         self._layer_panel.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+        # Show small thumbnails alongside each layer name
+        from PySide6.QtCore import QSize
+        self._layer_panel.setIconSize(QSize(28, 28))
         self._layer_panel.itemClicked.connect(self._on_layer_clicked)
         self._layer_panel.itemDoubleClicked.connect(self._on_layer_double_clicked)
         self._layer_panel.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -4745,6 +4748,10 @@ class StudioEditor(QWidget):
             item.setData(Qt.ItemDataRole.UserRole, ("overlay", len(self._asset.overlays) - 1 - i))
             if not ov.enabled:
                 item.setForeground(Qt.GlobalColor.gray)
+            thumb = self._build_overlay_thumb(ov)
+            if thumb is not None:
+                from PySide6.QtGui import QIcon
+                item.setIcon(QIcon(thumb))
             self._layer_panel.addItem(item)
 
         # Censors
@@ -4754,12 +4761,99 @@ class StudioEditor(QWidget):
             hdr.setForeground(Qt.GlobalColor.gray)
             self._layer_panel.addItem(hdr)
         for i, cr in enumerate(self._asset.censors):
+            thumb = self._build_censor_thumb(cr)
             label = f"C  {cr.style} ({cr.w}\u00d7{cr.h}){_scope_tag(cr.platforms)}"
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, ("censor", i))
+            if thumb is not None:
+                from PySide6.QtGui import QIcon
+                item.setIcon(QIcon(thumb))
             self._layer_panel.addItem(item)
 
     _refresh_layer_panel = _rebuild_layer_panel
+
+    def _build_overlay_thumb(self, ov) -> "QPixmap | None":
+        """Render a 28x28 thumbnail for a layer-panel row."""
+        from PySide6.QtGui import QPixmap, QPainter, QColor, QBrush, QPen
+        size = 28
+        pm = QPixmap(size, size)
+        pm.fill(QColor(0, 0, 0, 0))
+        painter = QPainter(pm)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        try:
+            if ov.type in ("watermark", "logo") and ov.image_path:
+                src = QPixmap(ov.image_path)
+                if not src.isNull():
+                    scaled = src.scaled(size, size,
+                                         Qt.AspectRatioMode.KeepAspectRatio,
+                                         Qt.TransformationMode.SmoothTransformation)
+                    x = (size - scaled.width()) // 2
+                    y = (size - scaled.height()) // 2
+                    painter.drawPixmap(x, y, scaled)
+                    return pm
+                # Fall through to placeholder
+            if ov.type == "text":
+                painter.setPen(QPen(QColor(ov.color or "#ffffff"), 1))
+                font = painter.font()
+                font.setBold(bool(getattr(ov, "bold", False)))
+                font.setItalic(bool(getattr(ov, "italic", False)))
+                font.setPixelSize(18)
+                painter.setFont(font)
+                painter.drawText(pm.rect(), Qt.AlignmentFlag.AlignCenter, "T")
+                return pm
+            if ov.type == "arrow":
+                painter.setPen(QPen(QColor(ov.color or "#ff3b30"), 3))
+                painter.drawLine(4, size - 4, size - 6, 6)
+                # Small arrowhead
+                from PySide6.QtGui import QPolygonF
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(QColor(ov.color or "#ff3b30")))
+                painter.drawPolygon(QPolygonF([
+                    QPointF(size - 6, 6),
+                    QPointF(size - 12, 10),
+                    QPointF(size - 10, 14),
+                ]))
+                return pm
+            if ov.type == "shape":
+                stroke = QColor(ov.stroke_color or ov.color or "#ffd700")
+                fill = QColor(ov.fill_color) if ov.fill_color else None
+                painter.setPen(QPen(stroke, 2))
+                painter.setBrush(QBrush(fill) if fill else Qt.BrushStyle.NoBrush)
+                r = QRectF(4, 4, size - 8, size - 8)
+                if ov.shape_kind == "ellipse":
+                    painter.drawEllipse(r)
+                else:
+                    painter.drawRect(r)
+                return pm
+        finally:
+            painter.end()
+        return pm
+
+    def _build_censor_thumb(self, cr) -> "QPixmap | None":
+        """Render a 28x28 thumbnail matching the censor style."""
+        from PySide6.QtGui import QPixmap, QPainter, QColor, QBrush, QPen
+        size = 28
+        pm = QPixmap(size, size)
+        pm.fill(QColor(0, 0, 0, 0))
+        painter = QPainter(pm)
+        try:
+            if cr.style == "black":
+                painter.fillRect(4, 4, size - 8, size - 8, QColor(0, 0, 0))
+            elif cr.style == "blur":
+                # Hash-pattern for blur
+                painter.setPen(QPen(QColor(120, 180, 220), 1))
+                for y in range(4, size - 4, 3):
+                    painter.drawLine(4, y, size - 4, y)
+            else:  # pixelate
+                for yy in range(4, size - 4, 4):
+                    for xx in range(4, size - 4, 4):
+                        v = 40 + ((xx + yy) * 7 % 60)
+                        painter.fillRect(xx, yy, 4, 4, QColor(v, v, v))
+            painter.setPen(QPen(QColor(255, 0, 0, 200), 1))
+            painter.drawRect(3, 3, size - 6, size - 6)
+            return pm
+        finally:
+            painter.end()
 
     def _on_layer_reorder(self, *_args):
         """Remap asset.overlays + asset.censors order from the layer panel row order.
