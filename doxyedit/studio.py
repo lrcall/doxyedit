@@ -4167,10 +4167,13 @@ class StudioEditor(QWidget):
 
         toolbar.addWidget(QLabel("|"))
 
-        # Group 4c: Grid toggle + spacing, rule-of-thirds
-        self.chk_grid = QCheckBox("Grid")
+        # Group 4c: Grid toggle + spacing, rule-of-thirds. Checkable
+        # QPushButtons so the glyph IS the button (no adjacent tick box).
+        self.chk_grid = QPushButton("▦")
         self.chk_grid.setObjectName("studio_grid_toggle")
-        self.chk_grid.setToolTip("Show snap grid (G to toggle)")
+        self.chk_grid.setToolTip("Show snap grid (G)")
+        self.chk_grid.setCheckable(True)
+        self.chk_grid.setFixedWidth(_icon_btn_w)
         self.chk_grid.toggled.connect(self._on_grid_toggled)
         toolbar.addWidget(self.chk_grid)
 
@@ -4183,36 +4186,47 @@ class StudioEditor(QWidget):
         self.spin_grid.valueChanged.connect(self._on_grid_spacing_changed)
         toolbar.addWidget(self.spin_grid)
 
-        self.chk_thirds = QCheckBox("⅓")
+        self.chk_thirds = QPushButton("⅓")
         self.chk_thirds.setObjectName("studio_thirds_toggle")
-        self.chk_thirds.setToolTip("Rule-of-thirds guides")
+        self.chk_thirds.setToolTip("Rule-of-thirds (Shift+G)")
+        self.chk_thirds.setCheckable(True)
+        self.chk_thirds.setFixedWidth(_icon_btn_w)
         self.chk_thirds.toggled.connect(self._on_thirds_toggled)
         toolbar.addWidget(self.chk_thirds)
 
-        self.chk_rulers = QCheckBox("⫼")
+        # View toggles — checkable QPushButtons, icon IS the button
+        self.chk_rulers = QPushButton("⫼")
         self.chk_rulers.setObjectName("studio_rulers_toggle")
-        self.chk_rulers.setToolTip("Show horizontal + vertical rulers")
+        self.chk_rulers.setToolTip("Rulers")
+        self.chk_rulers.setCheckable(True)
+        self.chk_rulers.setFixedWidth(_icon_btn_w)
         self.chk_rulers.setChecked(True)
         self.chk_rulers.toggled.connect(self._on_rulers_toggled)
         toolbar.addWidget(self.chk_rulers)
 
-        self.chk_notes = QCheckBox("≣")
+        self.chk_notes = QPushButton("≣")
         self.chk_notes.setObjectName("studio_notes_toggle")
-        self.chk_notes.setToolTip("Show note annotations")
+        self.chk_notes.setToolTip("Notes")
+        self.chk_notes.setCheckable(True)
+        self.chk_notes.setFixedWidth(_icon_btn_w)
         self.chk_notes.setChecked(True)
         self.chk_notes.toggled.connect(self._on_notes_toggled)
         toolbar.addWidget(self.chk_notes)
 
-        self.chk_base = QCheckBox("▦")
+        self.chk_base = QPushButton("▣")
         self.chk_base.setObjectName("studio_base_toggle")
-        self.chk_base.setToolTip("Show base image (uncheck to work on overlays only)")
+        self.chk_base.setToolTip("Base image")
+        self.chk_base.setCheckable(True)
+        self.chk_base.setFixedWidth(_icon_btn_w)
         self.chk_base.setChecked(True)
         self.chk_base.toggled.connect(self._on_base_toggled)
         toolbar.addWidget(self.chk_base)
 
-        self.chk_minimap = QCheckBox("⊟")
+        self.chk_minimap = QPushButton("⊟")
         self.chk_minimap.setObjectName("studio_minimap_toggle")
-        self.chk_minimap.setToolTip("Show navigator minimap (bottom-right)")
+        self.chk_minimap.setToolTip("Minimap (M)")
+        self.chk_minimap.setCheckable(True)
+        self.chk_minimap.setFixedWidth(_icon_btn_w)
         self.chk_minimap.toggled.connect(self._on_minimap_toggled)
         toolbar.addWidget(self.chk_minimap)
 
