@@ -955,6 +955,12 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_D:
             self._duplicate_selected()
             return
+        if ctrl and key == Qt.Key.Key_C:
+            self._copy_selected_items()
+            return
+        if ctrl and key == Qt.Key.Key_V:
+            self._paste_items_from_clipboard()
+            return
 
         # Delete
         if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
@@ -2397,6 +2403,96 @@ class StudioEditor(QWidget):
         for item in list(self._scene.selectedItems()):
             if isinstance(item, (OverlayImageItem, OverlayTextItem)):
                 self._duplicate_overlay_item(item)
+
+    # ---- copy / paste ----
+
+    _CLIPBOARD_MIME = "application/x-doxyedit-scene-items"
+    _CLIPBOARD_SCHEMA = 1
+
+    def _copy_selected_items(self):
+        """Copy selected overlay and censor items to the system clipboard.
+
+        Serialized as JSON under a custom MIME type. Uses a schema version
+        so future format changes can bump and reject older payloads.
+        """
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QMimeData
+        from dataclasses import asdict
+        overlays, censors = [], []
+        for it in self._scene.selectedItems():
+            if isinstance(it, (OverlayImageItem, OverlayTextItem)):
+                overlays.append(it.overlay.to_dict())
+            elif isinstance(it, CensorRectItem):
+                cr = getattr(it, "_censor_region", None)
+                if cr:
+                    censors.append(asdict(cr))
+        if not overlays and not censors:
+            return
+        payload = {
+            "_schema": self._CLIPBOARD_SCHEMA,
+            "overlays": overlays,
+            "censors": censors,
+        }
+        mime = QMimeData()
+        mime.setData(self._CLIPBOARD_MIME,
+                     json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+        QApplication.clipboard().setMimeData(mime)
+        n = len(overlays) + len(censors)
+        self.info_label.setText(f"Copied {n} item(s)")
+
+    def _paste_items_from_clipboard(self):
+        """Paste previously-copied overlays + censors, offset 20px from originals."""
+        from PySide6.QtWidgets import QApplication
+        mime = QApplication.clipboard().mimeData()
+        if not mime.hasFormat(self._CLIPBOARD_MIME):
+            return
+        if not self._asset:
+            return
+        try:
+            raw = bytes(mime.data(self._CLIPBOARD_MIME)).decode("utf-8")
+            payload = json.loads(raw)
+        except Exception:
+            return
+        if payload.get("_schema") != self._CLIPBOARD_SCHEMA:
+            self.info_label.setText("Clipboard schema mismatch")
+            return
+        OFFSET = 20
+        pasted = 0
+        # Overlays
+        for od in payload.get("overlays", []):
+            try:
+                ov = CanvasOverlay.from_dict(od)
+                ov.x = int(ov.x) + OFFSET
+                ov.y = int(ov.y) + OFFSET
+                self._asset.overlays.append(ov)
+                new_item = self._create_overlay_item(ov)
+                if new_item:
+                    new_item.setZValue(200 + len(self._overlay_items))
+                    self._overlay_items.append(new_item)
+                    pasted += 1
+            except Exception:
+                continue
+        # Censors
+        for cd in payload.get("censors", []):
+            try:
+                cr = CensorRegion(**cd)
+                cr.x = int(cr.x) + OFFSET
+                cr.y = int(cr.y) + OFFSET
+                self._asset.censors.append(cr)
+                item = CensorRectItem(
+                    QRectF(cr.x, cr.y, cr.w, cr.h),
+                    cr.style, theme=self._theme,
+                )
+                item._censor_region = cr
+                item.setZValue(100 + len(self._censor_items))
+                self._scene.addItem(item)
+                self._censor_items.append(item)
+                pasted += 1
+            except Exception:
+                continue
+        if pasted:
+            self._rebuild_layer_panel()
+            self.info_label.setText(f"Pasted {pasted} item(s)")
 
     def _toggle_overlay_visibility(self):
         """Toggle visibility of all censor + overlay items."""
