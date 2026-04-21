@@ -87,19 +87,17 @@ Scope: weeks per item. Each warrants its own plan-i-Nx file.
 ## Review findings from review.md not yet addressed
 
 ### Still live
-- **window.py inline stylesheets** — progress label padding (828),
-  status bar save-flashes (2576, 2587, 6357). H5.4 did the tab bar +
-  new-tab button; these remain.
-- **OneUp sync debug prints** — ~30 `print("[Sync] ...")` calls scattered
-  through `_on_sync_oneup_fetched` and helpers. Route through `logging`
-  or remove.
+- **window.py inline stylesheets** — ~~progress label padding~~ (done
+  via theme QSS). Status bar save-flashes at 2576, 2587, 6357 still
+  inline; they use theme tokens so low priority.
 - **Unified ImageViewer component** — preview.py + composer_left +
   stray `QPixmap(path)` sites. Three near-duplicate preview
   implementations. Consolidate.
-- **imagehost.py `_upload_cache`** — unbounded dict. Add LRU.
-- **config system doc** — 4 parallel sources (`config.py`,
-  `config.yaml`, per-project JSON, QSettings). No diagram. Add header
-  comment in config.py or a `docs/config-layering.md`.
+
+### Done in the autonomous batch after v2.4 docs
+- ~~OneUp sync debug prints~~ → `logging` (commit d061c84)
+- ~~imagehost.py `_upload_cache` LRU~~ (commit 09f3985)
+- ~~config system doc~~ → `docs/config-layering.md` (commit 2dcd54b)
 
 ### Parked as "not a bug"
 - `_update_progress` 4-pass claim (reviewer misread; it's single-pass)
@@ -110,13 +108,10 @@ Scope: weeks per item. Each warrants its own plan-i-Nx file.
 ## Studio v2 follow-up polish (small)
 
 ### Accessibility / affordance
-- **Context menu entries for shortcuts**. Right-clicking an overlay
-  should show "Flip Horizontal (Ctrl+Shift+H)" so users discover
-  keyboard shortcuts.
-- **Tooltip on the Align dropdown** explaining the 2+ / 3+ selection
-  requirement.
-- **Visual indicator for locked layers** in the layer list
-  (e.g., a 🔒 prefix).
+- ~~**Context menu entries for shortcuts**~~ — done (commits 24f7f51,
+  461f897, d665978).
+- ~~**Tooltip on the Align dropdown**~~ — done (commit 3e9373c).
+- ~~**Visual indicator for locked layers**~~ — done (commit 3e9373c).
 
 ### Feature rounding
 - **Rotate handle on crops** — user-visible inconsistency since
@@ -125,10 +120,20 @@ Scope: weeks per item. Each warrants its own plan-i-Nx file.
   crop. Non-trivial, but rounds out the system.
 - **Grid spacing spinner** — toolbar input for the snap grid spacing
   (currently hardcoded via `STUDIO_GRID_SPACING`).
-- **"Reset Transform" context menu entry** — one click clears
-  rotation + flip_h + flip_v + scale back to identity.
-- **Per-layer "Use on all platforms" reset** — one click clears
-  `overlay.platforms` so it applies everywhere.
+- ~~**"Reset Transform" context menu entry**~~ — done for both image
+  and text overlays (commits 24f7f51, d665978).
+- **Per-layer "Use on all platforms" reset** — already available via
+  the platform submenu's "All Platforms" entry which clears
+  `overlay.platforms`.
+
+### Done (v2.4 polish autonomous batch)
+- Censor context menu reaches parity with overlays (Duplicate +
+  Z-order) — 461f897
+- Undo for censor style + platform changes — 1fc4e00
+- Autosave interval configurable via QSettings — e300594
+- Flip + Reset Transform on text overlays — d665978
+- Individual-file drag-drops don't feed Folder Scan auto-rescan —
+  d016a69
 
 ### Post-fix items
 - **Tiny window flash on project load** — fix shipped for

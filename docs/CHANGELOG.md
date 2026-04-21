@@ -42,6 +42,37 @@
   god-object decomposition; follow-ups will move interactive save/
   load paths once their dialog dependencies are cleaned.
 
+### Quality-of-life polish (autonomous batch)
+- **Folder Scan respects import method** — individual file drops are
+  tagged `type='file'` in import_sources. Folder Scan only walks
+  `type='folder'` entries, so dropping 7 files from a folder of 100
+  won't suck in the other 93 on the next auto-scan. Per-folder
+  recursive flag preserved.
+- **OneUp prints → logging** — 33 `print("[Sync] ...")` calls moved
+  to `logging.info/warning/error`. Visible in `~/.doxyedit/doxyedit.log`
+  instead of swallowed by the Nuitka `--windows-console-mode=disable`
+  build.
+- **imagehost upload cache LRU** — `_upload_cache` now bounded at 512
+  entries.
+- **Autosave interval configurable** via
+  `QSettings("autosave_interval_ms")` (5s-10min clamp).
+- **Studio v2 polish**:
+  - Lock icon (🔒) prefix on locked layers in the layer list.
+  - Reset Transform context menu entry (clears rotation + flip).
+  - Keyboard-shortcut hints in context menus: `Duplicate (Ctrl+D)`,
+    `Flip Horizontal (Ctrl+Shift+H)`, `Bring Forward (Ctrl+])`, etc.
+  - Censor context menu reaches parity with overlays (Duplicate +
+    Bring Forward / Send Backward).
+  - Flip + Reset Transform on text overlays (was image-only).
+  - Censor style and platform changes are now undoable.
+  - Align button tooltip explains selection requirements.
+- **docs/config-layering.md** — new contributor doc covering the four
+  config sources (models defaults, config.json, config.yaml,
+  per-project JSON, QSettings) with a precedence table and a
+  decision tree.
+- **progress_label** styling moved from inline setStyleSheet to theme
+  QSS selector.
+
 
 
 ### Studio Export Pipeline (original v2.4 focus)
