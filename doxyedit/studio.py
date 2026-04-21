@@ -4926,7 +4926,7 @@ class StudioEditor(QWidget):
     # ---- alignment + distribute ----
 
     def _show_align_menu(self):
-        """Dropdown from the Align toolbar button with 6 alignment actions."""
+        """Dropdown from the Align toolbar button with alignment actions."""
         from PySide6.QtWidgets import QMenu
         menu = _themed_menu(self)
         a_left = menu.addAction("Align Left")
@@ -4936,6 +4936,10 @@ class StudioEditor(QWidget):
         menu.addSeparator()
         a_ch = menu.addAction("Center Horizontal")
         a_cv = menu.addAction("Center Vertical")
+        menu.addSeparator()
+        a_cc_h = menu.addAction("Center on Canvas (Horizontal)")
+        a_cc_v = menu.addAction("Center on Canvas (Vertical)")
+        a_cc_b = menu.addAction("Center on Canvas (Both)")
         menu.addSeparator()
         a_dh = menu.addAction("Distribute Horizontal")
         a_dv = menu.addAction("Distribute Vertical")
@@ -4954,10 +4958,43 @@ class StudioEditor(QWidget):
             self._align_selected("center_h")
         elif chosen is a_cv:
             self._align_selected("center_v")
+        elif chosen is a_cc_h:
+            self._center_on_canvas("h")
+        elif chosen is a_cc_v:
+            self._center_on_canvas("v")
+        elif chosen is a_cc_b:
+            self._center_on_canvas("both")
         elif chosen is a_dh:
             self._distribute_selected("h")
         elif chosen is a_dv:
             self._distribute_selected("v")
+
+    def _center_on_canvas(self, axis: str):
+        """Move selected items so their bounding rect center matches the
+        canvas (pixmap) center on the given axis."""
+        if not self._pixmap_item:
+            return
+        canvas_rect = self._pixmap_item.sceneBoundingRect()
+        cx = canvas_rect.center().x()
+        cy = canvas_rect.center().y()
+        for item in self._alignable_items():
+            br = item.sceneBoundingRect()
+            dx = (cx - br.center().x()) if axis in ("h", "both") else 0.0
+            dy = (cy - br.center().y()) if axis in ("v", "both") else 0.0
+            if dx or dy:
+                item.moveBy(dx, dy)
+                if isinstance(item, (OverlayImageItem, OverlayTextItem)):
+                    item.overlay.x = int(item.pos().x())
+                    item.overlay.y = int(item.pos().y())
+                elif isinstance(item, OverlayArrowItem):
+                    item.overlay.x += int(dx)
+                    item.overlay.y += int(dy)
+                    item.overlay.end_x += int(dx)
+                    item.overlay.end_y += int(dy)
+                    item.prepareGeometryChange()
+                    item.update()
+        self._sync_overlays_to_asset()
+        self._sync_censors_to_asset()
 
     def _alignable_items(self):
         """Return selected items we can align/distribute (overlays, censors, crops, notes)."""
