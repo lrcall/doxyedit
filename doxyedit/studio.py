@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QFontComboBox, QSpinBox, QColorDialog, QInputDialog, QMenu,
     QListWidget, QListWidgetItem, QSplitter, QScrollArea,
 )
-from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal, QObject
+from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal
 from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
     QKeyEvent, QTransform, QUndoCommand, QUndoStack,
@@ -37,23 +37,6 @@ STUDIO_RESIZE_HANDLE_SIZE = 6     # resize handle square size
 STUDIO_ZOOM_BTN_WIDTH_RATIO = 3.0  # zoom button width × font_size
 STUDIO_ZOOM_LABEL_WIDTH_RATIO = 3.3  # zoom % label width × font_size
 STUDIO_LAYER_PANEL_WIDTH = 200    # layer panel max width
-
-
-class _AppEscapeFilter(QObject):
-    """QApplication-level event filter — intercepts Escape before ANY widget."""
-
-    def __init__(self, editor):
-        super().__init__()
-        self._editor = editor
-
-    def eventFilter(self, obj, event):
-        from PySide6.QtCore import QEvent
-        if event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Escape:
-            print(f"[AppFilter] ESC detected. editor visible={self._editor.isVisible()}")
-            if self._editor.isVisible():
-                self._editor._nuclear_clear()
-                return True
-        return False
 
 
 # ---------------------------------------------------------------------------
@@ -650,6 +633,20 @@ class StudioScene(QGraphicsScene):
 
         pos = event.scenePos()
 
+        # Commit any in-progress text edit if the click lands outside the
+        # currently-editing text item. Without this, Qt's QTextControl keeps
+        # the text in edit mode and eats subsequent Escape keystrokes, which
+        # was the root cause of "Esc doesn't clear" reports.
+        focus = self.focusItem()
+        if isinstance(focus, OverlayTextItem):
+            if not focus.contains(focus.mapFromScene(pos)):
+                cursor = focus.textCursor()
+                cursor.clearSelection()
+                focus.setTextCursor(cursor)
+                focus.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+                focus.overlay.text = focus.toPlainText()
+                focus.clearFocus()
+
         # Click on empty space — clear everything (same as F10)
         if self.current_tool == StudioTool.SELECT:
             item_under = self.itemAt(pos, self.views()[0].transform() if self.views() else QTransform())
@@ -828,9 +825,10 @@ class StudioView(QGraphicsView):
         super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Escape and self._studio_editor:
-            self._studio_editor.keyPressEvent(event)
-            return
+        # Escape is handled by StudioScene.keyPressEvent (scene focus) or by
+        # OverlayTextItem.sceneEvent (text-item focus). No view-level forward
+        # needed; letting Qt route it normally now that the app-wide filter
+        # is gone.
         super().keyPressEvent(event)
 
     def dragEnterEvent(self, event):
@@ -940,17 +938,11 @@ class StudioEditor(QWidget):
                 self._sync_overlays_to_asset()
             return
 
-        # Escape — deselect everything, clear crop mask, reset tool
+        # Escape is handled by StudioScene.keyPressEvent (scene focus) or
+        # OverlayTextItem.sceneEvent (text-item focus). Widget-level handler
+        # is no longer needed; leaving it here would stomp on those paths.
         if key == Qt.Key.Key_Escape:
-            # Clear text editing focus and selection highlight
-            focus = self._scene.focusItem()
-            if focus and isinstance(focus, QGraphicsTextItem):
-                cursor = focus.textCursor()
-                cursor.clearSelection()
-                focus.setTextCursor(cursor)
-                focus.clearFocus()
-                focus.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-            self._clear_escape_state()
+            super().keyPressEvent(event)
             return
 
         # Tool shortcuts (only when no modifier)
@@ -1273,11 +1265,6 @@ class StudioEditor(QWidget):
         self._f10_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F10), self)
         self._f10_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._f10_shortcut.activated.connect(self._nuclear_clear)
-
-        # Escape — QApplication event filter (the ONLY way to beat QGraphicsTextItem)
-        from PySide6.QtWidgets import QApplication
-        self._app_esc_filter = _AppEscapeFilter(self)
-        QApplication.instance().installEventFilter(self._app_esc_filter)
 
         # Snap grid overlay — flag on the scene, drawn via foreground
         self._grid_visible = False
