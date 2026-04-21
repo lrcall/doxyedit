@@ -1118,6 +1118,15 @@ class OverlayShapeItem(QGraphicsItem):
         for a, s in ((solid_act, "solid"), (dash_act, "dash"), (dot_act, "dot")):
             a.setCheckable(True)
             a.setChecked(getattr(self.overlay, "line_style", "solid") == s)
+        # Bubble-only actions, kept grouped so the menu reads as one
+        # logical block for comic workflows.
+        fit_text_act = None
+        unlink_text_act = None
+        if self._is_bubble():
+            menu.addSeparator()
+            if self.overlay.linked_text_id:
+                fit_text_act = menu.addAction("Fit Bubble to Text")
+                unlink_text_act = menu.addAction("Unlink Text")
         menu.addSeparator()
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         del_act = menu.addAction("Delete")
@@ -1249,10 +1258,51 @@ class OverlayShapeItem(QGraphicsItem):
             self.update()
             if self._editor:
                 self._editor._sync_overlays_to_asset()
+        elif fit_text_act is not None and chosen is fit_text_act and self._editor:
+            self._fit_to_linked_text()
+        elif unlink_text_act is not None and chosen is unlink_text_act and self._editor:
+            self.overlay.linked_text_id = ""
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_shape_item(self)
         elif chosen is del_act and self._editor:
             self._editor._remove_overlay_item(self)
+
+    def _fit_to_linked_text(self):
+        """Resize the bubble body so the linked text fits with padding.
+        Keeps the bubble center fixed so the tail anchor point stays
+        visually natural."""
+        if not (self._editor and self.overlay.linked_text_id):
+            return
+        text_item = None
+        for it in self._editor._overlay_items:
+            if (isinstance(it, OverlayTextItem)
+                    and it.overlay.label == self.overlay.linked_text_id):
+                text_item = it
+                break
+        if text_item is None:
+            return
+        # Measure the text with its current font / width settings.
+        tbr = text_item.sceneBoundingRect()
+        pad_x = max(16, int(tbr.width() * 0.15))
+        pad_y = max(12, int(tbr.height() * 0.25))
+        new_w = int(tbr.width() + 2 * pad_x)
+        new_h = int(tbr.height() + 2 * pad_y)
+        # Pivot around the current body center
+        cx = self.overlay.x + self.overlay.shape_w / 2.0
+        cy = self.overlay.y + self.overlay.shape_h / 2.0
+        self.overlay.x = int(cx - new_w / 2)
+        self.overlay.y = int(cy - new_h / 2)
+        self.overlay.shape_w = new_w
+        self.overlay.shape_h = new_h
+        # Recenter the text inside the resized body.
+        text_item.overlay.x = int(cx - tbr.width() / 2)
+        text_item.overlay.y = int(cy - tbr.height() / 2)
+        text_item.setPos(text_item.overlay.x, text_item.overlay.y)
+        self.prepareGeometryChange()
+        self.update()
+        self._editor._sync_overlays_to_asset()
 
 
 class OverlayArrowItem(QGraphicsItem):
