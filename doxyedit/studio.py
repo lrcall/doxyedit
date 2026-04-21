@@ -3598,9 +3598,14 @@ class StudioEditor(QWidget):
             return
         super().keyReleaseEvent(event)
 
-        # Arrow nudge
+        # Arrow nudge — plain = 1, Shift = 10, Shift+Ctrl = 100
         if key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
-            delta = 10 if shift else 1
+            if shift and ctrl:
+                delta = 100
+            elif shift:
+                delta = 10
+            else:
+                delta = 1
             dx, dy = 0, 0
             if key == Qt.Key.Key_Left:
                 dx = -delta
