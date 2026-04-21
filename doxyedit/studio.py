@@ -358,14 +358,30 @@ class OverlayImageItem(QGraphicsPixmapItem):
             if self._editor:
                 self._editor._sync_overlays_to_asset()
         elif plat_actions and (chosen is all_act or chosen in plat_actions):
-            self.overlay.platforms = _resolve_platform_menu(chosen, all_act, plat_actions, self.overlay.platforms)
+            new_plats = _resolve_platform_menu(chosen, all_act, plat_actions, self.overlay.platforms)
             if self._editor:
+                cmd = SetAttrCmd(
+                    self.overlay, "platforms", list(self.overlay.platforms), new_plats,
+                    apply_cb=lambda _t, _v: self._editor._refresh_layer_panel(),
+                    description="Change platforms",
+                )
+                self._editor._undo_stack.push(cmd)
                 self._editor._sync_overlays_to_asset()
-                self._editor._refresh_layer_panel()
+            else:
+                self.overlay.platforms = new_plats
         elif chosen is fwd_act:
-            self.setZValue(self.zValue() + 1)
+            if self._editor:
+                cmd = SetZValueCmd(self, self.zValue(), self.zValue() + 1, "Bring forward")
+                self._editor._undo_stack.push(cmd)
+            else:
+                self.setZValue(self.zValue() + 1)
         elif chosen is bwd_act:
-            self.setZValue(max(200, self.zValue() - 1))
+            new_z = max(200, self.zValue() - 1)
+            if self._editor:
+                cmd = SetZValueCmd(self, self.zValue(), new_z, "Send backward")
+                self._editor._undo_stack.push(cmd)
+            else:
+                self.setZValue(new_z)
         elif chosen is del_act and self._editor:
             self._editor._remove_overlay_item(self)
 
@@ -531,14 +547,30 @@ class OverlayTextItem(QGraphicsTextItem):
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_overlay_item(self)
         elif plat_actions and (chosen is all_act or chosen in plat_actions):
-            self.overlay.platforms = _resolve_platform_menu(chosen, all_act, plat_actions, self.overlay.platforms)
+            new_plats = _resolve_platform_menu(chosen, all_act, plat_actions, self.overlay.platforms)
             if self._editor:
+                cmd = SetAttrCmd(
+                    self.overlay, "platforms", list(self.overlay.platforms), new_plats,
+                    apply_cb=lambda _t, _v: self._editor._refresh_layer_panel(),
+                    description="Change platforms",
+                )
+                self._editor._undo_stack.push(cmd)
                 self._editor._sync_overlays_to_asset()
-                self._editor._refresh_layer_panel()
+            else:
+                self.overlay.platforms = new_plats
         elif chosen is fwd_act:
-            self.setZValue(self.zValue() + 1)
+            if self._editor:
+                cmd = SetZValueCmd(self, self.zValue(), self.zValue() + 1, "Bring forward")
+                self._editor._undo_stack.push(cmd)
+            else:
+                self.setZValue(self.zValue() + 1)
         elif chosen is bwd_act:
-            self.setZValue(max(200, self.zValue() - 1))
+            new_z = max(200, self.zValue() - 1)
+            if self._editor:
+                cmd = SetZValueCmd(self, self.zValue(), new_z, "Send backward")
+                self._editor._undo_stack.push(cmd)
+            else:
+                self.setZValue(new_z)
         elif chosen is del_act and self._editor:
             self._editor._remove_overlay_item(self)
 
@@ -642,6 +674,26 @@ class SetAttrCmd(QUndoCommand):
                 self._apply_cb(self._target, self._old)
             except Exception:
                 pass
+
+
+class SetZValueCmd(QUndoCommand):
+    """Undoable Z-order shift on a scene item.
+
+    QGraphicsItem.setZValue is a method, not a Python attribute, so the
+    generic SetAttrCmd doesn't apply directly.
+    """
+
+    def __init__(self, item, old_z: float, new_z: float, description: str = "Change order"):
+        super().__init__(description)
+        self._item = item
+        self._old = old_z
+        self._new = new_z
+
+    def redo(self):
+        self._item.setZValue(self._new)
+
+    def undo(self):
+        self._item.setZValue(self._old)
 
 
 class DeleteItemCmd(QUndoCommand):
