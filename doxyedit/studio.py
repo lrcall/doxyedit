@@ -315,15 +315,47 @@ class CensorRectItem(QGraphicsRectItem):
             cmd = SetZValueCmd(self, self.zValue(), max(100, self.zValue() - 1), "Send backward")
             self._editor._undo_stack.push(cmd)
         elif plat_actions and (chosen is all_act or chosen in plat_actions):
-            self.platforms = _resolve_platform_menu(chosen, all_act, plat_actions, self.platforms)
+            new_plats = _resolve_platform_menu(chosen, all_act, plat_actions, self.platforms)
             if self._editor:
-                self._editor._sync_censors_to_asset()
-                self._editor._refresh_layer_panel()
+                cr = getattr(self, "_censor_region", None)
+                if cr is not None:
+                    cmd = SetAttrCmd(
+                        cr, "platforms", list(cr.platforms), new_plats,
+                        apply_cb=lambda _t, v, _s=self: setattr(_s, "platforms", v)
+                            or _s._editor._refresh_layer_panel(),
+                        description="Change censor platforms",
+                    )
+                    self._editor._undo_stack.push(cmd)
+                    self.platforms = new_plats
+                    self._editor._sync_censors_to_asset()
+                else:
+                    self.platforms = new_plats
+                    self._editor._sync_censors_to_asset()
+                    self._editor._refresh_layer_panel()
+            else:
+                self.platforms = new_plats
         elif chosen.data():
-            self.style = chosen.data()
-            self._apply_style()
+            new_style = chosen.data()
             if self._editor:
-                self._editor._sync_censors_to_asset()
+                cr = getattr(self, "_censor_region", None)
+                if cr is not None:
+                    def _apply_style(t, v, _s=self):
+                        _s.style = v
+                        _s._apply_style()
+                    cmd = SetAttrCmd(
+                        cr, "style", cr.style, new_style,
+                        apply_cb=_apply_style,
+                        description=f"Change censor style to {new_style}",
+                    )
+                    self._editor._undo_stack.push(cmd)
+                    self._editor._sync_censors_to_asset()
+                else:
+                    self.style = new_style
+                    self._apply_style()
+                    self._editor._sync_censors_to_asset()
+            else:
+                self.style = new_style
+                self._apply_style()
 
 
 class OverlayImageItem(QGraphicsPixmapItem):
