@@ -1552,7 +1552,10 @@ class StudioScene(QGraphicsScene):
         super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event):
-        """Double-click on a ResizableCropItem → rename prompt."""
+        """Double-click handlers:
+        - On a ResizableCropItem: rename prompt
+        - On empty canvas area: fit view
+        """
         for it in self.items(event.scenePos()):
             if isinstance(it, ResizableCropItem):
                 editor = None
@@ -1563,6 +1566,25 @@ class StudioScene(QGraphicsScene):
                     event.accept()
                     return
                 break
+            if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                OverlayArrowItem,
+                                CensorRectItem, NoteRectItem,
+                                _GuideLineItem)):
+                # Let those items handle their own double-click
+                break
+        else:
+            # No interactive item under cursor → fit view
+            editor = None
+            if self.views():
+                editor = getattr(self.views()[0], "_studio_editor", None)
+            if editor is not None and self.sceneRect():
+                editor._view.fitInView(
+                    self.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+                editor._zoom_label.setText("Fit")
+                if hasattr(editor, "_canvas_wrap"):
+                    editor._canvas_wrap.refresh()
+                event.accept()
+                return
         super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self, event):
