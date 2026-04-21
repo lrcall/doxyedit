@@ -4777,6 +4777,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         # Update asset paths
         if compacted:
+            # Scan once; avoid O(N * files_on_disk) when many assets were moved.
+            fname_map: dict[str, Path] = {}
+            for f in assets_dir.rglob("*"):
+                if f.is_file() and f.name not in fname_map:
+                    fname_map[f.name] = f
             for asset in self.project.assets:
                 p = Path(asset.source_path)
                 try:
@@ -4784,11 +4789,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 except ValueError:
                     continue
                 if not p.exists():
-                    fname = p.name
-                    for found in assets_dir.rglob(fname):
+                    found = fname_map.get(p.name)
+                    if found:
                         asset.source_path = str(found)
                         asset.source_folder = str(found.parent)
-                        break
             self._dirty = True
             self._rebind_project()
         self.status.showMessage(f"Compacted {compacted} folder chain(s)", 4000)
@@ -4854,6 +4858,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         # Update asset paths
         if expanded:
+            fname_map: dict[str, Path] = {}
+            for f in assets_dir.rglob("*"):
+                if f.is_file() and f.name not in fname_map:
+                    fname_map[f.name] = f
             for asset in self.project.assets:
                 p = Path(asset.source_path)
                 try:
@@ -4861,11 +4869,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 except ValueError:
                     continue
                 if not p.exists():
-                    fname = p.name
-                    for found in assets_dir.rglob(fname):
+                    found = fname_map.get(p.name)
+                    if found:
                         asset.source_path = str(found)
                         asset.source_folder = str(found.parent)
-                        break
             self._dirty = True
             self._rebind_project()
         self.status.showMessage(f"Expanded {expanded} folder(s) to nested structure", 4000)
