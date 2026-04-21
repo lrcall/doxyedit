@@ -1117,6 +1117,7 @@ class OverlayTextItem(QGraphicsTextItem):
         color_act = menu.addAction("Change Color...")
         bg_act = menu.addAction("Change Background...")
         clear_bg_act = menu.addAction("Clear Background")
+        select_same_act = menu.addAction("Select All Text Overlays")
         save_style_act = menu.addAction("Save as Default Text Style")
         reset_style_act = menu.addAction("Reset Default Text Style")
         copy_style_act = menu.addAction("Copy Style")
@@ -1156,6 +1157,11 @@ class OverlayTextItem(QGraphicsTextItem):
                 description="Clear text background",
             )
             self._editor._sync_overlays_to_asset()
+        elif chosen is select_same_act and self._editor:
+            self._editor._scene.clearSelection()
+            for it in self._editor._overlay_items:
+                if isinstance(it, OverlayTextItem):
+                    it.setSelected(True)
         elif chosen is save_style_act and self._editor:
             self._editor._save_text_style_as_default(self.overlay)
         elif chosen is reset_style_act and self._editor:
