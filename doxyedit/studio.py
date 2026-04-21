@@ -4167,13 +4167,15 @@ class StudioEditor(QWidget):
 
         toolbar.addWidget(QLabel("|"))
 
-        # Group 4c: Grid toggle + spacing, rule-of-thirds. Checkable
-        # QPushButtons so the glyph IS the button (no adjacent tick box).
-        self.chk_grid = QPushButton("▦")
+        # Group 4c: Grid toggle + spacing, rule-of-thirds. Text labels
+        # render reliably across fonts (some unicode glyphs rendered as
+        # tofu boxes on Segoe UI). Compact widths keep them scannable.
+        _tw = int(_dt.font_size * 3.2)
+        self.chk_grid = QPushButton("Grid")
         self.chk_grid.setObjectName("studio_grid_toggle")
         self.chk_grid.setToolTip("Show snap grid (G)")
         self.chk_grid.setCheckable(True)
-        self.chk_grid.setFixedWidth(_icon_btn_w)
+        self.chk_grid.setFixedWidth(_tw)
         self.chk_grid.toggled.connect(self._on_grid_toggled)
         toolbar.addWidget(self.chk_grid)
 
