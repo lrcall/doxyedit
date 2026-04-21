@@ -2946,6 +2946,10 @@ class StudioEditor(QWidget):
                                    CensorRectItem, ResizableCropItem, NoteRectItem)):
                     it.setSelected(True)
             return
+        # Ctrl+Shift+A — deselect all
+        if ctrl and shift and key == Qt.Key.Key_A:
+            self._scene.clearSelection()
+            return
         # Ctrl+Shift+I — invert selection among selectable items
         if ctrl and shift and key == Qt.Key.Key_I:
             for it in self._scene.items():
