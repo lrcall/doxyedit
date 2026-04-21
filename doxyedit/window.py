@@ -4320,19 +4320,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             action.setVisible(on_canvas)
         self._color_action.setVisible(on_canvas)
         self._canvas_sep_after.setVisible(on_canvas)
-        # Show the whole left toolbar only on Studio so the Main palette
-        # appears as the single source of truth for tool selection.
+        # Show the whole left toolbar only on Studio. Studio's top-bar
+        # tool buttons stay visible too (the user prefers the duplicates
+        # for reachability).
         if hasattr(self, "_left_toolbar"):
             self._left_toolbar.setVisible(on_canvas)
-        # Studio's own top-bar tool buttons become redundant; hide them
-        # when the Main palette is active so users don't see duplicates.
-        if hasattr(self, "studio"):
-            for btn_name in ("btn_select", "btn_censor", "btn_crop",
-                              "btn_note", "btn_watermark", "btn_text",
-                              "btn_arrow", "btn_shape", "btn_eyedropper"):
-                btn = getattr(self.studio, btn_name, None)
-                if btn is not None:
-                    btn.setVisible(not on_canvas)
         # Lazy-load censor editor when its tab becomes active
         widget = self.tabs.widget(index)
         if widget is self.censor_editor and self.browser._selected_ids:

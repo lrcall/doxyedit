@@ -3976,7 +3976,7 @@ class StudioEditor(QWidget):
         SLIDER_WIDTH_RATIO = 7.0               # standard slider track
         SLIDER_NARROW_RATIO = 5.0              # narrow slider (kerning, outline)
         ICON_BUTTON_WIDTH_RATIO = 2.3          # icon buttons (B, I, ■, ◻)
-        ZOOM_BUTTON_WIDTH_RATIO = 3.0          # zoom preset buttons (Fit, 50%, etc.)
+        ZOOM_BUTTON_WIDTH_RATIO = 4.5          # zoom preset buttons (Fit, 50%, etc.)
         ZOOM_LABEL_WIDTH_RATIO = 3.3           # zoom percentage label
         LAYER_PANEL_MAX_WIDTH_RATIO = 16.7     # layer panel max width
 
@@ -5021,8 +5021,13 @@ class StudioEditor(QWidget):
         dlg = QDialog(self)
         dlg.setWindowTitle("Undo History")
         dlg.resize(380, 420)
+        # Inherit the app-wide theme stylesheet so the list + frame match
+        win = self.window()
+        if win is not None:
+            dlg.setStyleSheet(win.styleSheet())
         layout = QVBoxLayout(dlg)
         lst = _QL()
+        lst.setObjectName("studio_undo_history_list")
         # Index 0 = clean state; undoStack.index() is the "next redo" pointer.
         # We render each command by text; clicking jumps via setIndex.
         lst.addItem("(clean)")
@@ -5037,6 +5042,10 @@ class StudioEditor(QWidget):
             self._undo_stack.setIndex(idx)
         lst.itemClicked.connect(_on_click)
         layout.addWidget(lst)
+        dlg.show()
+        # Theme the Windows 11 title bar (must happen after show())
+        if win is not None and hasattr(win, "_theme_dialog_titlebar"):
+            win._theme_dialog_titlebar(dlg)
         dlg.exec()
 
     def _prompt_zoom_level(self, _event):
