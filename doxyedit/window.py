@@ -3377,8 +3377,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         """
         if post.status != "draft" or not post.oneup_post_id:
             return
-        print(f"[OneUp] Post {post.id[:8]} demoted to draft — clearing OneUp ref")
-        print(f"[OneUp] Delete from OneUp dashboard: oneupapp.io/queue")
+        logging.info(f"[OneUp] Post {post.id[:8]} demoted to draft — clearing OneUp ref")
+        logging.info(f"[OneUp] Delete from OneUp dashboard: oneupapp.io/queue")
         post.oneup_post_id = ""
         self.status.showMessage(
             "Post set to draft — delete from OneUp dashboard if still scheduled", 5000)
@@ -3447,12 +3447,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         # Skip if already pushed (has oneup_post_id)
         if post.oneup_post_id:
-            print(f"[OneUp Push] SKIP — already pushed (id={post.oneup_post_id[:20]})")
+            logging.info(f"[OneUp Push] SKIP — already pushed (id={post.oneup_post_id[:20]})")
             return
 
-        print(f"[OneUp Push] post={post.id[:8]} platforms={post.platforms} time={post.scheduled_time}")
-        print(f"[OneUp Push] caption={post.caption_default[:60]!r}")
-        print(f"[OneUp Push] project_dir={project_dir}")
+        logging.info(f"[OneUp Push] post={post.id[:8]} platforms={post.platforms} time={post.scheduled_time}")
+        logging.info(f"[OneUp Push] caption={post.caption_default[:60]!r}")
+        logging.info(f"[OneUp Push] project_dir={project_dir}")
 
         client = get_client_from_config(project_dir)
         if not client:
@@ -3461,16 +3461,16 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 from doxyedit.oneup import OneUpClient
                 client = OneUpClient(key)
         if not client:
-            print("[OneUp Push] ERROR: No API key found")
+            logging.error("[OneUp Push] ERROR: No API key found")
             self.status.showMessage("No OneUp API key — post saved as queued (offline)", 5000)
             return
-        print(f"[OneUp Push] client OK, category_id={client.category_id}")
+        logging.info(f"[OneUp Push] client OK, category_id={client.category_id}")
 
         sched = ""
         if post.scheduled_time:
             sched = post.scheduled_time[:16].replace("T", " ")
         if not sched:
-            print("[OneUp Push] ERROR: No schedule time")
+            logging.error("[OneUp Push] ERROR: No schedule time")
             self.status.showMessage("No schedule time set — post needs a date/time to push", 5000)
             post.status = SocialPostStatus.DRAFT
             return
@@ -3483,7 +3483,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         oneup_platforms = [p for p in post.platforms if p not in exclude_ids and p in connected_ids]
 
         if not oneup_platforms:
-            print(f"[OneUp Push] No OneUp accounts in platforms: {post.platforms}")
+            logging.info(f"[OneUp Push] No OneUp accounts in platforms: {post.platforms}")
             self.status.showMessage("No OneUp accounts selected — subscription platforms use quick-post", 5000)
             return
 
@@ -3518,7 +3518,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 # Push once per subreddit
                 for sub in reddit_subs:
                     title = sub.title_template or caption[:100]
-                    print(f"[OneUp Push]   → {account_id} r/{sub.name}  sched={sched}")
+                    logging.info(f"[OneUp Push]   → {account_id} r/{sub.name}  sched={sched}")
                     result = client.schedule_via_mcp(
                         content=caption,
                         social_network_id=account_id,
@@ -3534,7 +3534,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                         post.platform_status[f"{account_id}:{sub.name}"] = f"failed: {result.error[:60]}"
                 continue
 
-            print(f"[OneUp Push]   → {account_id}  sched={sched}  caption={caption[:40]!r}")
+            logging.info(f"[OneUp Push]   → {account_id}  sched={sched}  caption={caption[:40]!r}")
             result = client.schedule_via_mcp(
                 content=caption,
                 social_network_id=account_id,
@@ -3544,11 +3544,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 rid = str(result.data.get("id", ""))
                 oneup_ids.append(rid)
                 pushed += 1
-                print(f"[OneUp Push]     ✓ OK  oneup_id={rid}")
+                logging.info(f"[OneUp Push]     ✓ OK  oneup_id={rid}")
             else:
                 failed += 1
                 post.platform_status[account_id] = f"failed: {result.error[:60]}"
-                print(f"[OneUp Push]     ✗ FAIL  {result.error[:80]}")
+                logging.error(f"[OneUp Push]     ✗ FAIL  {result.error[:80]}")
 
         if pushed:
             post.oneup_post_id = ",".join(oneup_ids)
@@ -3558,7 +3558,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         else:
             post.status = SocialPostStatus.FAILED
             self.status.showMessage(f"All {failed} push(es) failed", 8000)
-        print(f"[OneUp Push] Done: {pushed} pushed, {failed} failed")
+        logging.error(f"[OneUp Push] Done: {pushed} pushed, {failed} failed")
         self._dirty = True
 
     # ---- Dockable composer ----
@@ -3699,7 +3699,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             try:
                 sched = datetime.fromisoformat(post.scheduled_time)
                 if sched <= now:
-                    print(f"[AutoPost] Post {post.id[:8]} is due ({post.scheduled_time}), pushing...")
+                    logging.info(f"[AutoPost] Post {post.id[:8]} is due ({post.scheduled_time}), pushing...")
                     self._push_post_to_oneup(post)
                     pushed += 1
             except (ValueError, TypeError):
@@ -3727,7 +3727,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if not api_key:
             api_key = (self.project.oneup_config or {}).get("api_key", "")
 
-        print(f"[OneUp Sync] Starting... project_dir={project_dir}")
+        logging.info(f"[OneUp Sync] Starting... project_dir={project_dir}")
         self.statusBar().showMessage("Fetching OneUp state...", 0)
 
         self._sync_fetch_thread = _OneUpFetchThread(project_dir, api_key, self)
@@ -3753,9 +3753,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         from datetime import datetime as _dt
 
         acct_msg = f"{len(synced_accounts)} accounts" if synced_accounts else "accounts sync failed"
-        print(f"[OneUp Sync] {acct_msg}")
+        logging.info(f"[OneUp Sync] {acct_msg}")
         for a in synced_accounts[:5]:
-            print(f"[OneUp Sync]   {a.get('name','')} [{a.get('platform','')}]")
+            logging.info(f"[OneUp Sync]   {a.get('name','')} [{a.get('platform','')}]")
         if hasattr(self, '_timeline') and self._timeline:
             self._timeline.set_oneup_label(label)
 
@@ -3765,7 +3765,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         direct_count = 0
 
         if had_api_key:
-            print(f"[Sync] OneUp has {len(oneup_state)} unique posts")
+            logging.info(f"[Sync] OneUp has {len(oneup_state)} unique posts")
 
             # Duplicate-post warning dialog (UI-thread only)
             dupes = {fp: cnt for fp, cnt in oneup_counts.items() if cnt > 1}
@@ -3777,7 +3777,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     + "\n".join(dupe_lines[:10])
                     + "\n\nDelete duplicates from oneupapp.io/queue"
                 )
-                print(f"[Sync] WARNING: {len(dupes)} duplicate(s) on OneUp")
+                logging.warning(f"[Sync] WARNING: {len(dupes)} duplicate(s) on OneUp")
 
             # Reconcile each local queued post
             for post in self.project.posts:
@@ -3789,7 +3789,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 if remote == "published":
                     post.status = SocialPostStatus.POSTED
                     updated += 1
-                    print(f"[Sync] {post.id[:8]} → POSTED")
+                    logging.info(f"[Sync] {post.id[:8]} → POSTED")
                     if not post.engagement_checks:
                         try:
                             from doxyedit.reminders import generate_engagement_windows
@@ -3797,20 +3797,20 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                             _connected = _gcp(project_dir)
                             _windows = generate_engagement_windows(post, _connected)
                             post.engagement_checks = [w.to_dict() for w in _windows]
-                            print(f"[Sync] Generated {len(_windows)} engagement windows")
+                            logging.info(f"[Sync] Generated {len(_windows)} engagement windows")
                         except Exception as _e:
-                            print(f"[Sync] Engagement gen error: {_e}")
+                            logging.error(f"[Sync] Engagement gen error: {_e}")
                 elif remote == "failed":
                     post.status = SocialPostStatus.FAILED
                     updated += 1
-                    print(f"[Sync] {post.id[:8]} → FAILED")
+                    logging.error(f"[Sync] {post.id[:8]} → FAILED")
                 elif remote == "scheduled":
                     if not post.oneup_post_id:
                         post.oneup_post_id = "synced"
-                    print(f"[Sync] {post.id[:8]} = scheduled (no action)")
+                    logging.info(f"[Sync] {post.id[:8]} = scheduled (no action)")
                 elif not post.oneup_post_id:
                     # PUSH: not on OneUp, never pushed
-                    print(f"[Sync] {post.id[:8]} → pushing...")
+                    logging.info(f"[Sync] {post.id[:8]} → pushing...")
                     self._export_post_assets(post)
                     self._push_post_to_oneup(post)
                     if post.oneup_post_id:
@@ -3821,9 +3821,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     post.status = SocialPostStatus.DRAFT
                     post.oneup_post_id = ""
                     cleaned_count += 1
-                    print(f"[Sync] {post.id[:8]} → DRAFT (gone from OneUp)")
+                    logging.info(f"[Sync] {post.id[:8]} → DRAFT (gone from OneUp)")
         else:
-            print("[Sync] No API key")
+            logging.info("[Sync] No API key")
 
         # Direct-post phase (Telegram, Discord, Bluesky)
         try:
@@ -3841,7 +3841,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                         post.sub_platform_status[r.platform] = {"status": "failed", "error": r.error}
                 QApplication.processEvents()
         except Exception as e:
-            print(f"[Sync] Direct-post error: {e}")
+            logging.error(f"[Sync] Direct-post error: {e}")
 
         if updated or pushed_count or cleaned_count or direct_count:
             self._dirty = True
@@ -3856,7 +3856,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if direct_count:
             parts.append(f"{direct_count} direct")
         msg = f"Synced: {', '.join(parts)}"
-        print(f"[Sync] {msg}")
+        logging.info(f"[Sync] {msg}")
         self.statusBar().showMessage(msg, 5000)
 
     def _on_engagement_changed(self):
@@ -5208,10 +5208,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             now = _dt.now().isoformat()
             if success:
                 post.sub_platform_status[plat_id] = {"status": "posted", "posted_at": now}
-                print(f"[AutoPost] {plat_id}: OK")
+                logging.info(f"[AutoPost] {plat_id}: OK")
             else:
                 post.sub_platform_status[plat_id] = {"status": "failed", "error": error}
-                print(f"[AutoPost] {plat_id}: FAILED — {error}")
+                logging.error(f"[AutoPost] {plat_id}: FAILED — {error}")
 
         def _on_finished(done, total_):
             progress.close()
