@@ -634,6 +634,7 @@ class OverlayTextItem(QGraphicsTextItem):
         _parent = self._editor._view if self._editor else None
         menu = _themed_menu(_parent)
         edit_act = menu.addAction("Edit Text")
+        color_act = menu.addAction("Change Color...")
         save_style_act = menu.addAction("Save as Default Text Style")
         reset_style_act = menu.addAction("Reset Default Text Style")
         menu.addSeparator()
@@ -658,6 +659,8 @@ class OverlayTextItem(QGraphicsTextItem):
         if chosen is edit_act:
             self.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
             self.setFocus()
+        elif chosen is color_act and self._editor:
+            self._editor._pick_text_color(self)
         elif chosen is save_style_act and self._editor:
             self._editor._save_text_style_as_default(self.overlay)
         elif chosen is reset_style_act and self._editor:
@@ -2563,6 +2566,23 @@ class StudioEditor(QWidget):
         from PySide6.QtCore import QSettings as _QS
         _QS("DoxyEdit", "DoxyEdit").remove("studio_text_defaults")
         self.info_label.setText("Reset default text style")
+
+    def _pick_text_color(self, text_item):
+        """Open a color picker and apply to the given OverlayTextItem."""
+        initial = QColor(text_item.overlay.color)
+        color = QColorDialog.getColor(
+            initial, self, "Text color",
+            QColorDialog.ColorDialogOption.ShowAlphaChannel,
+        )
+        if not color.isValid():
+            return
+        new_color = color.name()
+        self._push_overlay_attr(
+            text_item, "color", new_color,
+            apply_cb=lambda it, _v: it._apply_font(),
+            description="Change text color",
+        )
+        self._sync_overlays_to_asset()
 
     def _add_text_overlay(self, x: int = 50, y: int = 50):
         """Add a text overlay at the given position."""
