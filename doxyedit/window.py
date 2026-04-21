@@ -228,6 +228,60 @@ class _SimilarScanThread(QThread):
         self.scanned.emit(parent)
 
 
+class _OneUpFetchThread(QThread):
+    """Fetch OneUp account + post state off the UI thread.
+
+    Runs sync_accounts_from_mcp + three mcp_tool_call requests sequentially,
+    returning the raw state needed for reconciliation. No Qt widget mutation
+    inside — only data.
+
+    Emits `fetched(synced_accounts, oneup_state, oneup_counts, label)` on
+    success or `failed(str)` on any error.
+    """
+    fetched = Signal(object, object, object, str)
+    failed = Signal(str)
+
+    def __init__(self, project_dir: str, api_key: str, parent=None):
+        super().__init__(parent)
+        self._project_dir = project_dir
+        self._api_key = api_key
+
+    def run(self):
+        try:
+            from doxyedit.oneup import (
+                sync_accounts_from_mcp, mcp_init_session, mcp_tool_call,
+                get_active_account_label,
+            )
+            import json as _json
+
+            # Phase 1: sync accounts + categories
+            synced_accounts = sync_accounts_from_mcp(self._project_dir)
+            label = get_active_account_label(self._project_dir)
+
+            # Phase 2: fetch three post lists if we have an API key
+            oneup_state: dict[str, str] = {}
+            oneup_counts: dict[str, int] = {}
+            if self._api_key:
+                mcp_url, hdrs = mcp_init_session(self._api_key)
+                for tool, status_label in [
+                    ("get-scheduled-posts-tool", "scheduled"),
+                    ("get-published-posts-tool", "published"),
+                    ("get-failed-posts-tool", "failed"),
+                ]:
+                    txt = mcp_tool_call(mcp_url, hdrs, tool, {})
+                    try:
+                        posts_list = _json.loads(txt).get("posts", []) if txt else []
+                        for p in posts_list:
+                            fp = (p.get("content") or "")[:40].strip()
+                            oneup_state[fp] = status_label
+                            oneup_counts[fp] = oneup_counts.get(fp, 0) + 1
+                    except Exception:
+                        pass
+            self.fetched.emit(synced_accounts, oneup_state, oneup_counts, label)
+        except Exception as e:
+            self.failed.emit(str(e))
+
+
 class MainWindow(QMainWindow):
     _open_windows: list["MainWindow"] = []  # keep extra windows alive (prevent GC)
 
@@ -3551,140 +3605,124 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self.status.showMessage(f"Auto-posted {pushed} due post(s)", 5000)
 
     def _on_sync_oneup(self):
-        """Sync accounts, categories, and post statuses from OneUp."""
-        from doxyedit.oneup import (
-            get_client_from_config, OneUpClient, sync_accounts_from_mcp,
-            get_active_account_label,
-        )
-        from doxyedit.models import SocialPostStatus
+        """Sync accounts, categories, and post statuses from OneUp.
+
+        Fetches network state on a worker thread; reconciliation + pushes
+        run on the UI thread once fetch completes (they include modal
+        dialogs and interleave with existing UI-touching push methods).
+        """
+        from doxyedit.oneup import get_client_from_config
         project_dir = str(Path(self._project_path).parent) if hasattr(self, '_project_path') else "."
 
-        print(f"[OneUp Sync] Starting... project_dir={project_dir}")
-        self.statusBar().showMessage("Syncing OneUp accounts & posts...", 0)
-        QApplication.processEvents()
+        # Resolve API key on the UI thread so the worker has a clean input
+        api_key = ""
+        client = get_client_from_config(project_dir)
+        if client:
+            api_key = client.api_key
+        if not api_key:
+            api_key = (self.project.oneup_config or {}).get("api_key", "")
 
-        # 1. Sync accounts + categories from MCP
-        print("[OneUp Sync] Fetching accounts from MCP...")
-        synced_accounts = sync_accounts_from_mcp(project_dir)
+        print(f"[OneUp Sync] Starting... project_dir={project_dir}")
+        self.statusBar().showMessage("Fetching OneUp state...", 0)
+
+        self._sync_fetch_thread = _OneUpFetchThread(project_dir, api_key, self)
+        self._sync_fetch_thread.fetched.connect(
+            lambda accts, state, counts, label:
+                self._on_sync_oneup_fetched(project_dir, accts, state, counts, label, bool(api_key))
+        )
+        self._sync_fetch_thread.failed.connect(
+            lambda err: self.statusBar().showMessage(f"Sync failed: {err}", 6000)
+        )
+        self._sync_fetch_thread.start()
+
+    def _on_sync_oneup_fetched(self, project_dir, synced_accounts, oneup_state,
+                               oneup_counts, label, had_api_key):
+        """Continue OneUp sync on the UI thread with the fetched state.
+
+        Applies duplicate-warning dialog, reconciles local posts against
+        OneUp state, triggers pushes for unpushed local QUEUED posts, and
+        runs the direct-post phase. Everything that can mutate project data
+        or show dialogs stays on the UI thread.
+        """
+        from doxyedit.models import SocialPostStatus
+        from datetime import datetime as _dt
+
         acct_msg = f"{len(synced_accounts)} accounts" if synced_accounts else "accounts sync failed"
         print(f"[OneUp Sync] {acct_msg}")
         for a in synced_accounts[:5]:
             print(f"[OneUp Sync]   {a.get('name','')} [{a.get('platform','')}]")
+        if hasattr(self, '_timeline') and self._timeline:
+            self._timeline.set_oneup_label(label)
 
-        # Update the timeline label
-        label = get_active_account_label(project_dir)
-        self._timeline.set_oneup_label(label)
-
-        # 2. Fetch OneUp state, then push/pull/clean
         updated = 0
         pushed_count = 0
         cleaned_count = 0
         direct_count = 0
-        try:
-            import json as _json
-            from datetime import datetime as _dt
 
-            api_key = ""
-            client = get_client_from_config(project_dir)
-            if client:
-                api_key = client.api_key
-            if not api_key:
-                api_key = (self.project.oneup_config or {}).get("api_key", "")
+        if had_api_key:
+            print(f"[Sync] OneUp has {len(oneup_state)} unique posts")
 
-            if api_key:
-                from doxyedit.oneup import mcp_init_session, mcp_tool_call
-                mcp_url, hdrs = mcp_init_session(api_key)
+            # Duplicate-post warning dialog (UI-thread only)
+            dupes = {fp: cnt for fp, cnt in oneup_counts.items() if cnt > 1}
+            if dupes:
+                from PySide6.QtWidgets import QMessageBox
+                dupe_lines = [f"  '{fp}...' x{cnt}" for fp, cnt in dupes.items()]
+                QMessageBox.warning(self, "Duplicate Posts on OneUp",
+                    f"Found {len(dupes)} duplicate post(s) on OneUp:\n\n"
+                    + "\n".join(dupe_lines[:10])
+                    + "\n\nDelete duplicates from oneupapp.io/queue"
+                )
+                print(f"[Sync] WARNING: {len(dupes)} duplicate(s) on OneUp")
 
-                # Fetch OneUp state: fingerprint → status + count
-                oneup_state: dict[str, str] = {}  # caption[:40] → scheduled|published|failed
-                oneup_counts: dict[str, int] = {}  # caption[:40] → count (for dupe detection)
-                for tool, status_label in [
-                    ("get-scheduled-posts-tool", "scheduled"),
-                    ("get-published-posts-tool", "published"),
-                    ("get-failed-posts-tool", "failed"),
-                ]:
-                    txt = mcp_tool_call(mcp_url, hdrs, tool, {})
-                    try:
-                        posts_list = _json.loads(txt).get("posts", [])
-                        for p in posts_list:
-                            fp = (p.get("content") or "")[:40].strip()
-                            oneup_state[fp] = status_label
-                            oneup_counts[fp] = oneup_counts.get(fp, 0) + 1
-                        print(f"[Sync] {tool}: {len(posts_list)} posts")
-                    except Exception:
-                        pass
+            # Reconcile each local queued post
+            for post in self.project.posts:
+                if post.status not in (SocialPostStatus.QUEUED, "queued"):
+                    continue
+                fp = (post.caption_default or "")[:40].strip()
+                remote = oneup_state.get(fp)
 
-                print(f"[Sync] OneUp has {len(oneup_state)} unique posts")
+                if remote == "published":
+                    post.status = SocialPostStatus.POSTED
+                    updated += 1
+                    print(f"[Sync] {post.id[:8]} → POSTED")
+                    if not post.engagement_checks:
+                        try:
+                            from doxyedit.reminders import generate_engagement_windows
+                            from doxyedit.oneup import get_connected_platforms as _gcp
+                            _connected = _gcp(project_dir)
+                            _windows = generate_engagement_windows(post, _connected)
+                            post.engagement_checks = [w.to_dict() for w in _windows]
+                            print(f"[Sync] Generated {len(_windows)} engagement windows")
+                        except Exception as _e:
+                            print(f"[Sync] Engagement gen error: {_e}")
+                elif remote == "failed":
+                    post.status = SocialPostStatus.FAILED
+                    updated += 1
+                    print(f"[Sync] {post.id[:8]} → FAILED")
+                elif remote == "scheduled":
+                    if not post.oneup_post_id:
+                        post.oneup_post_id = "synced"
+                    print(f"[Sync] {post.id[:8]} = scheduled (no action)")
+                elif not post.oneup_post_id:
+                    # PUSH: not on OneUp, never pushed
+                    print(f"[Sync] {post.id[:8]} → pushing...")
+                    self._export_post_assets(post)
+                    self._push_post_to_oneup(post)
+                    if post.oneup_post_id:
+                        pushed_count += 1
+                    QApplication.processEvents()
+                else:
+                    # CLEAN: was pushed but gone from OneUp → back to draft
+                    post.status = SocialPostStatus.DRAFT
+                    post.oneup_post_id = ""
+                    cleaned_count += 1
+                    print(f"[Sync] {post.id[:8]} → DRAFT (gone from OneUp)")
+        else:
+            print("[Sync] No API key")
 
-                # Warn about duplicates on OneUp
-                dupes = {fp: cnt for fp, cnt in oneup_counts.items() if cnt > 1}
-                if dupes:
-                    from PySide6.QtWidgets import QMessageBox
-                    dupe_lines = [f"  '{fp}...' x{cnt}" for fp, cnt in dupes.items()]
-                    QMessageBox.warning(self, "Duplicate Posts on OneUp",
-                        f"Found {len(dupes)} duplicate post(s) on OneUp:\n\n"
-                        + "\n".join(dupe_lines[:10])
-                        + "\n\nDelete duplicates from oneupapp.io/queue"
-                    )
-                    print(f"[Sync] WARNING: {len(dupes)} duplicate(s) on OneUp")
-
-                # Process each local queued post
-                for post in self.project.posts:
-                    if post.status not in (SocialPostStatus.QUEUED, "queued"):
-                        continue
-                    fp = (post.caption_default or "")[:40].strip()
-                    remote = oneup_state.get(fp)
-
-                    if remote == "published":
-                        # PULL: OneUp published it
-                        post.status = SocialPostStatus.POSTED
-                        updated += 1
-                        print(f"[Sync] {post.id[:8]} → POSTED")
-                        # Generate engagement follow-up windows
-                        if not post.engagement_checks:
-                            try:
-                                from doxyedit.reminders import generate_engagement_windows
-                                from doxyedit.oneup import get_connected_platforms as _gcp
-                                _connected = _gcp(project_dir)
-                                _windows = generate_engagement_windows(post, _connected)
-                                post.engagement_checks = [w.to_dict() for w in _windows]
-                                print(f"[Sync] Generated {len(_windows)} engagement windows")
-                            except Exception as _e:
-                                print(f"[Sync] Engagement gen error: {_e}")
-                    elif remote == "failed":
-                        # PULL: OneUp failed
-                        post.status = SocialPostStatus.FAILED
-                        updated += 1
-                        print(f"[Sync] {post.id[:8]} → FAILED")
-                    elif remote == "scheduled":
-                        # Already on OneUp — mark synced, don't re-push
-                        if not post.oneup_post_id:
-                            post.oneup_post_id = "synced"
-                        print(f"[Sync] {post.id[:8]} = scheduled (no action)")
-                    elif not post.oneup_post_id:
-                        # PUSH: not on OneUp, never pushed
-                        print(f"[Sync] {post.id[:8]} → pushing...")
-                        # Export platform-ready images before pushing
-                        self._export_post_assets(post)
-                        self._push_post_to_oneup(post)
-                        if post.oneup_post_id:
-                            pushed_count += 1
-                        QApplication.processEvents()
-                    else:
-                        # CLEAN: was pushed but gone from OneUp → back to draft
-                        post.status = SocialPostStatus.DRAFT
-                        post.oneup_post_id = ""
-                        cleaned_count += 1
-                        print(f"[Sync] {post.id[:8]} → DRAFT (gone from OneUp)")
-            else:
-                print("[Sync] No API key")
-        except Exception as e:
-            print(f"[Sync] Error: {e}")
-
-        # 3. Direct-post (Telegram, Discord, Bluesky)
+        # Direct-post phase (Telegram, Discord, Bluesky)
         try:
             from doxyedit.directpost import push_to_direct
-            from datetime import datetime as _dt
             for post in self.project.posts:
                 if post.status not in (SocialPostStatus.QUEUED, "queued"):
                     continue
