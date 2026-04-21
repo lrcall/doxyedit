@@ -847,6 +847,8 @@ class OverlayShapeItem(QGraphicsItem):
         stroke_act = menu.addAction("Stroke Color...")
         fill_act = menu.addAction("Fill Color...")
         clear_fill_act = menu.addAction("Clear Fill")
+        save_default_act = menu.addAction("Save as Default Shape Style")
+        reset_default_act = menu.addAction("Reset Default Shape Style")
         radius_act = menu.addAction("Corner Radius...")
         convert_menu = menu.addMenu("Convert To")
         conv_rect_act = convert_menu.addAction("Rectangle")
@@ -944,6 +946,26 @@ class OverlayShapeItem(QGraphicsItem):
             self.overlay.fill_color = ""
             self.update()
             self._editor._sync_overlays_to_asset()
+        elif chosen is save_default_act and self._editor:
+            from PySide6.QtCore import QSettings as _QS
+            qs = _QS("DoxyEdit", "DoxyEdit")
+            qs.setValue("studio_shape_stroke_color",
+                         self.overlay.stroke_color or self.overlay.color or "#ffd700")
+            qs.setValue("studio_shape_fill_color", self.overlay.fill_color or "")
+            qs.setValue("studio_shape_stroke_width", self.overlay.stroke_width or 2)
+            qs.setValue("studio_shape_corner_radius",
+                         getattr(self.overlay, "corner_radius", 0))
+            qs.setValue("studio_shape_line_style",
+                         getattr(self.overlay, "line_style", "solid"))
+            self._editor.info_label.setText("Saved default shape style")
+        elif chosen is reset_default_act and self._editor:
+            from PySide6.QtCore import QSettings as _QS
+            qs = _QS("DoxyEdit", "DoxyEdit")
+            for k in ("studio_shape_stroke_color", "studio_shape_fill_color",
+                       "studio_shape_stroke_width", "studio_shape_corner_radius",
+                       "studio_shape_line_style"):
+                qs.remove(k)
+            self._editor.info_label.setText("Reset default shape style")
         elif chosen is radius_act and self._editor:
             value, ok = QInputDialog.getInt(
                 self._editor, "Corner radius",
@@ -4828,6 +4850,8 @@ class StudioEditor(QWidget):
         stroke = _qs.value("studio_shape_stroke_color", "#ffd700", type=str)
         fill = _qs.value("studio_shape_fill_color", "", type=str)
         sw = _qs.value("studio_shape_stroke_width", 2, type=int)
+        radius = _qs.value("studio_shape_corner_radius", 0, type=int)
+        line_style = _qs.value("studio_shape_line_style", "solid", type=str)
         ov = CanvasOverlay(
             type="shape",
             label="Shape",
@@ -4839,6 +4863,8 @@ class StudioEditor(QWidget):
             opacity=1.0,
             x=int(rect.x()), y=int(rect.y()),
             shape_w=int(rect.width()), shape_h=int(rect.height()),
+            corner_radius=radius,
+            line_style=line_style,
         )
         self._asset.overlays.append(ov)
         item = OverlayShapeItem(ov)
