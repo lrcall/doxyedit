@@ -276,6 +276,12 @@ class CensorRectItem(QGraphicsRectItem):
             if key != self.style:
                 act = menu.addAction(label)
                 act.setData(key)
+        blur_radius_act = None
+        pixelate_ratio_act = None
+        if self.style == "blur":
+            blur_radius_act = menu.addAction("Blur Radius...")
+        elif self.style == "pixelate":
+            pixelate_ratio_act = menu.addAction("Pixelate Ratio...")
         menu.addSeparator()
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         menu.addSeparator()
@@ -294,6 +300,28 @@ class CensorRectItem(QGraphicsRectItem):
         if chosen is delete_act:
             if self._editor:
                 self._editor._remove_censor_item(self)
+        elif chosen is blur_radius_act and self._editor:
+            cr = getattr(self, "_censor_region", None)
+            cur = cr.blur_radius if cr else 20
+            value, ok = QInputDialog.getInt(
+                self._editor, "Blur radius",
+                "Gaussian blur radius (px):",
+                value=cur, minValue=1, maxValue=200)
+            if ok and cr:
+                cr.blur_radius = value
+                self._editor.info_label.setText(
+                    f"Blur radius set to {value}px")
+        elif chosen is pixelate_ratio_act and self._editor:
+            cr = getattr(self, "_censor_region", None)
+            cur = cr.pixelate_ratio if cr else 10
+            value, ok = QInputDialog.getInt(
+                self._editor, "Pixelate ratio",
+                "Downscale factor (larger = blockier):",
+                value=cur, minValue=2, maxValue=100)
+            if ok and cr:
+                cr.pixelate_ratio = value
+                self._editor.info_label.setText(
+                    f"Pixelate ratio set to {value}")
         elif chosen is dup_act and self._editor:
             # Duplicate: clone region with 20px offset; reuse existing append + scene add pattern
             cr_src = getattr(self, "_censor_region", None)
