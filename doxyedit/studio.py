@@ -4265,23 +4265,28 @@ class StudioEditor(QWidget):
         toolbar.addWidget(QLabel("|"))
 
         # Group 5: Export
-        self.btn_export = QPushButton("Export Preview")
+        self.btn_export = QPushButton("👁")
         self.btn_export.setObjectName("studio_btn_export")
+        self.btn_export.setToolTip("Export preview PNG")
         self.btn_export.clicked.connect(self._export_preview)
         toolbar.addWidget(self.btn_export)
 
-        self.btn_export_plat = QPushButton("Export Platform")
+        self.btn_export_plat = QPushButton("📤")
         self.btn_export_plat.setObjectName("studio_btn_export_plat")
+        self.btn_export_plat.setToolTip(
+            "Export current platform (crop selected in combo)")
         self.btn_export_plat.clicked.connect(self._export_current_platform)
         toolbar.addWidget(self.btn_export_plat)
 
-        self.btn_export_all = QPushButton("Export All Platforms")
+        self.btn_export_all = QPushButton("📦")
         self.btn_export_all.setObjectName("studio_btn_export_all")
+        self.btn_export_all.setToolTip("Export all platforms")
         self.btn_export_all.clicked.connect(self._export_all_platforms)
         toolbar.addWidget(self.btn_export_all)
 
-        btn_queue = QPushButton("Queue This")
+        btn_queue = QPushButton("⌛")
         btn_queue.setObjectName("studio_queue_btn")
+        btn_queue.setToolTip("Queue this asset for posting")
         btn_queue.clicked.connect(self._queue_current)
         toolbar.addWidget(btn_queue)
 
