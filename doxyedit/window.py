@@ -5730,7 +5730,6 @@ Tags (Assets tab):
 0 — Toggle Ignore
 Ctrl+Click tag — Search by tag
 """
-        from doxyedit.models import TAG_SHORTCUTS
         for key, tid in self.project.custom_shortcuts.items():
             shortcuts += f"{key} — {tid}\n"
         QMessageBox.information(self, "Keyboard Shortcuts", shortcuts.strip())

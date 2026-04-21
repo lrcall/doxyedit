@@ -36,7 +36,8 @@ class StatsPanel(QWidget):
         super().__init__(parent)
         self.setObjectName("stats_panel")
         self.project = project
-        self.folder_bar_color = "#93a167"
+        from doxyedit.themes import THEMES, DEFAULT_THEME
+        self.folder_bar_color = THEMES[DEFAULT_THEME].accent_bright
         self._size_cache: dict[int, int] = {}  # asset count -> total bytes
         self._size_card: QLabel | None = None
         self._size_thread: _DiskSizeThread | None = None
