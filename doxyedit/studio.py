@@ -3254,18 +3254,62 @@ class StudioEditor(QWidget):
                 self.info_label.setText(f"Exported: {Path(path).name}")
 
     def _export_current_platform(self):
-        """Export the currently selected crop combo platform slot."""
+        """Export the currently-active platform slot.
+
+        Resolution order:
+        1. If the crop combo has a concrete platform slot picked, use it.
+        2. Otherwise if the scene has a selected ResizableCropItem with
+           platform_id + slot_name (H3.1 fields), use that.
+        3. Otherwise if the asset has exactly one crop with platform_id,
+           use that crop's platform+slot.
+        4. Otherwise show guidance.
+        """
         if not self._asset or not self._project:
             self.info_label.setText("No asset or project loaded")
             return
+
+        platform_id = slot_name = ""
+        # 1. Combo selection wins
         data = self._crop_combo.currentData()
-        if not data or not isinstance(data, (list, tuple)) or len(data) < 4:
-            self.info_label.setText("Select a platform slot in the crop dropdown first")
+        if data and isinstance(data, (list, tuple)) and len(data) >= 4:
+            platform_id, slot_name = data[0], data[1]
+
+        # 2. Selected crop item in the scene
+        if not platform_id:
+            for it in self._scene.selectedItems():
+                if isinstance(it, ResizableCropItem):
+                    # Match by label against asset.crops to find its platform_id
+                    lbl = getattr(it, "label", "")
+                    for cr in self._asset.crops:
+                        if cr.label == lbl and getattr(cr, "platform_id", ""):
+                            platform_id = cr.platform_id
+                            slot_name = getattr(cr, "slot_name", "") or lbl
+                            break
+                    if platform_id:
+                        break
+
+        # 3. Single crop with platform_id on the asset
+        if not platform_id:
+            scoped = [c for c in self._asset.crops
+                      if getattr(c, "platform_id", "")]
+            if len(scoped) == 1:
+                platform_id = scoped[0].platform_id
+                slot_name = getattr(scoped[0], "slot_name", "") or scoped[0].label
+
+        if not platform_id:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self, "Export Platform",
+                "No platform selected.\n\n"
+                "Pick one of:\n"
+                "  • A platform slot in the crop dropdown (top of Studio), or\n"
+                "  • Click a platform-scoped crop in the canvas, or\n"
+                "  • Use 'Export All Platforms' to export every crop.",
+            )
             return
+
         self._sync_censors_to_asset()
         self._sync_overlays_to_asset()
-
-        platform_id, slot_name = data[0], data[1]
 
         from doxyedit.pipeline import prepare_for_platform
         from doxyedit.imaging import get_export_dir
@@ -3280,14 +3324,16 @@ class StudioEditor(QWidget):
             import traceback; traceback.print_exc()
             return
         if r.success:
-            self._asset.variant_exports[f"{platform_id}_{slot_name}"] = r.output_path
-            self.info_label.setText(f"Exported: {platform_id}/{slot_name} ({r.width}×{r.height})")
+            key = f"{platform_id}_{slot_name}" if slot_name else platform_id
+            self._asset.variant_exports[key] = r.output_path
+            self.info_label.setText(f"Exported: {platform_id}/{slot_name} ({r.width}x{r.height})")
             self._populate_preview_strip([r])
             if self._project_path:
                 self._open_export_folder(Path(r.output_path).parent)
         else:
             self.info_label.setText(f"Export failed: {r.error}")
-            print(f"[Export Platform] FAILED: {r.error}")
+            import logging as _logging
+            _logging.error("Export Platform FAILED: %s", r.error)
 
     def _export_all_platforms(self):
         """Batch export all platform variants for the current asset."""
