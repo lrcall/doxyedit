@@ -221,9 +221,43 @@ def _composite_image_overlay(img: Image.Image, ov: CanvasOverlay, project_dir: s
         # Position
         x, y = _resolve_position(img.size, wm.size, ov.position, ov.x, ov.y)
 
-        # Composite
+        # Composite — honor blend_mode if set. PIL's ImageChops ops expect
+        # matched-size images, so extract the base region first, blend, then
+        # paste back.
+        blend = getattr(ov, "blend_mode", "normal")
+        if blend == "normal":
+            layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+            layer.paste(wm, (x, y))
+            return Image.alpha_composite(img, layer)
+        from PIL import ImageChops
+        base_region = img.crop((x, y, x + wm.width, y + wm.height)).convert("RGBA")
+        rgb_base = base_region.convert("RGB")
+        rgb_wm = wm.convert("RGB")
+        if blend == "multiply":
+            mixed = ImageChops.multiply(rgb_base, rgb_wm)
+        elif blend == "screen":
+            mixed = ImageChops.screen(rgb_base, rgb_wm)
+        elif blend == "darken":
+            mixed = ImageChops.darker(rgb_base, rgb_wm)
+        elif blend == "lighten":
+            mixed = ImageChops.lighter(rgb_base, rgb_wm)
+        elif blend == "overlay":
+            # Manual overlay: base<128 => 2*b*w/255, else => 255-2*(255-b)*(255-w)/255
+            import numpy as _np
+            ba = _np.asarray(rgb_base, dtype=_np.int32)
+            wa = _np.asarray(rgb_wm, dtype=_np.int32)
+            low = 2 * ba * wa // 255
+            high = 255 - 2 * (255 - ba) * (255 - wa) // 255
+            out = _np.where(ba < 128, low, high).astype(_np.uint8)
+            mixed = Image.fromarray(out, "RGB")
+        else:
+            mixed = rgb_wm
+        # Respect alpha from the watermark (for partial-alpha edges) and the
+        # overall opacity baked in above
+        mixed_rgba = mixed.convert("RGBA")
+        mixed_rgba.putalpha(wm.split()[3])
         layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        layer.paste(wm, (x, y))
+        layer.paste(mixed_rgba, (x, y))
         return Image.alpha_composite(img, layer)
     except Exception:
         return img

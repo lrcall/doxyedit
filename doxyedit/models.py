@@ -224,6 +224,7 @@ class CanvasOverlay:
     end_y: int = 0
     arrowhead_size: int = 18  # arrowhead length in px
     line_style: str = "solid"  # "solid", "dash", "dot" — for arrows/shapes
+    blend_mode: str = "normal"  # normal / multiply / screen / overlay / darken / lighten
     # Shape overlay — type="shape" paints a rectangle or ellipse with
     # optional fill + stroke. x, y is the top-left; shape_w / shape_h are
     # the dimensions in image pixels.

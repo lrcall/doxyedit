@@ -406,6 +406,23 @@ class OverlayImageItem(QGraphicsPixmapItem):
             self.overlay.position = "custom"
         return super().itemChange(change, value)
 
+    _BLEND_MODE_MAP = {
+        "normal": QPainter.CompositionMode.CompositionMode_SourceOver,
+        "multiply": QPainter.CompositionMode.CompositionMode_Multiply,
+        "screen": QPainter.CompositionMode.CompositionMode_Screen,
+        "overlay": QPainter.CompositionMode.CompositionMode_Overlay,
+        "darken": QPainter.CompositionMode.CompositionMode_Darken,
+        "lighten": QPainter.CompositionMode.CompositionMode_Lighten,
+    }
+
+    def paint(self, painter, option, widget=None):
+        mode = self._BLEND_MODE_MAP.get(
+            getattr(self.overlay, "blend_mode", "normal"),
+            QPainter.CompositionMode.CompositionMode_SourceOver)
+        if mode != QPainter.CompositionMode.CompositionMode_SourceOver:
+            painter.setCompositionMode(mode)
+        super().paint(painter, option, widget)
+
     def contextMenuEvent(self, event):
         _parent = self._editor._view if self._editor else None
         menu = _themed_menu(_parent)
@@ -416,6 +433,14 @@ class OverlayImageItem(QGraphicsPixmapItem):
         reset_style_act = menu.addAction("Reset Default Watermark Style")
         copy_style_act = menu.addAction("Copy Style")
         paste_style_act = menu.addAction("Paste Style")
+        menu.addSeparator()
+        blend_menu = menu.addMenu("Blend Mode")
+        blend_acts = {}
+        for bm in ("normal", "multiply", "screen", "overlay", "darken", "lighten"):
+            a = blend_menu.addAction(bm.title())
+            a.setCheckable(True)
+            a.setChecked(getattr(self.overlay, "blend_mode", "normal") == bm)
+            blend_acts[a] = bm
         menu.addSeparator()
         flip_h_act = menu.addAction("Flip Horizontal  (Ctrl+Shift+H)")
         flip_v_act = menu.addAction("Flip Vertical  (Ctrl+Shift+V)")
@@ -447,6 +472,11 @@ class OverlayImageItem(QGraphicsPixmapItem):
             self._editor._copy_style(self.overlay)
         elif chosen is paste_style_act and self._editor:
             self._editor._paste_style(self.overlay, self)
+        elif chosen in blend_acts:
+            self.overlay.blend_mode = blend_acts[chosen]
+            self.update()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
         elif chosen is flip_h_act:
             self.overlay.flip_h = not getattr(self.overlay, "flip_h", False)
             self._apply_flip()
