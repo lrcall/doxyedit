@@ -5949,13 +5949,32 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         # Context-specific shortcuts not registered as QActions on the menubar
         extras = [
+            ("F1", "Jump to Assets tab"),
+            ("F2", "Jump to Studio tab"),
+            ("F3", "Jump to Social tab"),
+            ("F4", "Jump to Platforms tab"),
+            ("F5", "Jump to Overview tab"),
+            ("F6", "Jump to Notes tab"),
+            ("Shift+F2", "Rename file on disk"),
             ("Ctrl+Scroll", "Zoom thumbnails"),
             ("Ctrl+Click tag", "Search by tag"),
-            ("Preview — N", "Add note"),
-            ("Preview — V", "Toggle notes visible"),
-            ("Preview — Esc", "Close"),
-            ("Tags — 1-9", "Toggle content tags"),
-            ("Tags — 0", "Toggle Ignore"),
+            ("Studio - Q", "Select tool"),
+            ("Studio - X", "Censor tool"),
+            ("Studio - E", "Watermark / logo tool"),
+            ("Studio - T", "Text tool"),
+            ("Studio - C", "Crop tool"),
+            ("Studio - N", "Note tool"),
+            ("Studio - G", "Toggle snap grid"),
+            ("Studio - F", "Fit view"),
+            ("Studio - H", "Toggle overlay visibility"),
+            ("Studio - L", "Toggle layer panel"),
+            ("Studio - Ctrl+D", "Duplicate selected"),
+            ("Studio - Ctrl+] / Ctrl+[", "Bring forward / send backward"),
+            ("Preview - N", "Add note"),
+            ("Preview - V", "Toggle notes visible"),
+            ("Preview - Esc", "Close"),
+            ("Tags - 1-9", "Toggle content tags"),
+            ("Tags - 0", "Toggle Ignore"),
         ]
 
         shortcuts_text = "\n".join(sorted(lines))
