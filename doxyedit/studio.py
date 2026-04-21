@@ -1130,7 +1130,13 @@ class StudioScene(QGraphicsScene):
 
     def set_theme(self, theme):
         self._theme = theme
-        self.setBackgroundBrush(QBrush(QColor(theme.bg_deep)))
+        # Respect user-overridden bg color if one is saved
+        from PySide6.QtCore import QSettings as _QS
+        saved = _QS("DoxyEdit", "DoxyEdit").value("studio_bg_color", "", type=str)
+        if saved:
+            self.setBackgroundBrush(QBrush(QColor(saved)))
+        else:
+            self.setBackgroundBrush(QBrush(QColor(theme.bg_deep)))
         # Repaint so the grid picks up the theme's accent_dim color
         self.update()
 
@@ -1664,6 +1670,9 @@ class StudioScene(QGraphicsScene):
             "Hide Rule-of-Thirds" if editor.chk_thirds.isChecked()
             else "Show Rule-of-Thirds")
         menu.addSeparator()
+        bg_color_act = menu.addAction("Canvas Background Color...")
+        reset_bg_act = menu.addAction("Reset Canvas Background")
+        menu.addSeparator()
         copy_canvas_act = menu.addAction("Copy Canvas Image to Clipboard")
         chosen = menu.exec(event.screenPos())
         if chosen is fit_act:
@@ -1679,6 +1688,21 @@ class StudioScene(QGraphicsScene):
             editor.chk_grid.setChecked(not editor.chk_grid.isChecked())
         elif chosen is tog_thirds_act:
             editor.chk_thirds.setChecked(not editor.chk_thirds.isChecked())
+        elif chosen is bg_color_act:
+            from PySide6.QtCore import QSettings as _QS
+            saved = _QS("DoxyEdit", "DoxyEdit").value(
+                "studio_bg_color", editor._theme.bg_deep, type=str)
+            color = QColorDialog.getColor(
+                QColor(saved), editor, "Canvas background color")
+            if color.isValid():
+                _QS("DoxyEdit", "DoxyEdit").setValue(
+                    "studio_bg_color", color.name())
+                editor._scene.setBackgroundBrush(QBrush(color))
+        elif chosen is reset_bg_act:
+            from PySide6.QtCore import QSettings as _QS
+            _QS("DoxyEdit", "DoxyEdit").remove("studio_bg_color")
+            editor._scene.setBackgroundBrush(
+                QBrush(QColor(editor._theme.bg_deep)))
         elif chosen is copy_canvas_act:
             if editor._pixmap_item:
                 from PySide6.QtWidgets import QApplication
