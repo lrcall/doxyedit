@@ -993,7 +993,7 @@ class StudioScene(QGraphicsScene):
         super().keyPressEvent(event)
 
     def drawForeground(self, painter, rect):
-        """Draw snap grid and smart-guide overlay."""
+        """Draw snap grid, rule-of-thirds, and smart-guide overlay."""
         super().drawForeground(painter, rect)
         if self._grid_visible:
             pen = QPen(QColor(128, 128, 128, STUDIO_GRID_PEN_ALPHA), STUDIO_GRID_PEN_WIDTH)
@@ -1009,6 +1009,29 @@ class StudioScene(QGraphicsScene):
             while y < rect.bottom():
                 painter.drawLine(int(rect.left()), int(y), int(rect.right()), int(y))
                 y += gs
+        # Rule-of-thirds grid — only drawn when enabled AND a pixmap is
+        # present so the thirds reflect the image bounds, not the full scene.
+        if getattr(self, "_thirds_visible", False):
+            img_rect = None
+            for it in self.items():
+                if isinstance(it, QGraphicsPixmapItem):
+                    img_rect = it.sceneBoundingRect()
+                    break
+            if img_rect is not None:
+                pen = QPen(QColor(255, 255, 255, 140), 1, Qt.PenStyle.DashLine)
+                painter.setPen(pen)
+                x1 = img_rect.left() + img_rect.width() / 3
+                x2 = img_rect.left() + 2 * img_rect.width() / 3
+                y1 = img_rect.top() + img_rect.height() / 3
+                y2 = img_rect.top() + 2 * img_rect.height() / 3
+                painter.drawLine(int(x1), int(img_rect.top()),
+                                  int(x1), int(img_rect.bottom()))
+                painter.drawLine(int(x2), int(img_rect.top()),
+                                  int(x2), int(img_rect.bottom()))
+                painter.drawLine(int(img_rect.left()), int(y1),
+                                  int(img_rect.right()), int(y1))
+                painter.drawLine(int(img_rect.left()), int(y2),
+                                  int(img_rect.right()), int(y2))
 
         # Smart snap guides: dashed magenta lines drawn during drag
         if self._snap_guides:
@@ -2256,7 +2279,7 @@ class StudioEditor(QWidget):
 
         toolbar.addWidget(QLabel("|"))
 
-        # Group 4c: Grid toggle + spacing
+        # Group 4c: Grid toggle + spacing, rule-of-thirds
         self.chk_grid = QCheckBox("Grid")
         self.chk_grid.setObjectName("studio_grid_toggle")
         self.chk_grid.setToolTip("Show snap grid (G to toggle)")
@@ -2271,6 +2294,12 @@ class StudioEditor(QWidget):
         self.spin_grid.setToolTip("Grid spacing in pixels")
         self.spin_grid.valueChanged.connect(self._on_grid_spacing_changed)
         toolbar.addWidget(self.spin_grid)
+
+        self.chk_thirds = QCheckBox("⅓")
+        self.chk_thirds.setObjectName("studio_thirds_toggle")
+        self.chk_thirds.setToolTip("Rule-of-thirds guides")
+        self.chk_thirds.toggled.connect(self._on_thirds_toggled)
+        toolbar.addWidget(self.chk_thirds)
 
         toolbar.addWidget(QLabel("|"))
 
@@ -2459,10 +2488,12 @@ class StudioEditor(QWidget):
         _qs = _QS("DoxyEdit", "DoxyEdit")
         _gs = _qs.value("studio_grid_spacing", STUDIO_GRID_SPACING, type=int)
         _gv = _qs.value("studio_grid_visible", False, type=bool)
+        _tv = _qs.value("studio_thirds_visible", False, type=bool)
         self._grid_visible = _gv
         self._grid_spacing = _gs
         self._scene._grid_visible = _gv
         self._scene._grid_spacing = _gs
+        self._scene._thirds_visible = _tv
         # Sync the toolbar widgets to the restored values (block signals so
         # restoration doesn't re-write the same values back to QSettings)
         self.spin_grid.blockSignals(True)
@@ -2471,6 +2502,9 @@ class StudioEditor(QWidget):
         self.chk_grid.blockSignals(True)
         self.chk_grid.setChecked(_gv)
         self.chk_grid.blockSignals(False)
+        self.chk_thirds.blockSignals(True)
+        self.chk_thirds.setChecked(_tv)
+        self.chk_thirds.blockSignals(False)
 
         # Layer panel (right sidebar, collapsible)
         self._layer_panel = QListWidget()
@@ -3664,6 +3698,13 @@ class StudioEditor(QWidget):
         self._scene._grid_visible = on
         from PySide6.QtCore import QSettings as _QS
         _QS("DoxyEdit", "DoxyEdit").setValue("studio_grid_visible", on)
+        self._scene.update()
+
+    def _on_thirds_toggled(self, on: bool):
+        """Toggle rule-of-thirds guide overlay."""
+        self._scene._thirds_visible = on
+        from PySide6.QtCore import QSettings as _QS
+        _QS("DoxyEdit", "DoxyEdit").setValue("studio_thirds_visible", on)
         self._scene.update()
 
     def _persist_canvas_split(self, *_):
