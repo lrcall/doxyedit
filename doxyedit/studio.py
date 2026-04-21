@@ -4105,9 +4105,22 @@ class StudioEditor(QWidget):
         _layer_props.setEnabled(False)
         self._layer_props_widget = _layer_props
 
+        # Layer search box — filters visible rows by label substring
+        from PySide6.QtWidgets import QLineEdit
+        self._layer_filter = QLineEdit()
+        self._layer_filter.setObjectName("studio_layer_filter")
+        self._layer_filter.setPlaceholderText("Filter layers...")
+        self._layer_filter.textChanged.connect(self._on_layer_filter_changed)
+        _layer_list_wrap = QWidget()
+        _layer_list_layout = QVBoxLayout(_layer_list_wrap)
+        _layer_list_layout.setContentsMargins(0, 0, 0, 0)
+        _layer_list_layout.setSpacing(2)
+        _layer_list_layout.addWidget(self._layer_filter)
+        _layer_list_layout.addWidget(self._layer_panel, 1)
+
         # Vertical splitter so the layer list and props share the sidebar
         _layer_side = QSplitter(Qt.Orientation.Vertical)
-        _layer_side.addWidget(self._layer_panel)
+        _layer_side.addWidget(_layer_list_wrap)
         _layer_side.addWidget(_layer_props)
         _layer_side.setStretchFactor(0, 1)
         _layer_side.setStretchFactor(1, 0)
@@ -6419,6 +6432,20 @@ class StudioEditor(QWidget):
             new_item.setZValue(200 + len(self._overlay_items))
             self._overlay_items.append(new_item)
         self._update_info()
+
+    def _on_layer_filter_changed(self, text: str):
+        """Hide layer rows whose label doesn't contain the filter text."""
+        needle = text.strip().lower()
+        for i in range(self._layer_panel.count()):
+            item = self._layer_panel.item(i)
+            if item is None:
+                continue
+            # Headers ('-- Overlays --') have no UserRole data
+            if not item.data(Qt.ItemDataRole.UserRole):
+                item.setHidden(bool(needle))
+                continue
+            label = item.text().lower()
+            item.setHidden(bool(needle) and needle not in label)
 
     def _rotate_selected(self, step: int):
         """Add step degrees to the rotation of every selected overlay."""
