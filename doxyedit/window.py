@@ -1322,14 +1322,24 @@ class MainWindow(QMainWindow):
         MainWindow._open_windows.append(win)
         if path:
             win._load_project_from(path)
+            # Delay show() until loader fires so we don't flash an empty tiny window
+            loader = getattr(win, "_open_loader", None)
+            if loader is not None:
+                loader.loaded.connect(
+                    lambda _p, _path, w=win: (w.show(), w._update_title_bar_color())
+                )
+                loader.failed.connect(lambda _path, _err, w=win: w.show())
+            else:
+                win.show()
+                win._update_title_bar_color()
         else:
             win.project = slot["project"]
             win._project_path = None
             win._rebind_project(clear_folder_state=True)
             win._register_initial_slot(None, slot["label"])
             win.setWindowTitle(f"DoxyEdit — {slot['label']}")
-        win.show()
-        win._update_title_bar_color()
+            win.show()
+            win._update_title_bar_color()
         # Remove the tab from this window. Skip save prompt — we just saved (or it's path-less and transferred).
         if len(self._project_slots) <= 1:
             self._new_project_blank()
@@ -6517,7 +6527,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self.status.showMessage("Collection reload failed", 3000)
 
     def _open_collection(self):
-        """Open a saved collection — each project opens in its own window."""
+        """Open a saved collection — each project opens in its own window.
+
+        Window.show() is delayed until ProjectLoader finishes so empty,
+        tiny MainWindow frames don't flash at center-screen while the
+        async load runs.
+        """
         last = self._settings.value("last_collection", "")
         start = last if last and Path(last).exists() else self._dialog_dir()
         path, _ = QFileDialog.getOpenFileName(
@@ -6537,8 +6552,22 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 continue
             win = MainWindow(_skip_autoload=True)
             MainWindow._open_windows.append(win)
+            # Kick off async load, then show the window only after first
+            # paint is ready. _load_project_from is async; connect a one-shot
+            # handler that calls show() after the loader fires.
+            loader = getattr(win, "_open_loader", None)
             win._load_project_from(proj_path)
-            win.show()
+            new_loader = getattr(win, "_open_loader", None)
+            if new_loader is not None and new_loader is not loader:
+                new_loader.loaded.connect(
+                    lambda _p, _path, w=win: (w.show(), w._update_title_bar_color())
+                )
+                new_loader.failed.connect(
+                    lambda _path, _err, w=win: w.show()  # show empty so user sees the error
+                )
+            else:
+                # Fallback (sync load path somehow): show immediately
+                win.show()
             already_open.add(proj_path)
             opened += 1
         self._settings.setValue("last_collection", path)
