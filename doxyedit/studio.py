@@ -1205,11 +1205,18 @@ class StudioScene(QGraphicsScene):
         menu = _themed_menu(editor._view)
         export_act = menu.addAction("Export this crop")
         menu.addSeparator()
+        rename_act = menu.addAction("Rename crop")
+        duplicate_act = menu.addAction("Duplicate crop")
+        menu.addSeparator()
         delete_act = menu.addAction("Delete crop")
         chosen = menu.exec(event.screenPos())
         if chosen is export_act:
             target.setSelected(True)
             editor._export_current_platform()
+        elif chosen is rename_act:
+            self._rename_crop(editor, target)
+        elif chosen is duplicate_act:
+            self._duplicate_crop(editor, target)
         elif chosen is delete_act:
             # Remove from asset.crops by label, then from scene
             lbl = getattr(target, "label", "")
@@ -1225,6 +1232,64 @@ class StudioScene(QGraphicsScene):
                 if editor._crop_mask_item.scene():
                     self.removeItem(editor._crop_mask_item)
                 editor._crop_mask_item = None
+
+    def _rename_crop(self, editor, target):
+        """Prompt for a new label and apply to both CropRegion and item."""
+        old_label = getattr(target, "label", "")
+        new_label, ok = QInputDialog.getText(
+            editor._view, "Rename crop", "Label:", text=old_label)
+        if not ok or not new_label.strip():
+            return
+        new_label = new_label.strip()
+        if new_label == old_label:
+            return
+        # Prevent collisions with another existing crop
+        if editor._asset and any(c.label == new_label for c in editor._asset.crops):
+            return
+        # Update CropRegion
+        if editor._asset:
+            for c in editor._asset.crops:
+                if c.label == old_label:
+                    c.label = new_label
+                    break
+        # Update the item's display label + repaint
+        target.label = new_label
+        target.update()
+
+    def _duplicate_crop(self, editor, target):
+        """Clone the crop with an offset + unique label."""
+        if not editor._asset:
+            return
+        src_label = getattr(target, "label", "")
+        src = next((c for c in editor._asset.crops if c.label == src_label), None)
+        if src is None:
+            return
+        # Unique label: "<label> copy", "<label> copy 2", ...
+        existing = {c.label for c in editor._asset.crops}
+        new_label = f"{src_label} copy"
+        n = 2
+        while new_label in existing:
+            new_label = f"{src_label} copy {n}"
+            n += 1
+        # Offset the clone so it's visible below the original
+        offset = 20
+        new_crop = CropRegion(
+            x=src.x + offset, y=src.y + offset,
+            w=src.w, h=src.h,
+            label=new_label,
+            platform_id=getattr(src, "platform_id", ""),
+            slot_name=getattr(src, "slot_name", ""),
+        )
+        editor._asset.crops.append(new_crop)
+        # Build an item matching the original's aspect lock
+        aspect = target._aspect if getattr(target, "_aspect", None) else None
+        new_rect = QRectF(new_crop.x, new_crop.y, new_crop.w, new_crop.h)
+        new_item = ResizableCropItem(
+            new_rect, label=new_label, aspect=aspect, theme=editor._theme)
+        new_item.on_changed = editor._on_crop_edited
+        self.addItem(new_item)
+        if hasattr(editor, "_crop_items"):
+            editor._crop_items.append(new_item)
 
 
 # ---------------------------------------------------------------------------
