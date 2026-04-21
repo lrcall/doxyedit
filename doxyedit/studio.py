@@ -4586,6 +4586,10 @@ class StudioEditor(QWidget):
         self.spin_rotation_layer.valueChanged.connect(self._on_layer_rotation_changed)
         _rot_row.addWidget(self.spin_rotation_layer, 1)
         _props_layout.addLayout(_rot_row)
+        # Trailing stretch: keeps rows pinned to the top instead of letting
+        # QVBoxLayout inflate the gaps when the panel is tall (e.g., Focus
+        # mode leaves only this panel visible in the sidebar).
+        _props_layout.addStretch(1)
         _layer_props.setEnabled(False)
         self._layer_props_widget = _layer_props
 
