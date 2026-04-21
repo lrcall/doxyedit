@@ -5262,6 +5262,9 @@ class StudioEditor(QWidget):
             vis_act = menu.addAction("Hide" if ov.enabled else "Show")
             lock_act = menu.addAction(
                 "Unlock" if getattr(ov, "locked", False) else "Lock")
+            isolate_act = menu.addAction(
+                "Exit Isolation" if getattr(self, "_isolation_active", False)
+                else "Isolate (solo)")
             rename_act = menu.addAction("Rename...")
             menu.addSeparator()
             delete_act = menu.addAction("Delete")
@@ -5285,6 +5288,11 @@ class StudioEditor(QWidget):
                 self._rebuild_layer_panel()
             elif chosen is rename_act:
                 self._on_layer_double_clicked(item)
+            elif chosen is isolate_act:
+                if getattr(self, "_isolation_active", False):
+                    self._exit_isolation()
+                else:
+                    self._enter_isolation(ov)
             elif chosen is delete_act:
                 for it in self._scene.items():
                     if hasattr(it, "overlay") and it.overlay is ov:
@@ -5301,6 +5309,31 @@ class StudioEditor(QWidget):
                         self._remove_censor_item(it)
                         break
                 self._rebuild_layer_panel()
+
+    def _enter_isolation(self, solo_overlay):
+        """Temporarily hide every overlay/censor except the given one.
+        The original `enabled` state is untouched — restored by _exit_isolation."""
+        self._isolation_active = True
+        for it in self._scene.items():
+            ov = getattr(it, "overlay", None)
+            cr = getattr(it, "_censor_region", None)
+            if ov is not None:
+                it.setVisible(ov is solo_overlay)
+            elif cr is not None:
+                it.setVisible(False)
+        self.info_label.setText("Isolation on — right-click layer to Exit")
+
+    def _exit_isolation(self):
+        """Restore all overlays/censors to their persistent enabled state."""
+        self._isolation_active = False
+        for it in self._scene.items():
+            ov = getattr(it, "overlay", None)
+            cr = getattr(it, "_censor_region", None)
+            if ov is not None:
+                it.setVisible(ov.enabled)
+            elif cr is not None:
+                it.setVisible(True)
+        self.info_label.setText("Isolation off")
 
     def _on_layer_clicked(self, item):
         """Select the corresponding scene item when layer is clicked.
