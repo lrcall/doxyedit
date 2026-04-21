@@ -2133,6 +2133,10 @@ class StudioEditor(QWidget):
             if key == Qt.Key.Key_Tab:
                 self._cycle_selection(+1)
                 return
+            if key == Qt.Key.Key_Period:
+                # Focus mode toggle
+                self.btn_focus.setChecked(not self.btn_focus.isChecked())
+                return
             # Number keys 0-9 set opacity on selected non-text overlays and
             # censors. Photoshop convention: 1=10%, 5=50%, 0=100%.
             _num_keys = (Qt.Key.Key_0, Qt.Key.Key_1, Qt.Key.Key_2,
@@ -2362,6 +2366,13 @@ class StudioEditor(QWidget):
         self.chk_thirds.setToolTip("Rule-of-thirds guides")
         self.chk_thirds.toggled.connect(self._on_thirds_toggled)
         toolbar.addWidget(self.chk_thirds)
+
+        self.btn_focus = QPushButton("Focus")
+        self.btn_focus.setObjectName("studio_btn_focus")
+        self.btn_focus.setToolTip("Hide layer panel + filmstrip for a larger canvas (period to toggle)")
+        self.btn_focus.setCheckable(True)
+        self.btn_focus.toggled.connect(self._on_focus_toggled)
+        toolbar.addWidget(self.btn_focus)
 
         toolbar.addWidget(QLabel("|"))
 
@@ -3768,6 +3779,15 @@ class StudioEditor(QWidget):
         from PySide6.QtCore import QSettings as _QS
         _QS("DoxyEdit", "DoxyEdit").setValue("studio_thirds_visible", on)
         self._scene.update()
+
+    def _on_focus_toggled(self, on: bool):
+        """Focus mode: hide layer panel + filmstrip to maximize canvas."""
+        if hasattr(self, "_layer_panel"):
+            self._layer_panel.parent().setVisible(not on)
+        if hasattr(self, "_preview_strip"):
+            self._preview_strip.setVisible(not on)
+        if hasattr(self, "_preview_strip_scroll"):
+            self._preview_strip_scroll.setVisible(not on)
 
     def _persist_canvas_split(self, *_):
         """Save the canvas/layer-panel splitter geometry to QSettings."""
