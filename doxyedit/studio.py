@@ -1262,12 +1262,14 @@ class StudioScene(QGraphicsScene):
                     top = top.parentItem()
                 if isinstance(top, (OverlayImageItem, OverlayTextItem)):
                     editor._duplicate_overlay_item(top)
+                elif isinstance(top, OverlayArrowItem):
+                    editor._duplicate_arrow_item(top)
                 elif isinstance(top, CensorRectItem):
                     editor._duplicate_censor_item(top)
                 # New item is added at top-of-stack; select it so the drag
                 # propagates naturally.
                 self.clearSelection()
-                if editor._overlay_items and isinstance(top, (OverlayImageItem, OverlayTextItem)):
+                if editor._overlay_items and isinstance(top, (OverlayImageItem, OverlayTextItem, OverlayArrowItem)):
                     editor._overlay_items[-1].setSelected(True)
                 elif editor._censor_items and isinstance(top, CensorRectItem):
                     editor._censor_items[-1].setSelected(True)
