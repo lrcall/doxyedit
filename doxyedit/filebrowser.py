@@ -330,7 +330,12 @@ class FileBrowserPanel(QWidget):
                     parent = parent.parent()
 
     def _update_folder_counts(self):
-        """Recompute folder → asset count mapping + pre-computed recursive totals."""
+        """Recompute folder → direct count + recursive totals.
+
+        Each folder contributes its direct_count to every ancestor up the
+        parent chain. O(K * avg_depth) where K = unique folders, vs prior
+        O(K^2) prefix-match implementation.
+        """
         self._folder_counts.clear()
         self._recursive_counts: dict[str, int] = {}
         if not self._project:
@@ -339,14 +344,16 @@ class FileBrowserPanel(QWidget):
             folder = asset.source_folder or str(Path(asset.source_path).parent)
             folder = folder.replace("\\", "/")
             self._folder_counts[folder] = self._folder_counts.get(folder, 0) + 1
-        # Pre-compute recursive counts (O(n²) once, not per-paint)
-        for folder in self._folder_counts:
-            total = self._folder_counts[folder]
-            prefix = folder + "/"
-            for path, c in self._folder_counts.items():
-                if path.startswith(prefix):
-                    total += c
-            self._recursive_counts[folder] = total
+
+        # Propagate direct counts up each path's ancestor chain.
+        for folder, direct in self._folder_counts.items():
+            node = folder
+            while node:
+                self._recursive_counts[node] = self._recursive_counts.get(node, 0) + direct
+                idx = node.rfind("/")
+                if idx <= 0:
+                    break
+                node = node[:idx]
 
     def get_folder_count(self, folder_path: str) -> int:
         """Return pre-computed recursive asset count. O(1) lookup."""
