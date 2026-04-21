@@ -618,6 +618,17 @@ class OverlayShapeItem(QGraphicsItem):
                 x = new_x
             if self._dragging_handle in ('tr', 'br'):
                 w = max(4, int(sp.x()) - x)
+            # Shift constrains to square; keep dragged corner anchored
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                s = max(w, h)
+                if self._dragging_handle == 'tl':
+                    x = (x + w) - s
+                    y = (y + h) - s
+                elif self._dragging_handle == 'tr':
+                    y = (y + h) - s
+                elif self._dragging_handle == 'bl':
+                    x = (x + w) - s
+                w = h = s
             self.overlay.x = x
             self.overlay.y = y
             self.overlay.shape_w = w
