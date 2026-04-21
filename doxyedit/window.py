@@ -4946,6 +4946,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.status.showMessage(f"Auto-posting to {total} platform(s)...", 0)
         QApplication.processEvents()
 
+        from doxyedit.export_cache import ExportCache
+        export_cache = ExportCache()  # reused across all posts in this batch
+
         for post, pending_plats in pending_posts:
             for plat_id in pending_plats:
                 sub = SUB_PLATFORMS.get(plat_id)
@@ -4959,7 +4962,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     asset = self.project.get_asset(post.asset_ids[0])
                     if asset and asset.source_path:
                         from doxyedit.quickpost import _export_for_platform
-                        image_path = _export_for_platform(asset, sub, self.project)
+                        image_path = _export_for_platform(asset, sub, self.project,
+                                                         cache=export_cache)
 
                 # Get base URL from identity
                 base_url = getattr(identity, sub.url_field, "") if identity else ""

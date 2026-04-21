@@ -95,27 +95,38 @@ def quick_post(
     )
 
 
-def _export_for_platform(asset: Asset, sub: SubPlatform, project: Project) -> str:
-    """Export an asset with appropriate censors/overlays for a platform."""
-    try:
-        from PIL import Image
-        from doxyedit.exporter import apply_censors, apply_overlays
+def _export_for_platform(asset: Asset, sub: SubPlatform, project: Project,
+                         cache=None) -> str:
+    """Export an asset with appropriate censors/overlays for a platform.
 
+    If `cache` (ExportCache) is provided, the source PSD decode and the
+    censor/overlay composition are reused across repeated calls for the
+    same asset in one batch.
+    """
+    try:
         src = Path(asset.source_path)
         if not src.exists():
             return ""
 
-        from doxyedit.imaging import load_image_for_export
-        img = load_image_for_export(str(src))
+        censored = sub.needs_censor and bool(asset.censors)
+        with_overlays = bool(asset.overlays)
+        project_dir = str(Path(asset.source_path).parent)
 
-        # Apply censors if platform needs them (Japanese platforms)
-        if sub.needs_censor and asset.censors:
-            img = apply_censors(img, asset.censors)
-
-        # Apply overlays (watermarks etc.)
-        if asset.overlays:
-            project_dir = str(Path(asset.source_path).parent)
-            img = apply_overlays(img, asset.overlays, project_dir)
+        if cache is not None:
+            img = cache.get_processed(
+                asset, censored=censored, with_overlays=with_overlays,
+                project_dir=project_dir,
+            )
+            if img is None:
+                return ""
+        else:
+            from doxyedit.imaging import load_image_for_export
+            from doxyedit.exporter import apply_censors, apply_overlays
+            img = load_image_for_export(str(src))
+            if censored:
+                img = apply_censors(img, asset.censors)
+            if with_overlays:
+                img = apply_overlays(img, asset.overlays, project_dir)
 
         # Save to temp
         tmp = Path(tempfile.gettempdir()) / f"doxyedit_qp_{sub.id}_{asset.id}.png"
@@ -169,12 +180,14 @@ def post_everywhere(project, post, project_dir=".", auto_submit=False):
     Returns dict[platform_id, QuickPostResult] with status per platform.
     """
     from doxyedit.models import SUB_PLATFORMS, DIRECT_POST_PLATFORMS
+    from doxyedit.export_cache import ExportCache
     results = {}
+    export_cache = ExportCache()  # one decode, many variants, thrown away at function exit
 
     # Direct API platforms
     try:
         from doxyedit.directpost import push_to_direct
-        direct_results = push_to_direct(post, project, project_dir)
+        direct_results = push_to_direct(post, project, project_dir, cache=export_cache)
         for r in direct_results:
             results[r.platform] = QuickPostResult(
                 success=r.success, caption="", exported_path="",
@@ -210,7 +223,8 @@ def post_everywhere(project, post, project_dir=".", auto_submit=False):
                 if post.asset_ids:
                     asset = project.get_asset(post.asset_ids[0])
                     if asset:
-                        image_path = _export_for_platform(asset, sub, project)
+                        image_path = _export_for_platform(asset, sub, project,
+                                                         cache=export_cache)
 
                 br = post_to_platform_sync(
                     plat_id, caption, image_path,

@@ -428,9 +428,12 @@ def get_direct_clients(project_dir: str) -> dict[str, list]:
 # High-level dispatch
 # ---------------------------------------------------------------------------
 
-def _export_assets(post, project, max_images: int = 4) -> list[str]:
+def _export_assets(post, project, max_images: int = 4, cache=None) -> list[str]:
     """Export assets from a SocialPost with censors + overlays.
-    Returns list of temp file paths (up to max_images)."""
+    Returns list of temp file paths (up to max_images).
+
+    Pass an ExportCache to reuse decoded images across consecutive calls.
+    """
     paths = []
     for aid in post.asset_ids[:max_images]:
         asset = project.get_asset(aid)
@@ -440,7 +443,7 @@ def _export_assets(post, project, max_images: int = 4) -> list[str]:
             from doxyedit.quickpost import _export_for_platform
             from doxyedit.models import SubPlatform
             stub = SubPlatform(id="direct", name="Direct", needs_censor=True)
-            path = _export_for_platform(asset, stub, project)
+            path = _export_for_platform(asset, stub, project, cache=cache)
             if path:
                 paths.append(path)
         except Exception as e:
@@ -452,6 +455,7 @@ def push_to_direct(
     post,
     project,
     project_dir: str,
+    cache=None,
 ) -> list[DirectPostResult]:
     """Send a SocialPost to all configured Telegram channels and Discord webhooks.
 
@@ -507,7 +511,7 @@ def push_to_direct(
         return results
 
     # Export image only if we have something to send to
-    image_paths = _export_assets(post, project)
+    image_paths = _export_assets(post, project, cache=cache)
     image_path = image_paths[0] if image_paths else ""
 
     # Telegram
