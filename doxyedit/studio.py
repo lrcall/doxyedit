@@ -670,6 +670,10 @@ class OverlayArrowItem(QGraphicsItem):
                 self.overlay.color = new.name()
                 self.update()
                 self._editor._sync_overlays_to_asset()
+                # Remember this color for the next new arrow
+                from PySide6.QtCore import QSettings as _QS
+                _QS("DoxyEdit", "DoxyEdit").setValue(
+                    "studio_arrow_color", new.name())
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_arrow_item(self)
         elif chosen is copy_style_act and self._editor:
@@ -3422,15 +3426,22 @@ class StudioEditor(QWidget):
         """Called when an arrow is finished drawing."""
         if not self._asset:
             return
+        # Remember the last-used arrow color + stroke so a series of arrows
+        # stays visually consistent without having to re-pick each time.
+        from PySide6.QtCore import QSettings as _QS
+        _qs = _QS("DoxyEdit", "DoxyEdit")
+        color = _qs.value("studio_arrow_color", "#ff3b30", type=str)
+        stroke = _qs.value("studio_arrow_stroke", 4, type=int)
+        head = _qs.value("studio_arrow_head", 18, type=int)
         ov = CanvasOverlay(
             type="arrow",
             label="Arrow",
-            color="#ff3b30",
+            color=color,
             opacity=1.0,
-            stroke_width=4,
+            stroke_width=stroke,
             x=int(line.x1()), y=int(line.y1()),
             end_x=int(line.x2()), end_y=int(line.y2()),
-            arrowhead_size=18,
+            arrowhead_size=head,
         )
         self._asset.overlays.append(ov)
         item = OverlayArrowItem(ov)
@@ -4204,6 +4215,10 @@ class StudioEditor(QWidget):
                     apply_cb=lambda it, _v: it.update(),
                     description="Change arrow width",
                 )
+                # Remember this stroke for the next new arrow
+                from PySide6.QtCore import QSettings as _QS
+                _QS("DoxyEdit", "DoxyEdit").setValue(
+                    "studio_arrow_stroke", max(1, value))
         self._sync_overlays_to_asset()
 
     def _on_kerning_changed(self, value: int):
