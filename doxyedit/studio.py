@@ -3493,6 +3493,13 @@ class StudioEditor(QWidget):
             self._rotate_selected(-90)
             return
         # Ctrl+] / Ctrl+[ — bring forward / send backward
+        # Ctrl+Shift+] / Ctrl+Shift+[ — bring to front / send to back
+        if ctrl and shift and key == Qt.Key.Key_BraceRight:
+            self._z_shift_selected(+999)
+            return
+        if ctrl and shift and key == Qt.Key.Key_BraceLeft:
+            self._z_shift_selected(-999)
+            return
         if ctrl and key == Qt.Key.Key_BracketRight:
             self._z_shift_selected(+1)
             return
