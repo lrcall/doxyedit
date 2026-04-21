@@ -360,6 +360,10 @@ class MainWindow(QMainWindow):
 
         self._main_split = QSplitter(Qt.Orientation.Horizontal)
         self._main_split.setChildrenCollapsible(True)
+        # Non-opaque resize: drag shows a rubber-band line and widgets only
+        # re-layout on mouse release. Without this, every 1px of tray drag
+        # re-lays out AssetBrowser which is expensive on 70k-asset projects.
+        self._main_split.setOpaqueResize(False)
         self._main_split.addWidget(self.tabs)
         self._main_split.addWidget(self.work_tray)
         self._main_split.setStretchFactor(0, 1)
@@ -403,6 +407,8 @@ class MainWindow(QMainWindow):
 
         self._browse_split = QSplitter(Qt.Orientation.Horizontal)
         self._browse_split.setChildrenCollapsible(True)
+        # Same rationale as _main_split: defer re-layout until drag release.
+        self._browse_split.setOpaqueResize(False)
         # File browser (left, hidden by default)
         self._file_browser = FileBrowserPanel()
         self._file_browser.folder_selected.connect(self._on_file_browser_folder)
@@ -2970,29 +2976,44 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         super().dropEvent(event)
 
     def _load_project_from(self, path: str):
-        # Create backup before loading
+        """Load a project file off the UI thread so File→Open and recent-click
+        don't freeze the window. Applies the loaded project + rebinds panels
+        on the ProjectLoader.loaded signal."""
+        # Create backup before loading (fast, keep sync — tiny file copy)
         import shutil
         bak = path + ".bak"
         try:
             shutil.copy2(path, bak)
         except Exception:
             pass
-        self.project = Project.load(path)
-        self._rebind_project(clear_folder_state=True)
-        self._project_path = path
-        self._watch_project()
-        self._settings.setValue("last_project", path)
-        self._add_recent_project(path)
-        label = Path(path).stem
-        self.setWindowTitle(f"DoxyEdit — {Path(path).name}")
-        self._rename_proj_tab(self._current_slot, label)
-        if 0 <= self._current_slot < len(self._project_slots):
-            self._project_slots[self._current_slot]["project"] = self.project
-            self._project_slots[self._current_slot]["path"] = path
-        # Apply project-saved theme if set
-        if self.project.theme_id and self.project.theme_id in THEMES:
-            self._apply_theme(self.project.theme_id)
-        self.status.showMessage(f"Opened {Path(path).name}")
+        self.status.showMessage(f"Opening {Path(path).name}...", 0)
+
+        loader = ProjectLoader(path, self)
+        self._open_loader = loader  # keep reference
+
+        def _on_loaded(project, loaded_path):
+            self.project = project
+            self._rebind_project(clear_folder_state=True)
+            self._project_path = loaded_path
+            self._watch_project()
+            self._settings.setValue("last_project", loaded_path)
+            self._add_recent_project(loaded_path)
+            label = Path(loaded_path).stem
+            self.setWindowTitle(f"DoxyEdit — {Path(loaded_path).name}")
+            self._rename_proj_tab(self._current_slot, label)
+            if 0 <= self._current_slot < len(self._project_slots):
+                self._project_slots[self._current_slot]["project"] = self.project
+                self._project_slots[self._current_slot]["path"] = loaded_path
+            if self.project.theme_id and self.project.theme_id in THEMES:
+                self._apply_theme(self.project.theme_id)
+            self.status.showMessage(f"Opened {Path(loaded_path).name}", 3000)
+
+        def _on_failed(_path, err):
+            self.status.showMessage(f"Open failed: {err}", 5000)
+
+        loader.loaded.connect(_on_loaded)
+        loader.failed.connect(_on_failed)
+        loader.start()
 
     def _open_recent_folder(self, folder: str):
         n = self.browser.import_folder(folder)
