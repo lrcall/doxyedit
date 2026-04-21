@@ -2646,6 +2646,12 @@ class StudioEditor(QWidget):
                     item.prepareGeometryChange()
                     item.update()
                     moved = True
+                elif isinstance(item, OverlayShapeItem):
+                    item.overlay.x += dx
+                    item.overlay.y += dy
+                    item.prepareGeometryChange()
+                    item.update()
+                    moved = True
                 elif isinstance(item, ResizableCropItem):
                     item.moveBy(dx, dy)
                     moved_crop = True
