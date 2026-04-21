@@ -1402,15 +1402,21 @@ class StudioScene(QGraphicsScene):
                 candidates_y.append((y, ob.left(), ob.right()))
 
         # Drag-out guides — treat each as an infinitely-long snap line so
-        # items snap to them exactly like any other edge.
+        # items snap to them exactly like any other edge. Include any
+        # user-dragged offset via pos() so a moved guide still snaps.
         for it in self.items():
             if not isinstance(it, _GuideLineItem):
                 continue
             line = it.line()
+            off = it.pos()
             if getattr(it, "_guide_orientation", 'h') == 'v':
-                candidates_x.append((line.x1(), line.y1(), line.y2()))
+                candidates_x.append((line.x1() + off.x(),
+                                      line.y1() + off.y(),
+                                      line.y2() + off.y()))
             else:
-                candidates_y.append((line.y1(), line.x1(), line.x2()))
+                candidates_y.append((line.y1() + off.y(),
+                                      line.x1() + off.x(),
+                                      line.x2() + off.x()))
 
         thr = self.SNAP_THRESHOLD_PX
         best_dx, best_dy = 0.0, 0.0
@@ -1724,10 +1730,43 @@ class StudioScene(QGraphicsScene):
 # ---------------------------------------------------------------------------
 
 class _GuideLineItem(QGraphicsLineItem):
-    """Marker subclass used only so StudioScene._compute_snap_guides can
-    recognize drag-out guides as snap candidates without treating every
-    QGraphicsLineItem as a guide."""
+    """Draggable guide line used by the Studio rulers.
+
+    StudioScene._compute_snap_guides recognizes instances of this class
+    as snap candidates (extending the item-edge snap to guide lines).
+    Selectable + movable so the user can reposition an existing guide
+    by dragging it, and double-clicking deletes the guide.
+    """
     _guide_orientation = 'h'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
+        # Constrain cursor per-orientation set later by caller
+        self._editor = None
+
+    def mouseDoubleClickEvent(self, event):
+        # Double-click removes the guide
+        if self.scene() is not None:
+            if self._editor and hasattr(self._editor, "_guide_items"):
+                if self in self._editor._guide_items:
+                    self._editor._guide_items.remove(self)
+            self.scene().removeItem(self)
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
+
+    def itemChange(self, change, value):
+        # Lock movement to the perpendicular axis
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
+            if self._guide_orientation == 'h':
+                # Horizontal guide -> only Y moves
+                return QPointF(0, value.y())
+            else:
+                return QPointF(value.x(), 0)
+        return super().itemChange(change, value)
 
 
 class _CheckerboardItem(QGraphicsRectItem):
@@ -2961,6 +3000,10 @@ class StudioEditor(QWidget):
         if self._pending_guide is None:
             line = _GuideLineItem()
             line._guide_orientation = orientation
+            line._editor = self
+            # Cursor hint while hovering a placed guide
+            line.setCursor(Qt.CursorShape.SizeVerCursor if orientation == 'h'
+                            else Qt.CursorShape.SizeHorCursor)
             pen = QPen(QColor(self._theme.accent), 1, Qt.PenStyle.DashLine)
             line.setPen(pen)
             line.setZValue(400)
