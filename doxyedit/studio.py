@@ -1606,6 +1606,19 @@ class StudioEditor(QWidget):
 
         toolbar.addWidget(QLabel("|"))
 
+        # Group 4c: Grid spacing (visible when grid is on — G key)
+        toolbar.addWidget(QLabel("Grid:"))
+        self.spin_grid = QSpinBox()
+        self.spin_grid.setObjectName("studio_grid_spin")
+        self.spin_grid.setRange(5, 500)
+        self.spin_grid.setSingleStep(5)
+        self.spin_grid.setSuffix(" px")
+        self.spin_grid.setToolTip("Snap grid spacing (G to toggle grid)")
+        self.spin_grid.valueChanged.connect(self._on_grid_spacing_changed)
+        toolbar.addWidget(self.spin_grid)
+
+        toolbar.addWidget(QLabel("|"))
+
         # Group 4b: Alignment + distribute (menu dropdown)
         self.btn_align = QPushButton("Align ▾")
         self.btn_align.setObjectName("studio_btn_align")
@@ -1783,11 +1796,21 @@ class StudioEditor(QWidget):
         self._f10_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._f10_shortcut.activated.connect(self._nuclear_clear)
 
-        # Snap grid overlay — flag on the scene, drawn via foreground
+        # Snap grid overlay — flag on the scene, drawn via foreground.
+        # Grid spacing is a user pref stored in QSettings (per-install, not
+        # per-project) so the visual density carries across sessions.
+        from PySide6.QtCore import QSettings as _QS
+        _gs = _QS("DoxyEdit", "DoxyEdit").value(
+            "studio_grid_spacing", STUDIO_GRID_SPACING, type=int)
         self._grid_visible = False
-        self._grid_spacing = STUDIO_GRID_SPACING
+        self._grid_spacing = _gs
         self._scene._grid_visible = False
-        self._scene._grid_spacing = 50
+        self._scene._grid_spacing = _gs
+        # Sync the toolbar spinbox to the restored value (block signal so
+        # we don't re-write the same value back to QSettings on construct)
+        self.spin_grid.blockSignals(True)
+        self.spin_grid.setValue(_gs)
+        self.spin_grid.blockSignals(False)
 
         # Layer panel (right sidebar, collapsible)
         self._layer_panel = QListWidget()
@@ -2634,6 +2657,15 @@ class StudioEditor(QWidget):
                     description="Change text width",
                 )
         self._sync_overlays_to_asset()
+
+    def _on_grid_spacing_changed(self, value: int):
+        """Update the snap-grid spacing and persist across sessions."""
+        self._grid_spacing = value
+        self._scene._grid_spacing = value
+        from PySide6.QtCore import QSettings as _QS
+        _QS("DoxyEdit", "DoxyEdit").setValue("studio_grid_spacing", value)
+        if self._scene._grid_visible:
+            self._scene.update()
 
     def _save_as_template(self):
         """Save selected overlay as a reusable project template.
