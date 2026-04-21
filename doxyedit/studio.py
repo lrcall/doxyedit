@@ -2631,6 +2631,14 @@ class StudioEditor(QWidget):
         self.btn_focus.toggled.connect(self._on_focus_toggled)
         toolbar.addWidget(self.btn_focus)
 
+        self.btn_flip_view = QPushButton("⇄")
+        self.btn_flip_view.setObjectName("studio_btn_flip_view")
+        self.btn_flip_view.setToolTip(
+            "Flip canvas preview horizontally (non-destructive composition check)")
+        self.btn_flip_view.setCheckable(True)
+        self.btn_flip_view.toggled.connect(self._on_flip_view_toggled)
+        toolbar.addWidget(self.btn_flip_view)
+
         toolbar.addWidget(QLabel("|"))
 
         # Group 4b: Alignment + distribute (menu dropdown)
@@ -4168,6 +4176,25 @@ class StudioEditor(QWidget):
             self._canvas_wrap._corner.setVisible(on)
         from PySide6.QtCore import QSettings as _QS
         _QS("DoxyEdit", "DoxyEdit").setValue("studio_rulers_visible", on)
+
+    def _on_flip_view_toggled(self, on: bool):
+        """Mirror the view horizontally for composition checking.
+        Purely visual — does not modify the image or export output."""
+        # Scale by -1 on X toggles the mirror. We apply via composed
+        # transform so zoom/scroll stay intact.
+        t = self._view.transform()
+        current_sx = t.m11()
+        want_neg = on
+        if (current_sx < 0) != want_neg:
+            # Flip sign of X scale while preserving magnitude
+            new_sx = -current_sx
+            self._view.setTransform(
+                QTransform(new_sx, t.m12(), t.m21(), t.m22(),
+                            t.dx(), t.dy()))
+            # Scene remains in the same place; refresh rulers so
+            # numbers still read the cursor correctly.
+            if hasattr(self, "_canvas_wrap"):
+                self._canvas_wrap.refresh()
 
     def _persist_canvas_split(self, *_):
         """Save the canvas/layer-panel splitter geometry to QSettings."""
