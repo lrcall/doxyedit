@@ -1,6 +1,33 @@
 # DoxyEdit Changelog
 
-## v2.4 (2026-04-21) — Studio Export Pipeline, threading, architecture
+## v2.4 (2026-04-21) — Studio v2, Export Pipeline, threading, architecture
+
+### Studio v2 — closer to a real graphics program
+- **Complete undo for slider mutations** — opacity, scale, rotation,
+  outline, kerning, line height, text width. Consecutive ticks fuse
+  into one undo step via merge-by-(target, attr).
+- **Layer panel drag-reorder** — dragging a row rewrites asset.overlays
+  and asset.censors, re-assigns Z-values. Band separation preserved
+  (censors stay below overlays).
+- **Smart snap guides** — dragging an overlay/censor/crop/note shows
+  dashed magenta guides when edges align with other items or the
+  canvas center. 5px snap threshold.
+- **Ctrl+C / Ctrl+V on scene items** — serializes overlays + censors
+  to clipboard JSON under a custom MIME type. Paste offsets 20px.
+- **Alignment + distribute** — new toolbar "Align ▾" dropdown:
+  align left/right/top/bottom, center H/V, distribute H/V. Works on
+  any mix of selected item types.
+- **Rotate handle on censors** — small blue handle 20px above the top
+  edge; drag to rotate. Persists to CensorRegion.rotation (new field).
+- **Flip Horizontal / Flip Vertical** — right-click overlay. Persists
+  to CanvasOverlay.flip_h/flip_v (new fields); exporter applies via
+  PIL transpose before compositing.
+- **Layer properties panel** — below the layer list. Selected layer's
+  opacity slider + enabled checkbox update via undo-wrapped commands.
+- **Arrow-key nudge** now covers crops and notes too (previously only
+  censors + overlays).
+
+
 
 ### Studio Export Pipeline (original v2.4 focus)
 - **Escape in Studio now works**. Deleted app-level event filter and four
