@@ -3077,6 +3077,18 @@ class StudioEditor(QWidget):
         if ctrl and shift and key == Qt.Key.Key_A:
             self._scene.clearSelection()
             return
+        # Ctrl+Shift+B — copy geometry of selected item as text to clipboard
+        if ctrl and shift and key == Qt.Key.Key_B:
+            sel = self._scene.selectedItems()
+            if sel:
+                r = sel[0].sceneBoundingRect()
+                for it in sel[1:]:
+                    r = r.united(it.sceneBoundingRect())
+                from PySide6.QtWidgets import QApplication
+                txt = f"X={int(r.x())}, Y={int(r.y())}, W={int(r.width())}, H={int(r.height())}"
+                QApplication.clipboard().setText(txt)
+                self.info_label.setText(f"Copied geometry: {txt}")
+            return
         # Ctrl+Shift+I — invert selection among selectable items
         if ctrl and shift and key == Qt.Key.Key_I:
             for it in self._scene.items():
