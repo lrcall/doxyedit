@@ -236,10 +236,17 @@ class CanvasOverlay:
     gradient_start_color: str = ""
     gradient_end_color: str = ""
     gradient_angle: int = 0
+    # Comic bubble support (shape_kind="speech_bubble" / "thought_bubble" /
+    # "burst"). tail_x / tail_y = tail tip in scene coords; 0,0 disables.
+    # linked_text_id points at a CanvasOverlay.label used as the pair's
+    # text overlay so drag moves them together.
+    tail_x: int = 0
+    tail_y: int = 0
+    linked_text_id: str = ""
     # Shape overlay — type="shape" paints a rectangle or ellipse with
     # optional fill + stroke. x, y is the top-left; shape_w / shape_h are
     # the dimensions in image pixels.
-    shape_kind: str = "rect"   # "rect" or "ellipse"
+    shape_kind: str = "rect"   # rect / ellipse / speech_bubble / thought_bubble / burst / gradient_linear / gradient_radial
     shape_w: int = 0
     shape_h: int = 0
     fill_color: str = ""       # empty = hollow
