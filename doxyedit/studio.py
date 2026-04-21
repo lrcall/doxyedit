@@ -1381,6 +1381,17 @@ class _StudioRuler(QWidget):
             return
         super().mouseReleaseEvent(event)
 
+    def contextMenuEvent(self, event):
+        """Right-click a ruler -> clear all guides."""
+        editor = getattr(self._view, "_studio_editor", None)
+        if editor is None:
+            return super().contextMenuEvent(event)
+        menu = _themed_menu(self._view)
+        clear_act = menu.addAction("Clear All Guides")
+        chosen = menu.exec(event.globalPos())
+        if chosen is clear_act:
+            editor._clear_guides()
+
     def _update_drag_guide(self, widget_pos):
         """Project the local mouse position to scene space and show a pending guide."""
         scene = self._view.scene()
