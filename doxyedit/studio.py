@@ -2718,6 +2718,7 @@ class StudioEditor(QWidget):
                 if selected:
                     idx = _num_keys.index(key)
                     opacity = 1.0 if idx == 0 else idx / 10.0
+                    any_applied = False
                     for item in selected:
                         if isinstance(item, (OverlayImageItem, OverlayTextItem)):
                             self._push_overlay_attr(
@@ -2727,8 +2728,17 @@ class StudioEditor(QWidget):
                                     if hasattr(it, "setOpacity") else None),
                                 description="Set opacity",
                             )
-                    self._sync_overlays_to_asset()
-                    self.info_label.setText(f"Opacity: {int(opacity * 100)}%")
+                            any_applied = True
+                        elif isinstance(item, (OverlayArrowItem, OverlayShapeItem)):
+                            self._push_overlay_attr(
+                                item, "opacity", opacity,
+                                apply_cb=lambda it, _v: it.update(),
+                                description="Set opacity",
+                            )
+                            any_applied = True
+                    if any_applied:
+                        self._sync_overlays_to_asset()
+                        self.info_label.setText(f"Opacity: {int(opacity * 100)}%")
                     return
             if key == Qt.Key.Key_F:
                 if self._scene.sceneRect():
