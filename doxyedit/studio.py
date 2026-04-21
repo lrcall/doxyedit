@@ -2132,6 +2132,10 @@ class StudioScene(QGraphicsScene):
         if editor is None:
             return super().contextMenuEvent(event)
         menu = _themed_menu(editor._view)
+        add_menu = menu.addMenu("Add Here")
+        add_text_act = add_menu.addAction("Text Overlay")
+        add_rect_act = add_menu.addAction("Rectangle")
+        add_ellipse_act = add_menu.addAction("Ellipse")
         fit_act = menu.addAction("Fit View  (Ctrl+0)")
         z100_act = menu.addAction("Zoom 100%  (Ctrl+1)")
         menu.addSeparator()
