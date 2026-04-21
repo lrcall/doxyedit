@@ -4436,7 +4436,10 @@ class StudioEditor(QWidget):
         # they only show up when a text overlay (or the text tool) is
         # active. Prevents the permanent second-row clutter. The popup is
         # moveable (Qt.Tool window flag) and does not interrupt drag/drawing.
-        from PySide6.QtWidgets import QDialog as _QDlg
+        # Re-shape _props_row's QHBoxLayout into a tall QFormLayout inside
+        # the dialog so it reads as a column of labeled rows, not a wide
+        # ribbon.
+        from PySide6.QtWidgets import QDialog as _QDlg, QFormLayout
         self._text_controls_dlg = _QDlg(self)
         self._text_controls_dlg.setWindowTitle("Text Controls")
         self._text_controls_dlg.setWindowFlags(
@@ -4444,10 +4447,37 @@ class StudioEditor(QWidget):
             Qt.WindowType.CustomizeWindowHint |
             Qt.WindowType.WindowTitleHint |
             Qt.WindowType.WindowCloseButtonHint)
-        _dlg_layout = QVBoxLayout(self._text_controls_dlg)
-        _dlg_layout.setContentsMargins(_pad, _pad, _pad, _pad)
-        _dlg_layout.addWidget(self._props_row)
-        # Don't add to root — the dialog owns the widget now.
+        _dlg_layout = QFormLayout(self._text_controls_dlg)
+        _dlg_layout.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
+        _dlg_layout.setSpacing(_pad)
+        _dlg_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        _dlg_layout.addRow("Position", self.combo_position)
+        _dlg_layout.addRow("Font", self.font_combo)
+        _dlg_layout.addRow("Size", self.slider_font_size)
+        _bi_row = QHBoxLayout()
+        _bi_row.addWidget(self.btn_bold)
+        _bi_row.addWidget(self.btn_italic)
+        _bi_row.addStretch()
+        _bi_widget = QWidget()
+        _bi_widget.setLayout(_bi_row)
+        _dlg_layout.addRow("Style", _bi_widget)
+        _col_row = QHBoxLayout()
+        _col_row.addWidget(self.btn_color)
+        _col_row.addWidget(self.btn_outline_color)
+        _col_row.addStretch()
+        _col_widget = QWidget()
+        _col_widget.setLayout(_col_row)
+        _dlg_layout.addRow("Colors", _col_widget)
+        _dlg_layout.addRow("Outline", self.slider_outline)
+        _dlg_layout.addRow("Kerning", self.slider_kerning)
+        _dlg_layout.addRow("Line Height", self.slider_line_height)
+        _dlg_layout.addRow("Rotation", self.slider_rotation)
+        _dlg_layout.addRow("Width", self.slider_text_width)
+        _dlg_layout.addRow("", self.btn_save_template)
+        self._text_controls_dlg.setFixedWidth(int(_dt.font_size * 28))
+        # _props_row keeps its children in its layout but they're reparented
+        # above — mark it hidden so the empty skeleton doesn't show.
+        self._props_row.hide()
 
         # Scene + View
         self._scene = StudioScene()
@@ -6066,7 +6096,13 @@ class StudioEditor(QWidget):
             for it in self._scene.selectedItems())
         if has_text_tool or has_text_selected:
             if not self._text_controls_dlg.isVisible():
+                # Inherit the app-wide stylesheet + Windows 11 caption tint
+                win = self.window()
+                if win is not None:
+                    self._text_controls_dlg.setStyleSheet(win.styleSheet())
                 self._text_controls_dlg.show()
+                if win is not None and hasattr(win, "_theme_dialog_titlebar"):
+                    win._theme_dialog_titlebar(self._text_controls_dlg)
                 # Position top-right of the canvas on first show
                 gv = self._view
                 if gv is not None:
