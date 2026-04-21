@@ -3583,6 +3583,11 @@ class StudioEditor(QWidget):
         if shift and not ctrl and key == Qt.Key.Key_R:
             self._rotate_selected(-90)
             return
+        # Shift+G — toggle rule-of-thirds overlay
+        if shift and not ctrl and key == Qt.Key.Key_G:
+            if hasattr(self, "chk_thirds"):
+                self.chk_thirds.setChecked(not self.chk_thirds.isChecked())
+            return
         # Ctrl+R — rotate 1 degree CW (Ctrl+Shift+R — 1 CCW).
         # Fine rotation for precise layouts.
         if ctrl and not shift and key == Qt.Key.Key_R:
