@@ -1889,20 +1889,23 @@ class StudioEditor(QWidget):
         self._f10_shortcut.activated.connect(self._nuclear_clear)
 
         # Snap grid overlay — flag on the scene, drawn via foreground.
-        # Grid spacing is a user pref stored in QSettings (per-install, not
-        # per-project) so the visual density carries across sessions.
+        # Both spacing and visibility are user prefs persisted via QSettings.
         from PySide6.QtCore import QSettings as _QS
-        _gs = _QS("DoxyEdit", "DoxyEdit").value(
-            "studio_grid_spacing", STUDIO_GRID_SPACING, type=int)
-        self._grid_visible = False
+        _qs = _QS("DoxyEdit", "DoxyEdit")
+        _gs = _qs.value("studio_grid_spacing", STUDIO_GRID_SPACING, type=int)
+        _gv = _qs.value("studio_grid_visible", False, type=bool)
+        self._grid_visible = _gv
         self._grid_spacing = _gs
-        self._scene._grid_visible = False
+        self._scene._grid_visible = _gv
         self._scene._grid_spacing = _gs
-        # Sync the toolbar spinbox to the restored value (block signal so
-        # we don't re-write the same value back to QSettings on construct)
+        # Sync the toolbar widgets to the restored values (block signals so
+        # restoration doesn't re-write the same values back to QSettings)
         self.spin_grid.blockSignals(True)
         self.spin_grid.setValue(_gs)
         self.spin_grid.blockSignals(False)
+        self.chk_grid.blockSignals(True)
+        self.chk_grid.setChecked(_gv)
+        self.chk_grid.blockSignals(False)
 
         # Layer panel (right sidebar, collapsible)
         self._layer_panel = QListWidget()
@@ -2764,6 +2767,8 @@ class StudioEditor(QWidget):
         through the same path so the two stay in sync)."""
         self._grid_visible = on
         self._scene._grid_visible = on
+        from PySide6.QtCore import QSettings as _QS
+        _QS("DoxyEdit", "DoxyEdit").setValue("studio_grid_visible", on)
         self._scene.update()
 
     def _save_as_template(self):
