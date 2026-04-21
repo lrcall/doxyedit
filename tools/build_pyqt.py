@@ -40,43 +40,54 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRATCH = ROOT / "build_pyqt_tmp"
 DIST = ROOT / "dist"
 
-# (pattern, replacement) applied line-by-line to every .py source file
-SUBS: list[tuple[str, str]] = [
-    # Top-level package references
+# Top-level package renames are simple word-boundary substitutions.
+_PACKAGE_SUBS: list[tuple[str, str]] = [
     (r"\bfrom PySide6\.QtWidgets\b", "from PyQt6.QtWidgets"),
     (r"\bfrom PySide6\.QtCore\b",    "from PyQt6.QtCore"),
     (r"\bfrom PySide6\.QtGui\b",     "from PyQt6.QtGui"),
     (r"\bfrom PySide6\.QtSvg\b",     "from PyQt6.QtSvg"),
     (r"\bfrom PySide6\.QtNetwork\b", "from PyQt6.QtNetwork"),
     (r"\bimport PySide6\b",          "import PyQt6"),
-    # Signal / Slot rename
-    (r"\bfrom PyQt6\.QtCore import (?P<body>[^\n]+)",
-     lambda m: _rewrite_qtcore_import(m.group("body"))),
 ]
 
+# After the package rename, QtCore imports need `Signal` / `Slot` re-aliased
+# to `pyqtSignal as Signal` / `pyqtSlot as Slot`. Match BOTH forms:
+#   from PyQt6.QtCore import Signal, Slot                     (single-line)
+#   from PyQt6.QtCore import (\n    Signal,\n    Slot,\n)     (parenthesized)
+_QTCORE_SINGLE_RE = re.compile(
+    r"^(from PyQt6\.QtCore import )([^\n(][^\n]*)$",
+    re.MULTILINE,
+)
+_QTCORE_PAREN_RE = re.compile(
+    r"(from PyQt6\.QtCore import\s*\()([^)]*)(\))",
+    re.DOTALL,
+)
 
-def _rewrite_qtcore_import(body: str) -> str:
-    """Rewrite a `from PyQt6.QtCore import X, Y, Z` body to rename
-    Signal → pyqtSignal and Slot → pyqtSlot using an `as` alias so the
-    importing code keeps using `Signal` / `Slot`."""
-    items = [s.strip() for s in body.split(",")]
-    fixed = []
-    for it in items:
-        if it == "Signal":
-            fixed.append("pyqtSignal as Signal")
-        elif it == "Slot":
-            fixed.append("pyqtSlot as Slot")
-        else:
-            fixed.append(it)
-    return "from PyQt6.QtCore import " + ", ".join(fixed)
+
+def _translate_signal_slot(body: str) -> str:
+    """Inside a QtCore import body, rewrite bare ``Signal`` / ``Slot`` to
+    ``pyqtSignal as Signal`` / ``pyqtSlot as Slot``. Word-boundaries avoid
+    matching things like ``QSignalMapper``. Already-aliased names are
+    untouched so the transform is idempotent."""
+    def _sub_signal(m: re.Match) -> str:
+        return "pyqtSignal as Signal"
+    def _sub_slot(m: re.Match) -> str:
+        return "pyqtSlot as Slot"
+    # Negative lookahead: don't double-rewrite if `pyqtSignal as Signal`
+    # is already present.
+    body = re.sub(r"(?<!pyqtSignal as )\bSignal\b", _sub_signal, body)
+    body = re.sub(r"(?<!pyqtSlot as )\bSlot\b", _sub_slot, body)
+    return body
 
 
 def _apply_subs(text: str) -> str:
-    for pattern, repl in SUBS:
-        if callable(repl):
-            text = re.sub(pattern, repl, text)
-        else:
-            text = re.sub(pattern, repl, text)
+    for pattern, repl in _PACKAGE_SUBS:
+        text = re.sub(pattern, repl, text)
+    text = _QTCORE_SINGLE_RE.sub(
+        lambda m: m.group(1) + _translate_signal_slot(m.group(2)), text)
+    text = _QTCORE_PAREN_RE.sub(
+        lambda m: m.group(1) + _translate_signal_slot(m.group(2)) + m.group(3),
+        text)
     return text
 
 
