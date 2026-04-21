@@ -2390,6 +2390,7 @@ class StudioScene(QGraphicsScene):
         menu.addSeparator()
         rename_act = menu.addAction("Rename crop")
         duplicate_act = menu.addAction("Duplicate crop")
+        set_dims_act = menu.addAction("Set Exact Dimensions...")
         menu.addSeparator()
         delete_act = menu.addAction("Delete crop")
         chosen = menu.exec(event.screenPos())
@@ -2400,6 +2401,8 @@ class StudioScene(QGraphicsScene):
             self._rename_crop(editor, target)
         elif chosen is duplicate_act:
             self._duplicate_crop(editor, target)
+        elif chosen is set_dims_act:
+            self._set_crop_dimensions(editor, target)
         elif chosen is delete_act:
             # Remove from asset.crops by label, then from scene
             lbl = getattr(target, "label", "")
@@ -2572,6 +2575,27 @@ class StudioScene(QGraphicsScene):
             editor.info_label.setText(
                 "Censors hidden (reveal mode)" if currently_any_visible
                 else "Censors shown")
+
+    def _set_crop_dimensions(self, editor, target):
+        """Prompt for exact W and H, update both the scene item and the
+        asset.crops entry."""
+        r = target.rect()
+        w_val, ok = QInputDialog.getInt(
+            editor._view, "Crop width",
+            "Width (px):", value=int(r.width()),
+            minValue=1, maxValue=50000)
+        if not ok:
+            return
+        h_val, ok = QInputDialog.getInt(
+            editor._view, "Crop height",
+            "Height (px):", value=int(r.height()),
+            minValue=1, maxValue=50000)
+        if not ok:
+            return
+        target.setRect(QRectF(r.x(), r.y(), w_val, h_val))
+        # Persist back to asset.crops via on_changed if wired
+        if getattr(target, "on_changed", None):
+            target.on_changed(target)
 
     def _rename_crop(self, editor, target):
         """Prompt for a new label and apply to both CropRegion and item."""
