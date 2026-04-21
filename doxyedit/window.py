@@ -4474,20 +4474,34 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.status.showMessage(f"Added '{tag_id}' to {len(assets)} asset(s)")
 
     def _reload_project(self):
-        """Reload the current project file from disk (F5)."""
+        """Reload the current project file from disk (F5). Load runs off-thread."""
         if not self._project_path or not Path(self._project_path).exists():
             self.browser.refresh()
-            self.status.showMessage("No project file to reload — refreshed grid", 2000)
+            self.status.showMessage("No project file to reload, refreshed grid", 2000)
             return
         # Preserve UI state across reload
         saved_filters = self.browser.get_filter_state()
-        self.project = Project.load(self._project_path)
-        self._rebind_project()
-        self.browser.set_filter_state(saved_filters)
-        if self.project.theme_id and self.project.theme_id in THEMES:
-            self._apply_theme(self.project.theme_id)
-        self._dirty = False
-        self.status.showMessage(f"Reloaded project from disk", 2000)
+        path = self._project_path
+        self.status.showMessage("Reloading project...", 0)
+
+        loader = ProjectLoader(path, self)
+        self._reload_loader = loader  # keep reference so GC does not kill the thread
+
+        def _on_loaded(project, loaded_path):
+            self.project = project
+            self._rebind_project()
+            self.browser.set_filter_state(saved_filters)
+            if self.project.theme_id and self.project.theme_id in THEMES:
+                self._apply_theme(self.project.theme_id)
+            self._dirty = False
+            self.status.showMessage("Reloaded project from disk", 2000)
+
+        def _on_failed(_path, err):
+            self.status.showMessage(f"Reload failed: {err}", 5000)
+
+        loader.loaded.connect(_on_loaded)
+        loader.failed.connect(_on_failed)
+        loader.start()
 
     def _refresh_thumbs(self):
         """Force-regenerate all thumbnails, bypassing disk cache."""
