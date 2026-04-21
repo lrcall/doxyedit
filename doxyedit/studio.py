@@ -966,7 +966,10 @@ class StudioScene(QGraphicsScene):
         self.get_crop_aspect = None      # callable() -> float | None
 
     def set_theme(self, theme):
+        self._theme = theme
         self.setBackgroundBrush(QBrush(QColor(theme.bg_deep)))
+        # Repaint so the grid picks up the theme's accent_dim color
+        self.update()
 
     def set_tool(self, tool: StudioTool):
         self.current_tool = tool
@@ -996,7 +999,15 @@ class StudioScene(QGraphicsScene):
         """Draw snap grid, rule-of-thirds, and smart-guide overlay."""
         super().drawForeground(painter, rect)
         if self._grid_visible:
-            pen = QPen(QColor(128, 128, 128, STUDIO_GRID_PEN_ALPHA), STUDIO_GRID_PEN_WIDTH)
+            # Prefer the active theme's accent_dim for grid lines so grid
+            # colors harmonize with the palette; fall back to neutral gray.
+            theme_ref = getattr(self, "_theme", None)
+            if theme_ref is not None:
+                grid_color = QColor(theme_ref.accent_dim)
+            else:
+                grid_color = QColor(128, 128, 128)
+            grid_color.setAlpha(STUDIO_GRID_PEN_ALPHA)
+            pen = QPen(grid_color, STUDIO_GRID_PEN_WIDTH)
             painter.setPen(pen)
             gs = self._grid_spacing
             left = int(rect.left()) - (int(rect.left()) % gs)
