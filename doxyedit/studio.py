@@ -4742,26 +4742,41 @@ class StudioEditor(QWidget):
             Qt.WindowType.CustomizeWindowHint |
             Qt.WindowType.WindowTitleHint |
             Qt.WindowType.WindowCloseButtonHint)
-        _dlg_layout = QFormLayout(self._text_controls_dlg)
+        # Force reparent each control to the dialog BEFORE adding it to the
+        # QFormLayout. Previously the widgets lived in `props` (a QHBoxLayout
+        # on `self._props_row`); Qt's addRow does reparent implicitly, but
+        # if `_props_row` had been hidden first, children inherited the
+        # hidden state and the dialog appeared to be blank / zero-sized.
+        # Explicit setParent + ensure visible is the safe idiom.
+        _dlg = self._text_controls_dlg
+        for _w in (self.combo_position, self.font_combo, self.slider_font_size,
+                   self.btn_bold, self.btn_italic,
+                   self.btn_color, self.btn_outline_color,
+                   self.slider_outline, self.slider_kerning,
+                   self.slider_line_height, self.slider_rotation,
+                   self.slider_text_width, self.btn_save_template):
+            _w.setParent(_dlg)
+            _w.show()
+        _dlg_layout = QFormLayout(_dlg)
         _dlg_layout.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
         _dlg_layout.setSpacing(_pad)
         _dlg_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         _dlg_layout.addRow("Position", self.combo_position)
         _dlg_layout.addRow("Font", self.font_combo)
         _dlg_layout.addRow("Size", self.slider_font_size)
-        _bi_row = QHBoxLayout()
+        _bi_widget = QWidget(_dlg)
+        _bi_row = QHBoxLayout(_bi_widget)
+        _bi_row.setContentsMargins(0, 0, 0, 0)
         _bi_row.addWidget(self.btn_bold)
         _bi_row.addWidget(self.btn_italic)
         _bi_row.addStretch()
-        _bi_widget = QWidget()
-        _bi_widget.setLayout(_bi_row)
         _dlg_layout.addRow("Style", _bi_widget)
-        _col_row = QHBoxLayout()
+        _col_widget = QWidget(_dlg)
+        _col_row = QHBoxLayout(_col_widget)
+        _col_row.setContentsMargins(0, 0, 0, 0)
         _col_row.addWidget(self.btn_color)
         _col_row.addWidget(self.btn_outline_color)
         _col_row.addStretch()
-        _col_widget = QWidget()
-        _col_widget.setLayout(_col_row)
         _dlg_layout.addRow("Colors", _col_widget)
         _dlg_layout.addRow("Outline", self.slider_outline)
         _dlg_layout.addRow("Kerning", self.slider_kerning)
@@ -4769,9 +4784,15 @@ class StudioEditor(QWidget):
         _dlg_layout.addRow("Rotation", self.slider_rotation)
         _dlg_layout.addRow("Width", self.slider_text_width)
         _dlg_layout.addRow("", self.btn_save_template)
-        self._text_controls_dlg.setFixedWidth(int(_dt.font_size * 28))
-        # _props_row keeps its children in its layout but they're reparented
-        # above — mark it hidden so the empty skeleton doesn't show.
+        # Give the dialog a sensible size envelope so it's never 0x0 on
+        # first show. Width ~320px fits the font combo + 90px label column;
+        # height derived from the 11-row form.
+        _dlg.setMinimumWidth(max(320, int(_dt.font_size * 28)))
+        _dlg.setMinimumHeight(380)
+        # _props_row was the original horizontal container. Its children
+        # have been reparented above. Keep the empty shell as a hidden
+        # widget so `self._props_row.setEnabled(...)` call sites stay
+        # valid — the dialog itself is shown/hidden to reflect state.
         self._props_row.hide()
 
         # Scene + View
