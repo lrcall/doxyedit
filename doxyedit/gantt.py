@@ -14,6 +14,7 @@ from PySide6.QtCore import Signal, Qt, QDate
 from PySide6.QtGui import QPen, QColor, QBrush, QPainter
 
 from doxyedit.models import Project, SocialPost, SocialPostStatus
+from doxyedit.panel_mixin import LazyRefreshMixin
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +162,7 @@ class _GanttScene(QGraphicsScene):
 # GanttPanel — main widget
 # ---------------------------------------------------------------------------
 
-class GanttPanel(QWidget):
+class GanttPanel(LazyRefreshMixin, QWidget):
     """Gantt chart visualizing scheduled posts across platforms."""
 
     post_selected = Signal(str)
@@ -183,17 +184,19 @@ class GanttPanel(QWidget):
 
     def set_project(self, project: Project) -> None:
         self._project = project
-        self.refresh()
+        self.project = project  # mixin-compatible alias; readers use _project
+        self.mark_stale()
 
     def set_cross_project(self, cache, exclude_path: str = "") -> None:
         self._cross_cache = cache
         self._cross_exclude = exclude_path
+        self.mark_stale()
 
     def set_theme(self, theme) -> None:
         self._theme = theme
         # Set scene background so the QGraphicsScene matches the view
         self._scene.setBackgroundBrush(QBrush(_theme_color(theme, "bg_deep")))
-        self.refresh()
+        self.mark_stale()
 
     def refresh(self) -> None:
         self._rebuild_chart()

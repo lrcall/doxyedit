@@ -15,6 +15,7 @@ from doxyedit.models import (
     Project, Asset, PlatformAssignment, PostStatus, PLATFORMS,
     Campaign, CampaignMilestone,
 )
+from doxyedit.panel_mixin import LazyRefreshMixin
 
 
 STATUS_ICONS = {
@@ -353,7 +354,7 @@ class CampaignBar(QWidget):
         self._populate_combo()
 
 
-class PlatformPanel(QWidget):
+class PlatformPanel(LazyRefreshMixin, QWidget):
     """Two-column card grid of platform slots."""
 
     request_asset_pick = Signal(str, str)  # platform_id, slot_name

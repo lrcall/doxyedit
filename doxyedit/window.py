@@ -654,7 +654,10 @@ class MainWindow(QMainWindow):
             (self.stats_panel, self._overview_split),
             (self.health_panel, self._overview_split),
             (self.checklist_panel, self._social_split),
+            (self.platform_panel, self._plat_full),
         ]
+        if hasattr(self, '_gantt_panel'):
+            self._lazy_panels.append((self._gantt_panel, self._social_split))
 
         # Refresh stats when Overview tab is activated
         self.tabs.currentChanged.connect(self._on_inner_tab_changed)
@@ -6059,17 +6062,13 @@ Ctrl+Click tag — Search by tag
                 self.browser.sort_combo.setCurrentIndex(idx)
                 self.browser.sort_combo.blockSignals(False)
         self.browser.refresh()
-        self.platform_panel.project = self.project
-        self.platform_panel.refresh()
         # Lazy panels: mark stale via set_project. Their refresh runs when
         # the containing tab becomes active (see _on_inner_tab_changed).
+        self.platform_panel.set_project(self.project)
         self.stats_panel.set_project(self.project)
         self.stats_panel.folder_bar_color = self._theme.accent_bright
         self.checklist_panel.set_project(self.project)
         self.health_panel.set_project(self.project)
-        # If the user is ALREADY on a tab containing these panels, refresh now
-        # so they see fresh data without needing to switch away and back.
-        self._refresh_lazy_panels_on_current_tab()
         self._file_browser.set_project(self.project)
         if hasattr(self, '_timeline'):
             self._timeline.set_project(self.project)
@@ -6077,6 +6076,9 @@ Ctrl+Click tag — Search by tag
             self._calendar_pane.set_project(self.project)
         if hasattr(self, '_gantt_panel'):
             self._gantt_panel.set_project(self.project)
+        # If the user is ALREADY on a tab containing lazy panels, refresh them now
+        # so they see fresh data without switching away and back.
+        self._refresh_lazy_panels_on_current_tab()
         if hasattr(self, 'studio'):
             self.studio.set_project(self.project, self._project_path or "")
         if hasattr(self, '_smart_folder_menu'):
