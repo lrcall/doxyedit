@@ -755,6 +755,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
                       (self.show_filenames == "hover" and
                        option.state & QStyle.StateFlag.State_MouseOver) or
                       option.state & QStyle.StateFlag.State_Selected)
+        name_width_px = 0
         if _show_name:
             name = index.data(Qt.ItemDataRole.DisplayRole) or ""
             name_top = self.below_dots_offset + self.dims_line_height
@@ -762,8 +763,10 @@ class ThumbnailDelegate(QStyledItemDelegate):
                               rect.width() - self.cell_padding * 2 - self.star_size, self.name_line_height)
             painter.setPen(option.palette.text().color())
             painter.setFont(self._font(self.name_font_size))
-            elided = self._fm(self.name_font_size).elidedText(name, Qt.TextElideMode.ElideRight, name_rect.width())
+            fm = self._fm(self.name_font_size)
+            elided = fm.elidedText(name, Qt.TextElideMode.ElideRight, name_rect.width())
             painter.drawText(name_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided)
+            name_width_px = fm.horizontalAdvance(elided)
 
         # Star
         star_val = index.data(ThumbnailModel.StarRole) or 0
@@ -775,7 +778,17 @@ class ThumbnailDelegate(QStyledItemDelegate):
             _star_empty.setAlpha(self.star_empty_alpha)
             painter.setPen(_star_empty)
         painter.setFont(self._font(self.star_font_size))
-        star_rect = QRect(rect.right() - self.star_size - self.cell_padding,
+        # Hug the star to the right edge of the filename (4 px gap) instead
+        # of pinning it to the card's right edge, so short filenames don't
+        # leave an ocean of empty space between name and star.
+        _star_max_x = rect.right() - self.star_size - self.cell_padding
+        if name_width_px > 0:
+            star_x = min(
+                rect.x() + self.cell_padding + name_width_px + 4,
+                _star_max_x)
+        else:
+            star_x = _star_max_x
+        star_rect = QRect(star_x,
                           rect.y() + ts + self.below_dots_offset + self.dims_line_height,
                           self.star_size, self.star_size)
         painter.drawText(star_rect, Qt.AlignmentFlag.AlignCenter, star_char)
@@ -3585,14 +3598,32 @@ class AssetBrowser(QWidget):
                     sb.setValue(max(0, min(target, sb.maximum())))
                     return True
 
-            # Star click — detect click in star area of a thumbnail
+            # Star click — detect click in star area of a thumbnail.
+            # The delegate now hugs the star to the right edge of the name;
+            # we re-compute the same x here so clicks land on target.
             if event.type() == event.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
                 pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
                 index = view.indexAt(pos)
                 if index.isValid():
                     item_rect = view.visualRect(index)
                     ts = self._delegate.thumb_size
-                    star_rect = QRect(item_rect.right() - 24, item_rect.y() + ts + 34, 22, 22)
+                    d = self._delegate
+                    # Replicate the delegate's star_x placement
+                    name_text = index.data(Qt.ItemDataRole.DisplayRole) or ""
+                    fm = d._fm(d.name_font_size)
+                    max_w = item_rect.width() - d.cell_padding * 2 - d.star_size
+                    elided = fm.elidedText(
+                        name_text, Qt.TextElideMode.ElideRight, max_w)
+                    name_w = fm.horizontalAdvance(elided) if elided else 0
+                    star_max_x = item_rect.right() - d.star_size - d.cell_padding
+                    star_x = (
+                        min(item_rect.x() + d.cell_padding + name_w + 4,
+                            star_max_x)
+                        if name_w > 0 else star_max_x)
+                    star_rect = QRect(
+                        star_x,
+                        item_rect.y() + ts + d.below_dots_offset + d.dims_line_height,
+                        d.star_size, d.star_size)
                     if star_rect.contains(pos):
                         asset = model.get_asset(index)
                         if asset:
