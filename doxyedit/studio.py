@@ -3936,6 +3936,36 @@ class StudioEditor(QWidget):
         # Show small thumbnails alongside each layer name
         from PySide6.QtCore import QSize
         self._layer_panel.setIconSize(QSize(28, 28))
+        # Click-on-thumbnail toggles visibility (like Photoshop's eye column)
+        _orig_layer_press = self._layer_panel.mousePressEvent
+        def _layer_mouse_press(event, _orig=_orig_layer_press):
+            if event.button() == Qt.MouseButton.LeftButton:
+                it = self._layer_panel.itemAt(event.pos())
+                if it is not None:
+                    # Row rect to locate the icon zone (first 28+padding px)
+                    rect = self._layer_panel.visualItemRect(it)
+                    if event.pos().x() - rect.x() <= 34:  # icon area
+                        data = it.data(Qt.ItemDataRole.UserRole)
+                        if data and data[0] == "overlay":
+                            kind, idx = data
+                            if 0 <= idx < len(self._asset.overlays):
+                                ov = self._asset.overlays[idx]
+                                ov.enabled = not ov.enabled
+                                for scene_it in self._scene.items():
+                                    if (hasattr(scene_it, "overlay")
+                                            and scene_it.overlay is ov):
+                                        scene_it.setVisible(ov.enabled)
+                                        break
+                                self._rebuild_layer_panel()
+                                return
+                        elif data and data[0] == "censor":
+                            kind, idx = data
+                            if 0 <= idx < len(self._censor_items):
+                                item = self._censor_items[idx]
+                                item.setVisible(not item.isVisible())
+                                return
+            _orig(event)
+        self._layer_panel.mousePressEvent = _layer_mouse_press
         self._layer_panel.itemClicked.connect(self._on_layer_clicked)
         self._layer_panel.itemDoubleClicked.connect(self._on_layer_double_clicked)
         self._layer_panel.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
