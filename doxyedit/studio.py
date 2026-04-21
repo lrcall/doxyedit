@@ -2029,6 +2029,7 @@ class StudioScene(QGraphicsScene):
         reset_bg_act = menu.addAction("Reset Canvas Background")
         menu.addSeparator()
         copy_canvas_act = menu.addAction("Copy Canvas Image to Clipboard")
+        export_overlay_act = menu.addAction("Export Overlays as Transparent PNG...")
         chosen = menu.exec(event.screenPos())
         if chosen is fit_act:
             editor._view.fitInView(
@@ -2070,6 +2071,8 @@ class StudioScene(QGraphicsScene):
                 p.end()
                 QApplication.clipboard().setImage(img)
                 editor.info_label.setText("Canvas copied to clipboard")
+        elif chosen is export_overlay_act:
+            editor._export_overlays_as_transparent_png()
 
     def _rename_crop(self, editor, target):
         """Prompt for a new label and apply to both CropRegion and item."""
@@ -6207,6 +6210,43 @@ class StudioEditor(QWidget):
     def _queue_current(self):
         if self._asset:
             self.queue_requested.emit(self._asset.id)
+
+    def _export_overlays_as_transparent_png(self):
+        """Render only the overlays/censors/shapes/arrows on a transparent
+        background the size of the current image, and save to a user-picked
+        path. Useful for sticker packs or asset sharing."""
+        if not self._asset or not self._pixmap_item:
+            return
+        from PySide6.QtGui import QImage
+        pm = self._pixmap_item.pixmap()
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export overlays as transparent PNG",
+            "",
+            "PNG (*.png);;All Files (*)",
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".png"):
+            path += ".png"
+        img = QImage(pm.size(), QImage.Format.Format_ARGB32)
+        img.fill(Qt.GlobalColor.transparent)
+        p = QPainter(img)
+        # Hide the pixmap + checkerboard before render, restore after
+        pixmap_was_vis = self._pixmap_item.isVisible()
+        checker = getattr(self, "_checker_item", None)
+        checker_was_vis = checker.isVisible() if checker else False
+        self._pixmap_item.setVisible(False)
+        if checker:
+            checker.setVisible(False)
+        self._scene.render(p, source=self._pixmap_item.sceneBoundingRect())
+        p.end()
+        self._pixmap_item.setVisible(pixmap_was_vis)
+        if checker:
+            checker.setVisible(checker_was_vis)
+        if img.save(path, "PNG"):
+            self.info_label.setText(f"Exported overlays: {Path(path).name}")
+        else:
+            self.info_label.setText("Export failed")
 
     def _export_preview(self):
         """Render censors + overlays via PIL and save."""
