@@ -4,9 +4,28 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea,
     QFrame, QProgressBar, QSizePolicy, QPushButton,
 )
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import Qt, QSettings, QThread, Signal
 
 from doxyedit.models import Project, PLATFORMS
+
+
+class _DiskSizeThread(QThread):
+    """Compute total disk size of a list of asset paths off the UI thread."""
+    done = Signal(int, int)  # (total_bytes, asset_count — identifies which refresh)
+
+    def __init__(self, paths: list[str], token: int, parent=None):
+        super().__init__(parent)
+        self._paths = paths
+        self._token = token
+
+    def run(self):
+        total = 0
+        for p in self._paths:
+            try:
+                total += Path(p).stat().st_size
+            except OSError:
+                pass
+        self.done.emit(total, self._token)
 
 
 class StatsPanel(QWidget):
@@ -18,6 +37,10 @@ class StatsPanel(QWidget):
         self.setObjectName("stats_panel")
         self.project = project
         self.folder_bar_color = "#93a167"
+        self._size_cache: dict[int, int] = {}  # asset count -> total bytes
+        self._size_card: QLabel | None = None
+        self._size_thread: _DiskSizeThread | None = None
+        self._size_token = 0
         self._build()
 
     def _build(self):
@@ -62,13 +85,27 @@ class StatsPanel(QWidget):
         tagged = sum(1 for a in assets if a.tags)
         starred = sum(1 for a in assets if a.starred)
         assigned = sum(1 for a in assets if a.assignments)
-        total_bytes = 0
-        for a in assets:
-            try:
-                total_bytes += Path(a.source_path).stat().st_size
-            except OSError:
-                pass
-        size_str = self._fmt_size(total_bytes)
+
+        cached_bytes = self._size_cache.get(total)
+        if cached_bytes is not None:
+            size_str = self._fmt_size(cached_bytes)
+        else:
+            size_str = "computing..."
+            self._size_token += 1
+            token = self._size_token
+            paths = [a.source_path for a in assets]
+            thread = _DiskSizeThread(paths, token, self)
+            self._size_thread = thread
+
+            def _on_done(total_bytes: int, tok: int):
+                if tok != self._size_token:
+                    return  # a newer refresh superseded this one
+                self._size_cache[total] = total_bytes
+                if self._size_card is not None:
+                    self._size_card.setText(self._fmt_size(total_bytes))
+
+            thread.done.connect(_on_done)
+            thread.start()
 
         # ── Summary row ──────────────────────────────────────────────
         self._body_layout.addWidget(self._section_label("Overview"))
@@ -76,6 +113,7 @@ class StatsPanel(QWidget):
         grid_layout = QHBoxLayout(grid)
         grid_layout.setContentsMargins(0, 0, 0, 0)
         grid_layout.setSpacing(_pad_lg * 2)
+        self._size_card = None
         for label, value in [
             ("Total Assets", str(total)),
             ("Tagged", f"{tagged} ({tagged*100//total}%)"),
@@ -83,7 +121,10 @@ class StatsPanel(QWidget):
             ("Assigned", f"{assigned} ({assigned*100//total}%)"),
             ("Disk Size", size_str),
         ]:
-            grid_layout.addWidget(self._stat_card(label, value))
+            card = self._stat_card(label, value)
+            if label == "Disk Size":
+                self._size_card = card.findChild(QLabel)  # value label
+            grid_layout.addWidget(card)
         self._body_layout.addWidget(grid)
 
         # ── Tag frequency ─────────────────────────────────────────────
