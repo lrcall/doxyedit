@@ -2455,6 +2455,7 @@ class StudioScene(QGraphicsScene):
 
         menu = _themed_menu(editor._view)
         export_act = menu.addAction("Export this crop")
+        copy_crop_act = menu.addAction("Copy Cropped Image to Clipboard")
         menu.addSeparator()
         rename_act = menu.addAction("Rename crop")
         duplicate_act = menu.addAction("Duplicate crop")
@@ -2465,6 +2466,8 @@ class StudioScene(QGraphicsScene):
         if chosen is export_act:
             target.setSelected(True)
             editor._export_current_platform()
+        elif chosen is copy_crop_act:
+            self._copy_crop_to_clipboard(editor, target)
         elif chosen is rename_act:
             self._rename_crop(editor, target)
         elif chosen is duplicate_act:
@@ -2647,6 +2650,30 @@ class StudioScene(QGraphicsScene):
             editor.info_label.setText(
                 "Censors hidden (reveal mode)" if currently_any_visible
                 else "Censors shown")
+
+    def _copy_crop_to_clipboard(self, editor, target):
+        """Render the base image + overlays restricted to the crop bounds,
+        then put the result on the system clipboard."""
+        if editor._pixmap_item is None:
+            return
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtGui import QImage
+        r = target.rect().translated(target.pos())
+        img = QImage(int(r.width()), int(r.height()),
+                      QImage.Format.Format_ARGB32)
+        img.fill(Qt.GlobalColor.transparent)
+        # Hide crop items so they don't render into the cropped output
+        crops = [c for c in editor._crop_items if c.isVisible()]
+        for c in crops:
+            c.setVisible(False)
+        p = QPainter(img)
+        self.render(p, source=r)
+        p.end()
+        for c in crops:
+            c.setVisible(True)
+        QApplication.clipboard().setImage(img)
+        editor.info_label.setText(
+            f"Copied crop '{getattr(target, 'label', '')}' to clipboard")
 
     def _set_crop_dimensions(self, editor, target):
         """Prompt for exact W and H, update both the scene item and the
