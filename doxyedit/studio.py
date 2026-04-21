@@ -624,18 +624,36 @@ class OverlayShapeItem(QGraphicsItem):
             sp = event.scenePos()
             x, y = self.overlay.x, self.overlay.y
             w, h = self.overlay.shape_w, self.overlay.shape_h
-            if self._dragging_handle in ('tl', 'tr'):
-                new_y = int(sp.y())
-                h = max(4, (y + h) - new_y)
-                y = new_y
-            if self._dragging_handle in ('bl', 'br'):
-                h = max(4, int(sp.y()) - y)
-            if self._dragging_handle in ('tl', 'bl'):
-                new_x = int(sp.x())
-                w = max(4, (x + w) - new_x)
-                x = new_x
-            if self._dragging_handle in ('tr', 'br'):
-                w = max(4, int(sp.x()) - x)
+            # Alt-drag resizes around the center instead of anchoring the
+            # opposite corner (Photoshop convention).
+            alt = bool(event.modifiers() & Qt.KeyboardModifier.AltModifier)
+            if alt:
+                cx, cy = x + w / 2.0, y + h / 2.0
+                if self._dragging_handle in ('tl', 'tr'):
+                    half_h = max(2, cy - int(sp.y()))
+                else:
+                    half_h = max(2, int(sp.y()) - cy)
+                if self._dragging_handle in ('tl', 'bl'):
+                    half_w = max(2, cx - int(sp.x()))
+                else:
+                    half_w = max(2, int(sp.x()) - cx)
+                w = int(2 * half_w)
+                h = int(2 * half_h)
+                x = int(cx - half_w)
+                y = int(cy - half_h)
+            else:
+                if self._dragging_handle in ('tl', 'tr'):
+                    new_y = int(sp.y())
+                    h = max(4, (y + h) - new_y)
+                    y = new_y
+                if self._dragging_handle in ('bl', 'br'):
+                    h = max(4, int(sp.y()) - y)
+                if self._dragging_handle in ('tl', 'bl'):
+                    new_x = int(sp.x())
+                    w = max(4, (x + w) - new_x)
+                    x = new_x
+                if self._dragging_handle in ('tr', 'br'):
+                    w = max(4, int(sp.x()) - x)
             # Shift constrains to square; keep dragged corner anchored
             if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
                 s = max(w, h)
