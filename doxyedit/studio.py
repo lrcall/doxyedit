@@ -3004,15 +3004,19 @@ class _StudioRuler(QWidget):
         super().mouseReleaseEvent(event)
 
     def contextMenuEvent(self, event):
-        """Right-click a ruler -> clear all guides."""
+        """Right-click a ruler -> clear all guides / toggle ruler visibility."""
         editor = getattr(self._view, "_studio_editor", None)
         if editor is None:
             return super().contextMenuEvent(event)
         menu = _themed_menu(self._view)
         clear_act = menu.addAction("Clear All Guides")
+        hide_ruler_act = menu.addAction("Hide Rulers")
         chosen = menu.exec(event.globalPos())
         if chosen is clear_act:
             editor._clear_guides()
+        elif chosen is hide_ruler_act:
+            if hasattr(editor, "chk_rulers"):
+                editor.chk_rulers.setChecked(False)
 
     def _update_drag_guide(self, widget_pos):
         """Project the local mouse position to scene space and show a pending guide."""
