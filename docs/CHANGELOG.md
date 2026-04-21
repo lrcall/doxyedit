@@ -1,5 +1,126 @@
 # DoxyEdit Changelog
 
+## v2.5 (2026-04-22) — Studio full-graphics-product push
+
+Session goal: "the closer it is to a full graphic product the better."
+Delivered ~80 commits covering tools, polish, and workflow upgrades.
+
+### New Studio tools
+- **Eyedropper (I)** — click to sample a pixel color. Applies to
+  selected text overlay color, otherwise copies hex to clipboard.
+- **Arrow (A)** — click-drag to draw an annotation arrow. Draggable
+  endpoints (yellow handles when selected). Color, stroke width,
+  duplicate, delete all work. Exporter renders via PIL.
+
+### Canvas / view
+- **Horizontal + vertical rulers** with major/minor ticks, auto-scale
+  (5px–5000px step based on zoom), live cursor indicator. Toggleable.
+- **Drag-out guides** from either ruler; dashed lines in the active
+  theme accent. Guides are snap candidates, movable (drag), and
+  double-click to delete. Right-click ruler → Clear All Guides.
+- **Rule-of-thirds overlay** toggle (toolbar ⅓ checkbox).
+- **Checkerboard background** beneath the image so transparent pixels
+  show through as the classic Photoshop pattern.
+- **Drop shadow + workspace margin** so the image feels like a
+  document on a canvas, not edge-to-edge filler.
+- **Ruler corner click** = Fit view; **zoom % label click** = prompt
+  for numeric zoom (5–4000%).
+- **Zoom shortcuts**: Ctrl+0 (Fit), Ctrl+Shift+0 (zoom to selection),
+  Ctrl+1 (100%), Ctrl++ / Ctrl+- (in/out). Wheel zoom updates the
+  label and refreshes rulers.
+- **Spacebar pan** (Photoshop convention) — hold Space to temp-swap
+  to the hand tool.
+
+### Tools / toolbar
+- **Undo / Redo toolbar buttons** (↶ / ↷) wired to the QUndoStack,
+  auto-disabled when the stack is empty.
+- **Active tool highlight** — tool buttons are checkable; the current
+  tool lights up via QSS :checked.
+- **Shortcut rebinds**: Q=Select, X=Censor, E=Watermark, T=Text,
+  C=Crop, N=Note, I=Eyedropper, A=Arrow, . (period) = Focus mode.
+- **Focus mode** — hides the layer panel + filmstrip so the canvas
+  takes the whole area (toolbar toggle + period hotkey).
+- **Rulers on/off**, **Grid on/off** checkboxes persist across
+  sessions alongside grid spacing, rule-of-thirds, and canvas
+  splitter geometry.
+
+### Selection / editing
+- **Alt+click on an overlay or censor** duplicates it in place, then
+  drag the duplicate (Photoshop / Figma convention).
+- **Tab / Shift+Tab** cycle through scene items (sorted top-to-bottom,
+  left-to-right), re-centering the view on the newly selected item.
+- **Ctrl+Shift+I** inverts selection.
+- **Number keys 0-9** set opacity on selected overlays: 1=10%, 5=50%,
+  0=100%.
+- **Shift-drag to constrain** censor/crop rectangles to a perfect
+  square. **Shift+rotate** snaps censor rotation to 15° steps.
+- **Ctrl+D** now duplicates overlays, censors, arrows, and crops.
+- **Grid snap** on drag when the grid overlay is visible (smart guides
+  still win over grid snap when available).
+- **Double-click a crop** to rename; **double-click a guide** to
+  remove it.
+- **Shift+click layer row** toggles visibility; **Ctrl+click** toggles
+  lock.
+
+### Layer panel
+- **Section headers** — `-- Overlays --` / `-- Censors --` dividers.
+- **(hidden)** prefix on invisible layers in addition to grey-out.
+- **Right-click row** → Hide/Show, Lock/Unlock, Rename, Delete.
+- **Double-click row** → rename (or enter text-edit for text overlays).
+
+### Status bar
+- **Cursor position** (scene-space X,Y) updates live as you hover.
+- **Selection count** ("0 selected" / "1 selected" / "N selected").
+- **Selected-item geometry** (X,Y  W×H) when exactly one item
+  selected.
+- **X/Y spinboxes** in the layer properties panel for numeric
+  positioning of the selected overlay.
+
+### Overlays
+- **Text background fill** — new CanvasOverlay.background_color,
+  rendered as a rounded pill behind the text in both Studio and the
+  PIL exporter.
+- **Export honors text_width** — new _wrap_text_to_width helper
+  measures words and inserts line breaks so exported text matches
+  the wrapped multi-line layout shown in Studio.
+- **Save/Reset Default Text Style** (right-click text → menu).
+  Stores the 13 text style fields to QSettings; new text overlays
+  pick them up automatically.
+- **Save/Reset Default Watermark Style** — same pattern for
+  scale/opacity/rotation/position/flip.
+- **Preferred censor style** (black/blur/pixelate) persists across
+  sessions.
+- **Copy Style / Paste Style** — right-click any overlay. Per-type
+  slot so text styles can't be pasted onto watermarks.
+- **Change Color... / Change Background...** context menu entries
+  with QColorDialog including alpha channel.
+- **Rotate 90° CW / CCW** context menu actions for quick quarter
+  turns.
+
+### Crops
+- **Right-click a crop** for Export this crop / Rename / Duplicate /
+  Delete. **Double-click** to rename.
+- Crop right-click duplicates preserve platform_id + aspect lock.
+
+### Preview pane
+- **Studio button** on both the docked preview pane and floating
+  preview dialog (auto-closes the dialog after jumping to Studio).
+
+### F-key tab jumps (main window)
+- **F1** Assets, **F2** Studio, **F3** Social, **F4** Platforms,
+  **F5** Overview, **F6** Notes. Shift+F2 keeps the rename-file
+  shortcut.
+
+### Bug fixes
+- **Export Platform button** now has a 3-fallback resolution: combo
+  selection → selected crop's platform_id/slot_name → single
+  platform-scoped crop on the asset → message guiding the user.
+- **Folder Scan** respects per-import method (type=file vs type=folder
+  in import_sources).
+- **Tag colors grey** — placeholder colors promoted to VINIK cycle.
+- **Tiny window flash** on project load suppressed by deferring
+  show() until async load fires.
+
 ## v2.4 (2026-04-21) — Studio v2, Export Pipeline, threading, architecture
 
 ### Studio v2 — closer to a real graphics program
