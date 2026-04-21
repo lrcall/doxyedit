@@ -2659,6 +2659,9 @@ class StudioScene(QGraphicsScene):
         add_text_act = add_menu.addAction("Text Overlay")
         add_rect_act = add_menu.addAction("Rectangle")
         add_ellipse_act = add_menu.addAction("Ellipse")
+        add_speech_act = add_menu.addAction("Speech Bubble (with text)")
+        add_thought_act = add_menu.addAction("Thought Bubble (with text)")
+        add_burst_act = add_menu.addAction("Burst / Action Star")
         add_lingrad_act = add_menu.addAction("Linear Gradient (dark top)")
         add_radgrad_act = add_menu.addAction("Radial Gradient (vignette)")
         fit_act = menu.addAction("Fit View  (Ctrl+0)")
@@ -2714,6 +2717,70 @@ class StudioScene(QGraphicsScene):
             if new_item:
                 new_item.setZValue(200 + len(editor._overlay_items))
                 editor._overlay_items.append(new_item)
+            editor._rebuild_layer_panel()
+        elif chosen in (add_speech_act, add_thought_act, add_burst_act):
+            kind = (
+                "speech_bubble" if chosen is add_speech_act
+                else "thought_bubble" if chosen is add_thought_act
+                else "burst")
+            w, h = (260, 160) if chosen is not add_burst_act else (220, 220)
+            x0 = int(pos.x() - w / 2)
+            y0 = int(pos.y() - h / 2)
+            bubble = CanvasOverlay(
+                type="shape", label=kind.replace("_", " ").title(),
+                shape_kind=kind,
+                color="#000000",
+                stroke_color="#000000", stroke_width=3,
+                fill_color="#ffffff", opacity=1.0,
+                x=x0, y=y0, shape_w=w, shape_h=h,
+                tail_x=int(pos.x() - w * 0.6) if kind != "burst" else 0,
+                tail_y=int(pos.y() + h * 0.8) if kind != "burst" else 0,
+            )
+            editor._asset.overlays.append(bubble)
+            bubble_item = editor._create_overlay_item(bubble)
+            if bubble_item:
+                bubble_item.setZValue(200 + len(editor._overlay_items))
+                editor._overlay_items.append(bubble_item)
+            # Paired text overlay placed inside (except burst which is decorative).
+            if kind != "burst":
+                pad_x = int(w * 0.15)
+                pad_y = int(h * 0.18)
+                tx = x0 + pad_x
+                ty = y0 + pad_y
+                tw = w - 2 * pad_x
+                import uuid as _uuid
+                link_id = f"bubble_text_{_uuid.uuid4().hex[:8]}"
+                bubble.linked_text_id = link_id
+                text_ov = CanvasOverlay(
+                    type="text",
+                    label=link_id,
+                    text="...",
+                    opacity=1.0,
+                    position="custom",
+                    x=tx, y=ty,
+                    text_width=tw,
+                    font_size=24,
+                    text_align="center",
+                    color="#000000",
+                )
+                for k, v in editor._load_text_style_defaults().items():
+                    if k == "text_width":
+                        continue
+                    setattr(text_ov, k, v)
+                editor._asset.overlays.append(text_ov)
+                text_item = editor._create_overlay_item(text_ov)
+                if text_item:
+                    text_item.setZValue(200 + len(editor._overlay_items))
+                    editor._overlay_items.append(text_item)
+                    # Select + edit-mode so the user can type immediately
+                    editor._scene.clearSelection()
+                    text_item.setSelected(True)
+                    text_item.setTextInteractionFlags(
+                        Qt.TextInteractionFlag.TextEditorInteraction)
+                    text_item.setFocus()
+                    cursor = text_item.textCursor()
+                    cursor.select(cursor.SelectionType.Document)
+                    text_item.setTextCursor(cursor)
             editor._rebuild_layer_panel()
         elif chosen in (add_lingrad_act, add_radgrad_act):
             is_radial = chosen is add_radgrad_act
