@@ -2115,6 +2115,10 @@ class StudioScene(QGraphicsScene):
         bg_color_act = menu.addAction("Canvas Background Color...")
         reset_bg_act = menu.addAction("Reset Canvas Background")
         menu.addSeparator()
+        lock_all_act = menu.addAction("Lock All Layers")
+        unlock_all_act = menu.addAction("Unlock All Layers")
+        show_all_act = menu.addAction("Show All Layers")
+        menu.addSeparator()
         copy_canvas_act = menu.addAction("Copy Canvas Image to Clipboard")
         export_overlay_act = menu.addAction("Export Overlays as Transparent PNG...")
         chosen = menu.exec(event.screenPos())
@@ -2160,6 +2164,27 @@ class StudioScene(QGraphicsScene):
                 editor.info_label.setText("Canvas copied to clipboard")
         elif chosen is export_overlay_act:
             editor._export_overlays_as_transparent_png()
+        elif chosen in (lock_all_act, unlock_all_act):
+            lock = chosen is lock_all_act
+            for it in editor._overlay_items:
+                if hasattr(it, "overlay"):
+                    it.overlay.locked = lock
+                it.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, not lock)
+                it.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, not lock)
+            editor._sync_overlays_to_asset()
+            editor._rebuild_layer_panel()
+            editor.info_label.setText(
+                "All layers locked" if lock else "All layers unlocked")
+        elif chosen is show_all_act:
+            for it in editor._overlay_items:
+                if hasattr(it, "overlay"):
+                    it.overlay.enabled = True
+                it.setVisible(True)
+            for it in editor._censor_items:
+                it.setVisible(True)
+            editor._sync_overlays_to_asset()
+            editor._rebuild_layer_panel()
+            editor.info_label.setText("All layers visible")
 
     def _rename_crop(self, editor, target):
         """Prompt for a new label and apply to both CropRegion and item."""
