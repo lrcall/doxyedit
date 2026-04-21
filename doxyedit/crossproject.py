@@ -133,59 +133,48 @@ class CrossProjectCache:
             except (OSError, KeyError):
                 self._cache.pop(path, None)
 
-    def get_all_schedules(self, exclude_path: str = "") -> list[dict]:
-        """Return all posts from all enabled registry projects."""
+    def _collect(self, exclude_path: str, cache: dict, peek_fn):
+        """Shared helper: iterate enabled registry entries, serve from cache
+        or peek in parallel for uncached paths. Returns a flat list."""
+        from concurrent.futures import ThreadPoolExecutor
         reg = load_registry()
-        all_posts = []
+        results: list = []
+        to_peek: list[tuple[str, float]] = []
+
         for entry in reg["projects"]:
             if not entry.get("enabled", True):
                 continue
             path = entry["path"]
-            if path == exclude_path:
+            if path == exclude_path or not Path(path).exists():
                 continue
-            if not Path(path).exists():
-                continue
-
-            # Check cache
             try:
                 mtime = os.path.getmtime(path)
             except OSError:
                 continue
-
-            cached = self._cache.get(path)
+            cached = cache.get(path)
             if cached and cached[0] == mtime:
-                all_posts.extend(cached[1])
+                results.extend(cached[1])
             else:
-                posts = peek_project_schedule(path)
-                self._cache[path] = (mtime, posts)
-                all_posts.extend(posts)
+                to_peek.append((path, mtime))
 
-        return all_posts
+        # Concurrent disk reads for cache misses. 4 workers is a reasonable
+        # balance for HDD/SSD without thrashing. Each task is pure I/O + parse.
+        if to_peek:
+            with ThreadPoolExecutor(max_workers=min(4, len(to_peek))) as pool:
+                for (path, mtime), data in zip(
+                    to_peek, pool.map(lambda pm: peek_fn(pm[0]), to_peek)
+                ):
+                    cache[path] = (mtime, data)
+                    results.extend(data)
+        return results
+
+    def get_all_schedules(self, exclude_path: str = "") -> list[dict]:
+        """Return all posts from all enabled registry projects."""
+        return self._collect(exclude_path, self._cache, peek_project_schedule)
 
     def get_all_blackouts(self, exclude_path: str = "") -> list[dict]:
         """Return all blackout periods from all enabled projects."""
-        reg = load_registry()
-        all_blackouts = []
-        for entry in reg["projects"]:
-            if not entry.get("enabled", True):
-                continue
-            path = entry["path"]
-            if path == exclude_path:
-                continue
-            if not Path(path).exists():
-                continue
-            try:
-                mtime = os.path.getmtime(path)
-            except OSError:
-                continue
-            cached = self._blackout_cache.get(path)
-            if cached and cached[0] == mtime:
-                all_blackouts.extend(cached[1])
-            else:
-                blackouts = peek_project_blackouts(path)
-                self._blackout_cache[path] = (mtime, blackouts)
-                all_blackouts.extend(blackouts)
-        return all_blackouts
+        return self._collect(exclude_path, self._blackout_cache, peek_project_blackouts)
 
 
 def detect_conflicts(
