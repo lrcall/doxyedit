@@ -3853,7 +3853,8 @@ class StudioEditor(QWidget):
 
     def _selected_overlay_items(self):
         return [i for i in self._scene.selectedItems()
-                if isinstance(i, (OverlayImageItem, OverlayTextItem))]
+                if isinstance(i, (OverlayImageItem, OverlayTextItem,
+                                   OverlayArrowItem))]
 
     def _on_position_changed(self, text: str):
         if not self._pixmap_item:
@@ -3968,12 +3969,19 @@ class StudioEditor(QWidget):
             self._sync_overlays_to_asset()
 
     def _on_outline_changed(self, value: int):
+        # Text: outline stroke_width; Arrow: line stroke_width.
         for item in self._selected_overlay_items():
             if isinstance(item, OverlayTextItem):
                 self._push_overlay_attr(
                     item, "stroke_width", value,
                     apply_cb=lambda it, _v: it.update(),
                     description="Change outline",
+                )
+            elif isinstance(item, OverlayArrowItem):
+                self._push_overlay_attr(
+                    item, "stroke_width", max(1, value),
+                    apply_cb=lambda it, _v: it.update(),
+                    description="Change arrow width",
                 )
         self._sync_overlays_to_asset()
 
@@ -4571,10 +4579,12 @@ class StudioEditor(QWidget):
         self._view.centerOn(new)
 
     def _duplicate_selected(self):
-        """Duplicate selected overlays, censors, and crops."""
+        """Duplicate selected overlays, censors, arrows, and crops."""
         for item in list(self._scene.selectedItems()):
             if isinstance(item, (OverlayImageItem, OverlayTextItem)):
                 self._duplicate_overlay_item(item)
+            elif isinstance(item, OverlayArrowItem):
+                self._duplicate_arrow_item(item)
             elif isinstance(item, CensorRectItem):
                 self._duplicate_censor_item(item)
             elif isinstance(item, ResizableCropItem):
