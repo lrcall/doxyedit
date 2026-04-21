@@ -2529,7 +2529,18 @@ class StudioScene(QGraphicsScene):
             else "Show Rule-of-Thirds")
         menu.addSeparator()
         bg_color_act = menu.addAction("Canvas Background Color...")
+        bg_preset_menu = menu.addMenu("Canvas Background Preset")
+        bg_black_act = bg_preset_menu.addAction("Black")
+        bg_white_act = bg_preset_menu.addAction("White")
+        bg_gray_act = bg_preset_menu.addAction("Gray")
         reset_bg_act = menu.addAction("Reset Canvas Background")
+        menu.addSeparator()
+        select_menu = menu.addMenu("Select All...")
+        sel_text_act = select_menu.addAction("Text Overlays")
+        sel_wm_act = select_menu.addAction("Watermark / Logo Overlays")
+        sel_arrow_act = select_menu.addAction("Arrows")
+        sel_shape_act = select_menu.addAction("Shapes")
+        sel_censor_act = select_menu.addAction("Censors")
         menu.addSeparator()
         lock_all_act = menu.addAction("Lock All Layers")
         unlock_all_act = menu.addAction("Unlock All Layers")
@@ -2619,6 +2630,36 @@ class StudioScene(QGraphicsScene):
             _QS("DoxyEdit", "DoxyEdit").remove("studio_bg_color")
             editor._scene.setBackgroundBrush(
                 QBrush(QColor(editor._theme.bg_deep)))
+        elif chosen in (bg_black_act, bg_white_act, bg_gray_act):
+            color_name = (
+                "#000000" if chosen is bg_black_act else
+                "#ffffff" if chosen is bg_white_act else
+                "#3a3a3a")
+            from PySide6.QtCore import QSettings as _QS
+            _QS("DoxyEdit", "DoxyEdit").setValue("studio_bg_color", color_name)
+            editor._scene.setBackgroundBrush(QBrush(QColor(color_name)))
+        elif chosen in (sel_text_act, sel_wm_act, sel_arrow_act,
+                         sel_shape_act, sel_censor_act):
+            editor._scene.clearSelection()
+            if chosen is sel_text_act:
+                for it in editor._overlay_items:
+                    if isinstance(it, OverlayTextItem):
+                        it.setSelected(True)
+            elif chosen is sel_wm_act:
+                for it in editor._overlay_items:
+                    if isinstance(it, OverlayImageItem):
+                        it.setSelected(True)
+            elif chosen is sel_arrow_act:
+                for it in editor._overlay_items:
+                    if isinstance(it, OverlayArrowItem):
+                        it.setSelected(True)
+            elif chosen is sel_shape_act:
+                for it in editor._overlay_items:
+                    if isinstance(it, OverlayShapeItem):
+                        it.setSelected(True)
+            elif chosen is sel_censor_act:
+                for it in editor._censor_items:
+                    it.setSelected(True)
         elif chosen is copy_canvas_act:
             if editor._pixmap_item:
                 from PySide6.QtWidgets import QApplication
