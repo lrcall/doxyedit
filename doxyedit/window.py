@@ -4,6 +4,10 @@ import json
 import logging
 import os
 import tempfile
+try:
+    import markdown as _markdown
+except ImportError:
+    _markdown = None
 from collections import defaultdict
 from pathlib import Path
 from PySide6.QtWidgets import (
@@ -1774,10 +1778,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _render_notes_preview_to(self, widget, text: str):
         """Render markdown preview into a specific QTextBrowser widget."""
-        try:
-            import markdown as _md
-            html_body = _md.markdown(text, extensions=["tables", "fenced_code", "nl2br"])
-        except Exception:
+        if _markdown is not None:
+            try:
+                html_body = _markdown.markdown(text, extensions=["tables", "fenced_code", "nl2br"])
+            except Exception:
+                html_body = f"<pre>{text}</pre>"
+        else:
             html_body = f"<pre>{text}</pre>"
         theme = self._theme
         font_size = theme.font_size
@@ -5913,11 +5919,13 @@ Ctrl+Click tag — Search by tag
                 if hasattr(self, '_project_notes_edit'):
                     self._project_notes_edit.setPlainText(fresh.notes)
                 if hasattr(self, '_project_notes_preview'):
-                    try:
-                        import markdown
-                        self._project_notes_preview.setHtml(
-                            markdown.markdown(fresh.notes, extensions=["tables", "fenced_code"]))
-                    except Exception:
+                    if _markdown is not None:
+                        try:
+                            self._project_notes_preview.setHtml(
+                                _markdown.markdown(fresh.notes, extensions=["tables", "fenced_code"]))
+                        except Exception:
+                            self._project_notes_preview.setPlainText(fresh.notes)
+                    else:
                         self._project_notes_preview.setPlainText(fresh.notes)
                 if hasattr(self, '_notes_edit'):
                     self._notes_edit.setPlainText(fresh.notes)
