@@ -2752,6 +2752,22 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _add_recent_project(self, path: str):
         self._push_recent("recent_projects", path)
 
+    def _open_recent_project_in_new_window(self, path: str):
+        """Recent-project entries open in a fresh window so the current
+        project isn't replaced (matches users' expectation that clicking a
+        recent project adds to the workspace instead of swapping it out)."""
+        win = MainWindow(_skip_autoload=True)
+        MainWindow._open_windows.append(win)
+        win._load_project_from(path)
+        loader = getattr(win, "_open_loader", None)
+        if loader is not None:
+            loader.loaded.connect(
+                lambda _p, _path, w=win: (w.show(), w._update_title_bar_color()))
+            loader.failed.connect(lambda _path, _err, w=win: w.show())
+        else:
+            win.show()
+            win._update_title_bar_color()
+
     def _add_recent_folder(self, folder: str):
         self._push_recent("recent_folders", folder)
 
@@ -2760,9 +2776,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         for p in self._get_recent("recent_projects"):
             if Path(p).exists():
                 act = self._recent_projects_menu.addAction(
-                    Path(p).name, lambda path=p: self._load_project_from(path))
+                    Path(p).name,
+                    lambda path=p: self._open_recent_project_in_new_window(path))
                 act.setData(p)
-                act.setToolTip("Right-click to remove from list")
+                act.setToolTip(
+                    "Opens in a new window. Right-click to remove from list.")
         if self._recent_projects_menu.isEmpty():
             self._recent_projects_menu.addAction("(none)").setEnabled(False)
 
