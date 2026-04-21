@@ -463,6 +463,14 @@ class OverlayTextItem(QGraphicsTextItem):
         self._apply_font()
         self.setOpacity(overlay.opacity)
         self.setPos(overlay.x, overlay.y)
+        # Persisted flip / rotation re-applied on construction
+        if (getattr(overlay, "flip_h", False) or getattr(overlay, "flip_v", False)
+                or overlay.rotation):
+            # _apply_flip_text composes flip + rotation
+            self._apply_flip_text()
+        if getattr(overlay, "locked", False):
+            self.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIsMovable, False)
+            self.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIsSelectable, False)
 
     def _apply_font(self):
         font = QFont(self.overlay.font_family, self.overlay.font_size)
@@ -544,6 +552,17 @@ class OverlayTextItem(QGraphicsTextItem):
             self.overlay.position = "custom"
         return super().itemChange(change, value)
 
+    def _apply_flip_text(self):
+        """Apply flip_h/flip_v to a text item via negative QTransform scale."""
+        from PySide6.QtGui import QTransform
+        self.setTransformOriginPoint(self.boundingRect().center())
+        sx = -1.0 if getattr(self.overlay, "flip_h", False) else 1.0
+        sy = -1.0 if getattr(self.overlay, "flip_v", False) else 1.0
+        t = QTransform()
+        t.scale(sx, sy)
+        self.setTransform(t)
+        self.setRotation(self.overlay.rotation)
+
     def mouseDoubleClickEvent(self, event):
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
         super().mouseDoubleClickEvent(event)
@@ -577,10 +596,14 @@ class OverlayTextItem(QGraphicsTextItem):
         menu = _themed_menu(_parent)
         edit_act = menu.addAction("Edit Text")
         menu.addSeparator()
-        dup_act = menu.addAction("Duplicate")
+        dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         menu.addSeparator()
-        fwd_act = menu.addAction("Bring Forward")
-        bwd_act = menu.addAction("Send Backward")
+        flip_h_act = menu.addAction("Flip Horizontal  (Ctrl+Shift+H)")
+        flip_v_act = menu.addAction("Flip Vertical  (Ctrl+Shift+V)")
+        reset_xform_act = menu.addAction("Reset Transform")
+        menu.addSeparator()
+        fwd_act = menu.addAction("Bring Forward  (Ctrl+])")
+        bwd_act = menu.addAction("Send Backward  (Ctrl+[)")
         menu.addSeparator()
         plat_sub = all_act = plat_actions = None
         if self._editor and self._editor._project:
@@ -596,6 +619,25 @@ class OverlayTextItem(QGraphicsTextItem):
             self.setFocus()
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_overlay_item(self)
+        elif chosen is flip_h_act:
+            self.overlay.flip_h = not getattr(self.overlay, "flip_h", False)
+            self._apply_flip_text()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen is flip_v_act:
+            self.overlay.flip_v = not getattr(self.overlay, "flip_v", False)
+            self._apply_flip_text()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen is reset_xform_act:
+            from PySide6.QtGui import QTransform
+            self.overlay.rotation = 0.0
+            self.overlay.flip_h = False
+            self.overlay.flip_v = False
+            self.setTransform(QTransform())
+            self.setRotation(0)
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
         elif plat_actions and (chosen is all_act or chosen in plat_actions):
             new_plats = _resolve_platform_menu(chosen, all_act, plat_actions, self.overlay.platforms)
             if self._editor:
@@ -2887,11 +2929,14 @@ class StudioEditor(QWidget):
         """Flip all selected overlay items on the given axis ('h' or 'v')."""
         attr = "flip_h" if axis == "h" else "flip_v"
         for item in list(self._scene.selectedItems()):
-            if isinstance(item, OverlayImageItem):
+            if isinstance(item, (OverlayImageItem, OverlayTextItem)):
                 cur = getattr(item.overlay, attr, False)
                 def _apply_flip_cb(it, v, _attr=attr):
-                    # Re-apply both flips via QTransform after setattr wrote
-                    it._apply_flip() if hasattr(it, "_apply_flip") else None
+                    # OverlayImageItem has _apply_flip; OverlayTextItem has _apply_flip_text
+                    if hasattr(it, "_apply_flip"):
+                        it._apply_flip()
+                    elif hasattr(it, "_apply_flip_text"):
+                        it._apply_flip_text()
                 self._push_overlay_attr(
                     item, attr, not cur,
                     apply_cb=_apply_flip_cb,
