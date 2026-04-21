@@ -2557,6 +2557,24 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_BracketLeft:
             self._z_shift_selected(-1)
             return
+        # [ / ] with no modifier — adjust arrowhead_size on selected arrows
+        if not ctrl and not shift and key in (Qt.Key.Key_BracketLeft, Qt.Key.Key_BracketRight):
+            delta = -2 if key == Qt.Key.Key_BracketLeft else 2
+            touched = False
+            for item in self._scene.selectedItems():
+                if isinstance(item, OverlayArrowItem):
+                    item.overlay.arrowhead_size = max(
+                        4, item.overlay.arrowhead_size + delta)
+                    item.prepareGeometryChange()
+                    item.update()
+                    touched = True
+            if touched:
+                self._sync_overlays_to_asset()
+                from PySide6.QtCore import QSettings as _QS
+                _QS("DoxyEdit", "DoxyEdit").setValue(
+                    "studio_arrow_head",
+                    self._scene.selectedItems()[0].overlay.arrowhead_size)
+                return
         # Zoom shortcuts — standard in every graphics editor
         if ctrl and shift and key == Qt.Key.Key_0:
             # Zoom to selection (fall back to canvas if none)
