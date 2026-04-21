@@ -746,9 +746,36 @@ class OverlayShapeItem(QGraphicsItem):
             painter.setBrush(QBrush(QColor(255, 200, 0)))
             for pt in self._handle_positions().values():
                 painter.drawRect(QRectF(pt.x() - _r, pt.y() - _r, 2 * _r, 2 * _r))
+            # For linear gradients, also show a direction line + two circles
+            # representing the gradient start / end.
+            if self.overlay.shape_kind == "gradient_linear":
+                import math as _m
+                ang = _m.radians(self.overlay.gradient_angle)
+                cx = self.overlay.x + self.overlay.shape_w / 2
+                cy = self.overlay.y + self.overlay.shape_h / 2
+                radius = min(self.overlay.shape_w, self.overlay.shape_h) / 2
+                sx = cx - _m.cos(ang) * radius
+                sy = cy - _m.sin(ang) * radius
+                ex = cx + _m.cos(ang) * radius
+                ey = cy + _m.sin(ang) * radius
+                painter.setPen(QPen(QColor(100, 200, 255), 1, Qt.PenStyle.DashLine))
+                painter.drawLine(int(sx), int(sy), int(ex), int(ey))
+                painter.setBrush(QBrush(QColor(100, 200, 255)))
+                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                painter.drawEllipse(QPointF(sx, sy), 6, 6)
+                painter.drawEllipse(QPointF(ex, ey), 6, 6)
 
     def mousePressEvent(self, event):
         if self.isSelected():
+            # Gradient direction handle wins over corner handles when the
+            # shape is a linear gradient.
+            if self.overlay.shape_kind == "gradient_linear":
+                h = self._gradient_handle_under(event.scenePos())
+                if h is not None:
+                    self._dragging_handle = h  # 'grad_start' or 'grad_end'
+                    self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                    event.accept()
+                    return
             h = self._handle_under(event.scenePos())
             if h is not None:
                 self._dragging_handle = h
@@ -757,7 +784,41 @@ class OverlayShapeItem(QGraphicsItem):
                 return
         super().mousePressEvent(event)
 
+    def _gradient_handle_under(self, scene_pos: QPointF):
+        """Return 'grad_start' / 'grad_end' if pos is near the gradient
+        direction handles; None otherwise."""
+        import math as _m
+        ang = _m.radians(self.overlay.gradient_angle)
+        cx = self.overlay.x + self.overlay.shape_w / 2
+        cy = self.overlay.y + self.overlay.shape_h / 2
+        radius = min(self.overlay.shape_w, self.overlay.shape_h) / 2
+        sx = cx - _m.cos(ang) * radius
+        sy = cy - _m.sin(ang) * radius
+        ex = cx + _m.cos(ang) * radius
+        ey = cy + _m.sin(ang) * radius
+        r = 9
+        if abs(scene_pos.x() - sx) <= r and abs(scene_pos.y() - sy) <= r:
+            return 'grad_start'
+        if abs(scene_pos.x() - ex) <= r and abs(scene_pos.y() - ey) <= r:
+            return 'grad_end'
+        return None
+
     def mouseMoveEvent(self, event):
+        if self._dragging_handle in ('grad_start', 'grad_end'):
+            # Drag updates the gradient angle, pivoting on the rect center
+            import math as _m
+            cx = self.overlay.x + self.overlay.shape_w / 2
+            cy = self.overlay.y + self.overlay.shape_h / 2
+            sp = event.scenePos()
+            dx = sp.x() - cx
+            dy = sp.y() - cy
+            ang = _m.degrees(_m.atan2(dy, dx))
+            if self._dragging_handle == 'grad_start':
+                ang = (ang + 180) % 360
+            self.overlay.gradient_angle = int(ang)
+            self.update()
+            event.accept()
+            return
         if self._dragging_handle is not None:
             sp = event.scenePos()
             x, y = self.overlay.x, self.overlay.y
