@@ -2094,6 +2094,11 @@ class StudioEditor(QWidget):
         self._selection_label.setToolTip("Number of selected items")
         status_bar.addWidget(self._selection_label)
 
+        self._geom_label = QLabel("")
+        self._geom_label.setObjectName("studio_geom_label")
+        self._geom_label.setToolTip("Selected item geometry: x, y | w x h")
+        status_bar.addWidget(self._geom_label)
+
         status_bar.addWidget(QLabel("|"))
 
         self._asset_info = QLabel("")
@@ -2705,12 +2710,24 @@ class StudioEditor(QWidget):
 
     def _on_selection_changed(self):
         # Total selected (overlays + censors + crops + notes) for status bar
-        total = len(self._scene.selectedItems())
+        all_sel = self._scene.selectedItems()
+        total = len(all_sel)
         if hasattr(self, "_selection_label"):
             self._selection_label.setText(
                 "0 selected" if total == 0 else
                 "1 selected" if total == 1 else
                 f"{total} selected")
+        # Geometry readout — shown only when exactly one item is selected
+        if hasattr(self, "_geom_label"):
+            if total == 1:
+                it = all_sel[0]
+                rect = it.sceneBoundingRect()
+                self._geom_label.setText(
+                    f"| {int(rect.x())},{int(rect.y())}  "
+                    f"{int(rect.width())}×{int(rect.height())}"
+                )
+            else:
+                self._geom_label.setText("")
 
         sel = [i for i in self._scene.selectedItems()
                if isinstance(i, (OverlayImageItem, OverlayTextItem))]
