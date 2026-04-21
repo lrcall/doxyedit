@@ -3255,6 +3255,13 @@ class StudioEditor(QWidget):
         self._undo_stack.redoTextChanged.connect(
             lambda txt: self.btn_redo.setToolTip(
                 f"Redo {txt} (Ctrl+Y)" if txt else "Redo (Ctrl+Y)"))
+
+        self.btn_history = QPushButton("⏱")
+        self.btn_history.setObjectName("studio_btn_history")
+        self.btn_history.setToolTip("Undo history panel")
+        self.btn_history.setFixedWidth(_icon_btn_w)
+        self.btn_history.clicked.connect(self._show_undo_history)
+        toolbar.addWidget(self.btn_history)
         toolbar.addWidget(self.btn_undo)
         toolbar.addWidget(self.btn_redo)
         toolbar.addWidget(QLabel("|"))
@@ -4114,6 +4121,31 @@ class StudioEditor(QWidget):
         self._zoom_label.setText(f"{int(factor * 100)}%")
         if hasattr(self, "_canvas_wrap"):
             self._canvas_wrap.refresh()
+
+    def _show_undo_history(self):
+        """Display the undo stack as a clickable list so users can jump to
+        any point in history."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QListWidget as _QL
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Undo History")
+        dlg.resize(380, 420)
+        layout = QVBoxLayout(dlg)
+        lst = _QL()
+        # Index 0 = clean state; undoStack.index() is the "next redo" pointer.
+        # We render each command by text; clicking jumps via setIndex.
+        lst.addItem("(clean)")
+        for i in range(self._undo_stack.count()):
+            txt = self._undo_stack.text(i)
+            lst.addItem(txt or f"Action {i + 1}")
+        current = self._undo_stack.index()
+        if 0 <= current < lst.count():
+            lst.setCurrentRow(current)
+        def _on_click(item):
+            idx = lst.row(item)
+            self._undo_stack.setIndex(idx)
+        lst.itemClicked.connect(_on_click)
+        layout.addWidget(lst)
+        dlg.exec()
 
     def _prompt_zoom_level(self, _event):
         """Click the zoom % label to enter a numeric zoom percentage."""
