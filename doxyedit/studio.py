@@ -2971,6 +2971,24 @@ class StudioView(QGraphicsView):
         self.on_file_dropped = None  # callback(path, scene_pos)
 
     def wheelEvent(self, event: QWheelEvent):
+        # Alt+wheel rotates the currently-selected overlays by 5° steps
+        # (Photoshop uses Alt for precise controls; this repurposes it).
+        editor = self._studio_editor
+        if editor is not None and (event.modifiers() & Qt.KeyboardModifier.AltModifier):
+            sel = editor._scene.selectedItems()
+            if sel:
+                step = 5 if event.angleDelta().y() > 0 else -5
+                editor._rotate_selected(step)
+                # Sync the rotation spinbox if showing
+                if hasattr(editor, "spin_rotation_layer"):
+                    for it in sel:
+                        if hasattr(it, "overlay"):
+                            editor.spin_rotation_layer.blockSignals(True)
+                            editor.spin_rotation_layer.setValue(
+                                int(it.overlay.rotation))
+                            editor.spin_rotation_layer.blockSignals(False)
+                            break
+                return
         _zoom = 1.15
         factor = _zoom if event.angleDelta().y() > 0 else 1 / _zoom
         self.setTransform(self.transform().scale(factor, factor))
