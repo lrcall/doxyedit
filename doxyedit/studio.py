@@ -623,6 +623,14 @@ class OverlayImageItem(QGraphicsPixmapItem):
         self.setTransform(t)
         self.setRotation(self.overlay.rotation)
 
+    def mouseDoubleClickEvent(self, event):
+        """Double-click shortcut for 'Replace Image...'"""
+        if self._editor:
+            self._editor._replace_overlay_image(self)
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
+
 
 class OverlayShapeItem(QGraphicsItem):
     """Non-destructive shape overlay (rectangle or ellipse).
