@@ -683,6 +683,9 @@ class DeleteItemCmd(QUndoCommand):
 class StudioScene(QGraphicsScene):
     """Scene with tool-aware mouse handling for censor/annotation drawing."""
 
+    # Smart-guide tuning
+    SNAP_THRESHOLD_PX = 5   # snap when any tracked edge is within this many scene px
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._grid_visible = False
@@ -695,6 +698,10 @@ class StudioScene(QGraphicsScene):
         self._draw_start: QPointF | None = None
         self._temp_item = None
         self._censor_style = "black"
+
+        # Smart snap guides — populated during drag, drawn in drawForeground,
+        # cleared on release.
+        self._snap_guides: list[tuple[float, float, float, float]] = []
 
         # Callbacks set by StudioEditor
         self.on_censor_finished = None   # callable(CensorRectItem)
@@ -732,23 +739,29 @@ class StudioScene(QGraphicsScene):
         super().keyPressEvent(event)
 
     def drawForeground(self, painter, rect):
-        """Draw snap grid overlay when visible."""
+        """Draw snap grid and smart-guide overlay."""
         super().drawForeground(painter, rect)
-        if not self._grid_visible:
-            return
-        pen = QPen(QColor(128, 128, 128, STUDIO_GRID_PEN_ALPHA), STUDIO_GRID_PEN_WIDTH)
-        painter.setPen(pen)
-        gs = self._grid_spacing
-        left = int(rect.left()) - (int(rect.left()) % gs)
-        top = int(rect.top()) - (int(rect.top()) % gs)
-        x = left
-        while x < rect.right():
-            painter.drawLine(int(x), int(rect.top()), int(x), int(rect.bottom()))
-            x += gs
-        y = top
-        while y < rect.bottom():
-            painter.drawLine(int(rect.left()), int(y), int(rect.right()), int(y))
-            y += gs
+        if self._grid_visible:
+            pen = QPen(QColor(128, 128, 128, STUDIO_GRID_PEN_ALPHA), STUDIO_GRID_PEN_WIDTH)
+            painter.setPen(pen)
+            gs = self._grid_spacing
+            left = int(rect.left()) - (int(rect.left()) % gs)
+            top = int(rect.top()) - (int(rect.top()) % gs)
+            x = left
+            while x < rect.right():
+                painter.drawLine(int(x), int(rect.top()), int(x), int(rect.bottom()))
+                x += gs
+            y = top
+            while y < rect.bottom():
+                painter.drawLine(int(rect.left()), int(y), int(rect.right()), int(y))
+                y += gs
+
+        # Smart snap guides: dashed magenta lines drawn during drag
+        if self._snap_guides:
+            guide_pen = QPen(QColor(255, 0, 200, 200), 1, Qt.PenStyle.DashLine)
+            painter.setPen(guide_pen)
+            for x1, y1, x2, y2 in self._snap_guides:
+                painter.drawLine(int(x1), int(y1), int(x2), int(y2))
 
     def set_censor_style(self, style: str):
         self._censor_style = style
@@ -850,7 +863,99 @@ class StudioScene(QGraphicsScene):
 
         super().mousePressEvent(event)
 
+    def _compute_snap_guides(self, moving_item):
+        """Return (dx, dy, guides) where dx/dy offset the moving_item to snap,
+        and `guides` is a list of (x1,y1,x2,y2) to draw. Uses SNAP_THRESHOLD_PX.
+        """
+        if moving_item is None:
+            return 0.0, 0.0, []
+        mb = moving_item.sceneBoundingRect()
+        m_edges_x = [mb.left(), mb.center().x(), mb.right()]
+        m_edges_y = [mb.top(), mb.center().y(), mb.bottom()]
+
+        candidates_x = []  # list of (target_x, y_range_lo, y_range_hi)
+        candidates_y = []  # list of (target_y, x_range_lo, x_range_hi)
+
+        # Canvas-center snaps (finds the pixmap item if present)
+        for it in self.items():
+            if isinstance(it, QGraphicsPixmapItem):
+                pm = it.sceneBoundingRect()
+                candidates_x.append((pm.center().x(), pm.top(), pm.bottom()))
+                candidates_y.append((pm.center().y(), pm.left(), pm.right()))
+                break
+
+        # Every other item's edges + centers
+        for it in self.items():
+            if it is moving_item or it.parentItem() is not None:
+                continue
+            if not isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                   CensorRectItem, ResizableCropItem,
+                                   NoteRectItem, QGraphicsPixmapItem)):
+                continue
+            if it is moving_item:
+                continue
+            ob = it.sceneBoundingRect()
+            for x in (ob.left(), ob.center().x(), ob.right()):
+                candidates_x.append((x, ob.top(), ob.bottom()))
+            for y in (ob.top(), ob.center().y(), ob.bottom()):
+                candidates_y.append((y, ob.left(), ob.right()))
+
+        thr = self.SNAP_THRESHOLD_PX
+        best_dx, best_dy = 0.0, 0.0
+        best_dx_abs, best_dy_abs = thr + 1, thr + 1
+        guides: list[tuple[float, float, float, float]] = []
+        for me in m_edges_x:
+            for target, y1, y2 in candidates_x:
+                d = target - me
+                if abs(d) <= thr and abs(d) < best_dx_abs:
+                    best_dx, best_dx_abs = d, abs(d)
+        for me in m_edges_y:
+            for target, x1, x2 in candidates_y:
+                d = target - me
+                if abs(d) <= thr and abs(d) < best_dy_abs:
+                    best_dy, best_dy_abs = d, abs(d)
+
+        # After applying the winning deltas, collect guide lines that remain aligned
+        final_left = mb.left() + best_dx
+        final_right = mb.right() + best_dx
+        final_centerx = mb.center().x() + best_dx
+        final_top = mb.top() + best_dy
+        final_bottom = mb.bottom() + best_dy
+        final_centery = mb.center().y() + best_dy
+
+        for target, y1, y2 in candidates_x:
+            for edge in (final_left, final_centerx, final_right):
+                if abs(edge - target) < 0.5:
+                    y_lo = min(y1, final_top)
+                    y_hi = max(y2, final_bottom)
+                    guides.append((target, y_lo, target, y_hi))
+                    break
+        for target, x1, x2 in candidates_y:
+            for edge in (final_top, final_centery, final_bottom):
+                if abs(edge - target) < 0.5:
+                    x_lo = min(x1, final_left)
+                    x_hi = max(x2, final_right)
+                    guides.append((x_lo, target, x_hi, target))
+                    break
+        return best_dx, best_dy, guides
+
     def mouseMoveEvent(self, event):
+        # Snap-to-edge for the currently-dragged item (SELECT tool only).
+        if (self.current_tool == StudioTool.SELECT
+                and event.buttons() & Qt.MouseButton.LeftButton
+                and self.mouseGrabberItem() is not None):
+            grabber = self.mouseGrabberItem()
+            if isinstance(grabber, (OverlayImageItem, OverlayTextItem,
+                                    CensorRectItem, ResizableCropItem, NoteRectItem)):
+                # Let Qt move it first, then snap
+                super().mouseMoveEvent(event)
+                dx, dy, guides = self._compute_snap_guides(grabber)
+                if dx or dy:
+                    grabber.moveBy(dx, dy)
+                if guides != self._snap_guides:
+                    self._snap_guides = guides
+                    self.update()
+                return
         if self._draw_start and self._temp_item:
             pos = event.scenePos()
             if isinstance(self._temp_item, QGraphicsLineItem):
@@ -871,6 +976,11 @@ class StudioScene(QGraphicsScene):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
+        # Clear snap guides at end of any drag
+        if self._snap_guides:
+            self._snap_guides = []
+            self.update()
+
         if self._draw_start and self._temp_item:
             if self.current_tool == StudioTool.CENSOR:
                 if self.on_censor_finished:
