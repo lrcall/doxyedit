@@ -3976,7 +3976,7 @@ class StudioEditor(QWidget):
         SLIDER_WIDTH_RATIO = 7.0               # standard slider track
         SLIDER_NARROW_RATIO = 5.0              # narrow slider (kerning, outline)
         ICON_BUTTON_WIDTH_RATIO = 2.3          # icon buttons (B, I, ■, ◻)
-        ZOOM_BUTTON_WIDTH_RATIO = 4.5          # zoom preset buttons (Fit, 50%, etc.)
+        ZOOM_BUTTON_WIDTH_RATIO = 5.5          # zoom preset buttons (Fit, 50%, etc.)
         ZOOM_LABEL_WIDTH_RATIO = 3.3           # zoom percentage label
         LAYER_PANEL_MAX_WIDTH_RATIO = 16.7     # layer panel max width
 
@@ -3991,13 +3991,15 @@ class StudioEditor(QWidget):
 
         toolbar = QHBoxLayout()
 
-        # Group 0: Undo / Redo — discoverable toolbar buttons
-        self.btn_undo = QPushButton("↶")
+        # Group 0: Undo / Redo — reliably-rendered glyphs (↶ is U+21B6
+        # 'anticlockwise top semicircle arrow' which some Windows fonts
+        # show as tofu; ↺ / ↻ are more common).
+        self.btn_undo = QPushButton("↺")
         self.btn_undo.setObjectName("studio_btn_undo")
         self.btn_undo.setToolTip("Undo (Ctrl+Z)")
         self.btn_undo.setFixedWidth(_icon_btn_w)
         self.btn_undo.clicked.connect(self._undo_stack.undo)
-        self.btn_redo = QPushButton("↷")
+        self.btn_redo = QPushButton("↻")
         self.btn_redo.setObjectName("studio_btn_redo")
         self.btn_redo.setToolTip("Redo (Ctrl+Y)")
         self.btn_redo.setFixedWidth(_icon_btn_w)
