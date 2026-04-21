@@ -4783,6 +4783,10 @@ class StudioEditor(QWidget):
     def load_asset(self, asset: Asset):
         """Load image, restore censors, overlays, crops, and notes."""
         self._asset = asset
+        # Undo history is per-asset-session; clear it so switching assets
+        # doesn't let users undo into a stale previous asset.
+        if hasattr(self, "_undo_stack"):
+            self._undo_stack.clear()
         self._scene.clear()
         self._censor_items.clear()
         self._overlay_items.clear()
