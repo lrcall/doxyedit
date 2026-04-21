@@ -3195,6 +3195,19 @@ class StudioEditor(QWidget):
         self._undo_stack.setUndoLimit(50)
         self._build()
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        # Restore last-used tool (default: SELECT)
+        from PySide6.QtCore import QSettings as _QS
+        last_tool_name = _QS("DoxyEdit", "DoxyEdit").value(
+            "studio_last_tool", "SELECT", type=str)
+        try:
+            _last_tool = StudioTool[last_tool_name]
+            if _last_tool not in (StudioTool.WATERMARK,
+                                    StudioTool.ANNOTATE_TEXT,
+                                    StudioTool.ANNOTATE_LINE,
+                                    StudioTool.ANNOTATE_BOX):
+                self._set_tool(_last_tool)
+        except (KeyError, ValueError):
+            pass
 
     # ---- keyboard shortcuts ----
 
@@ -4680,6 +4693,12 @@ class StudioEditor(QWidget):
             self._view.setCursor(Qt.CursorShape.ArrowCursor)
             self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self._sync_tool_buttons(tool)
+        # Persist the last-used tool so the next Studio session starts there.
+        # Watermark is excluded because it's a one-shot file-dialog flow.
+        if tool != StudioTool.WATERMARK:
+            from PySide6.QtCore import QSettings as _QS
+            _QS("DoxyEdit", "DoxyEdit").setValue(
+                "studio_last_tool", tool.name)
 
     def _sync_tool_buttons(self, tool: StudioTool):
         """Highlight the button for the active tool — uses QSS :checked."""
