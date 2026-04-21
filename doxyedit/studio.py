@@ -2941,7 +2941,12 @@ class StudioEditor(QWidget):
             status_bar.addWidget(btn)
 
         self._zoom_label = QLabel("100%")
+        self._zoom_label.setObjectName("studio_zoom_label")
         self._zoom_label.setFixedWidth(int(_dt.font_size * ZOOM_LABEL_WIDTH_RATIO))
+        self._zoom_label.setToolTip(
+            "Click to enter a zoom percentage (or use Ctrl+0 / Ctrl+1)")
+        self._zoom_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._zoom_label.mousePressEvent = self._prompt_zoom_level
         status_bar.addWidget(self._zoom_label)
 
         status_bar.addWidget(QLabel("|"))
@@ -3158,6 +3163,16 @@ class StudioEditor(QWidget):
         self._view.resetTransform()
         self._view.scale(factor, factor)
         self._zoom_label.setText(f"{int(factor * 100)}%")
+        if hasattr(self, "_canvas_wrap"):
+            self._canvas_wrap.refresh()
+
+    def _prompt_zoom_level(self, _event):
+        """Click the zoom % label to enter a numeric zoom percentage."""
+        current = int(self._view.transform().m11() * 100)
+        pct, ok = QInputDialog.getInt(
+            self, "Zoom", "Zoom (%):", value=current, minValue=5, maxValue=4000)
+        if ok:
+            self._set_zoom(pct / 100.0)
 
     def _nuclear_clear(self):
         """F10 — clear text selection + crop mask. The two that work."""
