@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, Qt, QSettings
 
 from doxyedit.models import Project, SocialPostStatus
+from doxyedit.panel_mixin import LazyRefreshMixin
 
 
 _DAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -117,7 +118,7 @@ class _DayCell(QFrame):
         super().mousePressEvent(event)
 
 
-class CalendarPane(QWidget):
+class CalendarPane(LazyRefreshMixin, QWidget):
     """Month-view calendar with post status dots."""
 
     day_selected = Signal(str)   # ISO date "2026-04-15"
@@ -140,7 +141,8 @@ class CalendarPane(QWidget):
 
     def set_project(self, project: Project) -> None:
         self._project = project
-        self.refresh()
+        self.project = project  # LazyRefreshMixin reads this attr name
+        self.mark_stale()
 
     def set_cross_project(self, cache, exclude_path: str = "") -> None:
         self._cross_cache = cache

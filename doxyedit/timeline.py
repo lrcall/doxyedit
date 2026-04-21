@@ -11,6 +11,7 @@ from PySide6.QtCore import Signal, Qt, QSize
 from PySide6.QtGui import QPixmap
 
 from doxyedit.models import Project, SocialPost, SocialPostStatus, EngagementWindow
+from doxyedit.panel_mixin import LazyRefreshMixin
 
 ICON_WIDTH_RATIO = 1.67
 
@@ -445,7 +446,7 @@ class GapMarker(QFrame):
         layout.addWidget(fill_btn)
 
 
-class TimelineStream(QWidget):
+class TimelineStream(LazyRefreshMixin, QWidget):
     """Scrollable post feed grouped by day with gap markers."""
 
     post_selected = Signal(str)
@@ -537,7 +538,8 @@ class TimelineStream(QWidget):
 
     def set_project(self, project: "Project") -> None:
         self._project = project
-        self.refresh()
+        self.project = project  # LazyRefreshMixin reads this attr name
+        self.mark_stale()
 
     def set_day_filter(self, iso_date: str | None) -> None:
         """Filter timeline to a single day, or clear filter (None)."""

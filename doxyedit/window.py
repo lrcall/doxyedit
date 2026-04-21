@@ -688,6 +688,10 @@ class MainWindow(QMainWindow):
         ]
         if hasattr(self, '_gantt_panel'):
             self._lazy_panels.append((self._gantt_panel, self._social_split))
+        if hasattr(self, '_timeline'):
+            self._lazy_panels.append((self._timeline, self._social_split))
+        if hasattr(self, '_calendar_pane'):
+            self._lazy_panels.append((self._calendar_pane, self._social_split))
 
         # Refresh stats when Overview tab is activated
         self.tabs.currentChanged.connect(self._on_inner_tab_changed)
