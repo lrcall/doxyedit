@@ -2959,7 +2959,13 @@ class StudioEditor(QWidget):
             btn.setFixedWidth(int(_dt.font_size * ZOOM_BUTTON_WIDTH_RATIO))
             btn.setObjectName("studio_zoom_btn")
             if factor == 0:
-                btn.clicked.connect(lambda: self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio))
+                def _do_fit():
+                    self._view.fitInView(self._scene.sceneRect(),
+                                          Qt.AspectRatioMode.KeepAspectRatio)
+                    self._zoom_label.setText("Fit")
+                    if hasattr(self, "_canvas_wrap"):
+                        self._canvas_wrap.refresh()
+                btn.clicked.connect(_do_fit)
             else:
                 btn.clicked.connect(lambda _, f=factor: self._set_zoom(f))
             status_bar.addWidget(btn)
