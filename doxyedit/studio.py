@@ -518,6 +518,60 @@ class AddCensorCmd(QUndoCommand):
             self._editor._scene.removeItem(self._item)
 
 
+class SetAttrCmd(QUndoCommand):
+    """Generic undo command for `target.attr = value` mutations.
+
+    After writing the new value, calls `apply_cb(target, new)` if provided
+    so the scene item repaints, the overlay item re-transforms, etc.
+
+    Supports merge-with-previous so that dragging a slider doesn't stack
+    50 commands — consecutive SetAttrCmd on the same (target, attr) pair
+    collapse into one.
+    """
+
+    _next_id = 1
+
+    def __init__(self, target, attr, old_value, new_value,
+                 apply_cb=None, description=""):
+        super().__init__(description or f"Change {attr}")
+        self._target = target
+        self._attr = attr
+        self._old = old_value
+        self._new = new_value
+        self._apply_cb = apply_cb
+        self._merge_id = SetAttrCmd._next_id
+        SetAttrCmd._next_id += 1
+
+    def id(self) -> int:
+        # One merge-id per (target, attr) pair so only identical mutations fuse
+        return hash((id(self._target), self._attr)) & 0x7FFFFFFF
+
+    def mergeWith(self, other) -> bool:
+        if not isinstance(other, SetAttrCmd):
+            return False
+        if other._target is not self._target or other._attr != self._attr:
+            return False
+        # Collapse: keep original _old, adopt other's _new
+        self._new = other._new
+        return True
+
+    def redo(self):
+        setattr(self._target, self._attr, self._new)
+        if self._apply_cb:
+            try:
+                self._apply_cb(self._target, self._new)
+            except Exception:
+                pass
+
+    def undo(self):
+        setattr(self._target, self._attr, self._old)
+        if self._apply_cb:
+            try:
+                self._apply_cb(self._target, self._old)
+            except Exception:
+                pass
+
+
 class DeleteItemCmd(QUndoCommand):
     def __init__(self, editor, description="Delete"):
         super().__init__(description)
@@ -1806,27 +1860,49 @@ class StudioEditor(QWidget):
 
     # ---- slider handlers ----
 
+    def _push_overlay_attr(self, item, attr: str, new_value, apply_cb=None,
+                           description: str = ""):
+        """Push a SetAttrCmd that mutates item.overlay.<attr> = new_value.
+        Consecutive ticks on the same (overlay, attr) fuse into one undo."""
+        ov = item.overlay
+        old = getattr(ov, attr, None)
+        if old == new_value:
+            return
+        cmd = SetAttrCmd(ov, attr, old, new_value,
+                         apply_cb=lambda t, v, _it=item, _cb=apply_cb:
+                             _cb(_it, v) if _cb else None,
+                         description=description or f"Change {attr}")
+        self._undo_stack.push(cmd)
+
     def _on_opacity_changed(self, value: int):
         opacity = value / 100.0
         for item in self._scene.selectedItems():
             if isinstance(item, (OverlayImageItem, OverlayTextItem)):
-                item.setOpacity(opacity)
-                item.overlay.opacity = opacity
+                self._push_overlay_attr(
+                    item, "opacity", opacity,
+                    apply_cb=lambda it, v: it.setOpacity(v),
+                    description="Change opacity",
+                )
 
     def _on_scale_changed(self, value: int):
         scale = value / 100.0
         for item in self._scene.selectedItems():
             if isinstance(item, OverlayImageItem):
-                item.overlay.scale = scale
-                if self._pixmap_item:
-                    base_w = self._pixmap_item.pixmap().width()
-                    target_w = max(10, int(base_w * scale))
-                    pm = QPixmap(item.overlay.image_path)
-                    if not pm.isNull():
-                        pm = pm.scaledToWidth(
-                            target_w, Qt.TransformationMode.SmoothTransformation
-                        )
-                        item.setPixmap(pm)
+                def _apply_scale(it, v, _self=self):
+                    if _self._pixmap_item:
+                        base_w = _self._pixmap_item.pixmap().width()
+                        target_w = max(10, int(base_w * v))
+                        pm = QPixmap(it.overlay.image_path)
+                        if not pm.isNull():
+                            pm = pm.scaledToWidth(
+                                target_w, Qt.TransformationMode.SmoothTransformation
+                            )
+                            it.setPixmap(pm)
+                self._push_overlay_attr(
+                    item, "scale", scale,
+                    apply_cb=_apply_scale,
+                    description="Change scale",
+                )
 
     def _on_selection_changed(self):
         sel = [i for i in self._scene.selectedItems()
@@ -1993,37 +2069,53 @@ class StudioEditor(QWidget):
     def _on_outline_changed(self, value: int):
         for item in self._selected_overlay_items():
             if isinstance(item, OverlayTextItem):
-                item.overlay.stroke_width = value
-                item.update()
+                self._push_overlay_attr(
+                    item, "stroke_width", value,
+                    apply_cb=lambda it, _v: it.update(),
+                    description="Change outline",
+                )
         self._sync_overlays_to_asset()
 
     def _on_kerning_changed(self, value: int):
         for item in self._selected_overlay_items():
             if isinstance(item, OverlayTextItem):
-                item.overlay.letter_spacing = float(value)
-                item._apply_font()
+                self._push_overlay_attr(
+                    item, "letter_spacing", float(value),
+                    apply_cb=lambda it, _v: it._apply_font(),
+                    description="Change kerning",
+                )
         self._sync_overlays_to_asset()
 
     def _on_rotation_changed(self, value: int):
         for item in self._selected_overlay_items():
-            item.overlay.rotation = float(value)
-            item.setTransformOriginPoint(item.boundingRect().center())
-            item.setRotation(value)
+            def _apply_rot(it, v):
+                it.setTransformOriginPoint(it.boundingRect().center())
+                it.setRotation(v)
+            self._push_overlay_attr(
+                item, "rotation", float(value),
+                apply_cb=_apply_rot, description="Rotate",
+            )
         self._sync_overlays_to_asset()
 
     def _on_line_height_changed(self, value: int):
         lh = value / 100.0
         for item in self._selected_overlay_items():
             if isinstance(item, OverlayTextItem):
-                item.overlay.line_height = lh
-                item._apply_font()
+                self._push_overlay_attr(
+                    item, "line_height", lh,
+                    apply_cb=lambda it, _v: it._apply_font(),
+                    description="Change line height",
+                )
         self._sync_overlays_to_asset()
 
     def _on_text_width_changed(self, value: int):
         for item in self._selected_overlay_items():
             if isinstance(item, OverlayTextItem):
-                item.overlay.text_width = value
-                item._apply_font()
+                self._push_overlay_attr(
+                    item, "text_width", value,
+                    apply_cb=lambda it, _v: it._apply_font(),
+                    description="Change text width",
+                )
         self._sync_overlays_to_asset()
 
     def _save_as_template(self):
