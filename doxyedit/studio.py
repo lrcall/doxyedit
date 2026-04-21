@@ -2880,6 +2880,26 @@ class StudioEditor(QWidget):
             "Useful for background watermarks you want to protect.")
         self.chk_layer_locked.toggled.connect(self._on_layer_locked_toggled)
         _props_layout.addWidget(self.chk_layer_locked)
+
+        # Numeric position: X, Y pair in one row
+        _pos_row = QHBoxLayout()
+        _pos_row.addWidget(QLabel("X"))
+        self.spin_pos_x = QSpinBox()
+        self.spin_pos_x.setObjectName("studio_pos_x_spin")
+        self.spin_pos_x.setRange(-50000, 50000)
+        self.spin_pos_x.setSuffix(" px")
+        self.spin_pos_x.valueChanged.connect(
+            lambda v: self._on_pos_field_changed('x', v))
+        _pos_row.addWidget(self.spin_pos_x, 1)
+        _pos_row.addWidget(QLabel("Y"))
+        self.spin_pos_y = QSpinBox()
+        self.spin_pos_y.setObjectName("studio_pos_y_spin")
+        self.spin_pos_y.setRange(-50000, 50000)
+        self.spin_pos_y.setSuffix(" px")
+        self.spin_pos_y.valueChanged.connect(
+            lambda v: self._on_pos_field_changed('y', v))
+        _pos_row.addWidget(self.spin_pos_y, 1)
+        _props_layout.addLayout(_pos_row)
         _layer_props.setEnabled(False)
         self._layer_props_widget = _layer_props
 
@@ -4425,7 +4445,7 @@ class StudioEditor(QWidget):
         self._sync_layer_props_panel(kind, idx)
 
     def _sync_layer_props_panel(self, kind: str, idx: int):
-        """Populate the opacity + enabled controls for the selected layer."""
+        """Populate the opacity + enabled + position controls for the selected layer."""
         if not hasattr(self, "_layer_props_widget"):
             return
         if kind == "overlay" and 0 <= idx < len(self._asset.overlays):
@@ -4439,12 +4459,39 @@ class StudioEditor(QWidget):
             self.chk_layer_locked.blockSignals(True)
             self.chk_layer_locked.setChecked(bool(getattr(ov, "locked", False)))
             self.chk_layer_locked.blockSignals(False)
+            self.spin_pos_x.blockSignals(True)
+            self.spin_pos_x.setValue(int(ov.x))
+            self.spin_pos_x.blockSignals(False)
+            self.spin_pos_y.blockSignals(True)
+            self.spin_pos_y.setValue(int(ov.y))
+            self.spin_pos_y.blockSignals(False)
             self._layer_props_widget.setEnabled(True)
             self._layer_props_selection = ("overlay", idx)
         else:
             # Censors don't have opacity/enabled in CensorRegion
             self._layer_props_widget.setEnabled(False)
             self._layer_props_selection = None
+
+    def _on_pos_field_changed(self, axis: str, value: int):
+        """Typing X or Y in the props spinboxes repositions the selected overlay."""
+        sel = getattr(self, "_layer_props_selection", None)
+        if not sel or sel[0] != "overlay":
+            return
+        idx = sel[1]
+        if idx >= len(self._asset.overlays):
+            return
+        ov = self._asset.overlays[idx]
+        setattr(ov, axis, value)
+        # Find the scene item and move it
+        for it in self._scene.items():
+            if hasattr(it, "overlay") and it.overlay is ov:
+                if isinstance(it, OverlayArrowItem):
+                    # Arrow: move whole arrow by delta of start point
+                    it.update()
+                else:
+                    it.setPos(ov.x, ov.y)
+                break
+        self._sync_overlays_to_asset()
 
     def _on_layer_opacity_changed(self, value: int):
         sel = getattr(self, "_layer_props_selection", None)
