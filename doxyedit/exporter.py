@@ -84,6 +84,32 @@ def _composite_image_overlay(img: Image.Image, ov: CanvasOverlay, project_dir: s
         return img
 
 
+def _wrap_text_to_width(text: str, font, max_width: int, draw) -> str:
+    """Word-wrap text so each line fits within max_width px. Matches Studio's
+    QTextDocument.setTextWidth behavior: wrap at word boundaries, preserve
+    explicit newlines, single words longer than max_width stay on their own
+    line."""
+    if max_width <= 0 or not text:
+        return text
+    out_lines: list[str] = []
+    for src_line in text.split("\n"):
+        if not src_line:
+            out_lines.append("")
+            continue
+        words = src_line.split(" ")
+        current = words[0]
+        for word in words[1:]:
+            candidate = current + " " + word
+            bbox = draw.textbbox((0, 0), candidate, font=font)
+            if (bbox[2] - bbox[0]) <= max_width:
+                current = candidate
+            else:
+                out_lines.append(current)
+                current = word
+        out_lines.append(current)
+    return "\n".join(out_lines)
+
+
 def _composite_text_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
     """Render text overlay onto the base image."""
     from PIL import ImageDraw, ImageFont
@@ -140,7 +166,10 @@ def _composite_text_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
         draw = ImageDraw.Draw(layer)
 
         spacing = int(ov.font_size * (ov.line_height - 1.0))
-        bbox = draw.textbbox((0, 0), ov.text, font=font, spacing=spacing)
+        # Honor text_width from Studio: wrap at word boundaries so export
+        # matches the on-canvas rendering.
+        render_text = _wrap_text_to_width(ov.text, font, ov.text_width, draw)
+        bbox = draw.textbbox((0, 0), render_text, font=font, spacing=spacing)
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
 
         x, y = _resolve_position(img.size, (tw, th), ov.position, ov.x, ov.y)
@@ -158,22 +187,22 @@ def _composite_text_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
                 crop_h = min(img.height, int(sy + th) + margin) - crop_y
                 shadow_crop = Image.new("RGBA", (crop_w, crop_h), (0, 0, 0, 0))
                 shadow_draw = ImageDraw.Draw(shadow_crop)
-                shadow_draw.text((sx - crop_x, sy - crop_y), ov.text, font=font,
+                shadow_draw.text((sx - crop_x, sy - crop_y), render_text, font=font,
                                  fill=(sr, sg, sb, sa), spacing=spacing)
                 shadow_crop = shadow_crop.filter(ImageFilter.GaussianBlur(ov.shadow_blur))
                 layer.paste(shadow_crop, (crop_x, crop_y))
                 draw = ImageDraw.Draw(layer)
             else:
-                draw.text((sx, sy), ov.text, font=font, fill=(sr, sg, sb, sa), spacing=spacing)
+                draw.text((sx, sy), render_text, font=font, fill=(sr, sg, sb, sa), spacing=spacing)
 
         # Text outline/stroke
         if ov.stroke_color and ov.stroke_width > 0:
             or_, og, ob = _hex(ov.stroke_color)
-            draw.text((x, y), ov.text, font=font,
+            draw.text((x, y), render_text, font=font,
                        fill=(r, g, b, a), stroke_width=ov.stroke_width,
                        stroke_fill=(or_, og, ob, a), spacing=spacing)
         else:
-            draw.text((x, y), ov.text, font=font, fill=(r, g, b, a), spacing=spacing)
+            draw.text((x, y), render_text, font=font, fill=(r, g, b, a), spacing=spacing)
 
         return Image.alpha_composite(img, layer)
     except Exception:
