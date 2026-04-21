@@ -3766,6 +3766,13 @@ class StudioEditor(QWidget):
         self.chk_rulers.toggled.connect(self._on_rulers_toggled)
         toolbar.addWidget(self.chk_rulers)
 
+        self.chk_notes = QCheckBox("Notes")
+        self.chk_notes.setObjectName("studio_notes_toggle")
+        self.chk_notes.setToolTip("Show note annotations")
+        self.chk_notes.setChecked(True)
+        self.chk_notes.toggled.connect(self._on_notes_toggled)
+        toolbar.addWidget(self.chk_notes)
+
         self.chk_minimap = QCheckBox("Map")
         self.chk_minimap.setObjectName("studio_minimap_toggle")
         self.chk_minimap.setToolTip("Show navigator minimap (bottom-right)")
@@ -4025,6 +4032,10 @@ class StudioEditor(QWidget):
         self.chk_minimap.blockSignals(False)
         if hasattr(self, "_canvas_wrap") and _mv:
             self._canvas_wrap.set_minimap_visible(True)
+        _nv = _qs.value("studio_notes_visible", True, type=bool)
+        self.chk_notes.blockSignals(True)
+        self.chk_notes.setChecked(_nv)
+        self.chk_notes.blockSignals(False)
 
         # Layer panel (right sidebar, collapsible)
         self._layer_panel = QListWidget()
@@ -4963,6 +4974,9 @@ class StudioEditor(QWidget):
                 note = NoteRectItem(QRectF(x, y, w, h), text)
                 note.setZValue(400)
                 self._scene.addItem(note)
+                # Respect the Notes toolbar toggle at load time
+                if hasattr(self, "chk_notes"):
+                    note.setVisible(self.chk_notes.isChecked())
                 self._notes.append(note)
 
     # ---- overlay creation ----
@@ -5807,6 +5821,13 @@ class StudioEditor(QWidget):
             self._canvas_wrap._corner.setVisible(on)
         from PySide6.QtCore import QSettings as _QS
         _QS("DoxyEdit", "DoxyEdit").setValue("studio_rulers_visible", on)
+
+    def _on_notes_toggled(self, on: bool):
+        """Show or hide all note annotations at once."""
+        for note in getattr(self, "_notes", []):
+            note.setVisible(on)
+        from PySide6.QtCore import QSettings as _QS
+        _QS("DoxyEdit", "DoxyEdit").setValue("studio_notes_visible", on)
 
     def _on_minimap_toggled(self, on: bool):
         """Show or hide the navigator minimap."""
