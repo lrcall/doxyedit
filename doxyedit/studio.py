@@ -1126,6 +1126,14 @@ class StudioScene(QGraphicsScene):
                 # Let Qt move it first, then snap
                 super().mouseMoveEvent(event)
                 dx, dy, guides = self._compute_snap_guides(grabber)
+                # Fallback to grid-snap when no item-edge snap fired and the
+                # grid is visible. Aligns the item's top-left to the nearest
+                # grid cell; smart-guides still win when applicable.
+                if self._grid_visible and dx == 0 and dy == 0 and self._grid_spacing > 0:
+                    mb = grabber.sceneBoundingRect()
+                    gs = self._grid_spacing
+                    dx = round(mb.left() / gs) * gs - mb.left()
+                    dy = round(mb.top() / gs) * gs - mb.top()
                 if dx or dy:
                     grabber.moveBy(dx, dy)
                 if guides != self._snap_guides:
