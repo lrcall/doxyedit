@@ -2386,26 +2386,30 @@ class StudioEditor(QWidget):
             QCoreApplication.processEvents()
             try:
                 img_crop = load_image_for_export(str(src_path))
-                # Determine which platform this crop belongs to
+                # Resolve this crop's platform scope. Prefer the first-class
+                # platform_id (H3.1). Fall back to label for legacy crops.
+                crop_platform = getattr(crop, "platform_id", "") or ""
                 crop_lbl = crop.label.strip().lower()
-                # Apply ONLY censors that are global OR scoped to this crop's platform
-                applicable_censors = []
-                for cr in self._asset.censors:
-                    if not cr.platforms:
-                        applicable_censors.append(cr)
-                    elif any(p.lower() == crop_lbl or crop_lbl in p.lower() or p.lower() in crop_lbl for p in cr.platforms):
-                        applicable_censors.append(cr)
-                    # else: scoped to different platform — SKIP
+
+                def _crop_scope_matches(scope_list: list[str]) -> bool:
+                    """True if the overlay/censor's platform scope includes this crop."""
+                    if not scope_list:
+                        return True  # no scope → applies to all
+                    if crop_platform:
+                        return crop_platform in scope_list
+                    # Legacy crop: fall back to label-based match
+                    for p in scope_list:
+                        pl = p.lower()
+                        if pl == crop_lbl or crop_lbl in pl or pl in crop_lbl:
+                            return True
+                    return False
+
+                applicable_censors = [cr for cr in self._asset.censors
+                                      if _crop_scope_matches(cr.platforms)]
                 if applicable_censors:
                     img_crop = apply_censors(img_crop, applicable_censors)
-                # Apply ONLY overlays that are global OR scoped to this crop's platform
-                applicable_overlays = []
-                for ov in self._asset.overlays:
-                    if not ov.platforms:
-                        applicable_overlays.append(ov)
-                    elif any(p.lower() == crop_lbl or crop_lbl in p.lower() or p.lower() in crop_lbl for p in ov.platforms):
-                        applicable_overlays.append(ov)
-                    # else: scoped to different platform — SKIP
+                applicable_overlays = [ov for ov in self._asset.overlays
+                                       if _crop_scope_matches(ov.platforms)]
                 if applicable_overlays:
                     img_crop = apply_overlays(img_crop, applicable_overlays, str(src_path.parent))
                 # Crop
