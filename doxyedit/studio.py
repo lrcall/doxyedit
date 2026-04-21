@@ -4220,6 +4220,11 @@ class StudioEditor(QWidget):
             return f" [{','.join(abbrevs)}{suffix}]"
 
         # Overlays (top of list = front)
+        if self._asset.overlays:
+            hdr = QListWidgetItem("-- Overlays --")
+            hdr.setFlags(Qt.ItemFlag.NoItemFlags)
+            hdr.setForeground(Qt.GlobalColor.gray)
+            self._layer_panel.addItem(hdr)
         for i, ov in enumerate(reversed(self._asset.overlays)):
             if ov.type == "text":
                 label = f"T  {ov.text[:20]}" if ov.text else "T  (empty text)"
@@ -4245,6 +4250,11 @@ class StudioEditor(QWidget):
             self._layer_panel.addItem(item)
 
         # Censors
+        if self._asset.censors:
+            hdr = QListWidgetItem("-- Censors --")
+            hdr.setFlags(Qt.ItemFlag.NoItemFlags)
+            hdr.setForeground(Qt.GlobalColor.gray)
+            self._layer_panel.addItem(hdr)
         for i, cr in enumerate(self._asset.censors):
             label = f"C  {cr.style} ({cr.w}\u00d7{cr.h}){_scope_tag(cr.platforms)}"
             item = QListWidgetItem(label)
