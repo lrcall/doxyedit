@@ -1436,7 +1436,11 @@ class StudioEditor(QWidget):
         # Group 4b: Alignment + distribute (menu dropdown)
         self.btn_align = QPushButton("Align ▾")
         self.btn_align.setObjectName("studio_btn_align")
-        self.btn_align.setToolTip("Align or distribute 2+ selected items")
+        self.btn_align.setToolTip(
+            "Align or distribute selected items.\n"
+            "Align: 2+ items selected.\n"
+            "Distribute: 3+ items selected.\n"
+            "Works on overlays, censors, crops, and notes.")
         self.btn_align.clicked.connect(self._show_align_menu)
         toolbar.addWidget(self.btn_align)
 
@@ -2524,6 +2528,9 @@ class StudioEditor(QWidget):
                 label = f"W  {ov.label or Path(ov.image_path).stem}"
             else:
                 label = f"O  {ov.label or ov.type}"
+            # Prepend lock icon for locked layers
+            if getattr(ov, "locked", False):
+                label = "\U0001F512 " + label  # 🔒
             label += _scope_tag(ov.platforms)
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, ("overlay", len(self._asset.overlays) - 1 - i))
@@ -2718,6 +2725,8 @@ class StudioEditor(QWidget):
                     description=("Lock layer" if checked else "Unlock layer"),
                 )
                 break
+        # Refresh the layer panel so the lock icon appears/disappears
+        self._rebuild_layer_panel()
 
     # ---- sync ----
 
