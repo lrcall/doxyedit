@@ -1867,6 +1867,10 @@ class StudioEditor(QWidget):
         if ctrl and shift and key == Qt.Key.Key_V:
             self._flip_selected("v")
             return
+        # Shift+Tab — cycle selection backwards
+        if shift and not ctrl and key == Qt.Key.Key_Backtab:
+            self._cycle_selection(-1)
+            return
         # Ctrl+] / Ctrl+[ — bring forward / send backward
         if ctrl and key == Qt.Key.Key_BracketRight:
             self._z_shift_selected(+1)
@@ -2004,6 +2008,9 @@ class StudioEditor(QWidget):
                 return
             if key == Qt.Key.Key_I:
                 self._set_tool(StudioTool.EYEDROPPER)
+                return
+            if key == Qt.Key.Key_Tab:
+                self._cycle_selection(+1)
                 return
             # Number keys 0-9 set opacity on selected non-text overlays and
             # censors. Photoshop convention: 1=10%, 5=50%, 0=100%.
@@ -4057,6 +4064,28 @@ class StudioEditor(QWidget):
             new_item.setZValue(200 + len(self._overlay_items))
             self._overlay_items.append(new_item)
         self._update_info()
+
+    def _cycle_selection(self, direction: int):
+        """Tab / Shift+Tab: cycle through selectable scene items."""
+        candidates = [it for it in self._scene.items()
+                      if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                          CensorRectItem, ResizableCropItem,
+                                          NoteRectItem))
+                      and it.parentItem() is None]
+        if not candidates:
+            return
+        # Sort for stable cycling — use Y then X of sceneBoundingRect
+        candidates.sort(key=lambda it: (it.sceneBoundingRect().y(),
+                                         it.sceneBoundingRect().x()))
+        sel = [it for it in candidates if it.isSelected()]
+        if not sel:
+            new = candidates[0 if direction > 0 else -1]
+        else:
+            idx = candidates.index(sel[0])
+            new = candidates[(idx + direction) % len(candidates)]
+        self._scene.clearSelection()
+        new.setSelected(True)
+        self._view.centerOn(new)
 
     def _duplicate_selected(self):
         """Duplicate selected overlays, censors, and crops."""
