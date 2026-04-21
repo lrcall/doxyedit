@@ -3442,6 +3442,10 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_C:
             self._copy_selected_items()
             return
+        if ctrl and shift and key == Qt.Key.Key_V:
+            # Paste in Place — no 20 px offset, matches Photoshop/Illustrator
+            self._paste_items_from_clipboard(offset=0)
+            return
         if ctrl and key == Qt.Key.Key_V:
             self._paste_items_from_clipboard()
             return
@@ -7173,8 +7177,8 @@ class StudioEditor(QWidget):
         n = len(overlays) + len(censors)
         self.info_label.setText(f"Copied {n} item(s)")
 
-    def _paste_items_from_clipboard(self):
-        """Paste previously-copied overlays + censors, offset 20px from originals.
+    def _paste_items_from_clipboard(self, offset: int = 20):
+        """Paste previously-copied overlays + censors, offset from originals.
         Falls back to system-clipboard image (e.g. screenshot) which is
         saved to a cache folder and dropped as a new watermark overlay."""
         from PySide6.QtWidgets import QApplication
@@ -7221,7 +7225,7 @@ class StudioEditor(QWidget):
         if payload.get("_schema") != self._CLIPBOARD_SCHEMA:
             self.info_label.setText("Clipboard schema mismatch")
             return
-        OFFSET = 20
+        OFFSET = offset
         pasted = 0
         # Overlays
         for od in payload.get("overlays", []):
