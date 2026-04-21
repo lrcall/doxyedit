@@ -652,6 +652,10 @@ class OverlayArrowItem(QGraphicsItem):
         menu = _themed_menu(_parent)
         color_act = menu.addAction("Change Color...")
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
+        menu.addSeparator()
+        copy_style_act = menu.addAction("Copy Style")
+        paste_style_act = menu.addAction("Paste Style")
+        menu.addSeparator()
         del_act = menu.addAction("Delete")
         chosen = menu.exec(event.screenPos())
         if chosen is color_act and self._editor:
@@ -665,6 +669,10 @@ class OverlayArrowItem(QGraphicsItem):
                 self._editor._sync_overlays_to_asset()
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_arrow_item(self)
+        elif chosen is copy_style_act and self._editor:
+            self._editor._copy_style(self.overlay)
+        elif chosen is paste_style_act and self._editor:
+            self._editor._paste_style(self.overlay, self)
         elif chosen is del_act and self._editor:
             self._editor._remove_overlay_item(self)
 
@@ -3665,13 +3673,16 @@ class StudioEditor(QWidget):
 
     # Copy/Paste Style between overlays — session-only, separate slot per type.
     # For text-to-text: all text style fields. For image-to-image: watermark
-    # fields. Position, size, content remain untouched.
+    # fields. For arrow: color, opacity, stroke_width, arrowhead_size.
     _copy_style_slot: dict = {}
+    _ARROW_STYLE_FIELDS = ("color", "opacity", "stroke_width", "arrowhead_size")
 
     def _copy_style(self, ov):
         """Stash style fields from an overlay into a per-type slot."""
         if ov.type == "text":
             fields = self._TEXT_STYLE_FIELDS
+        elif ov.type == "arrow":
+            fields = self._ARROW_STYLE_FIELDS
         else:
             fields = self._WATERMARK_STYLE_FIELDS
         self._copy_style_slot[ov.type] = {f: getattr(ov, f) for f in fields}
