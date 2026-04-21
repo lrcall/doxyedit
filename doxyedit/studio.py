@@ -2569,6 +2569,23 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_BracketLeft:
             self._z_shift_selected(-1)
             return
+        # Ctrl+L — toggle lock on selected overlays
+        if ctrl and key == Qt.Key.Key_L:
+            changed = False
+            for item in self._scene.selectedItems():
+                ov = getattr(item, "overlay", None)
+                if ov is None:
+                    continue
+                ov.locked = not getattr(ov, "locked", False)
+                item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable,
+                              not ov.locked)
+                item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable,
+                              not ov.locked)
+                changed = True
+            if changed:
+                self._sync_overlays_to_asset()
+                self._rebuild_layer_panel()
+            return
         # [ / ] with no modifier — adjust arrowhead_size on selected arrows
         if not ctrl and not shift and key in (Qt.Key.Key_BracketLeft, Qt.Key.Key_BracketRight):
             delta = -2 if key == Qt.Key.Key_BracketLeft else 2
