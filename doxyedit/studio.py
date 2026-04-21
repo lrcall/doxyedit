@@ -5708,9 +5708,10 @@ class StudioEditor(QWidget):
         self._sync_censors_to_asset()
 
     def _alignable_items(self):
-        """Return selected items we can align/distribute (overlays, censors, crops, notes)."""
+        """Return selected items we can align/distribute (overlays, censors, crops, notes, arrows, shapes)."""
         return [it for it in self._scene.selectedItems()
                 if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                   OverlayArrowItem, OverlayShapeItem,
                                    CensorRectItem, ResizableCropItem, NoteRectItem))]
 
     def _align_selected(self, edge: str):
