@@ -1370,7 +1370,13 @@ class StudioScene(QGraphicsScene):
                 target = it
                 break
         if target is None:
-            return super().contextMenuEvent(event)
+            # Let overlays/censors/notes use their own context menus;
+            # otherwise provide a canvas-level menu.
+            for it in self.items(event.scenePos()):
+                if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                    CensorRectItem, NoteRectItem)):
+                    return super().contextMenuEvent(event)
+            return self._canvas_context_menu(event)
 
         # Only surface this menu in Studio — check the view hook
         editor = None
@@ -1409,6 +1415,51 @@ class StudioScene(QGraphicsScene):
                 if editor._crop_mask_item.scene():
                     self.removeItem(editor._crop_mask_item)
                 editor._crop_mask_item = None
+
+    def _canvas_context_menu(self, event):
+        """Canvas-level right-click menu (fit/zoom/grid/thirds/copy image)."""
+        editor = None
+        if self.views():
+            editor = getattr(self.views()[0], "_studio_editor", None)
+        if editor is None:
+            return super().contextMenuEvent(event)
+        menu = _themed_menu(editor._view)
+        fit_act = menu.addAction("Fit View  (Ctrl+0)")
+        z100_act = menu.addAction("Zoom 100%  (Ctrl+1)")
+        menu.addSeparator()
+        tog_grid_act = menu.addAction(
+            "Hide Grid" if editor.chk_grid.isChecked() else "Show Grid")
+        tog_thirds_act = menu.addAction(
+            "Hide Rule-of-Thirds" if editor.chk_thirds.isChecked()
+            else "Show Rule-of-Thirds")
+        menu.addSeparator()
+        copy_canvas_act = menu.addAction("Copy Canvas Image to Clipboard")
+        chosen = menu.exec(event.screenPos())
+        if chosen is fit_act:
+            editor._view.fitInView(
+                editor._scene.sceneRect(),
+                Qt.AspectRatioMode.KeepAspectRatio)
+            editor._zoom_label.setText("Fit")
+            if hasattr(editor, "_canvas_wrap"):
+                editor._canvas_wrap.refresh()
+        elif chosen is z100_act:
+            editor._set_zoom(1.0)
+        elif chosen is tog_grid_act:
+            editor.chk_grid.setChecked(not editor.chk_grid.isChecked())
+        elif chosen is tog_thirds_act:
+            editor.chk_thirds.setChecked(not editor.chk_thirds.isChecked())
+        elif chosen is copy_canvas_act:
+            if editor._pixmap_item:
+                from PySide6.QtWidgets import QApplication
+                from PySide6.QtGui import QImage
+                pm = editor._pixmap_item.pixmap()
+                img = QImage(pm.size(), QImage.Format.Format_ARGB32)
+                img.fill(Qt.GlobalColor.transparent)
+                p = QPainter(img)
+                self.render(p, source=editor._pixmap_item.sceneBoundingRect())
+                p.end()
+                QApplication.clipboard().setImage(img)
+                editor.info_label.setText("Canvas copied to clipboard")
 
     def _rename_crop(self, editor, target):
         """Prompt for a new label and apply to both CropRegion and item."""
