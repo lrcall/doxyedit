@@ -14,7 +14,7 @@ Art asset manager for artists and creators. Browse, tag, organize, and export ar
 - **Tagging System** — keyboard shortcuts, custom tags, auto visual property tags (warm/cool/dark/portrait etc.)
 - **4-Section Tag Panel** — Content, Platform/Size, Custom/Project, Visual/Mood with eye toggles and pin-to-top
 - **Smart Folders** — save/load filter presets (View > Smart Folders)
-- **Studio Tab** — unified editor combining censor, overlay, and annotation tools in a layered scene (base Z=0, censors Z=100+, overlays Z=200+, annotations Z=300+)
+- **Studio Tab** — graphics-editor-grade canvas: censors, overlays, annotations, arrows, crops, and notes in a layered scene (Z=0 base, 100+ censors, 200+ overlays, 300+ arrows, 400+ crops/notes). Rulers + drag-out guides, rule-of-thirds, checkerboard, drop shadow, grid snap, smart guides, eyedropper, spacebar pan, Ctrl+0/1/Shift+0 zoom, 0-9 opacity, Alt+click duplicate, Tab/Shift+Tab cycling, undo/redo toolbar buttons, active tool highlight, Focus mode, canvas flip preview, section-headered layer panel with Shift/Ctrl-click toggles.
 - **Non-Destructive Censor** — black/blur/pixelate overlays, export censored copies
 - **Overlay Editor** — asset-bound watermark, text, and logo placement with drag positioning, opacity/scale sliders
 - **Preview Annotations** — draw note boxes on images, persist with project
