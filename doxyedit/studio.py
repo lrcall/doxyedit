@@ -1010,6 +1010,29 @@ class StudioScene(QGraphicsScene):
             if item_under is None:
                 if self.views() and hasattr(self.views()[0], '_studio_editor'):
                     self.views()[0]._studio_editor._nuclear_clear()
+            # Alt+click on a draggable item — duplicate it in place, then
+            # Qt will drag the duplicate (Photoshop / Figma convention).
+            if (item_under is not None
+                    and (event.modifiers() & Qt.KeyboardModifier.AltModifier)
+                    and self.views()
+                    and hasattr(self.views()[0], "_studio_editor")):
+                editor = self.views()[0]._studio_editor
+                # Walk up to the top-level item (resize handles are children)
+                top = item_under
+                while top.parentItem() is not None:
+                    top = top.parentItem()
+                if isinstance(top, (OverlayImageItem, OverlayTextItem)):
+                    editor._duplicate_overlay_item(top)
+                elif isinstance(top, CensorRectItem):
+                    editor._duplicate_censor_item(top)
+                # New item is added at top-of-stack; select it so the drag
+                # propagates naturally.
+                self.clearSelection()
+                if editor._overlay_items and isinstance(top, (OverlayImageItem, OverlayTextItem)):
+                    editor._overlay_items[-1].setSelected(True)
+                elif editor._censor_items and isinstance(top, CensorRectItem):
+                    editor._censor_items[-1].setSelected(True)
+                return
             return super().mousePressEvent(event)
 
         if self.current_tool == StudioTool.EYEDROPPER:
