@@ -148,6 +148,24 @@ class _ResizeHandle(QGraphicsRectItem):
         super().mouseMoveEvent(event)
 
 
+class _RotateHandle(QGraphicsRectItem):
+    """Small circular handle rendered above the top edge for rotating a censor."""
+
+    def __init__(self, parent_censor):
+        super().__init__(-4, -4, 8, 8, parent_censor)
+        self._parent = parent_censor
+        self.setBrush(QBrush(QColor(200, 220, 255)))
+        self.setPen(QPen(QColor(0, 0, 0), 1))
+        self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable, True)
+        self.setCursor(Qt.CursorShape.CrossCursor)
+        self.setZValue(1001)
+        self.setVisible(False)
+
+    def mouseMoveEvent(self, event):
+        self._parent._on_rotate_handle_moved(event.scenePos())
+        super().mouseMoveEvent(event)
+
+
 class CensorRectItem(QGraphicsRectItem):
     """Draggable censor rectangle — overlay exception: hardcoded colors OK."""
 
@@ -162,11 +180,12 @@ class CensorRectItem(QGraphicsRectItem):
             | QGraphicsRectItem.GraphicsItemFlag.ItemSendsGeometryChanges
         )
         self._apply_style()
-        # Resize handles (8-point)
+        # Resize handles (8-point) + rotate handle (above top edge)
         self._handles = {}
         for pos in ("tl", "t", "tr", "l", "r", "bl", "b", "br"):
             h = _ResizeHandle(self, pos)
             self._handles[pos] = h
+        self._rotate_handle = _RotateHandle(self)
         self._update_handle_positions()
 
     def _apply_style(self):
@@ -194,6 +213,24 @@ class CensorRectItem(QGraphicsRectItem):
         }
         for pos, (x, y) in positions.items():
             self._handles[pos].setPos(x, y)
+        # Rotate handle: 20px above top-center
+        if hasattr(self, "_rotate_handle"):
+            self._rotate_handle.setPos(r.center().x(), r.top() - 20)
+
+    def _on_rotate_handle_moved(self, scene_pos):
+        """Compute angle from rect center to the handle position and apply setRotation."""
+        import math
+        center_scene = self.mapToScene(self.rect().center())
+        dx = scene_pos.x() - center_scene.x()
+        dy = scene_pos.y() - center_scene.y()
+        # Handle is at 12 o'clock (dy < 0) at 0°. Angle grows clockwise.
+        angle = math.degrees(math.atan2(dy, dx)) + 90.0
+        self.setTransformOriginPoint(self.rect().center())
+        self.setRotation(angle)
+        # Persist to CensorRegion (add rotation field if present; fall back silently)
+        cr = getattr(self, "_censor_region", None)
+        if cr is not None and hasattr(cr, "rotation"):
+            cr.rotation = float(angle)
 
     def _on_handle_moved(self, position: str, scene_pos):
         local = self.mapFromScene(scene_pos)
@@ -216,6 +253,8 @@ class CensorRectItem(QGraphicsRectItem):
         if change == QGraphicsRectItem.GraphicsItemChange.ItemSelectedHasChanged:
             for h in self._handles.values():
                 h.setVisible(bool(value))
+            if hasattr(self, "_rotate_handle"):
+                self._rotate_handle.setVisible(bool(value))
         return super().itemChange(change, value)
 
     def contextMenuEvent(self, event):

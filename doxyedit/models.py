@@ -183,6 +183,7 @@ class CensorRegion:
     style: str = "black"  # "black", "blur", "pixelate"
     blur_radius: int = 20     # Gaussian blur radius (blur style)
     pixelate_ratio: int = 10  # downscale factor (pixelate style)
+    rotation: float = 0.0     # degrees
     platforms: list[str] = field(default_factory=list)  # empty = all platforms
 
 
