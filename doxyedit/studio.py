@@ -517,6 +517,8 @@ class OverlayArrowItem(QGraphicsItem):
     Paint is deferred to produce a clean triangular arrowhead.
     """
 
+    HANDLE_HIT_RADIUS = 10  # scene-px around each endpoint for handle hits
+
     def __init__(self, overlay: "CanvasOverlay", parent=None):
         super().__init__(parent)
         self.overlay = overlay
@@ -525,6 +527,7 @@ class OverlayArrowItem(QGraphicsItem):
             | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         self._editor = None
+        self._dragging_endpoint = None  # 'start', 'end', or None
         self.setZValue(200)
 
     def boundingRect(self) -> QRectF:
@@ -566,11 +569,65 @@ class OverlayArrowItem(QGraphicsItem):
         painter.setBrush(QBrush(color))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawPath(path)
-        # Selection highlight
+        # Selection highlight + endpoint handles
         if self.isSelected():
             painter.setPen(QPen(QColor(255, 200, 0), 1, Qt.PenStyle.DashLine))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(self.boundingRect())
+            _r = 5
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(QColor(255, 200, 0)))
+            painter.drawEllipse(QRectF(x1 - _r, y1 - _r, 2 * _r, 2 * _r))
+            painter.drawEllipse(QRectF(x2 - _r, y2 - _r, 2 * _r, 2 * _r))
+
+    def _endpoint_under(self, scene_pos: QPointF):
+        """Return 'start' / 'end' / None if pos is near an endpoint."""
+        r = self.HANDLE_HIT_RADIUS
+        x1, y1 = self.overlay.x, self.overlay.y
+        x2, y2 = self.overlay.end_x, self.overlay.end_y
+        sx, sy = scene_pos.x(), scene_pos.y()
+        if abs(sx - x1) <= r and abs(sy - y1) <= r:
+            return 'start'
+        if abs(sx - x2) <= r and abs(sy - y2) <= r:
+            return 'end'
+        return None
+
+    def mousePressEvent(self, event):
+        # Endpoint drag overrides body drag
+        ep = self._endpoint_under(event.scenePos())
+        if ep and self.isSelected():
+            self._dragging_endpoint = ep
+            # Disable ItemIsMovable while dragging an endpoint so the base
+            # class doesn't move the whole item.
+            self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._dragging_endpoint:
+            sp = event.scenePos()
+            if self._dragging_endpoint == 'start':
+                self.overlay.x = int(sp.x())
+                self.overlay.y = int(sp.y())
+            else:
+                self.overlay.end_x = int(sp.x())
+                self.overlay.end_y = int(sp.y())
+            self.prepareGeometryChange()
+            self.update()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._dragging_endpoint:
+            self._dragging_endpoint = None
+            # Restore ItemIsMovable and sync to the model
+            self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
