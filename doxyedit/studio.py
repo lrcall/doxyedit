@@ -1179,6 +1179,20 @@ class StudioScene(QGraphicsScene):
             return
         super().mouseReleaseEvent(event)
 
+    def mouseDoubleClickEvent(self, event):
+        """Double-click on a ResizableCropItem → rename prompt."""
+        for it in self.items(event.scenePos()):
+            if isinstance(it, ResizableCropItem):
+                editor = None
+                if self.views():
+                    editor = getattr(self.views()[0], "_studio_editor", None)
+                if editor is not None:
+                    self._rename_crop(editor, it)
+                    event.accept()
+                    return
+                break
+        super().mouseDoubleClickEvent(event)
+
     def contextMenuEvent(self, event):
         """Right-click on a ResizableCropItem → Studio crop menu (Export this crop / Delete).
 
