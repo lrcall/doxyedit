@@ -5911,12 +5911,44 @@ class StudioEditor(QWidget):
         self.info_label.setText(f"Copied {n} item(s)")
 
     def _paste_items_from_clipboard(self):
-        """Paste previously-copied overlays + censors, offset 20px from originals."""
+        """Paste previously-copied overlays + censors, offset 20px from originals.
+        Falls back to system-clipboard image (e.g. screenshot) which is
+        saved to a cache folder and dropped as a new watermark overlay."""
         from PySide6.QtWidgets import QApplication
         mime = QApplication.clipboard().mimeData()
-        if not mime.hasFormat(self._CLIPBOARD_MIME):
-            return
         if not self._asset:
+            return
+        # System-clipboard image fallback — only fires when there's no
+        # DoxyEdit-internal payload.
+        if not mime.hasFormat(self._CLIPBOARD_MIME) and mime.hasImage():
+            img = QApplication.clipboard().image()
+            if img.isNull():
+                return
+            import tempfile, uuid
+            cache_dir = Path(tempfile.gettempdir()) / "doxyedit_clipboard"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            fname = cache_dir / f"pasted_{uuid.uuid4().hex[:8]}.png"
+            img.save(str(fname), "PNG")
+            ov = CanvasOverlay(
+                type="watermark",
+                label=fname.stem,
+                image_path=str(fname),
+                opacity=1.0,
+                scale=0.3,
+                position="custom",
+                x=60, y=60,
+            )
+            for k, v in self._load_watermark_style_defaults().items():
+                setattr(ov, k, v)
+            self._asset.overlays.append(ov)
+            new_item = self._create_overlay_item(ov)
+            if new_item:
+                new_item.setZValue(200 + len(self._overlay_items))
+                self._overlay_items.append(new_item)
+            self._rebuild_layer_panel()
+            self.info_label.setText("Pasted clipboard image as watermark")
+            return
+        if not mime.hasFormat(self._CLIPBOARD_MIME):
             return
         try:
             raw = bytes(mime.data(self._CLIPBOARD_MIME)).decode("utf-8")
