@@ -28,8 +28,8 @@ class _DayCell(QFrame):
         self._f = _f
         self.setObjectName("calendar_day_cell")
         self.setCursor(Qt.PointingHandCursor)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setFixedHeight(int(_f * 4.0))
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setMinimumHeight(int(_f * 3.5))
 
         _pad = max(4, _f // 3)
         layout = QVBoxLayout(self)
@@ -126,7 +126,7 @@ class CalendarPane(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("calendar_pane")
-        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         self._project: Project | None = None
         self._current_month: date = date.today().replace(day=1)
@@ -315,13 +315,6 @@ class CalendarPane(QWidget):
                         day_type = "normal"
 
                     statuses = dict(day_statuses[iso]) if iso in day_statuses else None
-
-                    # Add gap indicator for days in the past with no posts
-                    if (
-                        day_type == "past"
-                        and not statuses
-                    ):
-                        statuses = {"gap": 1}
 
                     cell.configure(day_num, iso, day_type, statuses)
 

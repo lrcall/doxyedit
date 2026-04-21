@@ -1355,6 +1355,25 @@ def generate_stylesheet(theme: Theme) -> str:
             font-size: {fs}px;
         }}
 
+        /* ── Manage Bookmarks dialog ────────────────────────────────────── */
+        QDialog#manage_bookmarks_dialog {{
+            background: {theme.bg_main};
+        }}
+        QDialog#manage_bookmarks_dialog QLabel {{
+            color: {theme.text_muted};
+            font-size: {theme.font_size - 1}px;
+        }}
+        QDialog#manage_bookmarks_dialog QListWidget {{
+            background: {theme.bg_deep};
+            border: 1px solid {theme.border};
+            color: {theme.text_primary};
+            border-radius: 4px;
+        }}
+        QDialog#manage_bookmarks_dialog QListWidget::item:selected {{
+            background: {theme.accent};
+            color: {theme.text_on_accent};
+        }}
+
         /* ── Preview dialog ────────────────────────────────────────────── */
         QDialog#preview_dialog {{
             background: {theme.bg_deep};

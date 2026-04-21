@@ -96,11 +96,13 @@ class ContentPanel(QWidget):
 
     platforms_changed = Signal(list)
 
-    def __init__(self, project: Project, project_dir: str = "", parent=None):
+    def __init__(self, project: Project, project_dir: str = "", parent=None,
+                 extra_projects: list | None = None):
         super().__init__(parent)
         self.setObjectName("composer_content_panel")
         self._project = project
         self._project_dir = project_dir
+        self._extra_projects: list = extra_projects or []
         from PySide6.QtCore import QSettings as _QS
         _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _cb = max(14, int(_f * 1.17))
@@ -144,6 +146,14 @@ class ContentPanel(QWidget):
         self._identity_combo.addItem("(None)", "")
         for name in self._project.identities:
             self._identity_combo.addItem(name, name)
+        for xproj in self._extra_projects:
+            xname = getattr(xproj, "name", "") or ""
+            if xproj.identities:
+                self._identity_combo.insertSeparator(self._identity_combo.count())
+                for iname in xproj.identities:
+                    label = f"{iname}  [{xname}]" if xname else iname
+                    # Store as tuple encoded in UserRole: "xproject::<proj_name>::<iname>"
+                    self._identity_combo.addItem(label, f"xproject::{xname}::{iname}")
         self._identity_combo.currentIndexChanged.connect(
             lambda _: self._on_identity_changed(self._identity_combo.currentData())
         )
@@ -1711,7 +1721,16 @@ RULES:
         """Auto-fill defaults from the selected identity config."""
         if not name:
             return
-        identity = self._project.identities.get(name, {})
+        # Cross-project identity: "xproject::<proj_name>::<iname>"
+        if name.startswith("xproject::"):
+            _, proj_name, iname = name.split("::", 2)
+            identity = {}
+            for xp in self._extra_projects:
+                if (getattr(xp, "name", "") or "") == proj_name:
+                    identity = xp.identities.get(iname, {})
+                    break
+        else:
+            identity = self._project.identities.get(name, {})
         if not identity:
             return
         # Auto-switch OneUp category if identity specifies one

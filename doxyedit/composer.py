@@ -98,12 +98,13 @@ class PostComposerWidget(QWidget):
     open_in_preview = Signal(str)      # asset_id
 
     def __init__(self, project: Project, post: SocialPost | None = None,
-                 project_dir: str = "", parent=None):
+                 project_dir: str = "", parent=None, extra_projects: list | None = None):
         super().__init__(parent)
         self.setObjectName("post_composer_widget")
         self._project = project
         self._editing = post
         self._project_dir = project_dir
+        self._extra_projects: list = extra_projects or []
         self._settings = QSettings("DoxyEdit", "DoxyEdit")
 
         self._build_ui()
@@ -179,7 +180,8 @@ class PostComposerWidget(QWidget):
         self._composer_split.addWidget(self._left_wrapper)
 
         # Right panel — content
-        self._right_panel = ContentPanel(self._project, project_dir=self._project_dir)
+        self._right_panel = ContentPanel(self._project, project_dir=self._project_dir,
+                                         extra_projects=self._extra_projects)
         self._composer_split.addWidget(self._right_panel)
 
         # Restore or set default splitter sizes
@@ -466,7 +468,7 @@ class PostComposer(QDialog):
     DIALOG_MIN_HEIGHT_RATIO = 50.0
 
     def __init__(self, project: Project, post: SocialPost | None = None,
-                 project_dir: str = "", parent=None):
+                 project_dir: str = "", parent=None, extra_projects: list | None = None):
         super().__init__(parent)
         self.setObjectName("post_composer")
         self.setWindowTitle("Edit Post" if post else "New Post")
@@ -486,7 +488,8 @@ class PostComposer(QDialog):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        self._widget = PostComposerWidget(project, post, project_dir=project_dir, parent=self)
+        self._widget = PostComposerWidget(project, post, project_dir=project_dir, parent=self,
+                                          extra_projects=extra_projects)
         layout.addWidget(self._widget)
 
         self._widget.save_requested.connect(self._on_save)

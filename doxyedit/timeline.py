@@ -451,7 +451,6 @@ class TimelineStream(QWidget):
     post_selected = Signal(str)
     new_post_requested = Signal()
     sync_requested = Signal()
-    fill_gaps_requested = Signal()
     engagement_changed = Signal()  # emitted when a check is done/snoozed
 
     def __init__(self, parent=None):
@@ -485,10 +484,6 @@ class TimelineStream(QWidget):
         self._btn_sync.clicked.connect(lambda: self.sync_requested.emit())
         toolbar.addWidget(self._btn_sync)
 
-        self._btn_fill = QPushButton("Fill Gaps")
-        self._btn_fill.setObjectName("timeline_btn_fill")
-        self._btn_fill.clicked.connect(lambda: self.fill_gaps_requested.emit())
-        toolbar.addWidget(self._btn_fill)
 
         self._btn_engagement = QPushButton("Engagement")
         self._btn_engagement.setObjectName("timeline_btn_engagement")
