@@ -1421,12 +1421,19 @@ class MainWindow(QMainWindow):
             self._gantt_panel.set_theme(self._theme)
         if hasattr(self, 'studio'):
             self.studio.set_theme(self._theme)
-        # Re-render notes previews with new theme colors
-        if hasattr(self, '_notes_tab_widgets'):
-            for tab_name, (preview, editor, _) in self._notes_tab_widgets.items():
-                text = editor.toPlainText()
-                if text:
-                    self._render_notes_preview_to(preview, text)
+        # Re-render notes preview: only the currently-visible tab. Others get
+        # re-rendered when the user activates them (see _on_notes_tab_changed
+        # in composer / tab handlers). Avoids N markdown renders on every
+        # theme swap when Notes isn't active.
+        if hasattr(self, '_notes_tab_widgets') and hasattr(self, '_notes_tabs'):
+            active_idx = self._notes_tabs.currentIndex()
+            active_split = self._notes_tabs.widget(active_idx) if active_idx >= 0 else None
+            for tab_name, (preview, editor, split) in self._notes_tab_widgets.items():
+                if split is active_split:
+                    text = editor.toPlainText()
+                    if text:
+                        self._render_notes_preview_to(preview, text)
+                    break
 
     def _tint_titlebar(self, hex_color: str = ""):
         """Apply accent color to Windows 11 title bar via DwmSetWindowAttribute."""
@@ -3771,6 +3778,40 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             if tab_widget is current:
                 panel.refresh_if_stale()
 
+    def _rebuild_notes_tabs(self):
+        """Rebuild the Notes tab widgets to match the current project's sub_notes.
+
+        Expensive: creates QTextBrowser previews + re-renders markdown per tab.
+        Only called when the Notes tab becomes visible OR in _rebind_project
+        if the user is already on that tab.
+        """
+        if not getattr(self, "_notes_stale", False):
+            return
+        self._notes_stale = False
+        # Remove tabs that don't belong to this project (skip General + Agent Primer)
+        stale = [
+            name for name in list(self._notes_tab_widgets)
+            if name not in ("General", "Agent Primer")
+            and name not in self.project.sub_notes
+        ]
+        for name in stale:
+            _, _, split = self._notes_tab_widgets.pop(name)
+            idx = self._notes_tabs.indexOf(split)
+            if idx >= 0:
+                self._notes_tabs.removeTab(idx)
+        # Refresh existing tabs + create new ones from sub_notes
+        for tab_name, (preview, editor, _) in self._notes_tab_widgets.items():
+            if tab_name == "General":
+                text = self.project.notes
+            else:
+                text = self.project.sub_notes.get(tab_name, "")
+            editor.blockSignals(True)
+            editor.setPlainText(text)
+            editor.blockSignals(False)
+        for tab_name, content in self.project.sub_notes.items():
+            if tab_name not in self._notes_tab_widgets:
+                self._build_notes_tab(tab_name, content, closable=(tab_name != "Agent Primer"))
+
     def _on_inner_tab_changed(self, idx: int):
         widget = self.tabs.widget(idx)
         # Deferred restore for Social tab splitters (Qt needs visible geometry)
@@ -3782,6 +3823,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if widget is self._overview_split:
             self.stats_panel.folder_bar_color = self._theme.accent_bright
             self._refresh_project_info()
+        if widget is self._notes_tabs:
+            self._rebuild_notes_tabs()
         # Trigger lazy-refresh on any registered panel whose tab container matches
         for panel, tab_widget in getattr(self, "_lazy_panels", []):
             if tab_widget is widget:
@@ -6094,30 +6137,11 @@ Ctrl+Click tag — Search by tag
             self._notes_edit.blockSignals(True)
             self._notes_edit.setPlainText(self.project.notes)
             self._notes_edit.blockSignals(False)
-        # Rebuild notes tabs to match the new project's sub_notes
-        # Remove tabs that don't belong to this project (skip General + Agent Primer)
-        stale = [
-            name for name in list(self._notes_tab_widgets)
-            if name not in ("General", "Agent Primer")
-            and name not in self.project.sub_notes
-        ]
-        for name in stale:
-            _, _, split = self._notes_tab_widgets.pop(name)
-            idx = self._notes_tabs.indexOf(split)
-            if idx >= 0:
-                self._notes_tabs.removeTab(idx)
-        # Refresh existing tabs + create new ones from sub_notes
-        for tab_name, (preview, editor, _) in self._notes_tab_widgets.items():
-            if tab_name == "General":
-                text = self.project.notes
-            else:
-                text = self.project.sub_notes.get(tab_name, "")
-            editor.blockSignals(True)
-            editor.setPlainText(text)
-            editor.blockSignals(False)
-        for tab_name, content in self.project.sub_notes.items():
-            if tab_name not in self._notes_tab_widgets:
-                self._build_notes_tab(tab_name, content, closable=(tab_name != "Agent Primer"))
+        # Notes tabs rebuild is expensive (creates QTextBrowser previews + renders
+        # markdown per tab). Defer unless the Notes tab is currently active.
+        self._notes_stale = True
+        if self.tabs.currentWidget() is self._notes_tabs:
+            self._rebuild_notes_tabs()
         self._update_progress()
         # Defer heavy I/O to after the UI paints
         QTimer.singleShot(0, self._deferred_rebind)
