@@ -213,6 +213,8 @@ class CanvasOverlay:
     shadow_color: str = ""    # drop shadow color (empty = no shadow)
     shadow_offset: int = 0    # shadow offset in px (both x and y)
     shadow_blur: int = 0      # shadow blur radius
+    flip_h: bool = False      # mirror horizontally (negative X scale)
+    flip_v: bool = False      # mirror vertically (negative Y scale)
     platforms: list[str] = field(default_factory=list)  # empty = all platforms
 
     def to_dict(self) -> dict:

@@ -268,6 +268,14 @@ class OverlayImageItem(QGraphicsPixmapItem):
         self.setPos(overlay.x, overlay.y)
         # Rotate from center
         self.setTransformOriginPoint(pixmap.width() / 2, pixmap.height() / 2)
+        # Apply flip via QTransform (scale -1 on affected axis). setRotation
+        # still works after setTransform in Qt.
+        if getattr(overlay, "flip_h", False) or getattr(overlay, "flip_v", False):
+            from PySide6.QtGui import QTransform
+            t = QTransform()
+            t.scale(-1.0 if overlay.flip_h else 1.0,
+                    -1.0 if overlay.flip_v else 1.0)
+            self.setTransform(t)
         if overlay.rotation:
             self.setRotation(overlay.rotation)
 
@@ -283,6 +291,9 @@ class OverlayImageItem(QGraphicsPixmapItem):
         menu = _themed_menu(_parent)
         dup_act = menu.addAction("Duplicate")
         menu.addSeparator()
+        flip_h_act = menu.addAction("Flip Horizontal")
+        flip_v_act = menu.addAction("Flip Vertical")
+        menu.addSeparator()
         fwd_act = menu.addAction("Bring Forward")
         bwd_act = menu.addAction("Send Backward")
         menu.addSeparator()
@@ -297,6 +308,16 @@ class OverlayImageItem(QGraphicsPixmapItem):
             return
         if chosen is dup_act and self._editor:
             self._editor._duplicate_overlay_item(self)
+        elif chosen is flip_h_act:
+            self.overlay.flip_h = not getattr(self.overlay, "flip_h", False)
+            self._apply_flip()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen is flip_v_act:
+            self.overlay.flip_v = not getattr(self.overlay, "flip_v", False)
+            self._apply_flip()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
         elif plat_actions and (chosen is all_act or chosen in plat_actions):
             self.overlay.platforms = _resolve_platform_menu(chosen, all_act, plat_actions, self.overlay.platforms)
             if self._editor:
@@ -308,6 +329,18 @@ class OverlayImageItem(QGraphicsPixmapItem):
             self.setZValue(max(200, self.zValue() - 1))
         elif chosen is del_act and self._editor:
             self._editor._remove_overlay_item(self)
+
+    def _apply_flip(self):
+        """Apply flip_h / flip_v via negative scale around item center."""
+        from PySide6.QtGui import QTransform
+        self.setTransformOriginPoint(self.boundingRect().center())
+        sx = -1.0 if getattr(self.overlay, "flip_h", False) else 1.0
+        sy = -1.0 if getattr(self.overlay, "flip_v", False) else 1.0
+        # Compose flip + existing rotation
+        t = QTransform()
+        t.scale(sx, sy)
+        self.setTransform(t)
+        self.setRotation(self.overlay.rotation)
 
 
 class OverlayTextItem(QGraphicsTextItem):

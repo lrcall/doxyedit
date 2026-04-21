@@ -61,6 +61,12 @@ def _composite_image_overlay(img: Image.Image, ov: CanvasOverlay, project_dir: s
         target_h = int(wm.height * ratio)
         wm = wm.resize((target_w, target_h), Image.LANCZOS)
 
+        # Flip (horizontal / vertical) before rotation/compositing
+        if getattr(ov, "flip_h", False):
+            wm = wm.transpose(Image.FLIP_LEFT_RIGHT)
+        if getattr(ov, "flip_v", False):
+            wm = wm.transpose(Image.FLIP_TOP_BOTTOM)
+
         # Apply opacity
         if ov.opacity < 1.0:
             alpha = wm.split()[3]
