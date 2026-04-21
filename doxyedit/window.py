@@ -137,6 +137,93 @@ class ProjectLoader(QThread):
             self.failed.emit(self._path, str(e))
 
 
+class _DupeScanThread(QThread):
+    """Hashes asset files off the UI thread for duplicate detection.
+
+    Emits `progress(current, total)` per asset scanned. On completion, emits
+    `scanned(hashes)` where `hashes` is `{md5_hex: [Asset, ...]}`. On cancel,
+    emits `cancelled_sig()` and stops.
+    """
+    progress = Signal(int, int)
+    scanned = Signal(object)
+    cancelled_sig = Signal()
+
+    def __init__(self, assets, parent=None):
+        super().__init__(parent)
+        self._assets = list(assets)
+        self._cancel = False
+
+    def cancel(self):
+        self._cancel = True
+
+    def run(self):
+        import hashlib
+        hashes: dict[str, list] = {}
+        total = len(self._assets)
+        for i, asset in enumerate(self._assets):
+            if self._cancel:
+                self.cancelled_sig.emit()
+                return
+            self.progress.emit(i, total)
+            p = Path(asset.source_path)
+            if not p.exists():
+                continue
+            try:
+                h = hashlib.md5(p.read_bytes()).hexdigest()
+            except OSError:
+                continue
+            hashes.setdefault(h, []).append(asset)
+        self.scanned.emit(hashes)
+
+
+class _SimilarScanThread(QThread):
+    """Runs O(n^2) Hamming-distance comparison of perceptual hashes off-thread.
+
+    Takes a list of `(asset, phash_int)` tuples. Emits `progress(i, total)` per
+    outer-loop iteration and `scanned(parent_list)` on completion where
+    `parent_list[i]` is the union-find root for index `i`. On cancel, emits
+    `cancelled_sig()`.
+    """
+    progress = Signal(int, int)
+    scanned = Signal(object)
+    cancelled_sig = Signal()
+
+    def __init__(self, hashmap, threshold: int = 8, parent=None):
+        super().__init__(parent)
+        self._hashmap = hashmap
+        self._threshold = threshold
+        self._cancel = False
+
+    def cancel(self):
+        self._cancel = True
+
+    def run(self):
+        n = len(self._hashmap)
+        parent = list(range(n))
+
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        def union(a, b):
+            a, b = find(a), find(b)
+            if a != b:
+                parent[a] = b
+
+        for i in range(n):
+            if self._cancel:
+                self.cancelled_sig.emit()
+                return
+            self.progress.emit(i, n)
+            hi = self._hashmap[i][1]
+            for j in range(i + 1, n):
+                if bin(hi ^ self._hashmap[j][1]).count('1') <= self._threshold:
+                    union(i, j)
+        self.scanned.emit(parent)
+
+
 class MainWindow(QMainWindow):
     _open_windows: list["MainWindow"] = []  # keep extra windows alive (prevent GC)
 
@@ -5046,12 +5133,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         subprocess.Popen(f'explorer "{cache_dir}"')
 
     def _find_duplicates(self):
-        """Hash all project assets and show a dialog of duplicate groups with action options."""
-        import hashlib
-        from PySide6.QtWidgets import (
-            QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel,
-            QProgressDialog,
-        )
+        """Hash all project assets off-thread and show a dialog of duplicate groups."""
+        from PySide6.QtWidgets import QProgressDialog
 
         n_assets = len(self.project.assets)
         progress = QProgressDialog("Scanning for duplicates...", "Cancel", 0, n_assets, self)
@@ -5060,21 +5143,32 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         progress.setMinimumDuration(0)
         progress.setValue(0)
 
-        # Build hash → [asset] map
-        hashes: dict[str, list] = {}
-        for i, asset in enumerate(self.project.assets):
-            if progress.wasCanceled():
-                return
+        scan = _DupeScanThread(self.project.assets, self)
+        self._dupe_scan = scan  # keep reference so GC doesn't kill the thread
+
+        def _on_progress(i, total):
+            if progress.maximum() != total:
+                progress.setMaximum(total)
             progress.setValue(i)
-            p = Path(asset.source_path)
-            if not p.exists():
-                continue
-            try:
-                h = hashlib.md5(p.read_bytes()).hexdigest()
-            except OSError:
-                continue
-            hashes.setdefault(h, []).append(asset)
-        progress.close()
+
+        def _on_scanned(hashes):
+            progress.close()
+            self._show_dupe_results(hashes)
+
+        def _on_cancelled():
+            progress.close()
+
+        scan.progress.connect(_on_progress)
+        scan.scanned.connect(_on_scanned)
+        scan.cancelled_sig.connect(_on_cancelled)
+        progress.canceled.connect(scan.cancel)
+        scan.start()
+
+    def _show_dupe_results(self, hashes):
+        """Build the duplicate-groups dialog from a {md5: [assets]} map."""
+        from PySide6.QtWidgets import (
+            QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel,
+        )
 
         dupe_groups = [(h, assets) for h, assets in hashes.items() if len(assets) > 1]
         total_dupes = sum(len(assets) - 1 for _, assets in dupe_groups)
@@ -5181,13 +5275,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         dlg.exec()
 
     def _find_similar(self):
-        """Find visually similar images using perceptual hash comparison."""
-        from PySide6.QtWidgets import (
-            QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel,
-            QMessageBox, QProgressDialog,
-        )
+        """Find visually similar images using perceptual hash comparison (off-thread)."""
+        from PySide6.QtWidgets import QProgressDialog
 
-        # Collect phash values
+        # Collect phash values (cheap, stays on UI thread)
         hashmap = []  # (asset, phash_int)
         missing = 0
         for asset in self.project.assets:
@@ -5199,28 +5290,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         if not hashmap:
             QMessageBox.information(self, "Find Similar",
-                "No perceptual hashes computed yet.\nBrowse through your thumbnails first — hashes are computed during thumbnail generation.")
+                "No perceptual hashes computed yet.\nBrowse through your thumbnails first, hashes are computed during thumbnail generation.")
             return
 
-        # Hamming distance
-        def hamming(a, b):
-            return bin(a ^ b).count('1')
-
-        # Union-find grouping with threshold of 8 bits
         threshold = 8
         n = len(hashmap)
-        parent = list(range(n))
-
-        def find(x):
-            while parent[x] != x:
-                parent[x] = parent[parent[x]]
-                x = parent[x]
-            return x
-
-        def union(a, b):
-            a, b = find(a), find(b)
-            if a != b:
-                parent[a] = b
 
         progress = QProgressDialog("Comparing perceptual hashes...", "Cancel", 0, n, self)
         progress.setWindowTitle("Find Similar Images")
@@ -5228,16 +5302,40 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         progress.setMinimumDuration(0)
         progress.setValue(0)
 
-        for i in range(n):
-            if progress.wasCanceled():
-                return
-            progress.setValue(i)
-            for j in range(i + 1, n):
-                if hamming(hashmap[i][1], hashmap[j][1]) <= threshold:
-                    union(i, j)
-        progress.close()
+        scan = _SimilarScanThread(hashmap, threshold, self)
+        self._similar_scan = scan  # keep reference so GC does not kill the thread
 
-        # Collect groups
+        def _on_progress(i, total):
+            if progress.maximum() != total:
+                progress.setMaximum(total)
+            progress.setValue(i)
+
+        def _on_scanned(parent):
+            progress.close()
+            self._show_similar_results(hashmap, parent, missing, threshold)
+
+        def _on_cancelled():
+            progress.close()
+
+        scan.progress.connect(_on_progress)
+        scan.scanned.connect(_on_scanned)
+        scan.cancelled_sig.connect(_on_cancelled)
+        progress.canceled.connect(scan.cancel)
+        scan.start()
+
+    def _show_similar_results(self, hashmap, parent, missing, threshold):
+        """Build the similar-groups dialog from union-find output."""
+        from PySide6.QtWidgets import (
+            QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel,
+        )
+
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        n = len(hashmap)
         groups_dict = {}
         for i in range(n):
             root = find(i)
@@ -5249,11 +5347,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if not similar_groups:
             msg = f"No similar images found among {len(hashmap)} assets (threshold: {threshold} bits)."
             if missing:
-                msg += f"\n{missing} assets have no hash yet — browse thumbnails to compute them."
+                msg += f"\n{missing} assets have no hash yet, browse thumbnails to compute them."
             QMessageBox.information(self, "Find Similar", msg)
             return
 
-        # Build results text
         lines = [f"Found {len(similar_groups)} group(s) with {total_variants} variant(s)\n"]
         if missing:
             lines.append(f"({missing} assets not yet hashed — browse thumbnails to include them)\n")
