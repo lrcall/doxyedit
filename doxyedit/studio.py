@@ -4135,6 +4135,13 @@ class StudioEditor(QWidget):
         self.chk_notes.toggled.connect(self._on_notes_toggled)
         toolbar.addWidget(self.chk_notes)
 
+        self.chk_base = QCheckBox("Base")
+        self.chk_base.setObjectName("studio_base_toggle")
+        self.chk_base.setToolTip("Show base image (uncheck to work on overlays only)")
+        self.chk_base.setChecked(True)
+        self.chk_base.toggled.connect(self._on_base_toggled)
+        toolbar.addWidget(self.chk_base)
+
         self.chk_minimap = QCheckBox("Map")
         self.chk_minimap.setObjectName("studio_minimap_toggle")
         self.chk_minimap.setToolTip("Show navigator minimap (bottom-right)")
@@ -6206,6 +6213,15 @@ class StudioEditor(QWidget):
             note.setVisible(on)
         from PySide6.QtCore import QSettings as _QS
         _QS("DoxyEdit", "DoxyEdit").setValue("studio_notes_visible", on)
+
+    def _on_base_toggled(self, on: bool):
+        """Hide / show the base image + checkerboard so users can focus on
+        overlays without the base distracting the eye."""
+        if self._pixmap_item is not None:
+            self._pixmap_item.setVisible(on)
+        checker = getattr(self, "_checker_item", None)
+        if checker is not None:
+            checker.setVisible(on)
 
     def _on_minimap_toggled(self, on: bool):
         """Show or hide the navigator minimap."""
