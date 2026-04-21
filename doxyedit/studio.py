@@ -1301,6 +1301,17 @@ class StudioScene(QGraphicsScene):
                 self._temp_item.setLine(QLineF(self._draw_start, pos))
             elif isinstance(self._temp_item, QGraphicsRectItem):
                 r = QRectF(self._draw_start, pos).normalized()
+                # Shift constrains to a perfect square when drawing censors
+                # or crops (Photoshop convention for rect/oval tools).
+                if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                    s = max(r.width(), r.height())
+                    # Keep the anchor at _draw_start so the square grows
+                    # in the direction the user is dragging.
+                    dx = 1 if pos.x() >= self._draw_start.x() else -1
+                    dy = 1 if pos.y() >= self._draw_start.y() else -1
+                    r = QRectF(self._draw_start, QPointF(
+                        self._draw_start.x() + dx * s,
+                        self._draw_start.y() + dy * s)).normalized()
                 # Constrain crop to aspect ratio
                 if self.current_tool == StudioTool.CROP and self.get_crop_aspect:
                     aspect = self.get_crop_aspect()
