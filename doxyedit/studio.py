@@ -441,6 +441,8 @@ class OverlayImageItem(QGraphicsPixmapItem):
             a.setCheckable(True)
             a.setChecked(getattr(self.overlay, "blend_mode", "normal") == bm)
             blend_acts[a] = bm
+        select_same_blend_act = menu.addAction(
+            f"Select All with {getattr(self.overlay, 'blend_mode', 'normal').title()} Blend")
         menu.addSeparator()
         flip_h_act = menu.addAction("Flip Horizontal  (Ctrl+Shift+H)")
         flip_v_act = menu.addAction("Flip Vertical  (Ctrl+Shift+V)")
@@ -477,6 +479,12 @@ class OverlayImageItem(QGraphicsPixmapItem):
             self.update()
             if self._editor:
                 self._editor._sync_overlays_to_asset()
+        elif chosen is select_same_blend_act and self._editor:
+            bm = getattr(self.overlay, "blend_mode", "normal")
+            self._editor._scene.clearSelection()
+            for it in self._editor._overlay_items:
+                if getattr(getattr(it, "overlay", None), "blend_mode", "normal") == bm:
+                    it.setSelected(True)
         elif chosen is flip_h_act:
             self.overlay.flip_h = not getattr(self.overlay, "flip_h", False)
             self._apply_flip()
