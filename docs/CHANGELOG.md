@@ -47,6 +47,13 @@
 - **Folder compact/expand** asset-path repair: one rglob instead of per-asset.
 - **Health panel** shared rename-index replaces per-asset recursive scans.
 - **autosave_collection** skip-when-unchanged.
+- **UI font size cached** — replaces 31 per-render QSettings reads with one
+  module-level cache invalidated on Ctrl+=/-/0.
+- **File→Open async** — project file dialog no longer freezes on large
+  projects; ProjectLoader QThread handles the hydrate, UI updates on
+  loader signal.
+- **New-window show() deferred** until the async load fires, removing the
+  empty-frame flash on collection open and tab detach.
 
 ### New format / project file
 - **`.doxy`** (projects) and **`.doxycol`** (collections) as default save
