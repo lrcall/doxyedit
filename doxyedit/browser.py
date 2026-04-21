@@ -425,7 +425,9 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self.show_dims = True
         self.show_filenames = "always"  # "always" | "hover" | "never"
         self._folder_starts: dict[int, str] = {}  # row_index → folder path
-        self._scaled_cache: dict[tuple, QPixmap] = {}
+        from collections import OrderedDict
+        self._scaled_cache: OrderedDict[tuple, QPixmap] = OrderedDict()
+        self._scaled_cache_max = 2048  # cap to bound QPixmap memory growth
         self._fonts: dict[int, QFont] = {}       # size → QFont (cached to avoid per-paint allocs)
         self._fms: dict[int, QFontMetrics] = {}  # size → QFontMetrics
         from doxyedit.themes import THEMES, DEFAULT_THEME
@@ -602,13 +604,15 @@ class ThumbnailDelegate(QStyledItemDelegate):
         pixmap = index.data(ThumbnailModel.ThumbnailRole)
         if pixmap and not pixmap.isNull():
             cache_key = (pixmap.cacheKey(), ts, self.fill_mode)
-            if cache_key not in self._scaled_cache:
+            if cache_key in self._scaled_cache:
+                scaled = self._scaled_cache[cache_key]
+                self._scaled_cache.move_to_end(cache_key)  # mark as recently used
+            else:
                 if self.fill_mode:
                     # Fill: scale to cover, then crop center
                     scaled = pixmap.scaled(
                         ts, ts, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                         Qt.TransformationMode.SmoothTransformation)
-                    # Crop to ts x ts from center
                     cx = (scaled.width() - ts) // 2
                     cy = (scaled.height() - ts) // 2
                     scaled = scaled.copy(cx, cy, ts, ts)
@@ -617,7 +621,8 @@ class ThumbnailDelegate(QStyledItemDelegate):
                         ts, ts, Qt.AspectRatioMode.KeepAspectRatio,
                         Qt.TransformationMode.SmoothTransformation)
                 self._scaled_cache[cache_key] = scaled
-            scaled = self._scaled_cache[cache_key]
+                if len(self._scaled_cache) > self._scaled_cache_max:
+                    self._scaled_cache.popitem(last=False)  # evict oldest
             x = rect.x() + (rect.width() - scaled.width()) // 2
             y = rect.y() + self.cell_padding + (ts - scaled.height()) // 2
             # Rounded corners

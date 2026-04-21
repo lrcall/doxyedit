@@ -13,6 +13,7 @@ from PySide6.QtGui import (
 
 from doxyedit.imaging import load_pixmap
 from doxyedit.models import CropRegion, PLATFORMS
+from doxyedit.themes import THEMES, DEFAULT_THEME
 
 
 class HoverPreview(QWidget):
@@ -89,7 +90,6 @@ class NoteRectItem(QGraphicsRectItem):
 
     def __init__(self, rect: QRectF, text: str = ""):
         super().__init__(rect)
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         _nc = QColor(_dt.note_border)
         _nc.setAlpha(_dt.preview_overlay_alpha)
@@ -129,7 +129,6 @@ class NoteRectItem(QGraphicsRectItem):
         text_h = fm.height() + pad_y * 2
 
         bg = QRectF(screen_tl.x() + 4, screen_tl.y() + 4, text_w, text_h)
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         _label_bg = QColor(0, 0, 0); _label_bg.setAlpha(_dt.preview_label_bg_alpha)
         painter.fillRect(bg, _label_bg)
@@ -156,7 +155,6 @@ class ResizableCropItem(QGraphicsRectItem):
             | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         if theme is None:
-            from doxyedit.themes import THEMES, DEFAULT_THEME
             theme = THEMES[DEFAULT_THEME]
         self._theme = theme
         _cc = QColor(theme.crop_border)
@@ -174,7 +172,6 @@ class ResizableCropItem(QGraphicsRectItem):
         painter.drawRect(self.rect())
         # Draw label (screen-space sized so it stays readable at any zoom)
         if self.label:
-            from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
             font = painter.font()
             view = self.scene().views()[0] if self.scene() and self.scene().views() else None
@@ -455,7 +452,6 @@ class ImagePreviewDialog(QDialog):
         layout.addWidget(info_bar_widget)
 
         # Zoomable view
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         self.scene = QGraphicsScene()
         self.scene.setBackgroundBrush(QColor(_dt.bg_deep))
@@ -638,7 +634,6 @@ class ImagePreviewDialog(QDialog):
         path = path.subtracted(hole)
         self._crop_mask_item = QGraphicsPathItem(path)
         self._crop_mask_item.setPen(QPen(Qt.PenStyle.NoPen))
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _mask_bg = QColor(0, 0, 0); _mask_bg.setAlpha(THEMES[DEFAULT_THEME].preview_tooltip_bg_alpha)
         self._crop_mask_item.setBrush(QBrush(_mask_bg))
         self._crop_mask_item.setZValue(100)
@@ -704,7 +699,6 @@ class ImagePreviewDialog(QDialog):
             self._crop_start = self.view.mapToScene(event.position().toPoint())
             self._clear_crop_visuals()
             self._crop_rect_item = QGraphicsRectItem()
-            from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
             _cc = QColor(_dt.crop_border); _cc.setAlpha(_dt.preview_overlay_alpha)
             self._crop_rect_item.setPen(QPen(_cc, _dt.crop_border_width))
@@ -948,7 +942,6 @@ class PreviewPane(QWidget):
         info_layout.addWidget(self._popout_btn)
 
         # Graphics view
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt_pane = THEMES[DEFAULT_THEME]
         self._scene = QGraphicsScene()
         self._scene.setBackgroundBrush(QColor(_dt_pane.bg_deep))
