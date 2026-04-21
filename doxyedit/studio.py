@@ -3540,6 +3540,14 @@ class StudioEditor(QWidget):
         if shift and not ctrl and key == Qt.Key.Key_R:
             self._rotate_selected(-90)
             return
+        # Ctrl+R — rotate 1 degree CW (Ctrl+Shift+R — 1 CCW).
+        # Fine rotation for precise layouts.
+        if ctrl and not shift and key == Qt.Key.Key_R:
+            self._rotate_selected(1)
+            return
+        if ctrl and shift and key == Qt.Key.Key_R:
+            self._rotate_selected(-1)
+            return
         # Ctrl+] / Ctrl+[ — bring forward / send backward
         # Ctrl+Shift+] / Ctrl+Shift+[ — bring to front / send to back
         # Some layouts send Key_Brace{Left,Right} when Shift is held, others
