@@ -1,6 +1,7 @@
 """Main application window — tabbed layout with all panels."""
 import html as _html
 import json
+import logging
 import os
 import tempfile
 from collections import defaultdict
@@ -2145,11 +2146,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _paste_from_clipboard(self):
         clipboard = QApplication.clipboard()
         mime = clipboard.mimeData()
-        print(f"[Paste] hasImage={mime.hasImage()} hasUrls={mime.hasUrls()} hasText={mime.hasText()}")
-        if mime.hasUrls():
-            print(f"[Paste] URLs: {[u.toLocalFile() for u in mime.urls()[:5]]}")
-        if mime.hasText():
-            print(f"[Paste] Text: {mime.text()[:200]!r}")
 
         # Rich paste — full asset metadata from another DoxyEdit project tab
         if mime.hasFormat("application/x-doxyedit-assets"):
@@ -3172,11 +3168,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 )
                 if result.success:
                     exports[pid] = result.output_path
-                    print(f"[Export] {pid}: {result.width}x{result.height} -> {result.output_path}")
                     for w in result.warnings:
-                        print(f"[Export]   warning: {w}")
+                        logging.warning("Export %s: %s", pid, w)
                 else:
-                    print(f"[Export] {pid}: FAILED - {result.error}")
+                    logging.error("Export %s failed: %s", pid, result.error)
 
         return exports
 

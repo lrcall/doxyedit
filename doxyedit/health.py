@@ -321,9 +321,6 @@ class HealthPanel(QWidget):
         stem = src.stem.lower()
         known_paths = {a.source_path for a in self.project.assets}
 
-        # Try to get original file size from disk (may exist in a different location)
-        old_size = None
-
         # Walk up at most 3 levels from the missing file's folder
         search_roots = []
         p = src.parent
@@ -360,16 +357,10 @@ class HealthPanel(QWidget):
 
         found = list(candidates.values())
 
-        # Score each candidate
+        # Score each candidate: name match wins, then alphabetical
         def _score(p: Path):
-            name_match = p.stem.lower() == stem          # exact stem match
-            try:
-                sz = p.stat().st_size
-                size_match = (old_size is not None and sz == old_size)
-            except Exception:
-                size_match = False
-            # Lower score = better
-            return (0 if name_match else 1, 0 if size_match else 1, p.name.lower())
+            name_match = p.stem.lower() == stem
+            return (0 if name_match else 1, p.name.lower())
 
         found.sort(key=_score)
         return found[:10]  # cap at 10 candidates
