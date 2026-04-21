@@ -627,6 +627,7 @@ class OverlayTextItem(QGraphicsTextItem):
         _parent = self._editor._view if self._editor else None
         menu = _themed_menu(_parent)
         edit_act = menu.addAction("Edit Text")
+        save_style_act = menu.addAction("Save as Default Text Style")
         menu.addSeparator()
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         menu.addSeparator()
@@ -649,6 +650,8 @@ class OverlayTextItem(QGraphicsTextItem):
         if chosen is edit_act:
             self.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
             self.setFocus()
+        elif chosen is save_style_act and self._editor:
+            self._editor._save_text_style_as_default(self.overlay)
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_overlay_item(self)
         elif chosen is flip_h_act:
@@ -2400,6 +2403,38 @@ class StudioEditor(QWidget):
         self._view.setCursor(Qt.CursorShape.ArrowCursor)
         self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
 
+    # Fields copied into the CanvasOverlay when the user "Saves as Default
+    # Text Style". Position/size/text fields are intentionally excluded --
+    # those are per-instance.
+    _TEXT_STYLE_FIELDS = (
+        "font_family", "font_size", "color", "opacity",
+        "bold", "italic", "letter_spacing", "line_height",
+        "stroke_color", "stroke_width",
+        "shadow_color", "shadow_offset", "shadow_blur",
+    )
+
+    def _load_text_style_defaults(self) -> dict:
+        """Return the user's saved default text style (or {} if none)."""
+        from PySide6.QtCore import QSettings as _QS
+        import json as _json
+        raw = _QS("DoxyEdit", "DoxyEdit").value("studio_text_defaults", "", type=str)
+        if not raw:
+            return {}
+        try:
+            d = _json.loads(raw)
+            return {k: v for k, v in d.items() if k in self._TEXT_STYLE_FIELDS}
+        except Exception:
+            return {}
+
+    def _save_text_style_as_default(self, ov: CanvasOverlay):
+        """Persist the overlay's style fields as the new default."""
+        from PySide6.QtCore import QSettings as _QS
+        import json as _json
+        payload = {k: getattr(ov, k) for k in self._TEXT_STYLE_FIELDS}
+        _QS("DoxyEdit", "DoxyEdit").setValue(
+            "studio_text_defaults", _json.dumps(payload, ensure_ascii=False))
+        self.info_label.setText("Saved default text style")
+
     def _add_text_overlay(self, x: int = 50, y: int = 50):
         """Add a text overlay at the given position."""
         if not self._asset:
@@ -2412,6 +2447,9 @@ class StudioEditor(QWidget):
             position="custom",
             x=x, y=y,
         )
+        # Apply the user's saved default text style, if one exists
+        for k, v in self._load_text_style_defaults().items():
+            setattr(ov, k, v)
         self._asset.overlays.append(ov)
         item = self._create_overlay_item(ov)
         if item:
