@@ -5861,43 +5861,64 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         dlg.exec()
 
     def _show_shortcuts(self):
+        """Display keyboard shortcuts, generated from the real QAction registry
+        so the list cannot drift from the actual bindings.
+
+        Walks the menubar recursively, pulling every QAction that has a
+        non-empty .shortcut(). Appends project-specific custom_shortcuts
+        at the end. Falls back to a small hardcoded list of in-view
+        shortcuts that aren't registered as QActions (preview keys, grid
+        keys) where Qt doesn't expose them.
+        """
         from PySide6.QtWidgets import QMessageBox
-        shortcuts = """
-Ctrl+S — Save Project
-Ctrl+O — Open Project
-Ctrl+N — New Project
-Ctrl+E — Export All Platforms
-Ctrl+V — Paste Image/Path
-Ctrl+A — Select All
-Ctrl+D — Deselect All
-Escape — Deselect All
-Alt+A — Add Tag to Selected
-Ctrl+H — Temporary Hide (nothing selected = restore all)
-Ctrl+T — Toggle Tag Panel
-Ctrl+= — Increase Font
-Ctrl+- — Decrease Font
-Ctrl+0 — Reset Font
-Ctrl+Scroll — Zoom Thumbnails
-Delete — Soft-delete (tag as ignore)
-F5 — Reload Project from Disk
-Shift+F5 — Refresh Thumbnails
-Ctrl+F — Focus Search Box
-Shift+E — Notes Overlay (edit notes popup)
 
-Preview:
-N — Add Note
-V — Toggle Notes Visible
-Ctrl+0 — Fit to View
-Esc — Close
+        lines: list[str] = []
+        seen_keys: set[str] = set()
 
-Tags (Assets tab):
-1-8 — Toggle content tags
-0 — Toggle Ignore
-Ctrl+Click tag — Search by tag
-"""
-        for key, tid in self.project.custom_shortcuts.items():
-            shortcuts += f"{key} — {tid}\n"
-        QMessageBox.information(self, "Keyboard Shortcuts", shortcuts.strip())
+        def _walk(menu):
+            for a in menu.actions():
+                if a.menu():
+                    _walk(a.menu())
+                    continue
+                if a.isSeparator():
+                    continue
+                ks = a.shortcut().toString()
+                if not ks or ks in seen_keys:
+                    continue
+                label = a.text().replace("&", "").strip()
+                if not label:
+                    continue
+                seen_keys.add(ks)
+                lines.append(f"{ks}  —  {label}")
+
+        mb = self.menuBar()
+        if mb:
+            for a in mb.actions():
+                if a.menu():
+                    _walk(a.menu())
+
+        # Context-specific shortcuts not registered as QActions on the menubar
+        extras = [
+            ("Ctrl+Scroll", "Zoom thumbnails"),
+            ("Ctrl+Click tag", "Search by tag"),
+            ("Preview — N", "Add note"),
+            ("Preview — V", "Toggle notes visible"),
+            ("Preview — Esc", "Close"),
+            ("Tags — 1-9", "Toggle content tags"),
+            ("Tags — 0", "Toggle Ignore"),
+        ]
+
+        shortcuts_text = "\n".join(sorted(lines))
+        if extras:
+            shortcuts_text += "\n\nExtra shortcuts:\n"
+            shortcuts_text += "\n".join(f"{k}  —  {v}" for k, v in extras)
+
+        if self.project and getattr(self.project, "custom_shortcuts", None):
+            shortcuts_text += "\n\nProject shortcuts:\n"
+            for key, tid in self.project.custom_shortcuts.items():
+                shortcuts_text += f"{key}  —  {tid}\n"
+
+        QMessageBox.information(self, "Keyboard Shortcuts", shortcuts_text.strip())
 
     def _show_whats_new(self):
         from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
