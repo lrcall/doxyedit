@@ -118,6 +118,7 @@ class StudioTool(Enum):
     TEXT_OVERLAY = auto()
     CROP = auto()
     NOTE = auto()
+    EYEDROPPER = auto()
     ANNOTATE_TEXT = auto()
     ANNOTATE_LINE = auto()
     ANNOTATE_BOX = auto()
@@ -986,6 +987,26 @@ class StudioScene(QGraphicsScene):
                 if self.views() and hasattr(self.views()[0], '_studio_editor'):
                     self.views()[0]._studio_editor._nuclear_clear()
             return super().mousePressEvent(event)
+
+        if self.current_tool == StudioTool.EYEDROPPER:
+            # Sample the pixmap pixel under the cursor and send the color
+            # back to the editor.
+            editor = None
+            if self.views():
+                editor = getattr(self.views()[0], "_studio_editor", None)
+            if editor is not None and editor._pixmap_item is not None:
+                pix = editor._pixmap_item.pixmap()
+                img = pix.toImage()
+                px = int(pos.x())
+                py = int(pos.y())
+                if 0 <= px < img.width() and 0 <= py < img.height():
+                    c = img.pixelColor(px, py)
+                    editor._apply_picked_color(c)
+            # Return to SELECT after a pick — Photoshop convention
+            self.set_tool(StudioTool.SELECT)
+            if self.views():
+                self.views()[0].setCursor(Qt.CursorShape.ArrowCursor)
+            return
 
         if self.current_tool == StudioTool.CENSOR:
             self._draw_start = pos
@@ -1915,6 +1936,9 @@ class StudioEditor(QWidget):
             if key == Qt.Key.Key_N:
                 self._set_tool(StudioTool.NOTE)
                 return
+            if key == Qt.Key.Key_I:
+                self._set_tool(StudioTool.EYEDROPPER)
+                return
             if key == Qt.Key.Key_F:
                 if self._scene.sceneRect():
                     self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
@@ -2039,6 +2063,15 @@ class StudioEditor(QWidget):
         self.btn_note.setCheckable(True)
         self.btn_note.clicked.connect(lambda: self._set_tool(StudioTool.NOTE))
         toolbar.addWidget(self.btn_note)
+
+        self.btn_eyedropper = QPushButton("Pick")
+        self.btn_eyedropper.setObjectName("studio_btn_eyedropper")
+        self.btn_eyedropper.setToolTip(
+            "Eyedropper (I): sample a pixel color - applies to selected text "
+            "or copies hex to clipboard")
+        self.btn_eyedropper.setCheckable(True)
+        self.btn_eyedropper.clicked.connect(lambda: self._set_tool(StudioTool.EYEDROPPER))
+        toolbar.addWidget(self.btn_eyedropper)
 
         self.btn_delete = QPushButton("Delete")
         self.btn_delete.setObjectName("studio_btn_delete")
@@ -2674,6 +2707,9 @@ class StudioEditor(QWidget):
         if tool in (StudioTool.CENSOR, StudioTool.CROP, StudioTool.NOTE):
             self._view.setCursor(Qt.CursorShape.CrossCursor)
             self._view.setDragMode(QGraphicsView.DragMode.NoDrag)
+        elif tool == StudioTool.EYEDROPPER:
+            self._view.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._view.setDragMode(QGraphicsView.DragMode.NoDrag)
         elif tool == StudioTool.WATERMARK:
             self._add_watermark()
             self._scene.set_tool(StudioTool.SELECT)
@@ -2695,6 +2731,7 @@ class StudioEditor(QWidget):
             StudioTool.NOTE: self.btn_note,
             StudioTool.WATERMARK: self.btn_watermark,
             StudioTool.TEXT_OVERLAY: self.btn_text,
+            StudioTool.EYEDROPPER: self.btn_eyedropper,
         }
         for t, btn in mapping.items():
             btn.setChecked(t == tool)
@@ -3020,6 +3057,29 @@ class StudioEditor(QWidget):
             description="Change text color",
         )
         self._sync_overlays_to_asset()
+
+    def _apply_picked_color(self, color: QColor):
+        """Apply eyedropper-sampled color: to selected text overlays if any,
+        otherwise copy the hex to the system clipboard."""
+        hex_ = color.name()  # "#rrggbb"
+        # If there's a selected text overlay, set its color
+        applied = False
+        for it in self._scene.selectedItems():
+            if isinstance(it, OverlayTextItem):
+                self._push_overlay_attr(
+                    it, "color", hex_,
+                    apply_cb=lambda _it, _v: _it._apply_font(),
+                    description="Eyedropper: set text color",
+                )
+                applied = True
+        if applied:
+            self._sync_overlays_to_asset()
+            self.info_label.setText(f"Eyedropper: applied {hex_}")
+        else:
+            # No text selected — stash the color on clipboard for the user
+            from PySide6.QtWidgets import QApplication
+            QApplication.clipboard().setText(hex_)
+            self.info_label.setText(f"Eyedropper: {hex_} copied to clipboard")
 
     def _add_text_overlay(self, x: int = 50, y: int = 50):
         """Add a text overlay at the given position."""
