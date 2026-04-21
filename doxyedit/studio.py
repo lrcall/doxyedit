@@ -1819,6 +1819,26 @@ class StudioEditor(QWidget):
 
         toolbar = QHBoxLayout()
 
+        # Group 0: Undo / Redo — discoverable toolbar buttons
+        self.btn_undo = QPushButton("↶")
+        self.btn_undo.setObjectName("studio_btn_undo")
+        self.btn_undo.setToolTip("Undo (Ctrl+Z)")
+        self.btn_undo.setFixedWidth(_icon_btn_w)
+        self.btn_undo.clicked.connect(self._undo_stack.undo)
+        self.btn_redo = QPushButton("↷")
+        self.btn_redo.setObjectName("studio_btn_redo")
+        self.btn_redo.setToolTip("Redo (Ctrl+Y)")
+        self.btn_redo.setFixedWidth(_icon_btn_w)
+        self.btn_redo.clicked.connect(self._undo_stack.redo)
+        # Enable/disable based on stack state
+        self._undo_stack.canUndoChanged.connect(self.btn_undo.setEnabled)
+        self._undo_stack.canRedoChanged.connect(self.btn_redo.setEnabled)
+        self.btn_undo.setEnabled(self._undo_stack.canUndo())
+        self.btn_redo.setEnabled(self._undo_stack.canRedo())
+        toolbar.addWidget(self.btn_undo)
+        toolbar.addWidget(self.btn_redo)
+        toolbar.addWidget(QLabel("|"))
+
         # Group 1: Selection
         self.btn_select = QPushButton("Select")
         self.btn_select.setObjectName("studio_btn_select")
