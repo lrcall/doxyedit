@@ -3588,6 +3588,23 @@ class StudioEditor(QWidget):
             if hasattr(self, "chk_thirds"):
                 self.chk_thirds.setChecked(not self.chk_thirds.isChecked())
             return
+        # Ctrl+Alt+L / Ctrl+Alt+E — align selected text left / center
+        # (Ctrl+Shift+R is rotate; Ctrl+Alt keeps the combo unique.)
+        alt = bool(mods & Qt.KeyboardModifier.AltModifier)
+        if ctrl and alt and key in (Qt.Key.Key_L, Qt.Key.Key_E, Qt.Key.Key_R):
+            align = "left" if key == Qt.Key.Key_L else (
+                "center" if key == Qt.Key.Key_E else "right")
+            touched = False
+            for item in self._scene.selectedItems():
+                if isinstance(item, OverlayTextItem):
+                    self._push_overlay_attr(
+                        item, "text_align", align,
+                        apply_cb=lambda it, _v: it._apply_font(),
+                        description=f"Align text {align}")
+                    touched = True
+            if touched:
+                self._sync_overlays_to_asset()
+                return
         # Ctrl+R — rotate 1 degree CW (Ctrl+Shift+R — 1 CCW).
         # Fine rotation for precise layouts.
         if ctrl and not shift and key == Qt.Key.Key_R:
