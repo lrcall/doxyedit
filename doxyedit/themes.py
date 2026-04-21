@@ -1503,6 +1503,11 @@ def generate_stylesheet(theme: Theme) -> str:
             border: 2px solid {theme.accent};
         }}
 
+        /* ── Status bar progress label ─────────────────────────────────── */
+        QLabel#progress_label {{
+            padding-right: {pad_lg * 2}px;
+        }}
+
         /* ── Project tab bar (top of window) ──────────────────────────── */
         QTabBar#proj_tab_bar {{
             background: transparent;

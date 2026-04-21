@@ -816,7 +816,7 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         self.status.addPermanentWidget(self._progress_bar)
 
         self._progress_label = QLabel()
-        self._progress_label.setStyleSheet(f"padding-right: {self._ui_padding * 3}px;")
+        self._progress_label.setObjectName("progress_label")
         self._progress_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.status.addPermanentWidget(self._progress_label)
         self.browser.count_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
