@@ -765,6 +765,15 @@ class OverlayShapeItem(QGraphicsItem):
     def contextMenuEvent(self, event):
         _parent = self._editor._view if self._editor else None
         menu = _themed_menu(_parent)
+        is_gradient = self.overlay.shape_kind in ("gradient_linear", "gradient_radial")
+        start_color_act = end_color_act = swap_colors_act = angle_act = None
+        if is_gradient:
+            start_color_act = menu.addAction("Gradient Start Color...")
+            end_color_act = menu.addAction("Gradient End Color...")
+            swap_colors_act = menu.addAction("Swap Gradient Colors")
+            if self.overlay.shape_kind == "gradient_linear":
+                angle_act = menu.addAction("Gradient Angle...")
+            menu.addSeparator()
         stroke_act = menu.addAction("Stroke Color...")
         fill_act = menu.addAction("Fill Color...")
         clear_fill_act = menu.addAction("Clear Fill")
@@ -780,6 +789,50 @@ class OverlayShapeItem(QGraphicsItem):
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         del_act = menu.addAction("Delete")
         chosen = menu.exec(event.screenPos())
+        if chosen is start_color_act and self._editor:
+            _s = self.overlay.gradient_start_color or "#000000"
+            new = QColorDialog.getColor(
+                QColor(_s), self._editor, "Gradient start color",
+                QColorDialog.ColorDialogOption.ShowAlphaChannel)
+            if new.isValid():
+                # Preserve alpha by encoding as #RRGGBBAA
+                self.overlay.gradient_start_color = (
+                    f"#{new.red():02x}{new.green():02x}"
+                    f"{new.blue():02x}{new.alpha():02x}")
+                self.update()
+                self._editor._sync_overlays_to_asset()
+                self._editor._add_recent_color(new.name())
+            return
+        if chosen is end_color_act and self._editor:
+            _s = self.overlay.gradient_end_color or "#ffffff"
+            new = QColorDialog.getColor(
+                QColor(_s), self._editor, "Gradient end color",
+                QColorDialog.ColorDialogOption.ShowAlphaChannel)
+            if new.isValid():
+                self.overlay.gradient_end_color = (
+                    f"#{new.red():02x}{new.green():02x}"
+                    f"{new.blue():02x}{new.alpha():02x}")
+                self.update()
+                self._editor._sync_overlays_to_asset()
+                self._editor._add_recent_color(new.name())
+            return
+        if chosen is swap_colors_act and self._editor:
+            self.overlay.gradient_start_color, self.overlay.gradient_end_color = (
+                self.overlay.gradient_end_color,
+                self.overlay.gradient_start_color)
+            self.update()
+            self._editor._sync_overlays_to_asset()
+            return
+        if chosen is angle_act and self._editor:
+            value, ok = QInputDialog.getInt(
+                self._editor, "Gradient angle",
+                "Angle (0 = horizontal, 90 = vertical):",
+                value=self.overlay.gradient_angle, minValue=-360, maxValue=360)
+            if ok:
+                self.overlay.gradient_angle = value
+                self.update()
+                self._editor._sync_overlays_to_asset()
+            return
         if chosen is stroke_act and self._editor:
             new = QColorDialog.getColor(
                 QColor(self.overlay.stroke_color or self.overlay.color),
