@@ -1982,6 +1982,29 @@ class StudioEditor(QWidget):
             if key == Qt.Key.Key_I:
                 self._set_tool(StudioTool.EYEDROPPER)
                 return
+            # Number keys 0-9 set opacity on selected non-text overlays and
+            # censors. Photoshop convention: 1=10%, 5=50%, 0=100%.
+            _num_keys = (Qt.Key.Key_0, Qt.Key.Key_1, Qt.Key.Key_2,
+                         Qt.Key.Key_3, Qt.Key.Key_4, Qt.Key.Key_5,
+                         Qt.Key.Key_6, Qt.Key.Key_7, Qt.Key.Key_8,
+                         Qt.Key.Key_9)
+            if key in _num_keys:
+                selected = self._scene.selectedItems()
+                if selected:
+                    idx = _num_keys.index(key)
+                    opacity = 1.0 if idx == 0 else idx / 10.0
+                    for item in selected:
+                        if isinstance(item, (OverlayImageItem, OverlayTextItem)):
+                            self._push_overlay_attr(
+                                item, "opacity", opacity,
+                                apply_cb=lambda it, _v: (
+                                    it.setOpacity(it.overlay.opacity)
+                                    if hasattr(it, "setOpacity") else None),
+                                description="Set opacity",
+                            )
+                    self._sync_overlays_to_asset()
+                    self.info_label.setText(f"Opacity: {int(opacity * 100)}%")
+                    return
             if key == Qt.Key.Key_F:
                 if self._scene.sceneRect():
                     self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
