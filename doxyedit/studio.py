@@ -5122,7 +5122,8 @@ class StudioEditor(QWidget):
         from dataclasses import asdict
         overlays, censors = [], []
         for it in self._scene.selectedItems():
-            if isinstance(it, (OverlayImageItem, OverlayTextItem)):
+            if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                OverlayArrowItem)):
                 overlays.append(it.overlay.to_dict())
             elif isinstance(it, CensorRectItem):
                 cr = getattr(it, "_censor_region", None)
@@ -5166,6 +5167,10 @@ class StudioEditor(QWidget):
                 ov = CanvasOverlay.from_dict(od)
                 ov.x = int(ov.x) + OFFSET
                 ov.y = int(ov.y) + OFFSET
+                # Arrow endpoints must move together
+                if ov.type == "arrow":
+                    ov.end_x = int(ov.end_x) + OFFSET
+                    ov.end_y = int(ov.end_y) + OFFSET
                 self._asset.overlays.append(ov)
                 new_item = self._create_overlay_item(ov)
                 if new_item:
