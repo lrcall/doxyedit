@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QSize, QUrl, QMimeData
 from PySide6.QtGui import QPixmap, QIcon, QDrag
+from doxyedit.themes import ui_font_size
 
 
 NAME_ROLE = Qt.ItemDataRole.UserRole + 1  # stores display name for view mode switching
@@ -113,7 +114,7 @@ class WorkTray(QWidget):
         super().__init__(parent)
         self.setObjectName("doxyedit_tray")
         from PySide6.QtCore import QSettings
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         self.setMinimumWidth(0)  # main splitter handles collapsing
         self._asset_ids: list[str] = []
         self._id_to_row: dict[str, int] = {}  # asset_id → list row index for O(1) lookup
@@ -127,7 +128,7 @@ class WorkTray(QWidget):
 
     def _build(self):
         from PySide6.QtCore import QSettings
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _cb = max(14, _f + 2)
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
@@ -439,7 +440,7 @@ class WorkTray(QWidget):
 
     def _cycle_view_mode(self):
         from PySide6.QtCore import QSettings
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         self._view_mode = (self._view_mode + 1) % 3
         if self._view_mode == 0:

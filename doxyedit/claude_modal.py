@@ -6,6 +6,7 @@ import sys
 
 from PySide6.QtWidgets import QProgressDialog, QWidget
 from PySide6.QtCore import Qt, QThread, Signal
+from doxyedit.themes import ui_font_size
 
 
 class ClaudeWorker(QThread):
@@ -54,7 +55,7 @@ def show_claude_modal(
     dlg.setCancelButton(None)
     dlg.setMinimumDuration(0)
     from PySide6.QtCore import QSettings
-    _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+    _f = ui_font_size()
     DIALOG_MIN_WIDTH_RATIO = 26.7      # progress dialog minimum width
     dlg.setMinimumWidth(int(_f * DIALOG_MIN_WIDTH_RATIO))
     dlg.show()

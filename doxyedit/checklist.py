@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QSettings
 from PySide6.QtGui import QKeySequence, QShortcut
+from doxyedit.themes import ui_font_size
 from doxyedit.panel_mixin import LazyRefreshMixin
 
 
@@ -23,7 +24,7 @@ class ChecklistPanel(LazyRefreshMixin, QWidget):
         self._build()
 
     def _build(self):
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad_lg = max(6, _f // 2)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(_pad_lg * 6, _pad_lg * 4, _pad_lg * 6, _pad_lg * 4)
@@ -101,7 +102,7 @@ class ChecklistPanel(LazyRefreshMixin, QWidget):
         self._update_progress()
 
     def _insert_row(self, text: str, checked: bool, at_end: bool = True):
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad_lg = max(6, _f // 2)
         row = QWidget()
         h = QHBoxLayout(row)

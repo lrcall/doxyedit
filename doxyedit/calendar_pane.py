@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QPushButton, QFrame, QSizePolicy,
 )
 from PySide6.QtCore import Signal, Qt, QSettings
+from doxyedit.themes import ui_font_size
 
 from doxyedit.models import Project, SocialPostStatus
 from doxyedit.panel_mixin import LazyRefreshMixin
@@ -25,7 +26,7 @@ class _DayCell(QFrame):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         self._f = _f
         self.setObjectName("calendar_day_cell")
         self.setCursor(Qt.PointingHandCursor)
@@ -154,7 +155,7 @@ class CalendarPane(LazyRefreshMixin, QWidget):
     # ---- UI construction ----
 
     def _build_ui(self) -> None:
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _cb = max(14, _f + 2)
 
         _pad = max(4, _f // 3)

@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QFrame, QProgressBar, QSizePolicy, QPushButton,
 )
 from PySide6.QtCore import Qt, QSettings, QThread, Signal
+from doxyedit.themes import ui_font_size
 
 from doxyedit.models import Project, PLATFORMS
 from doxyedit.panel_mixin import LazyRefreshMixin
@@ -46,7 +47,7 @@ class StatsPanel(LazyRefreshMixin, QWidget):
         self._build()
 
     def _build(self):
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(_pad, _pad, _pad, _pad)
@@ -66,7 +67,7 @@ class StatsPanel(LazyRefreshMixin, QWidget):
         self.refresh()
 
     def refresh(self):
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
         # Clear previous content
@@ -215,7 +216,7 @@ class StatsPanel(LazyRefreshMixin, QWidget):
         card = QFrame()
         card.setObjectName("stat_card")
         layout = QVBoxLayout(card)
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
         layout.setContentsMargins(_pad_lg * 2, _pad_lg + _pad, _pad_lg * 2, _pad_lg + _pad)
@@ -236,7 +237,7 @@ class StatsPanel(LazyRefreshMixin, QWidget):
         row = QWidget()
         h = QHBoxLayout(row)
         h.setContentsMargins(0, 0, 0, 0)
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad_lg = max(6, _f // 2)
         h.setSpacing(_pad_lg)
 

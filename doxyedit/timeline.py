@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Signal, Qt, QSize
 from PySide6.QtGui import QPixmap
+from doxyedit.themes import ui_font_size
 
 from doxyedit.models import Project, SocialPost, SocialPostStatus, EngagementWindow
 from doxyedit.panel_mixin import LazyRefreshMixin
@@ -353,7 +354,7 @@ class PostCard(QFrame):
         dlg = QDialog(self)
         dlg.setWindowTitle("Post Metrics")
         from PySide6.QtCore import QSettings
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         DIALOG_MIN_WIDTH_RATIO = 25.0      # metrics dialog minimum width
         dlg.setMinimumWidth(int(_f * DIALOG_MIN_WIDTH_RATIO))
         layout = QVBoxLayout(dlg)

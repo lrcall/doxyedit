@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QPoint, QRect, QSettings
 from PySide6.QtGui import QColor, QPainter, QPen, QBrush
+from doxyedit.themes import ui_font_size
 
 from doxyedit.models import Asset, TAG_PRESETS, TAG_SIZED, TAG_SHORTCUTS, TagPreset, check_fitness
 
@@ -221,7 +222,7 @@ class TagRow(QFrame):
         self.tag = tag
         self._pinned = False
         self._row_selected = False
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _cb = max(14, _f + 2)
         _pad = max(4, _f // 3)
         self._f = _f
@@ -410,7 +411,7 @@ class TagPanel(QWidget):
         self._build()
 
     def _build(self):
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         root = QVBoxLayout(self)
         root.setContentsMargins(_pad, _pad, _pad, _pad)
@@ -527,7 +528,7 @@ class TagPanel(QWidget):
         notes_label = QLabel("Notes:")
         notes_layout.addWidget(notes_label)
         self.notes_edit = QTextEdit()
-        _f_notes = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f_notes = ui_font_size()
         self.notes_edit.setMinimumHeight(max(30, _f_notes * 2))
         self.notes_edit.textChanged.connect(self._on_notes_changed)
         notes_layout.addWidget(self.notes_edit)

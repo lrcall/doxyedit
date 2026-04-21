@@ -13,7 +13,7 @@ from PySide6.QtGui import (
 
 from doxyedit.imaging import load_pixmap
 from doxyedit.models import CropRegion, PLATFORMS
-from doxyedit.themes import THEMES, DEFAULT_THEME
+from doxyedit.themes import THEMES, DEFAULT_THEME, ui_font_size
 
 
 class HoverPreview(QWidget):
@@ -27,7 +27,7 @@ class HoverPreview(QWidget):
         self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setObjectName("hover_preview")
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(_pad, _pad, _pad, _pad)
@@ -922,7 +922,7 @@ class PreviewPane(QWidget):
         # Compact info bar
         self._info_bar = QWidget()
         info_layout = QHBoxLayout(self._info_bar)
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
         info_layout.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)

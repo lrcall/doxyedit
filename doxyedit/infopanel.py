@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QStringListModel
 from PySide6.QtGui import QFont, QColor
+from doxyedit.themes import ui_font_size
 
 from doxyedit.browser import FlowLayout
 
@@ -26,7 +27,7 @@ class _TagPill(QPushButton):
         self.tag_id = tag_id
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         from PySide6.QtCore import QSettings
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _cb = max(14, _f + 2)
         self.setFixedHeight(_cb)
         label = tag_id
@@ -58,7 +59,7 @@ class InfoPanel(QWidget):
 
     def _build(self):
         from PySide6.QtCore import QSettings
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _cb = max(14, _f + 2)
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)

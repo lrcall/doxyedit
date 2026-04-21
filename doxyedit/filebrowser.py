@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QDir, QSettings, QModelIndex, QRect, QSize
 from PySide6.QtGui import QFont, QPainter, QColor
+from doxyedit.themes import ui_font_size
 
 from doxyedit.browser import IMAGE_EXTS
 
@@ -127,7 +128,7 @@ class FileBrowserPanel(QWidget):
 
     def _build(self):
         from PySide6.QtCore import QSettings
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         self._f = _f
         _cb = max(14, _f + 2)
         _pad = max(4, _f // 3)

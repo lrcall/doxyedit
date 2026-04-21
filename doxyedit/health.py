@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QFrame, QSizePolicy, QMessageBox, QFileDialog,
 )
 from PySide6.QtCore import Qt, Signal, QSettings
+from doxyedit.themes import ui_font_size
 from doxyedit.models import Project, PLATFORMS
 from doxyedit.panel_mixin import LazyRefreshMixin
 
@@ -77,7 +78,7 @@ class HealthPanel(LazyRefreshMixin, QWidget):
         self._build()
 
     def _build(self):
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
         outer = QVBoxLayout(self)
@@ -195,7 +196,7 @@ class HealthPanel(LazyRefreshMixin, QWidget):
 
     def _issue_section(self, label: str, severity: str, assets: list,
                        missing: bool = False) -> QWidget:
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         section = QWidget()
         layout = QVBoxLayout(section)
@@ -222,7 +223,7 @@ class HealthPanel(LazyRefreshMixin, QWidget):
         return section
 
     def _asset_row(self, asset, severity: str) -> QWidget:
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
         row = QWidget()
@@ -251,7 +252,7 @@ class HealthPanel(LazyRefreshMixin, QWidget):
 
     def _missing_asset_row(self, asset, severity: str) -> QWidget:
         """Row for a missing asset — includes rename detection."""
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
         outer = QWidget()

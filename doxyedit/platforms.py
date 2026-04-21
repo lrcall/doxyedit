@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QSize, QSettings, QDate
 from PySide6.QtGui import QPixmap
+from doxyedit.themes import ui_font_size
 from doxyedit.browser import FlowLayout
 
 from doxyedit.models import (
@@ -143,7 +144,7 @@ class CampaignBar(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         from PySide6.QtCore import QSettings
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         outer.setSpacing(_pad)
 
@@ -372,7 +373,7 @@ class PlatformPanel(LazyRefreshMixin, QWidget):
         self._thumb_cache = cache
 
     def _build(self):
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
         outer = QVBoxLayout(self)
@@ -532,7 +533,7 @@ class PlatformPanel(LazyRefreshMixin, QWidget):
         self._rebuild_dashboard()
 
     def _build_card(self, platform, pid: str, assign_map: dict) -> QFrame:
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         card = QFrame()
         card.setObjectName("platform_card")
@@ -606,7 +607,7 @@ class PlatformPanel(LazyRefreshMixin, QWidget):
         return card
 
     def _slot_row(self, slot, pid: str, entries: list) -> QWidget:
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _cb = max(14, _f + 2)
         _pad_lg = max(6, _f // 2)
         row = _DroppableSlotRow()
@@ -811,7 +812,7 @@ class PlatformPanel(LazyRefreshMixin, QWidget):
 
     def _rebuild_dashboard(self):
         """Build visual dashboard grid: one row per platform, one cell per slot."""
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
         _cb = max(14, _f + 2)
@@ -892,7 +893,7 @@ class PlatformPanel(LazyRefreshMixin, QWidget):
 
     def _dash_cell(self, slot, pid: str, entries: list) -> QWidget:
         """One slot cell in the dashboard grid."""
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _cb = max(14, _f + 2)
         cell = QWidget()
         cell.setFixedWidth(DASH_CELL_THUMB + DASH_CELL_EXTRA_W)

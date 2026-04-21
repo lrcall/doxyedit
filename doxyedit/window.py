@@ -1935,6 +1935,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.browser.update_font_size(fs)
         self.tag_panel.update_font_size(fs)
         self._settings.setValue("font_size", fs)
+        # Drop the module-level cache so next ui_font_size() reads the new value
+        from doxyedit.themes import invalidate_font_size_cache
+        invalidate_font_size_cache()
         self.status.showMessage(f"Font size: {fs}px", 2000)
         self._refresh_project_info()
         self._render_notes_preview(self.project.notes)

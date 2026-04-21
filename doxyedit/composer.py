@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QPushButton, QSplitter, QWidget, QDateTimeEdit,
 )
 from PySide6.QtCore import Qt, QSettings, Signal
+from doxyedit.themes import ui_font_size
 
 from doxyedit.models import Project, SocialPost, SocialPostStatus, ReleaseStep
 from doxyedit.composer_left import ImagePreviewPanel
@@ -473,7 +474,7 @@ class PostComposer(QDialog):
         self.setObjectName("post_composer")
         self.setWindowTitle("Edit Post" if post else "New Post")
         self.setWindowModality(Qt.WindowModality.NonModal)
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         self.setMinimumSize(int(_f * self.DIALOG_MIN_WIDTH_RATIO), int(_f * self.DIALOG_MIN_HEIGHT_RATIO))
 
         # Restore saved geometry

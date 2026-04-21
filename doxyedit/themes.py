@@ -594,12 +594,34 @@ THEMES: dict[str, Theme] = {
 DEFAULT_THEME = "soot"
 
 
+# Cached font size — read once per process, invalidated when the user
+# changes it via Ctrl+=/Ctrl+-/Ctrl+0 (window.py calls invalidate_font_size_cache
+# after writing the new value). Previously ~38 call sites re-read QSettings
+# on every render which on Windows is a registry syscall per read.
+_CACHED_FONT_SIZE: int | None = None
+
+
+def ui_font_size() -> int:
+    """Return the user's saved UI font size, cached per process."""
+    global _CACHED_FONT_SIZE
+    if _CACHED_FONT_SIZE is None:
+        from PySide6.QtCore import QSettings
+        _CACHED_FONT_SIZE = QSettings("DoxyEdit", "DoxyEdit").value(
+            "font_size", 12, type=int)
+    return _CACHED_FONT_SIZE
+
+
+def invalidate_font_size_cache() -> None:
+    """Drop the cached font size so the next ui_font_size() reads QSettings."""
+    global _CACHED_FONT_SIZE
+    _CACHED_FONT_SIZE = None
+
+
 def ui_metrics(font_size: int = 0) -> tuple[int, int, int, int]:
     """Return (font_size, pad, pad_lg, cb) derived from font_size.
-    If font_size is 0, reads from QSettings."""
+    If font_size is 0, reads from the cached value."""
     if not font_size:
-        from PySide6.QtCore import QSettings
-        font_size = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        font_size = ui_font_size()
     pad = max(4, font_size // 3)
     pad_lg = max(6, font_size // 2)
     cb = max(14, font_size + 2)

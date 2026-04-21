@@ -65,6 +65,7 @@ def auto_suggest_tags(filename: str) -> list[str]:
 
 from PySide6.QtWidgets import QDialog, QDateEdit
 from PySide6.QtCore import QDate
+from doxyedit.themes import ui_font_size
 
 
 class _ImportOptionsDialog(QDialog):
@@ -873,7 +874,7 @@ class RootFolderHeader(QWidget):
         self._on_expand = on_expand
 
         layout = QVBoxLayout(self)
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         layout.setContentsMargins(0, _pad, 0, 0)
         layout.setSpacing(0)
