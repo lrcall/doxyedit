@@ -13,7 +13,8 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QTabWidget, QTabBar, QToolBar, QFileDialog, QStatusBar,
     QGraphicsTextItem, QGraphicsRectItem, QGraphicsLineItem,
-    QColorDialog, QMessageBox, QSplitter,
+    QColorDialog, QMessageBox, QSplitter, QInputDialog,
+    QTextEdit, QTextBrowser, QPlainTextEdit,
     QWidget, QVBoxLayout, QHBoxLayout, QApplication, QLabel, QProgressBar, QPushButton,
     QSizePolicy, QMenu,
 )
@@ -481,7 +482,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         if saved_notes_split:
             self.tag_panel._tag_notes_split.setSizes([int(s) for s in saved_notes_split])
         # Project notes panel — collapsible below the browser grid
-        from PySide6.QtWidgets import QTextEdit
         self._notes_edit = QTextEdit()
         self._notes_edit.setPlaceholderText("Project notes…")
         self._notes_edit.setMaximumHeight(self._font_size * self.NOTES_PANEL_HEIGHT_RATIO)
@@ -607,7 +607,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         self.tabs.addTab(self._plat_full, "Platforms")
 
         # Tab 5: Project Notes — tabbed sub-notes with preview + editor
-        from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser, QInputDialog
         self._notes_tabs = QTabWidget()
         self._notes_tabs.setObjectName("project_notes_tabs")
         self._notes_tabs.setTabsClosable(True)
@@ -652,8 +651,7 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         self.health_panel = HealthPanel(self.project)
 
         # Project Info panel — selectable text with project metadata
-        from PySide6.QtWidgets import QTextBrowser as _TB
-        self._project_info_panel = _TB()
+        self._project_info_panel = QTextBrowser()
         self._project_info_panel.setObjectName("project_info_panel")
         self._project_info_panel.setOpenExternalLinks(False)
 
@@ -1010,7 +1008,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         self.status.showMessage(msg, 5000)
         # Show warning dialog if anything was lost
         if missing or failed:
-            from PySide6.QtWidgets import QMessageBox
             details = []
             if missing:
                 details.append("Missing files (not found on disk):")
@@ -1177,7 +1174,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
                     msg += f" | {len(state['failed'])} failed to load"
                 self.status.showMessage(msg, 5000)
                 if state["missing"] or state["failed"]:
-                    from PySide6.QtWidgets import QMessageBox
                     details = []
                     if state["missing"]:
                         details.append("Missing files (not found on disk):")
@@ -1346,7 +1342,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         """Right-click menu on project tab bar."""
         if idx < 0 or idx >= len(self._project_slots):
             return
-        from PySide6.QtWidgets import QMenu, QInputDialog
         menu = QMenu(self)
         slot = self._project_slots[idx]
         menu.addAction("Rename Tab…", lambda: self._rename_proj_tab_dialog(idx))
@@ -1405,7 +1400,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
 
     def _rename_proj_tab_dialog(self, idx: int):
         """Prompt user to rename a project tab."""
-        from PySide6.QtWidgets import QInputDialog
         slot = self._project_slots[idx]
         new_label, ok = QInputDialog.getText(
             self, "Rename Tab", "Tab label:", text=slot["label"])
@@ -1419,7 +1413,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
 
     def _add_folder_preset_dialog(self):
         """+ button or Ctrl+T: open a project or folder in a new tab."""
-        from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
         menu.addAction("Open Project…", lambda: self._open_project_in_tab())
         menu.addAction("Open Folder…", lambda: self._open_folder_in_tab())
@@ -1742,7 +1735,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
 
     def _build_notes_tab(self, name: str, content: str, closable: bool = True):
         """Create a notes sub-tab with live side-by-side editor + preview."""
-        from PySide6.QtWidgets import QPlainTextEdit, QTextBrowser, QSplitter
 
         split = QSplitter(Qt.Orientation.Horizontal)
 
@@ -1824,7 +1816,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         name = self._notes_tabs.tabText(index)
         if name in ("General", "Agent Primer"):
             return  # permanent tabs
-        from PySide6.QtWidgets import QMessageBox
         if QMessageBox.question(
             self, "Delete Tab",
             f"Delete the '{name}' notes tab? Content will be lost.",
@@ -1837,7 +1828,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
 
     def _on_add_notes_tab(self):
         """Add a new notes sub-tab."""
-        from PySide6.QtWidgets import QInputDialog
         name, ok = QInputDialog.getText(self, "New Tab", "Tab name:")
         if not ok or not name.strip():
             return
@@ -2651,7 +2641,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self.status.showMessage("No identities to export", 3000)
             return
         # Ask the user which identity to export (or "All")
-        from PySide6.QtWidgets import QInputDialog
         names = sorted(self.project.identities.keys())
         choices = ["(All identities)"] + names
         chosen, ok = QInputDialog.getItem(
@@ -2679,7 +2668,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._remember_dir(path)
             self.status.showMessage(f"Exported identity to {Path(path).name}", 5000)
         except Exception as e:
-            from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Export Identity", f"Failed to write file:\n{e}")
 
     def _import_identity(self):
@@ -2697,7 +2685,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         try:
             data = json.loads(Path(path).read_text(encoding="utf-8"))
         except Exception as e:
-            from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Import Identity", f"Failed to read file:\n{e}")
             return
         # Accept both single-identity and multi-identity files
@@ -2711,11 +2698,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 if name and isinstance(ident, dict):
                     to_add[name] = ident
         if not to_add:
-            from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Import Identity", "File doesn't contain identity data.")
             return
         # Merge into project.identities without overwriting silently: ask on conflict
-        from PySide6.QtWidgets import QMessageBox
         overwrite_all = False
         added = updated = skipped = 0
         for name, ident in to_add.items():
@@ -3539,7 +3524,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _reset_all_tags(self):
         """Nuke all tags from every asset — fresh start."""
-        from PySide6.QtWidgets import QMessageBox
         n = len(self.project.assets)
         reply = QMessageBox.question(
             self, "Reset All Tags",
@@ -4013,7 +3997,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             # Duplicate-post warning dialog (UI-thread only)
             dupes = {fp: cnt for fp, cnt in oneup_counts.items() if cnt > 1}
             if dupes:
-                from PySide6.QtWidgets import QMessageBox
                 dupe_lines = [f"  '{fp}...' x{cnt}" for fp, cnt in dupes.items()]
                 QMessageBox.warning(self, "Duplicate Posts on OneUp",
                     f"Found {len(dupes)} duplicate post(s) on OneUp:\n\n"
@@ -4568,7 +4551,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             return
         asset = assets[0]
         old_path = Path(asset.source_path)
-        from PySide6.QtWidgets import QInputDialog
         new_name, ok = QInputDialog.getText(
             self, "Rename File", "New filename:", text=old_path.name)
         if not ok or not new_name.strip() or new_name.strip() == old_path.name:
@@ -4910,7 +4892,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         assets = self.browser.get_selected_assets()
         if not assets:
             return
-        from PySide6.QtWidgets import QMessageBox
         reply = QMessageBox.question(self, "Remove",
             f"Remove {len(assets)} asset(s) from project?\n(Files are NOT deleted from disk)",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
@@ -4937,7 +4918,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.status.showMessage(f"Cleared tags on {len(assets)} asset(s)")
 
     def _add_tag_to_selected(self):
-        from PySide6.QtWidgets import QInputDialog
         tag, ok = QInputDialog.getText(self, "Add Tag", "Tag to add to selected:")
         if not ok or not tag.strip():
             return
@@ -5027,7 +5007,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             slots = info["slots_total"]
             lines.append(f"{name}: {assigned}/{slots} slots filled, {posted} posted")
 
-        from PySide6.QtWidgets import QMessageBox
         QMessageBox.information(self, "Project Summary", "\n".join(lines))
 
     def _show_project_file(self):
@@ -5173,7 +5152,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _untransport_project(self):
         """Restore original absolute paths from transport metadata."""
-        from PySide6.QtWidgets import QMessageBox
         if not self._project_path:
             self.status.showMessage("No project file open", 4000)
             return
@@ -5204,7 +5182,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _compact_asset_folders(self):
         """Collapse single-child folder chains in _assets/ (A/B/C → A_B_C)."""
-        from PySide6.QtWidgets import QMessageBox
         if not self._project_path:
             self.status.showMessage("No project file open", 4000)
             return
@@ -5286,7 +5263,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _expand_asset_folders(self):
         """Restore concatenated folder names back to nested structure (A_B_C → A/B/C)."""
-        from PySide6.QtWidgets import QMessageBox
         import shutil
         if not self._project_path:
             self.status.showMessage("No project file open", 4000)
@@ -5386,13 +5362,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if proc:
             self.status.showMessage("Debug Chrome launched — log into your platforms, then use Auto-Post", 5000)
         else:
-            from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Chrome Not Found",
                 "Could not find Chrome. Set chrome_path in config.yaml under browser_automation:")
 
     def _auto_post_subscriptions(self):
         """Auto-post to all pending subscription platforms via Playwright."""
-        from PySide6.QtWidgets import QMessageBox
         from doxyedit.browserpost import is_chrome_running, post_to_platform_sync
         from doxyedit.quickpost import get_pending_sub_platforms
         from doxyedit.models import SUB_PLATFORMS, SocialPostStatus
@@ -6164,7 +6138,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         shortcuts that aren't registered as QActions (preview keys, grid
         keys) where Qt doesn't expose them.
         """
-        from PySide6.QtWidgets import QMessageBox
 
         lines: list[str] = []
         seen_keys: set[str] = set()
@@ -6298,7 +6271,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         dlg.exec()
 
     def _show_about(self):
-        from PySide6.QtWidgets import QMessageBox
         from doxyedit import __version__
         QMessageBox.about(self, "About DoxyEdit",
             f"DoxyEdit v{__version__}\n\n"
@@ -7019,7 +6991,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _save_smart_folder(self):
         """Save the current browser filter state as a named smart folder."""
-        from PySide6.QtWidgets import QInputDialog
         name, ok = QInputDialog.getText(self, "Smart Folder", "Name for this filter preset:")
         if not ok or not name.strip():
             return
@@ -7062,7 +7033,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _clear_smart_folders(self):
         """Remove all smart folder presets."""
-        from PySide6.QtWidgets import QMessageBox
         if QMessageBox.question(self, "Clear Smart Folders",
                                  "Remove all saved filter presets?") != QMessageBox.StandardButton.Yes:
             return
