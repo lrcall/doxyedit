@@ -5129,6 +5129,15 @@ class _ColorSwatchButton(QPushButton):
         act.setDefaultWidget(grid_widget)
         menu.addAction(act)
         menu.addSeparator()
+        copy_hex_act = menu.addAction(
+            f"Copy current swatch ({self._color.name()}) to clipboard")
+        def _copy_hex():
+            from PySide6.QtWidgets import QApplication
+            QApplication.clipboard().setText(self._color.name())
+            if hasattr(editor, "info_label"):
+                editor.info_label.setText(
+                    f"Copied {self._color.name()} to clipboard")
+        copy_hex_act.triggered.connect(_copy_hex)
         clear_act = menu.addAction("Clear recent colors")
         def _clear_recent():
             from PySide6.QtCore import QSettings as _QS
