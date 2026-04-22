@@ -80,6 +80,13 @@ class StudioScene(QGraphicsScene):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Flat linear scan is faster than BSP maintenance for our typical
+        # item counts (<50 overlays + 1 base + 1 checker). The BSP index
+        # rebuilds itself on every item move — dominant during drags.
+        # For large scenes (>200 items) the default BSP would win, but
+        # Studio docs do not support that scale today.
+        self.setItemIndexMethod(
+            QGraphicsScene.ItemIndexMethod.NoIndex)
         self._grid_visible = False
         self._grid_spacing = STUDIO_GRID_SPACING
         self._theme = THEMES[DEFAULT_THEME]
