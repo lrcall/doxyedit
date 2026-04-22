@@ -4221,6 +4221,12 @@ class StudioEditor(QWidget):
             if touched:
                 self._sync_overlays_to_asset()
             return
+        # Ctrl+Alt+T - numeric transform dialog for the selected overlay.
+        # Gives the user pixel-precise control for print layouts without
+        # eyeballing the spinners in the prop panel.
+        if ctrl and alt and not shift and key == Qt.Key.Key_T:
+            self._open_transform_dialog()
+            return
         # F12 toggles snap on/off. Remembers the last non-zero threshold
         # so the user can flip between 'no snap' and 'my usual snap'
         # without re-entering the value each time.
@@ -8366,6 +8372,86 @@ class StudioEditor(QWidget):
                 continue
             label = item.text().lower()
             item.setHidden(bool(needle) and needle not in label)
+
+    def _open_transform_dialog(self):
+        """Modal dialog with X / Y / W / H / Rotation for the first
+        selected overlay. Lets the user dial in exact pixel coordinates
+        without spinning sliders. Ignores selections without a meaningful
+        x/y/w/h (arrows use endpoints; skip them here)."""
+        sel = [it for it in self._scene.selectedItems()
+               if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                   OverlayShapeItem))]
+        if not sel:
+            self.info_label.setText("Nothing to transform")
+            return
+        from PySide6.QtWidgets import (QDialog, QFormLayout, QSpinBox,
+                                         QDialogButtonBox, QHBoxLayout)
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Transform Overlay")
+        form = QFormLayout(dlg)
+        item = sel[0]
+        ov = item.overlay
+        rect = item.sceneBoundingRect()
+        # X / Y spin boxes in scene pixels
+        sx = QSpinBox(); sx.setRange(-99999, 99999); sx.setValue(int(ov.x))
+        sy = QSpinBox(); sy.setRange(-99999, 99999); sy.setValue(int(ov.y))
+        sw = QSpinBox(); sw.setRange(1, 99999)
+        sh = QSpinBox(); sh.setRange(1, 99999)
+        sr = QSpinBox(); sr.setRange(-360, 360)
+        sr.setValue(int(getattr(ov, "rotation", 0)))
+        if isinstance(item, OverlayShapeItem):
+            sw.setValue(int(ov.shape_w))
+            sh.setValue(int(ov.shape_h))
+        else:
+            sw.setValue(max(1, int(rect.width())))
+            sh.setValue(max(1, int(rect.height())))
+            # For image overlays the width is driven by scale; edit via
+            # spin box prompts a scale recompute only on OK. Mark disabled
+            # for text until they adopt a width spinner of their own.
+            if isinstance(item, OverlayTextItem):
+                sw.setEnabled(False)
+                sh.setEnabled(False)
+        form.addRow("X", sx)
+        form.addRow("Y", sy)
+        form.addRow("Width", sw)
+        form.addRow("Height", sh)
+        form.addRow("Rotation", sr)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel)
+        form.addRow(buttons)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        # Inherit the app stylesheet so the dialog themes correctly
+        win = self.window()
+        if win is not None:
+            dlg.setStyleSheet(win.styleSheet())
+            if hasattr(win, "_theme_dialog_titlebar"):
+                dlg.show()
+                win._theme_dialog_titlebar(dlg)
+                dlg.hide()
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        ov.x = sx.value()
+        ov.y = sy.value()
+        ov.rotation = sr.value() % 360
+        if isinstance(item, OverlayShapeItem):
+            ov.shape_w = sw.value()
+            ov.shape_h = sh.value()
+            item.setTransformOriginPoint(
+                ov.x + ov.shape_w / 2, ov.y + ov.shape_h / 2)
+            item.setRotation(ov.rotation)
+            item.prepareGeometryChange()
+            item.update()
+        else:
+            item.setPos(ov.x, ov.y)
+            if hasattr(item, "_apply_flip"):
+                item._apply_flip()
+            elif hasattr(item, "_apply_flip_text"):
+                item._apply_flip_text()
+        self._sync_overlays_to_asset()
+        self.info_label.setText(
+            f"Transformed to {sx.value()}, {sy.value()}")
 
     def _rotate_selected(self, step: int):
         """Add step degrees to the rotation of every selected overlay."""
