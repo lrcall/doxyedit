@@ -4030,6 +4030,66 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             _op_w = _QW(); _op_w.setLayout(op_row)
             form.addRow("Opacity", _op_w)
 
+            # Rotation slider (-180 to 180)
+            rot_slider = QSlider(Qt.Orientation.Horizontal)
+            rot_slider.setRange(-180, 180)
+            rot_init = int(getattr(ov, "rotation", 0))
+            if rot_init > 180:
+                rot_init -= 360
+            rot_slider.setValue(rot_init)
+            rot_slider.setMinimumWidth(150)
+            rot_lbl = QLabel(f"{rot_init}°")
+            rot_lbl.setFixedWidth(44)
+            def _rot_changed(v, _it=item, _lbl=rot_lbl):
+                _it.overlay.rotation = v % 360
+                _it.setTransformOriginPoint(
+                    _it.overlay.x + _it.overlay.shape_w / 2,
+                    _it.overlay.y + _it.overlay.shape_h / 2)
+                _it.setRotation(_it.overlay.rotation)
+                _it.update()
+                _lbl.setText(f"{v}°")
+                editor._sync_overlays_to_asset()
+            rot_slider.valueChanged.connect(_rot_changed)
+            rot_row = QHBoxLayout()
+            rot_row.setContentsMargins(0, 0, 0, 0)
+            rot_row.addWidget(rot_slider, 1)
+            rot_row.addWidget(rot_lbl)
+            _rot_w = _QW(); _rot_w.setLayout(rot_row)
+            form.addRow("Rotation", _rot_w)
+
+            # Scale slider (20-500%, applied relative to captured base)
+            sc_slider = QSlider(Qt.Orientation.Horizontal)
+            sc_slider.setRange(20, 500)
+            sc_slider.setValue(100)
+            sc_slider.setMinimumWidth(150)
+            sc_lbl = QLabel("100%")
+            sc_lbl.setFixedWidth(44)
+            # Freeze baseline so slider==100% keeps the current size
+            _base = {
+                "w": ov.shape_w, "h": ov.shape_h,
+                "cx": ov.x + ov.shape_w / 2,
+                "cy": ov.y + ov.shape_h / 2,
+            }
+            def _sc_changed(v, _it=item, _lbl=sc_lbl, _b=_base):
+                f = v / 100.0
+                new_w = max(4, int(_b["w"] * f))
+                new_h = max(4, int(_b["h"] * f))
+                _it.overlay.shape_w = new_w
+                _it.overlay.shape_h = new_h
+                _it.overlay.x = int(_b["cx"] - new_w / 2)
+                _it.overlay.y = int(_b["cy"] - new_h / 2)
+                _it.prepareGeometryChange()
+                _it.update()
+                _lbl.setText(f"{v}%")
+                editor._sync_overlays_to_asset()
+            sc_slider.valueChanged.connect(_sc_changed)
+            sc_row = QHBoxLayout()
+            sc_row.setContentsMargins(0, 0, 0, 0)
+            sc_row.addWidget(sc_slider, 1)
+            sc_row.addWidget(sc_lbl)
+            _sc_w = _QW(); _sc_w.setLayout(sc_row)
+            form.addRow("Scale", _sc_w)
+
         elif isinstance(item, OverlayArrowItem):
             # Arrow: color, width, arrowhead size / style, double-headed
             color_btn = _ColorSwatchButton(is_outline=False)
