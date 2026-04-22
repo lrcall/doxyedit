@@ -3253,6 +3253,14 @@ class StudioScene(QGraphicsScene):
                 dist_v_act = align_menu.addAction(
                     "Distribute Vertically  (Alt+Shift+V)")
         menu.addSeparator()
+        # Sort Layers submenu - re-order the overlays list in-place by
+        # a chosen attribute. Changes the z-order (last in list = top).
+        sort_menu = menu.addMenu("Sort Layers")
+        sort_type_act = sort_menu.addAction("By Type (text / shape / …)")
+        sort_name_act = sort_menu.addAction("By Label (A → Z)")
+        sort_size_act = sort_menu.addAction("By Size (largest first)")
+        sort_reverse_act = sort_menu.addAction("Reverse")
+        menu.addSeparator()
         copy_canvas_act = menu.addAction("Copy Canvas Image to Clipboard")
         export_overlay_act = menu.addAction("Export Overlays as Transparent PNG...")
         export_selection_act = menu.addAction("Export Selection as Transparent PNG...")
@@ -3459,6 +3467,39 @@ class StudioScene(QGraphicsScene):
             editor._export_overlays_as_transparent_png()
         elif chosen is export_selection_act:
             editor._export_selection_as_transparent_png()
+        elif chosen in (sort_type_act, sort_name_act, sort_size_act,
+                         sort_reverse_act):
+            ovs = list(editor._asset.overlays)
+            if chosen is sort_type_act:
+                # Stable: group by type in a deterministic order.
+                _order = {"shape": 0, "watermark": 1, "arrow": 2, "text": 3}
+                ovs.sort(key=lambda o: (_order.get(o.type, 9),
+                                          o.label or ""))
+            elif chosen is sort_name_act:
+                ovs.sort(key=lambda o: (o.label or "").lower())
+            elif chosen is sort_size_act:
+                def _area(o):
+                    if o.type == "shape":
+                        return -(o.shape_w * o.shape_h)
+                    if o.type == "arrow":
+                        import math as _m
+                        return -int(_m.hypot(
+                            o.end_x - o.x, o.end_y - o.y))
+                    return 0
+                ovs.sort(key=_area)
+            elif chosen is sort_reverse_act:
+                ovs.reverse()
+            editor._asset.overlays = ovs
+            # Re-sync z-order on scene items
+            for i, ov in enumerate(editor._asset.overlays):
+                for it in editor._overlay_items:
+                    if getattr(it, "overlay", None) is ov:
+                        it.setZValue(200 + i)
+                        break
+            editor._rebuild_layer_panel()
+            if hasattr(editor, "info_label"):
+                editor.info_label.setText(
+                    f"Sorted {len(ovs)} overlays")
         elif chosen is snap_threshold_act:
             from PySide6.QtCore import QSettings as _QS
             qs = _QS("DoxyEdit", "DoxyEdit")
