@@ -3501,6 +3501,11 @@ class StudioScene(QGraphicsScene):
         sel_arrow_act = select_menu.addAction("Arrows")
         sel_shape_act = select_menu.addAction("Shapes")
         sel_censor_act = select_menu.addAction("Censors")
+        select_menu.addSeparator()
+        sel_visible_act = select_menu.addAction("All Visible Overlays")
+        sel_hidden_act = select_menu.addAction("All Hidden Overlays")
+        sel_locked_act = select_menu.addAction("All Locked Overlays")
+        sel_unlocked_act = select_menu.addAction("All Unlocked Overlays")
         # Platform-scoped sub-selection: grab every unique platform on
         # any overlay + censor, add a 'Select All on <platform>' entry
         # per platform. Overlays with empty platforms list are 'all
@@ -3753,7 +3758,9 @@ class StudioScene(QGraphicsScene):
             _QS("DoxyEdit", "DoxyEdit").setValue("studio_bg_color", color_name)
             editor._scene.setBackgroundBrush(QBrush(QColor(color_name)))
         elif chosen in (sel_text_act, sel_wm_act, sel_arrow_act,
-                         sel_shape_act, sel_censor_act):
+                         sel_shape_act, sel_censor_act,
+                         sel_visible_act, sel_hidden_act,
+                         sel_locked_act, sel_unlocked_act):
             editor._scene.clearSelection()
             if chosen is sel_text_act:
                 for it in editor._overlay_items:
@@ -3774,6 +3781,27 @@ class StudioScene(QGraphicsScene):
             elif chosen is sel_censor_act:
                 for it in editor._censor_items:
                     it.setSelected(True)
+            elif chosen in (sel_visible_act, sel_hidden_act,
+                             sel_locked_act, sel_unlocked_act):
+                want_visible = chosen is sel_visible_act
+                want_hidden = chosen is sel_hidden_act
+                want_locked = chosen is sel_locked_act
+                want_unlocked = chosen is sel_unlocked_act
+                for it in editor._overlay_items:
+                    ov = getattr(it, "overlay", None)
+                    if ov is None:
+                        continue
+                    if want_visible and ov.enabled:
+                        it.setSelected(True)
+                    elif want_hidden and not ov.enabled:
+                        # Layer panel still lets user reach hidden items;
+                        # temporarily show them so setSelected takes.
+                        it.setVisible(True)
+                        it.setSelected(True)
+                    elif want_locked and getattr(ov, "locked", False):
+                        it.setSelected(True)
+                    elif want_unlocked and not getattr(ov, "locked", False):
+                        it.setSelected(True)
         elif _plat_sel_acts and chosen in _plat_sel_acts:
             # Select overlays + censors scoped to the picked platform.
             # Overlays with empty platforms list are 'all platforms'
