@@ -2100,10 +2100,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._render_notes_preview(self.project.notes)
 
     def _build_toolbar(self):
-        # Left toolbar — hidden, canvas tools only
+        # Left toolbar — hidden, canvas tools only. Bigger icons so
+        # the tool palette has the same visual weight as Studio's own
+        # top toolbar (_ICO_SZ 16-24 px, padded with button chrome).
         tb = QToolBar("Main")
         tb.setMovable(False)
-        tb.setIconSize(QSize(20, 20))
+        tb.setIconSize(QSize(28, 28))
         self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tb)
         tb.hide()
         self._left_toolbar = tb
@@ -2115,25 +2117,38 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._tray_btn.triggered.connect(lambda checked: self._toggle_work_tray())
 
         # Studio tools (active when on Studio tab) — this is the single
-        # "Main" tool palette; Studio's top-toolbar tool buttons are hidden
-        # on the Studio tab so we don't show the same tools twice. Emoji
-        # glyphs keep each button narrow; tooltip carries the full name.
-        from doxyedit.studio import StudioTool
+        # "Main" tool palette; Studio's top-toolbar tool buttons are
+        # hidden on the Studio tab so we don't show the same tools
+        # twice. Use the QPainter-drawn _StudioIcons so the sidebar
+        # matches the top toolbar style (no 'emoji-looks-broken' on
+        # themes where glyph fonts don't render).
+        from doxyedit.studio import StudioTool, _StudioIcons
         self._canvas_sep_before = tb.addSeparator()
         tools = [
-            ("↖", "Select", StudioTool.SELECT, "Q"),
-            ("▣", "Censor", StudioTool.CENSOR, "X"),
-            ("◰", "Crop", StudioTool.CROP, "C"),
-            ("✎", "Note", StudioTool.NOTE, "N"),
-            ("▦", "Watermark / logo", StudioTool.WATERMARK, "E"),
-            ("T", "Text overlay", StudioTool.TEXT_OVERLAY, "T"),
-            ("➜", "Arrow", StudioTool.ARROW, "A"),
-            ("▭", "Shape", StudioTool.SHAPE_RECT, None),
-            ("⦿", "Eyedropper", StudioTool.EYEDROPPER, "I"),
+            ("↖", _StudioIcons.select, "Select", StudioTool.SELECT, "Q"),
+            ("▣", _StudioIcons.censor, "Censor", StudioTool.CENSOR, "X"),
+            ("◰", _StudioIcons.crop, "Crop", StudioTool.CROP, "C"),
+            ("✎", _StudioIcons.note, "Note", StudioTool.NOTE, "N"),
+            ("▦", _StudioIcons.watermark, "Watermark / logo",
+             StudioTool.WATERMARK, "E"),
+            ("T", _StudioIcons.text, "Text overlay",
+             StudioTool.TEXT_OVERLAY, "T"),
+            ("➜", _StudioIcons.arrow, "Arrow", StudioTool.ARROW, "A"),
+            ("▭", _StudioIcons.shape, "Shape",
+             StudioTool.SHAPE_RECT, None),
+            ("⦿", _StudioIcons.eyedropper, "Eyedropper",
+             StudioTool.EYEDROPPER, "I"),
         ]
         self._tool_actions = []
-        for glyph, name, tool, shortcut in tools:
-            action = QAction(glyph, self)
+        for glyph, icon_fn, name, tool, shortcut in tools:
+            action = QAction(self)
+            try:
+                # _StudioIcons factories take no args and return QIcon.
+                action.setIcon(icon_fn())
+            except Exception:
+                # Fallback to glyph if icon factory is missing (e.g.
+                # icon factory rename).
+                action.setText(glyph)
             action.setCheckable(True)
             tip = f"{name} tool"
             if shortcut:
