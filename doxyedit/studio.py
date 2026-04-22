@@ -948,6 +948,28 @@ class OverlayShapeItem(QGraphicsItem):
         return (abs(scene_pos.x() - tip.x()) <= r
                 and abs(scene_pos.y() - tip.y()) <= r)
 
+    def _star_inner_handle_pos(self) -> QPointF:
+        """Scene-space position of the star inner-radius handle. A point
+        on the line from shape center to 12 o'clock, at distance
+        inner_ratio * rx from center. Dragging toward the center
+        shrinks inner_ratio (narrower star); outward widens it."""
+        ov = self.overlay
+        cx = ov.x + ov.shape_w / 2
+        cy = ov.y + ov.shape_h / 2
+        rx = ov.shape_w / 2
+        ry = ov.shape_h / 2
+        r = max(0.1, min(0.95, float(getattr(ov, "inner_ratio", 0.4) or 0.4)))
+        # Place the handle straight up from center at the inner radius
+        return QPointF(cx, cy - ry * r)
+
+    def _star_inner_handle_under(self, scene_pos: QPointF) -> bool:
+        if self.overlay.shape_kind != "star":
+            return False
+        hp = self._star_inner_handle_pos()
+        r = self._zoom_adaptive_radius(14)
+        return (abs(scene_pos.x() - hp.x()) <= r
+                and abs(scene_pos.y() - hp.y()) <= r)
+
     def _corner_radius_handle_pos(self) -> QPointF:
         """Scene-space position of the corner-radius handle. Appears
         offset from the top-left corner of a rect by `corner_radius`
@@ -1151,6 +1173,14 @@ class OverlayShapeItem(QGraphicsItem):
                     QPointF(crh.x(), crh.y() + d),
                     QPointF(crh.x() - d, crh.y()),
                 ]))
+            # Star inner-radius handle: teal dot on the north spoke at
+            # distance inner_ratio * ry from center. Drag toward center
+            # narrows the star; drag out widens to near-polygon.
+            if self.overlay.shape_kind == "star":
+                sh = self._star_inner_handle_pos()
+                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                painter.setBrush(QBrush(QColor(80, 200, 180)))
+                painter.drawEllipse(sh, 5, 5)
             # For linear gradients, also show a direction line + two circles
             # representing the gradient start / end.
             if self.overlay.shape_kind == "gradient_linear":
@@ -1193,6 +1223,12 @@ class OverlayShapeItem(QGraphicsItem):
             # Corner-radius handle for rect shapes.
             if self._corner_radius_handle_under(event.scenePos()):
                 self._dragging_handle = 'corner_radius'
+                self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                event.accept()
+                return
+            # Star inner-radius handle.
+            if self._star_inner_handle_under(event.scenePos()):
+                self._dragging_handle = 'star_inner'
                 self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
                 event.accept()
                 return
@@ -1265,6 +1301,21 @@ class OverlayShapeItem(QGraphicsItem):
             if self._editor:
                 self._editor.info_label.setText(
                     f"Corner radius: {new_r}px")
+            event.accept()
+            return
+        if self._dragging_handle == 'star_inner':
+            # Distance from shape center as a fraction of ry = new
+            # inner_ratio. Clamped to [0.1, 0.95].
+            sp = event.scenePos()
+            cy = self.overlay.y + self.overlay.shape_h / 2
+            ry = max(1.0, self.overlay.shape_h / 2)
+            frac = max(0.1, min(0.95, abs(cy - sp.y()) / ry))
+            self.overlay.inner_ratio = float(frac)
+            self.prepareGeometryChange()
+            self.update()
+            if self._editor:
+                self._editor.info_label.setText(
+                    f"Star inner radius: {frac * 100:.0f}%")
             event.accept()
             return
         if self._dragging_handle == 'tail':
