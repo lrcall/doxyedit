@@ -802,14 +802,30 @@ class OverlayShapeItem(QGraphicsItem):
                 return key
         return None
 
+    def _zoom_adaptive_radius(self, screen_px: int = 16) -> float:
+        """Return a scene-space hit radius that always feels ~screen_px
+        wide on-screen regardless of zoom level. At 100% zoom,
+        `screen_px` scene-px == `screen_px` screen-px; at 25% zoom the
+        radius grows to 4× screen-px so handles stay grabbable when the
+        user is zoomed out."""
+        try:
+            m = self._editor._view.transform().m11() if self._editor else 1.0
+        except Exception:
+            m = 1.0
+        if m <= 0.01:
+            m = 1.0
+        return screen_px / m
+
     def _tail_handle_under(self, scene_pos: QPointF) -> bool:
-        """True if `scene_pos` is near the bubble tail tip handle."""
+        """True if `scene_pos` is near the bubble tail tip handle.
+        Uses a zoom-adaptive radius — the handle was notoriously finicky
+        to grab when the view was zoomed out."""
         if not self._is_bubble():
             return False
         body = QRectF(self.overlay.x, self.overlay.y,
                       self.overlay.shape_w, self.overlay.shape_h)
         tip = self._tail_tip(body)
-        r = self.HANDLE_HIT_RADIUS
+        r = self._zoom_adaptive_radius(18)
         return (abs(scene_pos.x() - tip.x()) <= r
                 and abs(scene_pos.y() - tip.y()) <= r)
 
@@ -819,11 +835,19 @@ class OverlayShapeItem(QGraphicsItem):
         reachable regardless of zoom."""
         x, y = self.overlay.x, self.overlay.y
         w = self.overlay.shape_w
-        return QPointF(x + w / 2, y - 22)
+        # Scale the offset with zoom so the handle sits a consistent
+        # ~22 screen-pixels above the body at any magnification.
+        try:
+            m = self._editor._view.transform().m11() if self._editor else 1.0
+        except Exception:
+            m = 1.0
+        if m <= 0.01:
+            m = 1.0
+        return QPointF(x + w / 2, y - 22 / m)
 
     def _rotate_handle_under(self, scene_pos: QPointF) -> bool:
         rh = self._rotate_handle_pos()
-        r = self.HANDLE_HIT_RADIUS
+        r = self._zoom_adaptive_radius(18)
         return (abs(scene_pos.x() - rh.x()) <= r
                 and abs(scene_pos.y() - rh.y()) <= r)
 
