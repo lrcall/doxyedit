@@ -5907,16 +5907,46 @@ class StudioEditor(QWidget):
             line_style=line_style,
         )
         # Bubbles get a sensible initial tail so the paint path has
-        # something to draw against.
+        # something to draw against, plus a paired text overlay inside
+        # the body so the comic workflow is one-step.
         if kind in ("speech_bubble", "thought_bubble"):
             ov.tail_x = int(rect.x() + rect.width() * 0.25)
             ov.tail_y = int(rect.y() + rect.height() * 1.35)
+            import uuid as _uuid
+            link_id = f"bubble_text_{_uuid.uuid4().hex[:8]}"
+            ov.linked_text_id = link_id
         self._asset.overlays.append(ov)
         item = OverlayShapeItem(ov)
         item._editor = self
         item.setZValue(200 + len(self._overlay_items))
         self._scene.addItem(item)
         self._overlay_items.append(item)
+        # For bubbles: drop a paired text overlay centered in the body.
+        if kind in ("speech_bubble", "thought_bubble"):
+            pad_x = int(rect.width() * 0.15)
+            pad_y = int(rect.height() * 0.18)
+            text_ov = CanvasOverlay(
+                type="text",
+                label=ov.linked_text_id,
+                text="...",
+                opacity=1.0,
+                position="custom",
+                x=int(rect.x() + pad_x),
+                y=int(rect.y() + pad_y),
+                text_width=int(rect.width() - 2 * pad_x),
+                font_size=24,
+                text_align="center",
+                color="#000000",
+            )
+            for k, v in self._load_text_style_defaults().items():
+                if k == "text_width":
+                    continue
+                setattr(text_ov, k, v)
+            self._asset.overlays.append(text_ov)
+            text_item = self._create_overlay_item(text_ov)
+            if text_item:
+                text_item.setZValue(200 + len(self._overlay_items))
+                self._overlay_items.append(text_item)
         self._view.setCursor(Qt.CursorShape.ArrowCursor)
         self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self._update_info()
