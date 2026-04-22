@@ -9726,7 +9726,34 @@ class StudioEditor(QWidget):
 
         self._selection_label = QLabel("0 selected")
         self._selection_label.setObjectName("studio_selection_label")
-        self._selection_label.setToolTip("Number of selected items")
+        self._selection_label.setToolTip(
+            "Number of selected items (right-click for selection "
+            "actions)")
+        self._selection_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Right-click for quick selection actions.
+        self._selection_label.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        def _sel_ctx(pos):
+            m = _themed_menu(self._selection_label)
+            act_all = m.addAction("Select All  (Ctrl+A)")
+            act_none = m.addAction("Deselect All  (Ctrl+Shift+A)")
+            act_inv = m.addAction("Invert Selection  (Ctrl+Shift+I)")
+            chosen = m.exec(self._selection_label.mapToGlobal(pos))
+            if chosen is act_all:
+                for it in self._scene.items():
+                    if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                         OverlayArrowItem, OverlayShapeItem,
+                                         CensorRectItem)):
+                        it.setSelected(True)
+            elif chosen is act_none:
+                self._scene.clearSelection()
+            elif chosen is act_inv:
+                for it in self._scene.items():
+                    if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                         OverlayArrowItem, OverlayShapeItem,
+                                         CensorRectItem)):
+                        it.setSelected(not it.isSelected())
+        self._selection_label.customContextMenuRequested.connect(_sel_ctx)
         status_bar.addWidget(self._selection_label)
 
         self._geom_label = QLabel("")
