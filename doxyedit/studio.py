@@ -4199,6 +4199,10 @@ class StudioEditor(QWidget):
         if ctrl and shift and key == Qt.Key.Key_R:
             self._rotate_selected(-1)
             return
+        # Ctrl+; toggles guide visibility (Photoshop convention).
+        if ctrl and not shift and key == Qt.Key.Key_Semicolon:
+            self._toggle_guides_visibility()
+            return
         # F12 toggles snap on/off. Remembers the last non-zero threshold
         # so the user can flip between 'no snap' and 'my usual snap'
         # without re-entering the value each time.
@@ -5607,6 +5611,20 @@ class StudioEditor(QWidget):
             self._asset.guides = []
         if hasattr(self, "_canvas_wrap"):
             self._canvas_wrap.refresh()
+
+    def _toggle_guides_visibility(self):
+        """Hide / show existing guides without deleting them. Ctrl+; keymap.
+        Preserves the guide list so the user can flip visibility during a
+        tight-layout pass without redoing the drag-out work."""
+        guides = getattr(self, "_guide_items", [])
+        if not guides:
+            self.info_label.setText("No guides to toggle")
+            return
+        visible = guides[0].isVisible()
+        for line in guides:
+            line.setVisible(not visible)
+        self.info_label.setText(
+            "Guides: hidden" if visible else "Guides: visible")
 
     def set_project(self, project: Project, project_path: str = ""):
         """Store project ref and populate template dropdown."""
