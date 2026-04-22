@@ -5328,8 +5328,11 @@ class StudioEditor(QWidget):
         toolbar.addWidget(QLabel("Scale:"))
         self.slider_scale = QSlider(Qt.Orientation.Horizontal)
         self.slider_scale.setObjectName("studio_scale_slider")
-        self.slider_scale.setRange(5, 100)
-        self.slider_scale.setValue(20)
+        # 10 - 400% — enough to both shrink and blow up text / shapes
+        # without running out of slider travel on the common 50 / 100 /
+        # 200 / 400 ticks. Right-click for preset menu.
+        self.slider_scale.setRange(10, 400)
+        self.slider_scale.setValue(100)
         self.slider_scale.setFixedWidth(_slider_w)
         self.slider_scale.valueChanged.connect(self._on_scale_changed)
         toolbar.addWidget(self.slider_scale)
@@ -8881,6 +8884,53 @@ class StudioEditor(QWidget):
                     item, "scale", scale,
                     apply_cb=_apply_scale,
                     description="Change scale",
+                )
+            elif isinstance(item, OverlayTextItem):
+                # Scale text by multiplying the stored font point size.
+                # Snapshots baseline once so repeated slider drags don't
+                # compound.
+                if not hasattr(item, "_scale_baseline_font"):
+                    item._scale_baseline_font = item.overlay.font_size
+                target = max(4, int(item._scale_baseline_font * scale))
+                def _apply_text_scale(it, v, _target=target):
+                    it.overlay.font_size = _target
+                    f = it.font()
+                    f.setPointSize(_target)
+                    it.setFont(f)
+                    it.update()
+                self._push_overlay_attr(
+                    item, "scale", scale,
+                    apply_cb=_apply_text_scale,
+                    description="Scale text",
+                )
+            elif isinstance(item, (OverlayShapeItem, OverlayArrowItem)):
+                # Snapshot base dimensions on first drag of this session
+                # so subsequent slider moves scale from the same baseline
+                # rather than compounding each previous scale.
+                if not hasattr(item, "_scale_baseline_w"):
+                    item._scale_baseline_w = getattr(item.overlay, "shape_w", 0)
+                    item._scale_baseline_h = getattr(item.overlay, "shape_h", 0)
+                    item._scale_baseline_end = (
+                        getattr(item.overlay, "end_x", 0),
+                        getattr(item.overlay, "end_y", 0))
+                def _apply_geom_scale(it, v, _self=self):
+                    if isinstance(it, OverlayShapeItem):
+                        it.overlay.shape_w = max(4, int(it._scale_baseline_w * v))
+                        it.overlay.shape_h = max(4, int(it._scale_baseline_h * v))
+                        it.prepareGeometryChange()
+                        it.update()
+                    elif isinstance(it, OverlayArrowItem):
+                        bx, by = it._scale_baseline_end
+                        cx = it.overlay.x + (bx - it.overlay.x) * v
+                        cy = it.overlay.y + (by - it.overlay.y) * v
+                        it.overlay.end_x = cx
+                        it.overlay.end_y = cy
+                        it.prepareGeometryChange()
+                        it.update()
+                self._push_overlay_attr(
+                    item, "scale", scale,
+                    apply_cb=_apply_geom_scale,
+                    description="Scale geometry",
                 )
 
     def _sync_shape_controls_visibility(self):
