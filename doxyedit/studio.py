@@ -40,7 +40,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import (
     Qt, QRectF, QPointF, QLineF, Signal, QSettings, QSize,
-    QEvent, QMimeData,
+    QEvent, QMimeData, QTimer,
 )
 from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
@@ -6144,8 +6144,14 @@ class StudioEditor(QWidget):
             _b.setFixedWidth(_sw)
         _dlg_layout = QFormLayout(_dlg)
         _dlg_layout.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
-        _dlg_layout.setSpacing(_pad)
+        # Separate horizontal (label↔field) and vertical (row↔row) spacing
+        # so the sliders get enough vertical breathing room instead of
+        # stacking right on top of each other.
+        _dlg_layout.setHorizontalSpacing(_pad_lg)
+        _dlg_layout.setVerticalSpacing(max(8, _pad_lg))
         _dlg_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        _dlg_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        _dlg_layout.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         # Text content editor at the top — live-edits the selected
         # text overlay's .text without needing to enter scene-edit
         # mode. Multiline so speech-bubble text with line breaks works.
@@ -11301,14 +11307,26 @@ class StudioEditor(QWidget):
             self._rebuild_layer_panel()
 
     def _sync_overlays_to_asset(self):
-        """Write overlay items back to asset.overlays."""
+        """Write overlay items back to asset.overlays.
+
+        Rebuilding the layer panel on every call was the biggest source
+        of jitter during slider drags on text overlays (every tick =
+        full QListWidget clear+rebuild). Coalesce to a single rebuild
+        per event loop via a short-interval singleshot timer.
+        """
         if not self._asset:
             return
         self._asset.overlays.clear()
         for item in self._overlay_items:
             self._asset.overlays.append(item.overlay)
         if hasattr(self, '_layer_panel'):
-            self._rebuild_layer_panel()
+            if not hasattr(self, '_layer_rebuild_timer'):
+                self._layer_rebuild_timer = QTimer(self)
+                self._layer_rebuild_timer.setSingleShot(True)
+                self._layer_rebuild_timer.setInterval(80)
+                self._layer_rebuild_timer.timeout.connect(
+                    self._rebuild_layer_panel)
+            self._layer_rebuild_timer.start()
 
     # ---- actions ----
 

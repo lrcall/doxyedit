@@ -36,7 +36,7 @@ from PySide6.QtGui import (
     QKeyEvent, QTransform, QUndoCommand, QUndoStack, QIcon,
     QPolygonF, QPainterPath, QImage, QShortcut, QKeySequence,
     QTextCursor, QLinearGradient, QRadialGradient, QTextOption,
-    QTextBlockFormat,
+    QTextBlockFormat, QPalette, QAbstractTextDocumentLayout,
 )
 import copy
 import json
@@ -2377,6 +2377,18 @@ class OverlayTextItem(QGraphicsTextItem):
         "lighten": QPainter.CompositionMode.CompositionMode_Lighten,
     }
 
+    def _draw_document(self, painter, color: QColor):
+        """Draw the text document directly with an override color.
+
+        Using QAbstractTextDocumentLayout.draw() with a paint context lets
+        us color the glyphs without mutating the item's defaultTextColor
+        (which, if changed inside paint(), triggers a relayout and causes
+        jitter on every frame during drag).
+        """
+        ctx = QAbstractTextDocumentLayout.PaintContext()
+        ctx.palette.setColor(QPalette.ColorRole.Text, color)
+        self.document().documentLayout().draw(painter, ctx)
+
     def paint(self, painter, option, widget=None):
         mode = self._BLEND_MODE_MAP.get(
             getattr(self.overlay, "blend_mode", "normal"),
@@ -2388,7 +2400,6 @@ class OverlayTextItem(QGraphicsTextItem):
         if bg:
             bg_color = QColor(bg)
             if bg_color.isValid():
-                # Expand slightly so the rect reads as a pill around text
                 _pad = max(4, int(self.overlay.font_size * 0.2))
                 br = self.boundingRect().adjusted(-_pad, -_pad, _pad, _pad)
                 painter.save()
@@ -2396,40 +2407,29 @@ class OverlayTextItem(QGraphicsTextItem):
                 painter.setBrush(bg_color)
                 painter.drawRoundedRect(br, _pad, _pad)
                 painter.restore()
-        # Drop shadow — draw the text at offset in shadow color before the
-        # main pass. Simple, readable; exporter already has a blurred version.
+        # Drop shadow: draw the document layout at offset in shadow color.
+        # Never call setDefaultTextColor here - it relayouts the doc and
+        # causes visible jitter while dragging.
         if self.overlay.shadow_color and self.overlay.shadow_offset:
             painter.save()
             off = self.overlay.shadow_offset
-            orig_color = self.defaultTextColor()
-            self.setDefaultTextColor(QColor(self.overlay.shadow_color))
             painter.translate(off, off)
-            super().paint(painter, option, widget)
-            painter.translate(-off, -off)
-            self.setDefaultTextColor(orig_color)
+            self._draw_document(painter, QColor(self.overlay.shadow_color))
             painter.restore()
-        # Draw text outline if stroke is configured. Approach: render
-        # the text twice — offset in 8 directions for the outline, then
-        # the main glyph on top. Faster + more reliable than building a
-        # QPainterPath from the document layout (attempted earlier and
-        # abandoned since QTextLine doesn't expose per-glyph geometry
-        # directly in PySide6).
+        # Text outline via 8-directional offset passes.
         if self.overlay.stroke_width > 0 and self.overlay.stroke_color:
             painter.save()
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             stroke_w = self.overlay.stroke_width
             stroke_c = QColor(self.overlay.stroke_color)
-            orig_color = self.defaultTextColor()
-            self.setDefaultTextColor(stroke_c)
             for dx in (-stroke_w, 0, stroke_w):
                 for dy in (-stroke_w, 0, stroke_w):
                     if dx == 0 and dy == 0:
                         continue
                     painter.save()
                     painter.translate(dx, dy)
-                    super().paint(painter, option, widget)
+                    self._draw_document(painter, stroke_c)
                     painter.restore()
-            self.setDefaultTextColor(orig_color)
             painter.restore()
         super().paint(painter, option, widget)
 
