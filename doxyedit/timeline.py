@@ -14,6 +14,7 @@ from doxyedit.themes import ui_font_size
 
 from doxyedit.models import SocialPost, SocialPostStatus, EngagementWindow
 from doxyedit.panel_mixin import LazyRefreshMixin
+from doxyedit.preview import HoverPreview
 
 ICON_WIDTH_RATIO = 1.67
 
@@ -396,7 +397,6 @@ class PostCard(QFrame):
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.MiddleButton:
-            from doxyedit.preview import HoverPreview
             HoverPreview.instance().hide_preview()
         super().mouseReleaseEvent(event)
 
@@ -404,7 +404,6 @@ class PostCard(QFrame):
         """Show hover preview of the first asset on middle-click."""
         if not self._asset_ids:
             return
-        from doxyedit.preview import HoverPreview
         for aid in self._asset_ids:
             asset = self._project.get_asset(aid) if self._project else None
             if asset and asset.source_path:
