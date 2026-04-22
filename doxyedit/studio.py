@@ -1050,8 +1050,21 @@ class OverlayShapeItem(QGraphicsItem):
             return
         if self._dragging_handle == 'tail':
             sp = event.scenePos()
-            self.overlay.tail_x = int(sp.x())
-            self.overlay.tail_y = int(sp.y())
+            tx, ty = sp.x(), sp.y()
+            # Shift snaps the tail to the exact N/E/S/W axis through
+            # the body center so the tail reads as straight. Useful
+            # for characters standing directly above / below / beside
+            # a bubble (common comic composition).
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                cx = self.overlay.x + self.overlay.shape_w / 2
+                cy = self.overlay.y + self.overlay.shape_h / 2
+                dx, dy = tx - cx, ty - cy
+                if abs(dx) > abs(dy):
+                    ty = cy
+                else:
+                    tx = cx
+            self.overlay.tail_x = int(tx)
+            self.overlay.tail_y = int(ty)
             self.prepareGeometryChange()
             self.update()
             event.accept()
