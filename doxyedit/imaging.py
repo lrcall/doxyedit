@@ -27,6 +27,18 @@ def pil_to_qpixmap(img: PILImage.Image) -> QPixmap:
     return QPixmap.fromImage(pil_to_qimage(img))
 
 
+def qimage_to_pil(qimg: QImage) -> PILImage.Image:
+    """Convert a QImage to a PIL RGBA Image. Avoids any PNG round-trip."""
+    qimg = qimg.convertToFormat(QImage.Format.Format_RGBA8888)
+    w, h = qimg.width(), qimg.height()
+    stride = qimg.bytesPerLine()
+    raw = bytes(qimg.constBits())
+    if stride == w * 4:
+        return PILImage.frombytes("RGBA", (w, h), raw)
+    rows = b"".join(raw[y * stride:y * stride + w * 4] for y in range(h))
+    return PILImage.frombytes("RGBA", (w, h), rows)
+
+
 def load_psd(path: str) -> tuple[PILImage.Image, int, int]:
     """Open a PSD/PSB and return (composited PIL image, doc_width, doc_height)."""
     from psd_tools import PSDImage

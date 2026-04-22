@@ -42,6 +42,7 @@ from PIL import Image
 
 from doxyedit.models import Asset, Project, CensorRegion, CanvasOverlay, CropRegion, PLATFORMS
 from doxyedit.exporter import apply_censors, apply_overlays
+from doxyedit.imaging import pil_to_qimage, qimage_to_pil
 from doxyedit.preview import NoteRectItem, ResizableCropItem
 from doxyedit.themes import THEMES, DEFAULT_THEME
 
@@ -10989,39 +10990,25 @@ class StudioEditor(QWidget):
         elif mode in ("blur3", "blur8"):
             radius = 3 if mode == "blur3" else 8
             from PIL import ImageFilter
-            import io
-            buf = io.BytesIO()
-            src.toImage().save(buf, "PNG")
-            pil_img = Image.open(io.BytesIO(buf.getvalue())).convert("RGBA")
+            pil_img = qimage_to_pil(src.toImage())
             pil_img = pil_img.filter(ImageFilter.GaussianBlur(radius=radius))
-            out_buf = io.BytesIO()
-            pil_img.save(out_buf, "PNG")
-            qimg2 = QImage()
-            qimg2.loadFromData(out_buf.getvalue())
-            src = QPixmap.fromImage(qimg2)
+            src = QPixmap.fromImage(pil_to_qimage(pil_img))
         # Brightness / contrast / saturation via PIL ImageEnhance. Skip
         # the round-trip entirely when all three are zero so simple
-        # overlays don't pay for the PNG-serialize cost.
+        # overlays don't pay for the conversion cost.
         _br = float(getattr(ov, "img_brightness", 0.0) or 0.0)
         _ct = float(getattr(ov, "img_contrast", 0.0) or 0.0)
         _st = float(getattr(ov, "img_saturation", 0.0) or 0.0)
         if _br or _ct or _st:
             from PIL import ImageEnhance
-            import io
-            buf = io.BytesIO()
-            src.toImage().save(buf, "PNG")
-            pil_img = Image.open(io.BytesIO(buf.getvalue())).convert("RGBA")
+            pil_img = qimage_to_pil(src.toImage())
             if _br:
                 pil_img = ImageEnhance.Brightness(pil_img).enhance(1.0 + _br)
             if _ct:
                 pil_img = ImageEnhance.Contrast(pil_img).enhance(1.0 + _ct)
             if _st:
                 pil_img = ImageEnhance.Color(pil_img).enhance(1.0 + _st)
-            out_buf = io.BytesIO()
-            pil_img.save(out_buf, "PNG")
-            qimg3 = QImage()
-            qimg3.loadFromData(out_buf.getvalue())
-            src = QPixmap.fromImage(qimg3)
+            src = QPixmap.fromImage(pil_to_qimage(pil_img))
         item.setPixmap(src)
         item.update()
 
