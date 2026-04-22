@@ -6192,7 +6192,7 @@ class StudioEditor(QWidget):
             self._z_shift_selected(-1)
             return
         # Ctrl+L — toggle lock on selected overlays
-        if ctrl and key == Qt.Key.Key_L:
+        if ctrl and not shift and key == Qt.Key.Key_L:
             changed = False
             for item in self._scene.selectedItems():
                 ov = getattr(item, "overlay", None)
@@ -6207,6 +6207,28 @@ class StudioEditor(QWidget):
             if changed:
                 self._sync_overlays_to_asset()
                 self._rebuild_layer_panel()
+            return
+        # Ctrl+Alt+L — lock / unlock ALL overlays (toggle based on
+        # current first overlay state). Mirror of the canvas context
+        # menu 'Lock All Layers' entry as a keyboard shortcut.
+        if ctrl and alt and key == Qt.Key.Key_L:
+            if not self._overlay_items:
+                return
+            # Flip based on first overlay's current state
+            first_ov = getattr(self._overlay_items[0], "overlay", None)
+            lock = not bool(getattr(first_ov, "locked", False)) if first_ov else True
+            for it in self._overlay_items:
+                ov = getattr(it, "overlay", None)
+                if ov is not None:
+                    ov.locked = lock
+                    it.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable,
+                                not lock)
+                    it.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable,
+                                not lock)
+            self._sync_overlays_to_asset()
+            self._rebuild_layer_panel()
+            self.info_label.setText(
+                "All overlays locked" if lock else "All overlays unlocked")
             return
         # [ / ] with no modifier — adjust arrowhead_size on selected arrows
         if not ctrl and not shift and key in (Qt.Key.Key_BracketLeft, Qt.Key.Key_BracketRight):
