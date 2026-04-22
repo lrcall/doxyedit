@@ -792,6 +792,17 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         # _toggle_all_panels moved to Ctrl+Shift+P to free Tab up.
         QShortcut(QKeySequence("Ctrl+Shift+P"), self).activated.connect(
             self._toggle_all_panels)
+        # Ctrl+W closes the current project tab. Standard close-tab
+        # shortcut across browsers, editors, etc.
+        QShortcut(QKeySequence("Ctrl+W"), self).activated.connect(
+            lambda: self._close_proj_tab(self._current_slot)
+            if hasattr(self, "_current_slot") else None)
+        # Ctrl+T opens a new blank project tab (folder preset dialog).
+        # Ctrl+PgUp / Ctrl+PgDown walk through project tabs left/right.
+        QShortcut(QKeySequence("Ctrl+PgUp"), self).activated.connect(
+            lambda: self._cycle_proj_tab(-1))
+        QShortcut(QKeySequence("Ctrl+PgDown"), self).activated.connect(
+            lambda: self._cycle_proj_tab(+1))
         QApplication.instance().installEventFilter(self)
 
         # Escape to deselect, Ctrl+F to focus search
@@ -1551,6 +1562,17 @@ class MainWindow(SaveLoadMixin, QMainWindow):
             self._refresh_project_info()
         # Match Windows title bar to theme
         self._update_title_bar_color()
+
+    def _cycle_proj_tab(self, direction: int):
+        """Ctrl+PgUp / Ctrl+PgDown walk through the project tabs."""
+        if not hasattr(self, "_proj_tab_bar"):
+            return
+        n = self._proj_tab_bar.count()
+        if n <= 1:
+            return
+        cur = self._proj_tab_bar.currentIndex()
+        nxt = (cur + direction) % n
+        self._proj_tab_bar.setCurrentIndex(nxt)
 
     def eventFilter(self, obj, event):
         """App-wide Tab / Shift+Tab cycling through top tabs. Skips when
