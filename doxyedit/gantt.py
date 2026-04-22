@@ -15,6 +15,7 @@ from PySide6.QtGui import QPen, QColor, QBrush, QPainter
 
 from doxyedit.models import Project, SocialPost, SocialPostStatus
 from doxyedit.panel_mixin import LazyRefreshMixin
+from doxyedit.themes import THEMES, DEFAULT_THEME
 
 
 # ---------------------------------------------------------------------------
@@ -44,7 +45,6 @@ def _theme_color(theme, token: str) -> QColor:
     """Resolve a theme token to QColor, using DEFAULT_THEME as fallback."""
     val = getattr(theme, token, None) if theme else None
     if not val:
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         val = getattr(_dt, token, "#888888")
     return QColor(val)
@@ -67,7 +67,6 @@ class _GanttBar(QGraphicsRectItem):
         self._platform = platform
         self._base_color = color
         self.setBrush(QBrush(color))
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = theme or THEMES[DEFAULT_THEME]
         self._bar_pen_width = _dt.gantt_bar_pen_width
         self._bar_hover_pen_width = _dt.gantt_bar_hover_pen_width
@@ -247,7 +246,6 @@ class GanttPanel(LazyRefreshMixin, QWidget):
         self._zoom_slider.setObjectName("gantt_zoom")
         self._zoom_slider.setRange(20, 200)
         self._zoom_slider.setValue(self._px_per_day)
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _gantt_theme = THEMES[DEFAULT_THEME]
         ZOOM_SLIDER_WIDTH_RATIO = 10.0  # zoom slider width relative to font
         self._zoom_slider.setFixedWidth(int(_gantt_theme.font_size * ZOOM_SLIDER_WIDTH_RATIO))
