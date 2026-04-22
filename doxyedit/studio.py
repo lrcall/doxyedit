@@ -3414,6 +3414,8 @@ class StudioScene(QGraphicsScene):
         add_radgrad_act = add_menu.addAction("Radial Gradient (vignette)")
         fit_act = menu.addAction("Fit View  (Ctrl+0)")
         z100_act = menu.addAction("Zoom 100%  (Ctrl+1)")
+        fit_w_act = menu.addAction("Fit Width")
+        fit_h_act = menu.addAction("Fit Height")
         menu.addSeparator()
         tog_grid_act = menu.addAction(
             "Hide Grid" if editor.chk_grid.isChecked() else "Show Grid")
@@ -3612,6 +3614,31 @@ class StudioScene(QGraphicsScene):
                 editor._canvas_wrap.refresh()
         elif chosen is z100_act:
             editor._set_zoom(1.0)
+        elif chosen is fit_w_act:
+            # Fit the full canvas width into the view, keeping the
+            # current vertical center. Useful for reading long vertical
+            # pages at a maximum horizontal zoom.
+            sr = editor._scene.sceneRect()
+            vw = max(1, editor._view.viewport().width())
+            if sr.width() > 0:
+                factor = vw / sr.width()
+                editor._view.resetTransform()
+                editor._view.scale(factor, factor)
+                editor._zoom_label.setText(f"{int(factor * 100)}%")
+                if hasattr(editor, "_canvas_wrap"):
+                    editor._canvas_wrap.refresh()
+        elif chosen is fit_h_act:
+            # Fit the full canvas height into the view. Mirror of Fit
+            # Width for wide artwork.
+            sr = editor._scene.sceneRect()
+            vh = max(1, editor._view.viewport().height())
+            if sr.height() > 0:
+                factor = vh / sr.height()
+                editor._view.resetTransform()
+                editor._view.scale(factor, factor)
+                editor._zoom_label.setText(f"{int(factor * 100)}%")
+                if hasattr(editor, "_canvas_wrap"):
+                    editor._canvas_wrap.refresh()
         elif chosen is tog_grid_act:
             editor.chk_grid.setChecked(not editor.chk_grid.isChecked())
         elif chosen is tog_thirds_act:
