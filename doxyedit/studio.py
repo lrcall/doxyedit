@@ -11704,7 +11704,14 @@ class StudioEditor(QWidget):
     # ---- sync ----
 
     def _sync_censors_to_asset(self):
-        """Write censor items back to asset.censors."""
+        """Write censor items back to asset.censors.
+
+        Called from censor handle-drag (every mousemove while a resize
+        handle is held), so the layer-panel rebuild is debounced via
+        the same 80ms singleshot timer used for overlays — otherwise a
+        single censor resize triggered a full QListWidget clear +
+        rebuild on every mousemove.
+        """
         if not self._asset:
             return
         self._asset.censors.clear()
@@ -11718,7 +11725,13 @@ class StudioEditor(QWidget):
                 platforms=list(item.platforms),
             ))
         if hasattr(self, '_layer_panel'):
-            self._rebuild_layer_panel()
+            if not hasattr(self, '_layer_rebuild_timer'):
+                self._layer_rebuild_timer = QTimer(self)
+                self._layer_rebuild_timer.setSingleShot(True)
+                self._layer_rebuild_timer.setInterval(80)
+                self._layer_rebuild_timer.timeout.connect(
+                    self._rebuild_layer_panel)
+            self._layer_rebuild_timer.start()
 
     def _sync_overlays_to_asset(self):
         """Write overlay items back to asset.overlays.
