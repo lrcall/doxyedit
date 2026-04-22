@@ -5476,6 +5476,11 @@ class StudioEditor(QWidget):
         self._layer_panel.mousePressEvent = _layer_mouse_press
         self._layer_panel.itemClicked.connect(self._on_layer_clicked)
         self._layer_panel.itemDoubleClicked.connect(self._on_layer_double_clicked)
+        # Arrow-key navigation in the layer panel syncs the scene
+        # selection so users can ride the keyboard through overlays
+        # and always see what they're about to modify.
+        self._layer_panel.currentItemChanged.connect(
+            lambda cur, _prev: cur and self._on_layer_clicked(cur))
         self._layer_panel.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._layer_panel.customContextMenuRequested.connect(self._on_layer_context_menu)
         # Drag-reorder wiring: when the user drags a row, the list widget
