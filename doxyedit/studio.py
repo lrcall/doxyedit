@@ -4180,8 +4180,23 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             color_btn.setFixedWidth(30)
             color_btn.setSwatchColor(ov.color or "#000000")
             def _arrow_color(hex_c, _it=item):
-                _it.overlay.color = hex_c
-                _it.update()
+                # Defensive: if the captured item has been detached
+                # from the scene (rebuild happened between click and
+                # dialog return), look up the live item by overlay
+                # identity.
+                live = _it
+                if live.scene() is None and editor is not None:
+                    for _x in editor._overlay_items:
+                        if getattr(_x, "overlay", None) is _it.overlay:
+                            live = _x
+                            break
+                live.overlay.color = hex_c
+                # Force full invalidation: update() alone wasn't enough
+                # if the bounding rect hadn't been dirtied.
+                live.prepareGeometryChange()
+                live.update()
+                if live.scene() is not None:
+                    live.scene().update(live.sceneBoundingRect())
                 color_btn.setSwatchColor(hex_c)
                 editor._add_recent_color(hex_c)
                 editor._sync_overlays_to_asset()
