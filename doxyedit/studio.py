@@ -3745,15 +3745,37 @@ class _StudioRuler(QWidget):
         super().mouseReleaseEvent(event)
 
     def contextMenuEvent(self, event):
-        """Right-click a ruler -> clear all guides / toggle ruler visibility."""
+        """Right-click a ruler -> clear all guides / toggle ruler
+        visibility / change ruler unit."""
         editor = getattr(self._view, "_studio_editor", None)
         if editor is None:
             return super().contextMenuEvent(event)
         menu = _themed_menu(self._view)
+        unit_sub = menu.addMenu("Units")
+        from PySide6.QtCore import QSettings as _QS
+        qs = _QS("DoxyEdit", "DoxyEdit")
+        current_unit = qs.value("studio_ruler_unit", "px", type=str)
+        unit_px = unit_sub.addAction("Pixels (px)")
+        unit_mm = unit_sub.addAction("Millimetres (mm)")
+        unit_in = unit_sub.addAction("Inches (in)")
+        for act, u in ((unit_px, "px"), (unit_mm, "mm"), (unit_in, "in")):
+            act.setCheckable(True)
+            act.setChecked(current_unit == u)
+        menu.addSeparator()
         clear_act = menu.addAction("Clear All Guides")
         hide_ruler_act = menu.addAction("Hide Rulers")
         chosen = menu.exec(event.globalPos())
-        if chosen is clear_act:
+        if chosen in (unit_px, unit_mm, unit_in):
+            new_u = ("px" if chosen is unit_px
+                     else "mm" if chosen is unit_mm else "in")
+            qs.setValue("studio_ruler_unit", new_u)
+            # Nudge both rulers if we can reach them through the editor
+            if editor and hasattr(editor, "_canvas_wrap"):
+                editor._canvas_wrap.refresh()
+            self.update()
+            if hasattr(editor, "info_label"):
+                editor.info_label.setText(f"Ruler units: {new_u}")
+        elif chosen is clear_act:
             editor._clear_guides()
         elif chosen is hide_ruler_act:
             if hasattr(editor, "chk_rulers"):
@@ -3808,13 +3830,34 @@ class _StudioRuler(QWidget):
             s_start, s_end = top_left.x(), bot_right.x()
         else:
             s_start, s_end = top_left.y(), bot_right.y()
-        # Pick a major step whose screen footprint is >= _MAJOR_PX
-        major_step = self._TICK_CANDIDATES[-1]
-        for c in self._TICK_CANDIDATES:
-            if c * scale >= self._MAJOR_PX:
+        # Unit conversion: 96 DPI canonical — 1 in = 96 px, 1 mm = 96 /
+        # 25.4 ≈ 3.7795 px. The tick values are rendered in the chosen
+        # unit but the screen-pixel math still uses the raw px delta.
+        from PySide6.QtCore import QSettings as _QS
+        _unit = _QS("DoxyEdit", "DoxyEdit").value(
+            "studio_ruler_unit", "px", type=str)
+        if _unit == "mm":
+            unit_per_px = 25.4 / 96.0  # mm per px at 96 DPI
+            unit_suffix = ""
+            # Tick candidates in millimetres
+            _tick_candidates = (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000)
+        elif _unit == "in":
+            unit_per_px = 1.0 / 96.0
+            unit_suffix = "\""
+            _tick_candidates = (0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100)
+        else:
+            unit_per_px = 1.0
+            unit_suffix = ""
+            _tick_candidates = self._TICK_CANDIDATES
+        # Pick a major step whose screen footprint is >= _MAJOR_PX.
+        # Evaluate the candidate in UNIT space: step_in_px = step * (1/unit_per_px)
+        px_per_unit = (1.0 / unit_per_px) if unit_per_px else 1.0
+        major_step = _tick_candidates[-1]
+        for c in _tick_candidates:
+            if c * px_per_unit * scale >= self._MAJOR_PX:
                 major_step = c
                 break
-        minor_step = max(1, major_step // 5)
+        minor_step = major_step / 5.0 if _unit != "px" else max(1, int(major_step // 5))
         # Set up pens + font — minor ticks are dimmer
         _minor_color = QColor(self._theme.text_muted)
         _minor_color.setAlpha(90)
@@ -3826,16 +3869,29 @@ class _StudioRuler(QWidget):
         font.setPointSizeF(max(7.0, font.pointSizeF() * 0.80))
         p.setFont(font)
 
-        s = int((int(s_start) // minor_step) * minor_step)
-        while s <= s_end + minor_step:
-            screen_pos = (s - s_start) * scale
-            is_major = (s % major_step) == 0
+        # Walk in UNIT space: start at the nearest minor step ≤ s_start.
+        # unit_start / unit_end are the visible range in UNIT space.
+        unit_start = s_start * unit_per_px
+        unit_end = s_end * unit_per_px
+        s = (int(unit_start / minor_step)) * minor_step
+        def _fmt(v):
+            # Hide trailing zeros for inch/mm; keep plain ints for px.
+            if _unit == "px":
+                return f"{int(v)}"
+            if abs(v - int(v)) < 0.01:
+                return f"{int(v)}{unit_suffix}"
+            return f"{v:g}{unit_suffix}"
+        while s <= unit_end + minor_step:
+            px = s / unit_per_px  # back to pixel coord for drawing
+            screen_pos = (px - s_start) * scale
+            # Major if the unit-space value is a multiple of major_step.
+            is_major = abs((s / major_step) - round(s / major_step)) < 1e-6
             p.setPen(pen_major if is_major else pen_minor)
             if self._orientation == 'h':
                 x = int(screen_pos)
                 if is_major:
                     p.drawLine(x, self.height() - 1, x, self.height() - 8)
-                    p.drawText(x + 2, self.height() - 9, str(s))
+                    p.drawText(x + 2, self.height() - 9, _fmt(s))
                 else:
                     p.drawLine(x, self.height() - 1, x, self.height() - 4)
             else:
@@ -3845,7 +3901,7 @@ class _StudioRuler(QWidget):
                     p.save()
                     p.translate(self.width() - 9, y + 2)
                     p.rotate(-90)
-                    p.drawText(0, 0, str(s))
+                    p.drawText(0, 0, _fmt(s))
                     p.restore()
                 else:
                     p.drawLine(self.width() - 1, y, self.width() - 4, y)
