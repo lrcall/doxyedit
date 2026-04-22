@@ -1207,7 +1207,6 @@ RULES:
         sched = data.get("schedule_suggestion", "")
         if sched:
             try:
-                from datetime import datetime
                 dt = datetime.fromisoformat(sched)
                 self._schedule_edit.setDateTime(
                     QDateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute, 0)

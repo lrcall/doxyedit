@@ -11,6 +11,7 @@ try:
 except ImportError:
     _markdown = None
 from collections import defaultdict
+from datetime import datetime, timedelta
 from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QTabWidget, QTabBar, QToolBar, QFileDialog, QStatusBar,
@@ -3868,7 +3869,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         """Generate test engagement windows on the first post with platforms."""
         from doxyedit.reminders import generate_engagement_windows
         from doxyedit.oneup import get_connected_platforms
-        from datetime import datetime, timedelta
         project_dir = str(Path(self._project_path).parent) if self._project_path else "."
         connected = get_connected_platforms(project_dir)
 
