@@ -8,7 +8,10 @@ from pathlib import Path
 from PySide6.QtCore import QThread, Signal, QMutex, QMutexLocker, QSettings
 from PySide6.QtGui import QPixmap, QImage
 
-from doxyedit.imaging import open_for_thumb, pil_to_qimage, get_shell_thumbnail, PSD_EXTS, SHELL_THUMB_EXTS
+from doxyedit.imaging import (
+    open_for_thumb, pil_to_qimage, get_shell_thumbnail,
+    PSD_EXTS, SHELL_THUMB_EXTS, _make_placeholder, load_psd_thumb,
+)
 
 THUMB_SIZE = 160
 CACHE_DIR_NAME = ".doxyedit_cache"
@@ -332,7 +335,6 @@ class ThumbWorker(QThread):
                 shell_img.close()
                 return
             # Shell failed — emit placeholder now, queue psd_tools for later
-            from doxyedit.imaging import _make_placeholder
             ph_img, _, _ = _make_placeholder(path)
             qimg_ph = pil_to_qimage(ph_img)
             ph_img.close()
@@ -360,7 +362,6 @@ class ThumbWorker(QThread):
 
     def _process_slow(self, asset_id: str, path: str, target_size: int):
         """Third pass: PSD/SAI2 via psd_tools — only runs when everything else is done."""
-        from doxyedit.imaging import load_psd_thumb, PSD_EXTS
         from PIL import Image as PILImage
 
         ext = Path(path).suffix.lower()
