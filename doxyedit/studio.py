@@ -11727,12 +11727,25 @@ class StudioEditor(QWidget):
         of jitter during slider drags on text overlays (every tick =
         full QListWidget clear+rebuild). Coalesce to a single rebuild
         per event loop via a short-interval singleshot timer.
+
+        Also: the CanvasOverlay objects held by _overlay_items[*].overlay
+        ARE the same objects as _asset.overlays[i] — in-place attribute
+        mutations (slider handlers) are already reflected. The clear +
+        rebuild is only needed when the LIST changed (add/remove/
+        reorder). Detect the common case where the list already matches
+        and skip the rebuild.
         """
         if not self._asset:
             return
-        self._asset.overlays.clear()
-        for item in self._overlay_items:
-            self._asset.overlays.append(item.overlay)
+        items_overlays = [item.overlay for item in self._overlay_items]
+        asset_overlays = self._asset.overlays
+        structure_changed = (
+            len(items_overlays) != len(asset_overlays)
+            or any(a is not b for a, b in zip(items_overlays, asset_overlays))
+        )
+        if structure_changed:
+            self._asset.overlays.clear()
+            self._asset.overlays.extend(items_overlays)
         if hasattr(self, '_layer_panel'):
             if not hasattr(self, '_layer_rebuild_timer'):
                 self._layer_rebuild_timer = QTimer(self)
@@ -11740,7 +11753,11 @@ class StudioEditor(QWidget):
                 self._layer_rebuild_timer.setInterval(80)
                 self._layer_rebuild_timer.timeout.connect(
                     self._rebuild_layer_panel)
-            self._layer_rebuild_timer.start()
+            # Only reschedule the rebuild when structure actually changed.
+            # Attribute-only updates (slider drag) don't need the layer
+            # panel redrawn — the row labels are structural, not live.
+            if structure_changed:
+                self._layer_rebuild_timer.start()
 
     # ---- actions ----
 
