@@ -3493,6 +3493,7 @@ class _StudioMinimap(QWidget):
     def __init__(self, view, parent=None):
         super().__init__(parent)
         self._view = view
+        self._theme = THEMES[DEFAULT_THEME]
         self.setObjectName("studio_minimap")
         self.setFixedSize(self.MINI_SIZE, self.MINI_SIZE)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
@@ -3501,6 +3502,10 @@ class _StudioMinimap(QWidget):
         # Refresh on any scroll/zoom
         view.horizontalScrollBar().valueChanged.connect(self.update)
         view.verticalScrollBar().valueChanged.connect(self.update)
+
+    def set_theme(self, theme):
+        self._theme = theme
+        self.update()
 
     def _pixmap(self):
         editor = getattr(self._view, "_studio_editor", None)
@@ -3525,11 +3530,14 @@ class _StudioMinimap(QWidget):
         return QRectF(ox, oy, iw, ih)
 
     def paintEvent(self, _event):
+        _t = self._theme
         p = QPainter(self)
-        p.fillRect(self.rect(), QColor(20, 20, 20, 200))
+        bg = QColor(_t.studio_minimap_bg)
+        bg.setAlpha(_t.studio_minimap_bg_alpha)
+        p.fillRect(self.rect(), bg)
         pm = self._pixmap()
         if pm is None or pm.isNull():
-            p.setPen(QColor(150, 150, 150))
+            p.setPen(QColor(_t.studio_minimap_text))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No image")
             return
         ir = self._image_rect_in_minimap()
@@ -3546,11 +3554,16 @@ class _StudioMinimap(QWidget):
         ry = ir.y() + tl.y() * s
         rw = (br.x() - tl.x()) * s
         rh = (br.y() - tl.y()) * s
-        p.setPen(QPen(QColor(255, 210, 0, 220), 1))
-        p.setBrush(QColor(255, 210, 0, 40))
+        view_pen_c = QColor(_t.studio_minimap_view_border)
+        view_pen_c.setAlpha(_t.studio_minimap_view_pen_alpha)
+        view_fill_c = QColor(_t.studio_minimap_view_border)
+        view_fill_c.setAlpha(_t.studio_minimap_view_fill_alpha)
+        p.setPen(QPen(view_pen_c, _t.studio_minimap_pen_width))
+        p.setBrush(view_fill_c)
         p.drawRect(QRectF(rx, ry, rw, rh))
         # Border
-        p.setPen(QPen(QColor(80, 80, 80), 1))
+        p.setPen(QPen(QColor(_t.studio_minimap_border_dim),
+                      _t.studio_minimap_pen_width))
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawRect(self.rect().adjusted(0, 0, -1, -1))
 
@@ -3632,6 +3645,8 @@ class _StudioCanvas(QWidget):
         self._corner.setPalette(_pal)
         self._h_ruler.set_theme(theme)
         self._v_ruler.set_theme(theme)
+        if hasattr(self, "_minimap"):
+            self._minimap.set_theme(theme)
 
     def update_cursor(self, scene_pos: QPointF):
         self._h_ruler.set_cursor_scene(scene_pos.x())
