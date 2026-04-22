@@ -6182,32 +6182,50 @@ class StudioEditor(QWidget):
 
         toolbar.addWidget(QLabel("|"))
 
-        # Group 5: Export - text labels for visibility across themes.
-        self.btn_export = QPushButton("Export")
+        # Group 5: Export + settings + queue - icon + label.
+        self.btn_export = QPushButton(" Export")
+        self.btn_export.setIcon(_StudioIcons.export())
+        self.btn_export.setIconSize(_ICO_SZ)
         self.btn_export.setObjectName("studio_btn_export")
-        self.btn_export.setToolTip("Export preview PNG")
-        self.btn_export.setFixedWidth(_tog_w)
+        self.btn_export.setToolTip("Export preview PNG (Ctrl+Shift+E)")
+        self.btn_export.setFixedWidth(_tog_w_ico)
         self.btn_export.clicked.connect(self._export_preview)
         toolbar.addWidget(self.btn_export)
 
-        self.btn_export_plat = QPushButton("Export Platform")
+        self.btn_export_plat = QPushButton(" Export Platform")
+        self.btn_export_plat.setIcon(_StudioIcons.export())
+        self.btn_export_plat.setIconSize(_ICO_SZ)
         self.btn_export_plat.setObjectName("studio_btn_export_plat")
         self.btn_export_plat.setToolTip(
             "Export current platform (crop selected in combo)")
         self.btn_export_plat.clicked.connect(self._export_current_platform)
         toolbar.addWidget(self.btn_export_plat)
 
-        self.btn_export_all = QPushButton("Export All")
+        self.btn_export_all = QPushButton(" Export All")
+        self.btn_export_all.setIcon(_StudioIcons.export())
+        self.btn_export_all.setIconSize(_ICO_SZ)
         self.btn_export_all.setObjectName("studio_btn_export_all")
-        self.btn_export_all.setToolTip("Export all platforms")
+        self.btn_export_all.setToolTip("Export all platforms (Ctrl+E)")
         self.btn_export_all.clicked.connect(self._export_all_platforms)
         toolbar.addWidget(self.btn_export_all)
 
-        btn_queue = QPushButton("Queue")
+        btn_queue = QPushButton(" Queue")
+        btn_queue.setIcon(_StudioIcons.queue())
+        btn_queue.setIconSize(_ICO_SZ)
         btn_queue.setObjectName("studio_queue_btn")
         btn_queue.setToolTip("Queue this asset for posting")
         btn_queue.clicked.connect(self._queue_current)
         toolbar.addWidget(btn_queue)
+
+        # Settings gear
+        btn_settings = QPushButton("")
+        btn_settings.setIcon(_StudioIcons.settings())
+        btn_settings.setIconSize(_ICO_SZ)
+        btn_settings.setObjectName("studio_btn_settings")
+        btn_settings.setToolTip("Studio Settings (Ctrl+,)")
+        btn_settings.setFixedWidth(_icon_btn_w)
+        btn_settings.clicked.connect(self._show_studio_settings)
+        toolbar.addWidget(btn_settings)
 
         toolbar.addStretch()
 
