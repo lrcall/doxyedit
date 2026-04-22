@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QGridLayout, QApplication, QFormLayout, QLineEdit, QDialog,
     QDialogButtonBox, QTabWidget, QTextBrowser, QMessageBox,
     QWidgetAction, QDoubleSpinBox, QPlainTextEdit,
+    QGraphicsDropShadowEffect, QGraphicsPathItem, QProgressDialog,
 )
 from PySide6.QtCore import (
     Qt, QRectF, QPointF, QLineF, Signal, QSettings, QSize,
@@ -5388,7 +5389,6 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             # opacity. Builds on top of the quickbar which only exposes
             # scale/rotation/opacity spinboxes - here we get sliders with
             # live previews.
-            from PySide6.QtWidgets import QSlider, QHBoxLayout, QSpinBox
             sc_slider = QSlider(Qt.Orientation.Horizontal)
             sc_slider.setRange(5, 500)
             sc_slider.setValue(int(ov.scale * 100))
@@ -6070,7 +6070,6 @@ class _ColorSwatchButton(QPushButton):
     def _show_recent_popup(self, pos):
         """Popup a small palette grid of recent colors; clicking one
         triggers on_color_picked so the overlay / default updates."""
-        from PySide6.QtWidgets import QMenu, QWidgetAction, QGridLayout
         # Walk up to find the editor with _get_recent_colors
         editor = self.window()
         if not (editor and hasattr(editor, "_get_recent_colors")):
@@ -8855,8 +8854,7 @@ class StudioEditor(QWidget):
         # Text content editor at the top — live-edits the selected
         # text overlay's .text without needing to enter scene-edit
         # mode. Multiline so speech-bubble text with line breaks works.
-        from PySide6.QtWidgets import QPlainTextEdit as _QPT
-        self._tc_content_edit = _QPT(_dlg)
+        self._tc_content_edit = QPlainTextEdit(_dlg)
         self._tc_content_edit.setObjectName("studio_tc_content")
         self._tc_content_edit.setPlaceholderText(
             "Text content (edits selected text overlay)")
@@ -10131,7 +10129,6 @@ class StudioEditor(QWidget):
         # than the pixmap itself so the shadow is visible even when the
         # pixmap has full-opacity pixels covering every edge.
         try:
-            from PySide6.QtWidgets import QGraphicsDropShadowEffect
             shadow = QGraphicsDropShadowEffect()
             shadow.setBlurRadius(30)
             shadow.setOffset(0, 8)
@@ -10286,7 +10283,6 @@ class StudioEditor(QWidget):
         clicks jump the undo stack to that index."""
         # Lazily create a single instance rather than a fresh modal
         # dialog on every click.
-        from PySide6.QtWidgets import QVBoxLayout, QListWidget as _QL
         if not hasattr(self, "_undo_history_dlg") or \
                 self._undo_history_dlg is None:
             _qs = QSettings("DoxyEdit", "DoxyEdit")
@@ -10321,7 +10317,7 @@ class StudioEditor(QWidget):
             dlg.setMinimumSize(320, 360)
             layout = QVBoxLayout(dlg)
             layout.setContentsMargins(6, 6, 6, 6)
-            lst = _QL(dlg)
+            lst = QListWidget(dlg)
             lst.setObjectName("studio_undo_history_list")
             layout.addWidget(lst)
             dlg._lst = lst
@@ -10825,7 +10821,6 @@ class StudioEditor(QWidget):
             self._crop_mask_item = None
         if not self._pixmap_item:
             return
-        from PySide6.QtWidgets import QGraphicsPathItem
         img_rect = self._pixmap_item.boundingRect()
         path = QPainterPath()
         path.addRect(img_rect)
@@ -14340,13 +14335,12 @@ class StudioEditor(QWidget):
         tabs.addTab(tab_tools, "Tools")
 
         # ── Tab: Reset ───────────────────────────────────────────────
-        from PySide6.QtWidgets import QPushButton as _QPB
         tab_reset = QWidget()
         reset_form = QFormLayout(tab_reset)
         reset_form.addRow(QLabel(
             "<i>Recovery actions - take effect immediately.</i>"))
 
-        _btn_reset_dlg = _QPB("Reset floating panel positions")
+        _btn_reset_dlg = QPushButton("Reset floating panel positions")
         _btn_reset_dlg.setToolTip(
             "Clear saved geometry for Text Controls, Shape Controls, "
             "and the undo-history popup. They'll open at a default "
@@ -14367,7 +14361,7 @@ class StudioEditor(QWidget):
         _btn_reset_dlg.clicked.connect(_reset_dialogs)
         reset_form.addRow("", _btn_reset_dlg)
 
-        _btn_clear_bm = _QPB("Clear view bookmarks (F5..F8)")
+        _btn_clear_bm = QPushButton("Clear view bookmarks (F5..F8)")
         _btn_clear_bm.setToolTip(
             "Wipe the four view-bookmark slots. Shift+F5..F8 sets "
             "them fresh.")
@@ -14378,7 +14372,7 @@ class StudioEditor(QWidget):
         _btn_clear_bm.clicked.connect(_clear_bookmarks)
         reset_form.addRow("", _btn_clear_bm)
 
-        _btn_reset_recent = _QPB("Clear recent colors")
+        _btn_reset_recent = QPushButton("Clear recent colors")
         _btn_reset_recent.setToolTip(
             "Empty the swatch-grid of recently-picked colors.")
         def _clear_recents():
@@ -15629,7 +15623,6 @@ class StudioEditor(QWidget):
         from doxyedit.models import PLATFORMS
         from doxyedit.pipeline import prepare_for_platform
         from doxyedit.imaging import get_export_dir
-        from PySide6.QtWidgets import QProgressDialog
         from PySide6.QtCore import QCoreApplication
 
         output_dir = str(get_export_dir(self._project_path)) if self._project_path else ""
