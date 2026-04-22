@@ -812,18 +812,30 @@ class OverlayShapeItem(QGraphicsItem):
     def _shape_params_tuple(self) -> tuple:
         """Tuple of every parameter that affects the shape's painter path.
         Used as a cache key — if it's unchanged since the last paint, we
-        can re-use the cached QPainterPath instead of rebuilding."""
+        can re-use the cached QPainterPath instead of rebuilding.
+
+        x/y are intentionally NOT in the key. The cached path is stored
+        in the shape's local coordinate system (origin = top-left of the
+        body rect), translated on draw via painter.translate(). That way
+        dragging the bubble — which only changes overlay.x/y — hits the
+        cache on every frame instead of rebuilding path.united() + up to
+        72 wobble samples.
+
+        The tail offset *relative to* the body origin IS included so the
+        cache invalidates when the tail moves independently (not during
+        body drag, since itemChange updates body + tail in lock-step)."""
         ov = self.overlay
+        tail_dx = getattr(ov, "tail_x", 0) - ov.x
+        tail_dy = getattr(ov, "tail_y", 0) - ov.y
         return (
             ov.shape_kind,
-            int(ov.x), int(ov.y),
             int(ov.shape_w), int(ov.shape_h),
             getattr(ov, "corner_radius", 0),
             getattr(ov, "bubble_roundness", 0.0),
             getattr(ov, "bubble_oval_stretch", 0.0),
             getattr(ov, "bubble_wobble", 0.0),
             getattr(ov, "tail_curve", 0.0),
-            getattr(ov, "tail_x", 0), getattr(ov, "tail_y", 0),
+            int(tail_dx), int(tail_dy),
             getattr(ov, "star_points", 0),
             getattr(ov, "inner_ratio", 0.0),
             getattr(ov, "polygon_vertices", 0),
@@ -874,13 +886,17 @@ class OverlayShapeItem(QGraphicsItem):
 
     def _paint_speech_bubble(self, painter, r: QRectF):
         """Rounded-rect body with a triangular tail anchored on the closest
-        edge to tail_tip. Path is cached per parameter-tuple so drag
-        events (which don't change bubble shape) just re-blit the cached
-        path instead of rebuilding (which involves path.united() + up to
-        72 wobble samples — very expensive per frame)."""
+        edge to tail_tip. Path is cached per parameter-tuple — stored in
+        LOCAL coords and drawn via painter.translate() so dragging the
+        bubble (which only shifts overlay.x/y) doesn't invalidate the
+        cache. Cache hit = one translate + drawPath. Cache miss involves
+        path.united() + up to 72 wobble samples."""
         key = ("speech", self._shape_params_tuple())
         if self._cached_path_key == key and self._cached_path is not None:
+            painter.save()
+            painter.translate(r.left(), r.top())
             painter.drawPath(self._cached_path)
+            painter.restore()
             return
         pad = min(r.width(), r.height()) * 0.18
         tip = self._tail_tip(r)
@@ -983,18 +999,25 @@ class OverlayShapeItem(QGraphicsItem):
                     wobbled.lineTo(nx, ny)
             wobbled.closeSubpath()
             path = wobbled
+        # Store the path translated to local coords so cache hits survive
+        # drag (which only shifts r.left()/r.top() each frame).
         self._cached_path_key = key
-        self._cached_path = path
+        self._cached_path = path.translated(-r.left(), -r.top())
         painter.drawPath(path)
 
     def _paint_thought_bubble(self, painter, r: QRectF):
         """Scalloped-cloud body + 2-3 trailing puff circles toward tail.
-        Path cached per parameter-tuple — cloud puffs use path.united()
-        in a loop which is the single most expensive path op in Qt."""
+        Path cached per parameter-tuple in local coords — cloud puffs use
+        path.united() in a loop which is the single most expensive path
+        op in Qt. Translate on draw so drag keeps the cache."""
         key = ("thought", self._shape_params_tuple())
         if self._cached_path_key == key and self._cached_path is not None:
+            painter.save()
+            painter.translate(r.left(), r.top())
             painter.drawPath(self._cached_path)
-            # Trailing small circles can still be drawn per-frame (cheap)
+            painter.restore()
+            # Trailing puff circles use tail_tip which is in scene coords —
+            # keep drawing in scene space (cheap, 3 drawEllipse calls).
             tip = self._tail_tip(r)
             cx, cy = r.center().x(), r.center().y()
             dx, dy = tip.x() - cx, tip.y() - cy
@@ -1025,8 +1048,9 @@ class OverlayShapeItem(QGraphicsItem):
             sub = QPainterPath()
             sub.addEllipse(QPointF(px, py), puff_r, puff_r)
             path = path.united(sub)
+        # Store in local coords (translated to origin) so drag hits cache.
         self._cached_path_key = key
-        self._cached_path = path
+        self._cached_path = path.translated(-r.left(), -r.top())
         painter.drawPath(path)
         # Trailing small circles toward the tail
         tip = self._tail_tip(r)
