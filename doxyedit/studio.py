@@ -5841,8 +5841,12 @@ class StudioEditor(QWidget):
         self._qb_chevron.clicked.connect(_toggle_qb)
         root.addWidget(self._quickbar_wrap)
 
-        # Row 2: Overlay properties (visible when text/watermark selected)
-        self._props_row = QWidget()
+        # Row 2: Overlay properties (historical — its controls now live
+        # in _text_controls_dlg). Kept parented to self so it can never
+        # appear as a top-level orphan window; setVisible(True) at worst
+        # draws at 0,0 inside the editor with no layout, which is
+        # invisible because of the widget stack above it.
+        self._props_row = QWidget(self)
         self._props_row.setObjectName("studio_props_row")
         props = QHBoxLayout(self._props_row)
         props.setContentsMargins(0, _pad // 2, 0, _pad // 2)
@@ -6580,6 +6584,57 @@ class StudioEditor(QWidget):
         self._layer_panel.setObjectName("studio_layer_panel")
         self._layer_panel.setMaximumWidth(int(_dt.font_size * LAYER_PANEL_MAX_WIDTH_RATIO))
         self._layer_panel.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+        # Accept external drops (from tray) to add files as overlays
+        self._layer_panel.setAcceptDrops(True)
+        _orig_layer_drag_enter = self._layer_panel.dragEnterEvent
+        _orig_layer_drag_move = self._layer_panel.dragMoveEvent
+        _orig_layer_drop = self._layer_panel.dropEvent
+
+        def _layer_drag_enter(event, _orig=_orig_layer_drag_enter):
+            if event.mimeData().hasUrls():
+                event.acceptProposedAction()
+                return
+            _orig(event)
+
+        def _layer_drag_move(event, _orig=_orig_layer_drag_move):
+            if event.mimeData().hasUrls():
+                event.acceptProposedAction()
+                return
+            _orig(event)
+
+        def _layer_drop(event, _orig=_orig_layer_drop):
+            mime = event.mimeData()
+            if mime.hasUrls() and self._asset is not None:
+                # Add each dropped image file as an overlay centered on canvas
+                added = False
+                for url in mime.urls():
+                    if not url.isLocalFile():
+                        continue
+                    path = url.toLocalFile()
+                    ext = Path(path).suffix.lower()
+                    if ext not in ('.png', '.jpg', '.jpeg', '.webp', '.gif'):
+                        continue
+                    cx = self._scene.sceneRect().center().x()
+                    cy = self._scene.sceneRect().center().y()
+                    ov = CanvasOverlay(
+                        type="watermark", label=Path(path).stem,
+                        image_path=path, position="custom",
+                        x=int(cx), y=int(cy),
+                        opacity=self.slider_opacity.value() / 100.0,
+                        scale=self.slider_scale.value() / 100.0,
+                    )
+                    self._add_overlay_image(ov)
+                    added = True
+                if added:
+                    self._sync_overlays_to_asset()
+                    self._rebuild_layer_panel()
+                event.acceptProposedAction()
+                return
+            _orig(event)
+
+        self._layer_panel.dragEnterEvent = _layer_drag_enter
+        self._layer_panel.dragMoveEvent = _layer_drag_move
+        self._layer_panel.dropEvent = _layer_drop
         # Show thumbnails alongside each layer name. Size is a user
         # pref (studio_layer_thumb_size: small=16, medium=28, large=48).
         _thumb_sz = QSettings("DoxyEdit", "DoxyEdit").value(
@@ -9196,10 +9251,19 @@ class StudioEditor(QWidget):
     # ---- drag-drop from tray ----
 
     def _on_file_dropped(self, path: str, scene_pos):
-        """Add dropped file as a watermark overlay at the drop position."""
-        if not self._asset:
-            return
+        """Add dropped file as overlay. If no asset is loaded yet, try to
+        resolve the dropped path to a project asset and load it as the
+        base image instead."""
         ext = Path(path).suffix.lower()
+        if not self._asset:
+            # No base loaded: resolve to project asset and load it
+            if self._project is not None:
+                for a in self._project.assets:
+                    if (a.source_path or "").replace("\\", "/").lower() == \
+                            path.replace("\\", "/").lower():
+                        self.load_asset(a)
+                        return
+            return
         if ext not in ('.png', '.jpg', '.jpeg', '.webp', '.gif'):
             return
         ov = CanvasOverlay(

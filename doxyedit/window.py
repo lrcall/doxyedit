@@ -4130,9 +4130,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _on_asset_selected(self, asset_id: str):
         asset = self.project.get_asset(asset_id)
         if asset:
-            # Only load full image into censor editor when its tab is active
-            if self.tabs.currentWidget() is self.censor_editor:
-                self.censor_editor.load_asset(asset)
+            # Don't auto-load into Studio on click — user wants explicit
+            # drag-drop onto the canvas/layer panel to load into Studio.
             self.tag_panel.set_assets([asset])
             # Update docked preview if visible
             if self._preview_pane.isVisible():
@@ -4528,13 +4527,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # for reachability).
         if hasattr(self, "_left_toolbar"):
             self._left_toolbar.setVisible(on_canvas)
-        # Lazy-load censor editor when its tab becomes active
         widget = self.tabs.widget(index)
-        if widget is self.censor_editor and self.browser._selected_ids:
-            aid = next(iter(self.browser._selected_ids))
-            asset = self.project.get_asset(aid)
-            if asset:
-                self.censor_editor.load_asset(asset)
+        # Don't auto-load asset into Studio on tab switch — user wants
+        # explicit drag-drop onto canvas/layer panel instead.
         # Focus Studio so its hotkeys (Q/C/T/X/E/N/I/A/etc.) work without
         # first needing to click inside the canvas.
         if widget is self.studio:
