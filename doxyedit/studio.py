@@ -6662,8 +6662,14 @@ class StudioEditor(QWidget):
             return
 
         # Ctrl combos
-        if ctrl and key == Qt.Key.Key_Z:
+        if ctrl and not shift and key == Qt.Key.Key_Z:
             self._undo_stack.undo()
+            return
+        # Ctrl+Shift+Z = redo (Illustrator / Inkscape convention) in
+        # addition to Ctrl+Y. Previously Ctrl+Shift+Z also undid
+        # because the undo branch didn't check shift.
+        if ctrl and shift and key == Qt.Key.Key_Z:
+            self._undo_stack.redo()
             return
         if ctrl and key == Qt.Key.Key_Y:
             self._undo_stack.redo()
