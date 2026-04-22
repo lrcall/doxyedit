@@ -3,6 +3,8 @@ import html as _html
 import json
 import logging
 import os
+import re
+import shutil
 import tempfile
 try:
     import markdown as _markdown
@@ -1884,7 +1886,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
             menu.addSeparator()
 
             # Check if selection contains [bracketed instructions]
-            import re
             bracket_match = re.search(r'\[(.+?)\]', selected)
             if bracket_match:
                 instruction = bracket_match.group(1)
@@ -1915,7 +1916,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         full_text = editor.toPlainText()
 
         # For "instruct" mode, extract the [bracketed instruction] from the selection
-        import re
         if mode == "instruct":
             bracket_match = re.search(r'\[(.+?)\]', selected)
             instruction = bracket_match.group(1) if bracket_match else selected
@@ -3206,7 +3206,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         don't freeze the window. Applies the loaded project + rebinds panels
         on the ProjectLoader.loaded signal."""
         # Create backup before loading (fast, keep sync — tiny file copy)
-        import shutil
         bak = path + ".bak"
         try:
             shutil.copy2(path, bak)
@@ -4968,7 +4967,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.status.showMessage("Refreshing thumbnails (bypassing cache)...", 2000)
 
     def _clear_thumb_cache(self):
-        import shutil
         cache_dir = Path.home() / ".doxyedit" / "thumbcache"
         if cache_dir.exists():
             shutil.rmtree(cache_dir, ignore_errors=True)
@@ -5017,7 +5015,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if not config_path.exists():
             config_path.write_text(CONFIG_TEMPLATE, encoding="utf-8")
             self.status.showMessage(f"Created {config_path.name} — edit and reload project", 3000)
-        import os
         os.startfile(str(config_path))
 
     def _open_project_location(self):
@@ -5249,7 +5246,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _expand_asset_folders(self):
         """Restore concatenated folder names back to nested structure (A_B_C → A/B/C)."""
-        import shutil
         if not self._project_path:
             self.status.showMessage("No project file open", 4000)
             return
@@ -5916,7 +5912,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _auto_link_by_filename(self):
         """Group assets by shared filename stem and propose variant sets."""
-        import re
         import uuid as _uuid
 
         STRIP_PATTERN = re.compile(
