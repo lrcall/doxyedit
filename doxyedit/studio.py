@@ -3771,6 +3771,273 @@ class _TextControlsDialog(QtWidgets.QDialog):
         self._save_geom()
 
 
+class _StudioIcons:
+    """QPainter-drawn icon factory for Studio toolbar buttons. Avoids
+    the 'blank glyph' problem on Windows fonts that don't render
+    obscure unicode. Returns QIcon instances with both a light and a
+    dark variant so the icon reads against any theme backdrop."""
+
+    @staticmethod
+    def _pen(color_hex: str, w: float = 1.6) -> QPen:
+        p = QPen(QColor(color_hex), w)
+        p.setCapStyle(Qt.PenCapStyle.RoundCap)
+        p.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        return p
+
+    @staticmethod
+    def make(draw_fn, size: int = 20, color: str = "#2a2a2a") -> QIcon:
+        pix = QPixmap(size, size)
+        pix.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(_StudioIcons._pen(color))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        draw_fn(p, size)
+        p.end()
+        return QIcon(pix)
+
+    @staticmethod
+    def select():
+        def d(p, s):
+            # Arrow pointer: 2-segment cursor silhouette
+            from PySide6.QtGui import QPolygonF as _Poly
+            pts = [QPointF(4, 3), QPointF(4, s - 5),
+                   QPointF(s // 2 - 1, s // 2 + 1),
+                   QPointF(s - 5, s - 5)]
+            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.drawPolygon(_Poly(pts))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def text():
+        def d(p, s):
+            pen = _StudioIcons._pen("#2a2a2a", 2.2)
+            p.setPen(pen)
+            p.drawLine(3, 5, s - 3, 5)
+            p.drawLine(s // 2, 5, s // 2, s - 4)
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def censor():
+        def d(p, s):
+            r = QRectF(3, 6, s - 6, s - 12)
+            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.drawRect(r)
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def crop():
+        def d(p, s):
+            # Two L-brackets, offset
+            p.drawLine(4, 1, 4, s - 4)
+            p.drawLine(4, s - 4, s - 1, s - 4)
+            p.drawLine(1, 4, s - 4, 4)
+            p.drawLine(s - 4, 4, s - 4, s - 1)
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def note():
+        def d(p, s):
+            # Pencil diagonal
+            p.drawLine(4, s - 4, s - 4, 4)
+            p.drawLine(s - 4, 4, s - 2, 6)
+            p.drawLine(s - 2, 6, s - 6, 8)
+            # Eraser end
+            p.drawRect(QRectF(3, s - 5, 3, 3))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def watermark():
+        def d(p, s):
+            # Overlapping rect suggesting image/logo
+            p.drawRect(QRectF(3, 3, s - 8, s - 8))
+            p.drawRect(QRectF(6, 6, s - 8, s - 8))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def arrow():
+        def d(p, s):
+            from PySide6.QtGui import QPolygonF as _Poly
+            p.drawLine(3, s - 3, s - 5, 5)
+            # Arrowhead
+            pts = [QPointF(s - 3, 3), QPointF(s - 3, 9),
+                   QPointF(s - 9, 3)]
+            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.drawPolygon(_Poly(pts))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def shape():
+        def d(p, s):
+            p.drawRect(QRectF(3, 4, s - 6, s - 8))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def eyedropper():
+        def d(p, s):
+            p.drawLine(3, s - 3, s - 6, 6)
+            # Tip
+            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.drawEllipse(QPointF(3.5, s - 3.5), 2.3, 2.3)
+            # Top cap
+            p.drawRect(QRectF(s - 7, 3, 5, 5))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def undo():
+        def d(p, s):
+            # Curved arrow left
+            from PySide6.QtGui import QPainterPath as _QPP, QPolygonF as _Poly
+            path = _QPP()
+            path.moveTo(s - 3, s // 2)
+            path.arcTo(QRectF(3, 3, s - 6, s - 6), 0, 210)
+            p.drawPath(path)
+            p.setBrush(QBrush(QColor("#2a2a2a")))
+            pts = [QPointF(6, s - 6), QPointF(2, s - 3),
+                   QPointF(6, s)]
+            p.drawPolygon(_Poly(pts))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def redo():
+        def d(p, s):
+            from PySide6.QtGui import QPainterPath as _QPP, QPolygonF as _Poly
+            path = _QPP()
+            path.moveTo(3, s // 2)
+            path.arcTo(QRectF(3, 3, s - 6, s - 6), 180, 210)
+            p.drawPath(path)
+            p.setBrush(QBrush(QColor("#2a2a2a")))
+            pts = [QPointF(s - 6, s - 6), QPointF(s - 2, s - 3),
+                   QPointF(s - 6, s)]
+            p.drawPolygon(_Poly(pts))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def history():
+        def d(p, s):
+            # Clock-ish
+            p.drawEllipse(QRectF(3, 3, s - 6, s - 6))
+            p.drawLine(s // 2, s // 2, s // 2, 5)
+            p.drawLine(s // 2, s // 2, s - 6, s // 2)
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def grid():
+        def d(p, s):
+            for i in (s // 3, 2 * s // 3):
+                p.drawLine(i, 3, i, s - 3)
+                p.drawLine(3, i, s - 3, i)
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def rulers():
+        def d(p, s):
+            p.drawLine(3, 3, 3, s - 3)
+            p.drawLine(3, s - 3, s - 3, s - 3)
+            for i in range(6, s - 3, 3):
+                p.drawLine(3, i, 5, i)
+                p.drawLine(i, s - 3, i, s - 5)
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def thirds():
+        def d(p, s):
+            p.drawRect(QRectF(3, 3, s - 6, s - 6))
+            t = s // 3
+            p.drawLine(t + 1, 3, t + 1, s - 3)
+            p.drawLine(2 * t, 3, 2 * t, s - 3)
+            p.drawLine(3, t + 1, s - 3, t + 1)
+            p.drawLine(3, 2 * t, s - 3, 2 * t)
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def notes():
+        def d(p, s):
+            p.drawRect(QRectF(3, 3, s - 6, s - 6))
+            p.drawLine(6, 7, s - 6, 7)
+            p.drawLine(6, 11, s - 6, 11)
+            p.drawLine(6, 15, s - 9, 15)
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def base():
+        def d(p, s):
+            p.drawRect(QRectF(3, 3, s - 6, s - 6))
+            p.drawLine(3, s - 6, s // 2 - 2, s // 2 + 1)
+            p.drawLine(s // 2 - 2, s // 2 + 1, s // 2 + 3, s // 2 + 4)
+            p.drawEllipse(QPointF(s - 7, 7), 1.5, 1.5)
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def minimap():
+        def d(p, s):
+            p.drawRect(QRectF(3, 3, s - 6, s - 6))
+            p.drawRect(QRectF(s // 2 - 1, s // 2 - 1, 5, 5))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def focus():
+        def d(p, s):
+            p.drawLine(3, 3, 7, 3); p.drawLine(3, 3, 3, 7)
+            p.drawLine(s - 3, 3, s - 7, 3); p.drawLine(s - 3, 3, s - 3, 7)
+            p.drawLine(3, s - 3, 7, s - 3); p.drawLine(3, s - 3, 3, s - 7)
+            p.drawLine(s - 3, s - 3, s - 7, s - 3); p.drawLine(s - 3, s - 3, s - 3, s - 7)
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def flip():
+        def d(p, s):
+            p.drawLine(s // 2, 3, s // 2, s - 3)
+            from PySide6.QtGui import QPolygonF as _Poly
+            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.drawPolygon(_Poly([
+                QPointF(s // 2 - 2, 6), QPointF(4, s // 2),
+                QPointF(s // 2 - 2, s - 6)]))
+            p.drawPolygon(_Poly([
+                QPointF(s // 2 + 2, 6), QPointF(s - 4, s // 2),
+                QPointF(s // 2 + 2, s - 6)]))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def export():
+        def d(p, s):
+            from PySide6.QtGui import QPolygonF as _Poly
+            p.drawLine(s // 2, 3, s // 2, s - 8)
+            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.drawPolygon(_Poly([
+                QPointF(s // 2 - 4, s - 12), QPointF(s // 2, s - 8),
+                QPointF(s // 2 + 4, s - 12)]))
+            p.drawLine(3, s - 3, s - 3, s - 3)
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def settings():
+        def d(p, s):
+            import math as _m
+            cx, cy = s / 2, s / 2
+            for i in range(6):
+                ang = _m.radians(i * 60)
+                x1 = cx + _m.cos(ang) * (s / 2 - 5)
+                y1 = cy + _m.sin(ang) * (s / 2 - 5)
+                x2 = cx + _m.cos(ang) * (s / 2 - 2)
+                y2 = cy + _m.sin(ang) * (s / 2 - 2)
+                p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+            p.drawEllipse(QPointF(cx, cy), s / 4, s / 4)
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def queue():
+        def d(p, s):
+            p.drawLine(3, 6, s - 3, 6)
+            p.drawLine(3, s // 2, s - 3, s // 2)
+            p.drawLine(3, s - 6, s - 3, s - 6)
+            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.drawEllipse(QPointF(4, 6), 1.5, 1.5)
+            p.drawEllipse(QPointF(4, s // 2), 1.5, 1.5)
+            p.drawEllipse(QPointF(4, s - 6), 1.5, 1.5)
+        return _StudioIcons.make(d)
+
+
 class _ColorSwatchButton(QPushButton):
     """QPushButton that paints a filled square showing the current color
     and an outline ring. Used for the fill / outline color pickers in
