@@ -4355,6 +4355,112 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             form.addRow("X", _mk_pos_row("x", 0, pm_w, int(ov.x)))
             form.addRow("Y", _mk_pos_row("y", 0, pm_h, int(ov.y)))
 
+        elif isinstance(item, OverlayImageItem):
+            # Image overlay: scale slider + filter mode picker +
+            # opacity. Builds on top of the quickbar which only exposes
+            # scale/rotation/opacity spinboxes - here we get sliders with
+            # live previews.
+            from PySide6.QtWidgets import QSlider, QHBoxLayout, QSpinBox
+            sc_slider = QSlider(Qt.Orientation.Horizontal)
+            sc_slider.setRange(5, 500)
+            sc_slider.setValue(int(ov.scale * 100))
+            sc_slider.setMinimumWidth(150)
+            sc_lbl = QLabel(f"{int(ov.scale * 100)}%")
+            sc_lbl.setFixedWidth(40)
+            def _img_scale(v, _it=item, _lbl=sc_lbl):
+                _it.overlay.scale = v / 100.0
+                if hasattr(editor, "_refresh_overlay_image"):
+                    editor._refresh_overlay_image(_it)
+                else:
+                    _it.update()
+                _lbl.setText(f"{v}%")
+                editor._sync_overlays_to_asset()
+            sc_slider.valueChanged.connect(_img_scale)
+            sc_row = QHBoxLayout()
+            sc_row.setContentsMargins(0, 0, 0, 0)
+            sc_row.addWidget(sc_slider, 1)
+            sc_row.addWidget(sc_lbl)
+            _sc_w = _QW(); _sc_w.setLayout(sc_row)
+            form.addRow("Scale", _sc_w)
+
+            # Opacity slider
+            op_slider = QSlider(Qt.Orientation.Horizontal)
+            op_slider.setRange(0, 100)
+            op_slider.setValue(int(ov.opacity * 100))
+            op_slider.setMinimumWidth(150)
+            op_lbl = QLabel(f"{int(ov.opacity * 100)}%")
+            op_lbl.setFixedWidth(40)
+            def _img_op(v, _it=item, _lbl=op_lbl):
+                _it.overlay.opacity = v / 100.0
+                _it.setOpacity(v / 100.0)
+                _lbl.setText(f"{v}%")
+                editor._sync_overlays_to_asset()
+            op_slider.valueChanged.connect(_img_op)
+            op_row = QHBoxLayout()
+            op_row.setContentsMargins(0, 0, 0, 0)
+            op_row.addWidget(op_slider, 1)
+            op_row.addWidget(op_lbl)
+            _op_w = _QW(); _op_w.setLayout(op_row)
+            form.addRow("Opacity", _op_w)
+
+            # Rotation slider
+            rot_slider = QSlider(Qt.Orientation.Horizontal)
+            rot_slider.setRange(-180, 180)
+            rot_init = int(getattr(ov, "rotation", 0))
+            if rot_init > 180:
+                rot_init -= 360
+            rot_slider.setValue(rot_init)
+            rot_slider.setMinimumWidth(150)
+            rot_lbl = QLabel(f"{rot_init}°")
+            rot_lbl.setFixedWidth(44)
+            def _img_rot(v, _it=item, _lbl=rot_lbl):
+                _it.overlay.rotation = v % 360
+                if hasattr(_it, "_apply_flip"):
+                    _it._apply_flip()
+                _lbl.setText(f"{v}°")
+                editor._sync_overlays_to_asset()
+            rot_slider.valueChanged.connect(_img_rot)
+            rot_row = QHBoxLayout()
+            rot_row.setContentsMargins(0, 0, 0, 0)
+            rot_row.addWidget(rot_slider, 1)
+            rot_row.addWidget(rot_lbl)
+            _rot_w = _QW(); _rot_w.setLayout(rot_row)
+            form.addRow("Rotation", _rot_w)
+
+            # Filter-mode picker
+            fm_combo = QComboBox()
+            fm_combo.addItem("None", "")
+            fm_combo.addItem("Grayscale", "grayscale")
+            fm_combo.addItem("Invert", "invert")
+            fm_combo.addItem("Blur (small)", "blur3")
+            fm_combo.addItem("Blur (heavy)", "blur8")
+            current_filter = getattr(ov, "filter_mode", "") or ""
+            for idx in range(fm_combo.count()):
+                if fm_combo.itemData(idx) == current_filter:
+                    fm_combo.setCurrentIndex(idx)
+                    break
+            def _img_filter(_text, _it=item):
+                idx = fm_combo.currentIndex()
+                _it.overlay.filter_mode = fm_combo.itemData(idx) or ""
+                if hasattr(editor, "_refresh_overlay_image"):
+                    editor._refresh_overlay_image(_it)
+                editor._sync_overlays_to_asset()
+            fm_combo.currentTextChanged.connect(_img_filter)
+            form.addRow("Filter", fm_combo)
+
+            # Blend mode
+            bl_combo = QComboBox()
+            bl_combo.addItems([
+                "normal", "multiply", "screen", "overlay",
+                "darken", "lighten"])
+            bl_combo.setCurrentText(getattr(ov, "blend_mode", "normal"))
+            def _img_blend(m, _it=item):
+                _it.overlay.blend_mode = m
+                _it.update()
+                editor._sync_overlays_to_asset()
+            bl_combo.currentTextChanged.connect(_img_blend)
+            form.addRow("Blend mode", bl_combo)
+
         elif isinstance(item, OverlayArrowItem):
             # Arrow: color, width, arrowhead size / style, double-headed
             color_btn = _ColorSwatchButton(is_outline=False)
@@ -9011,7 +9117,7 @@ class StudioEditor(QWidget):
         sel = self._scene.selectedItems()
         target = None
         for it in sel:
-            if isinstance(it, (OverlayShapeItem, OverlayArrowItem)):
+            if isinstance(it, (OverlayShapeItem, OverlayArrowItem, OverlayImageItem)):
                 target = it
                 break
         if target is not None:
