@@ -11722,6 +11722,7 @@ class StudioEditor(QWidget):
                 else "Isolate (solo)")
             act_rename = prefix.addAction("Rename...")
             act_opacity = prefix.addAction("Opacity...")
+            act_dup_n = prefix.addAction("Duplicate N times...")
             z_sub = prefix.addMenu("Arrange")
             act_to_front = z_sub.addAction("Bring to Front  (Ctrl+Shift+])")
             act_forward = z_sub.addAction("Bring Forward  (Ctrl+])")
@@ -11767,6 +11768,23 @@ class StudioEditor(QWidget):
                         scene_item.update()
                     self._sync_overlays_to_asset()
                     self._rebuild_layer_panel()
+                return
+            if chosen is act_dup_n:
+                n, ok = QInputDialog.getInt(
+                    self, "Duplicate N times",
+                    "How many copies? (each offset 20 px):",
+                    value=3, minValue=1, maxValue=50)
+                if ok and n > 0:
+                    # Duplicate the SOURCE item N times, each with a
+                    # cumulative offset so they cascade rather than
+                    # stacking. Select only the source first so the
+                    # dispatch in _duplicate_selected only acts on it.
+                    for i in range(n):
+                        self._scene.clearSelection()
+                        scene_item.setSelected(True)
+                        self._duplicate_selected(offset=20 * (i + 1))
+                    self._rebuild_layer_panel()
+                    self.info_label.setText(f"Made {n} copies")
                 return
             if chosen in (act_to_front, act_forward, act_backward, act_to_back):
                 delta = (+999 if chosen is act_to_front
