@@ -4122,6 +4122,49 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 _gfw.setLayout(grad_form)
                 self._root_layout.addWidget(_gfw)
 
+            # Star / polygon params — shared star_points + inner_ratio
+            if ov.shape_kind in ("star", "polygon"):
+                self._root_layout.addWidget(QLabel("<b>Polygon / Star</b>"))
+                sp_form = QFormLayout()
+                sp_form.setContentsMargins(0, 0, 0, 0)
+                sp_form.setSpacing(5)
+                pts_spin = QSpinBox()
+                pts_spin.setRange(3, 50)
+                pts_spin.setValue(int(getattr(ov, "star_points", 5) or 5))
+                pts_spin.setToolTip(
+                    "Star: number of outer points. Polygon: vertex count.")
+                def _pts_changed(v, _it=item):
+                    _it.overlay.star_points = v
+                    _it.prepareGeometryChange()
+                    _it.update()
+                    editor._sync_overlays_to_asset()
+                pts_spin.valueChanged.connect(_pts_changed)
+                sp_form.addRow("Points / sides", pts_spin)
+                if ov.shape_kind == "star":
+                    ir_slider = QSlider(Qt.Orientation.Horizontal)
+                    ir_slider.setRange(10, 95)
+                    ir_slider.setValue(int(
+                        float(getattr(ov, "inner_ratio", 0.4) or 0.4) * 100))
+                    ir_slider.setMinimumWidth(150)
+                    ir_lbl = QLabel(
+                        f"{int(float(getattr(ov, 'inner_ratio', 0.4) or 0.4) * 100)}%")
+                    ir_lbl.setFixedWidth(40)
+                    def _ir_changed(v, _it=item, _lbl=ir_lbl):
+                        _it.overlay.inner_ratio = v / 100.0
+                        _it.prepareGeometryChange()
+                        _it.update()
+                        _lbl.setText(f"{v}%")
+                        editor._sync_overlays_to_asset()
+                    ir_slider.valueChanged.connect(_ir_changed)
+                    ir_row = QHBoxLayout()
+                    ir_row.setContentsMargins(0, 0, 0, 0)
+                    ir_row.addWidget(ir_slider, 1)
+                    ir_row.addWidget(ir_lbl)
+                    _ir_w = _QW(); _ir_w.setLayout(ir_row)
+                    sp_form.addRow("Inner radius", _ir_w)
+                _sp_w = _QW(); _sp_w.setLayout(sp_form)
+                self._root_layout.addWidget(_sp_w)
+
             # Bubble deformers — only when the shape is a bubble
             if is_bubble:
                 self._root_layout.addWidget(QLabel("<b>Bubble shape</b>"))
