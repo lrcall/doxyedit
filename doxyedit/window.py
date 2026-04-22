@@ -1563,6 +1563,43 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         # Match Windows title bar to theme
         self._update_title_bar_color()
 
+    def _toggle_studio_toolbar(self, name: str, visible: bool):
+        """Show or hide the named Studio toolbar and persist the pref.
+        Names: 'main' (top icon toolbar), 'quickbar' (color / rotation
+        / opacity / scale row), 'left' (Main side palette)."""
+        qs = QSettings("DoxyEdit", "DoxyEdit")
+        key = {
+            "main": "studio_show_main_toolbar",
+            "quickbar": "studio_show_quickbar",
+            "left": "studio_show_left_toolbar",
+        }.get(name)
+        if key:
+            qs.setValue(key, visible)
+        # Resolve the widget and flip visibility. Walk the Studio
+        # editor to find the wrapper QWidgets by object name.
+        if not hasattr(self, "studio"):
+            return
+        wrap_map = {
+            "main": "studio_toolbar_wrap",
+            "quickbar": "studio_quickbar_wrap",
+        }
+        if name in wrap_map:
+            for child in self.studio.findChildren(QWidget):
+                if child.objectName() == wrap_map[name]:
+                    child.setVisible(visible)
+                    break
+        elif name == "left" and hasattr(self, "_left_toolbar"):
+            self._left_toolbar.setVisible(visible)
+
+    def _set_all_studio_toolbars(self, visible: bool):
+        for name, act in (("main", self._tb_main_action),
+                          ("quickbar", self._tb_quickbar_action),
+                          ("left", self._tb_left_action)):
+            act.blockSignals(True)
+            act.setChecked(visible)
+            act.blockSignals(False)
+            self._toggle_studio_toolbar(name, visible)
+
     def _cycle_proj_tab(self, direction: int):
         """Ctrl+PgUp / Ctrl+PgDown walk through the project tabs."""
         if not hasattr(self, "_proj_tab_bar"):
@@ -2321,6 +2358,41 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         view_menu.addSeparator()
         view_menu.addAction("Refresh Grid", lambda: self.browser.refresh())
         view_menu.addAction("Show Hidden Folders", lambda: self.browser.show_all_hidden_folders())
+        view_menu.addSeparator()
+
+        # Toolbars submenu — show/hide each Studio toolbar row
+        # persistently. Mirrors the Photoshop / Illustrator / VS Code
+        # pattern where the user can hide rows they don't use. State
+        # persists in QSettings so the choice survives a restart.
+        toolbars_sub = view_menu.addMenu("Toolbars")
+        self._tb_main_action = toolbars_sub.addAction("Studio Main Toolbar")
+        self._tb_main_action.setCheckable(True)
+        self._tb_quickbar_action = toolbars_sub.addAction(
+            "Studio Quick Properties")
+        self._tb_quickbar_action.setCheckable(True)
+        self._tb_left_action = toolbars_sub.addAction("Main Side Palette")
+        self._tb_left_action.setCheckable(True)
+        toolbars_sub.addSeparator()
+        self._tb_all_show = toolbars_sub.addAction("Show All Toolbars")
+        self._tb_all_hide = toolbars_sub.addAction("Hide All Toolbars")
+        # Initial checked state + wire toggles
+        _qs_tb = QSettings("DoxyEdit", "DoxyEdit")
+        self._tb_main_action.setChecked(
+            _qs_tb.value("studio_show_main_toolbar", True, type=bool))
+        self._tb_quickbar_action.setChecked(
+            _qs_tb.value("studio_show_quickbar", True, type=bool))
+        self._tb_left_action.setChecked(
+            _qs_tb.value("studio_show_left_toolbar", True, type=bool))
+        self._tb_main_action.toggled.connect(
+            lambda v: self._toggle_studio_toolbar("main", v))
+        self._tb_quickbar_action.toggled.connect(
+            lambda v: self._toggle_studio_toolbar("quickbar", v))
+        self._tb_left_action.toggled.connect(
+            lambda v: self._toggle_studio_toolbar("left", v))
+        self._tb_all_show.triggered.connect(
+            lambda: self._set_all_studio_toolbars(True))
+        self._tb_all_hide.triggered.connect(
+            lambda: self._set_all_studio_toolbars(False))
         view_menu.addSeparator()
 
         # Display submenu
