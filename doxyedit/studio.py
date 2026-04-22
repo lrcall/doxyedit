@@ -12980,6 +12980,7 @@ class StudioEditor(QWidget):
             act_rename = prefix.addAction("Rename...")
             act_opacity = prefix.addAction("Opacity...")
             act_dup_n = prefix.addAction("Duplicate N times...")
+            act_dup_grid = prefix.addAction("Duplicate as grid...")
             act_zoom_to = prefix.addAction("Zoom to Layer")
             z_sub = prefix.addMenu("Arrange")
             act_to_front = z_sub.addAction("Bring to Front  (Ctrl+Shift+])")
@@ -13057,6 +13058,72 @@ class StudioEditor(QWidget):
                         self._duplicate_selected(offset=20 * (i + 1))
                     self._rebuild_layer_panel()
                     self.info_label.setText(f"Made {n} copies")
+                return
+            if chosen is act_dup_grid:
+                from PySide6.QtWidgets import (
+                    QDialog, QFormLayout, QSpinBox, QDialogButtonBox)
+                grid_dlg = QDialog(self)
+                grid_dlg.setWindowTitle("Duplicate as grid")
+                gform = QFormLayout(grid_dlg)
+                cols_spin = QSpinBox(); cols_spin.setRange(1, 50); cols_spin.setValue(4)
+                rows_spin = QSpinBox(); rows_spin.setRange(1, 50); rows_spin.setValue(3)
+                gap_x_spin = QSpinBox()
+                gap_x_spin.setRange(-2000, 2000); gap_x_spin.setValue(20)
+                gap_x_spin.setSuffix(" px")
+                gap_y_spin = QSpinBox()
+                gap_y_spin.setRange(-2000, 2000); gap_y_spin.setValue(20)
+                gap_y_spin.setSuffix(" px")
+                gform.addRow("Columns", cols_spin)
+                gform.addRow("Rows", rows_spin)
+                gform.addRow("Horizontal gap", gap_x_spin)
+                gform.addRow("Vertical gap", gap_y_spin)
+                gbb = QDialogButtonBox(
+                    QDialogButtonBox.StandardButton.Ok
+                    | QDialogButtonBox.StandardButton.Cancel)
+                gbb.accepted.connect(grid_dlg.accept)
+                gbb.rejected.connect(grid_dlg.reject)
+                gform.addRow(gbb)
+                win = self.window()
+                if win is not None:
+                    grid_dlg.setStyleSheet(win.styleSheet())
+                if grid_dlg.exec() != QDialog.DialogCode.Accepted:
+                    return
+                cols = cols_spin.value()
+                rows = rows_spin.value()
+                total = cols * rows - 1  # minus the original
+                if total <= 0:
+                    return
+                # Work out the source dimensions so the gap is the
+                # visual spacing between shapes (not the stride).
+                br = scene_item.sceneBoundingRect()
+                stride_x = int(br.width()) + gap_x_spin.value()
+                stride_y = int(br.height()) + gap_y_spin.value()
+                made = 0
+                # row 0 col 0 is the original; skip it.
+                for r in range(rows):
+                    for c in range(cols):
+                        if r == 0 and c == 0:
+                            continue
+                        self._scene.clearSelection()
+                        scene_item.setSelected(True)
+                        self._duplicate_selected(offset=0)
+                        new_item = (self._overlay_items[-1]
+                                     if self._overlay_items else None)
+                        if new_item is None:
+                            continue
+                        dx = c * stride_x
+                        dy = r * stride_y
+                        if hasattr(new_item, "overlay"):
+                            new_item.overlay.x = int(br.left() + dx)
+                            new_item.overlay.y = int(br.top() + dy)
+                            new_item.setPos(
+                                new_item.overlay.x,
+                                new_item.overlay.y)
+                        made += 1
+                self._sync_overlays_to_asset()
+                self._rebuild_layer_panel()
+                self.info_label.setText(
+                    f"Made {made} grid copies ({cols}x{rows})")
                 return
             if chosen in (act_to_front, act_forward, act_backward, act_to_back):
                 delta = (+999 if chosen is act_to_front
