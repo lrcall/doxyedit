@@ -7696,6 +7696,41 @@ class StudioEditor(QWidget):
         _dlg_layout.addRow("Style", _style_widget)
         self._populate_text_styles_combo()
 
+        # Reset kerning / line-height / rotation to defaults quickly.
+        _rk_row = QHBoxLayout()
+        _rk_row.setContentsMargins(0, 0, 0, 0)
+        _reset_spacing_btn = QPushButton("Reset Spacing (kern / line-h)")
+        _reset_spacing_btn.setToolTip(
+            "Zero letter_spacing + reset line_height to 1.2 on selected "
+            "text overlays.")
+        def _reset_spacing():
+            sel = [it for it in self._scene.selectedItems()
+                   if isinstance(it, OverlayTextItem)]
+            if not sel:
+                return
+            for it in sel:
+                it.overlay.letter_spacing = 0.0
+                it.overlay.line_height = 1.2
+                if hasattr(it, "_apply_font"):
+                    it._apply_font()
+                it.update()
+            if hasattr(self, "slider_kerning"):
+                self.slider_kerning.blockSignals(True)
+                self.slider_kerning.setValue(0)
+                self.slider_kerning.blockSignals(False)
+            if hasattr(self, "slider_line_height"):
+                self.slider_line_height.blockSignals(True)
+                self.slider_line_height.setValue(120)
+                self.slider_line_height.blockSignals(False)
+            self._sync_overlays_to_asset()
+            self.info_label.setText("Text spacing reset")
+        _reset_spacing_btn.clicked.connect(_reset_spacing)
+        _rk_row.addWidget(_reset_spacing_btn)
+        _rk_row.addStretch()
+        _rk_w = QWidget(_dlg)
+        _rk_w.setLayout(_rk_row)
+        _dlg_layout.addRow("", _rk_w)
+
         # Save-current-as-default button for text. Persists the first
         # selected text overlay's style fields into
         # studio_text_defaults so new text overlays inherit them.
