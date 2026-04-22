@@ -68,8 +68,12 @@ class InfoPanel(QWidget):
 
         # Header
         self._header = QLabel("No selection")
-        _bold = self._header.font(); _bold.setBold(True); self._header.setFont(_bold)
+        self._header.setObjectName("info_filename_header")
+        _bold = self._header.font(); _bold.setBold(True)
+        _bold.setPointSize(_bold.pointSize() + 1)
+        self._header.setFont(_bold)
         self._header.setWordWrap(True)
+        self._header.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)
         outer.addWidget(self._header)
 
         # Scrollable content
@@ -84,6 +88,7 @@ class InfoPanel(QWidget):
 
         # Filename
         self._name_label = QLabel()
+        self._name_label.setObjectName("info_body_label")
         self._name_label.setWordWrap(True)
         self._name_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._layout.addWidget(self._name_label)
@@ -93,6 +98,7 @@ class InfoPanel(QWidget):
 
         # Properties section
         self._props_label = QLabel()
+        self._props_label.setObjectName("info_body_label")
         self._props_label.setWordWrap(True)
         self._props_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._layout.addWidget(self._props_label)
@@ -153,6 +159,7 @@ class InfoPanel(QWidget):
         _bold = self._assign_header.font(); _bold.setBold(True); self._assign_header.setFont(_bold)
         self._layout.addWidget(self._assign_header)
         self._assign_label = QLabel()
+        self._assign_label.setObjectName("info_body_label")
         self._assign_label.setWordWrap(True)
         self._layout.addWidget(self._assign_label)
 

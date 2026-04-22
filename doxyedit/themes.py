@@ -1455,14 +1455,34 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
 
         QWidget#info_panel {{
-            background: {theme.bg_raised};
+            background: {theme.bg_deep};
         }}
         QWidget#info_panel QLabel {{
             color: {theme.text_primary};
+            font-size: {f}px;
         }}
-        QLabel#info_section_header {{
+        /* Filename header at top of info panel: accent-bright + bold + slightly
+            larger so it's unmistakable regardless of theme brightness. */
+        QLabel#info_filename_header {{
             color: {theme.text_primary};
+            background: {theme.bg_raised};
             font-weight: bold;
+            font-size: {f + 2}px;
+            padding: 4px 8px;
+            border-bottom: 2px solid {theme.accent_bright};
+        }}
+        /* Body labels inside the scroll area — explicit text_primary color so
+            they can't inherit something faded. */
+        QLabel#info_body_label {{
+            color: {theme.text_primary};
+        }}
+        /* Section headers: use accent_bright on a slight underline so they pop
+            on both light and dark themes. */
+        QLabel#info_section_header {{
+            color: {theme.accent_bright};
+            font-weight: bold;
+            font-size: {f + 1}px;
+            padding-top: 4px;
         }}
         QWidget#info_panel QPushButton {{
             background: {theme.bg_input};
@@ -1496,6 +1516,11 @@ def generate_stylesheet(theme: Theme) -> str:
         QWidget#info_panel QScrollArea QWidget {{
             background: {theme.bg_main};
             border: none;
+        }}
+        /* Force every QLabel inside the scroll area to inherit text_primary
+            so nothing leaks a muted color through cascade quirks. */
+        QWidget#info_panel QScrollArea QLabel {{
+            color: {theme.text_primary};
         }}
         QWidget#info_panel QFrame {{
             color: {theme.border_light};
