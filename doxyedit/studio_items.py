@@ -525,12 +525,14 @@ class OverlayImageItem(QGraphicsPixmapItem):
             | QGraphicsPixmapItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsPixmapItem.GraphicsItemFlag.ItemSendsGeometryChanges
         )
+        # Cache the rendered item in device pixels so drag only blits the
+        # cached copy and doesn't rescale the source pixmap every frame.
+        self.setCacheMode(
+            QGraphicsPixmapItem.CacheMode.DeviceCoordinateCache)
         self.setOpacity(overlay.opacity)
         self.setPos(overlay.x, overlay.y)
         # Rotate from center
         self.setTransformOriginPoint(pixmap.width() / 2, pixmap.height() / 2)
-        # Apply flip via QTransform (scale -1 on affected axis). setRotation
-        # still works after setTransform in Qt.
         if getattr(overlay, "flip_h", False) or getattr(overlay, "flip_v", False):
             t = QTransform()
             t.scale(-1.0 if overlay.flip_h else 1.0,
@@ -538,7 +540,6 @@ class OverlayImageItem(QGraphicsPixmapItem):
             self.setTransform(t)
         if overlay.rotation:
             self.setRotation(overlay.rotation)
-        # Locked overlays can't be moved or selected
         if getattr(overlay, "locked", False):
             self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsMovable, False)
             self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsSelectable, False)
@@ -2308,13 +2309,15 @@ class OverlayTextItem(QGraphicsTextItem):
             | QGraphicsTextItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsTextItem.GraphicsItemFlag.ItemSendsGeometryChanges
         )
+        # Cache rendered glyphs so drag doesn't re-rasterize the text
+        # (shadow + outline passes + main glyph pass per move event).
+        self.setCacheMode(
+            QGraphicsTextItem.CacheMode.DeviceCoordinateCache)
         self._apply_font()
         self.setOpacity(overlay.opacity)
         self.setPos(overlay.x, overlay.y)
-        # Persisted flip / rotation re-applied on construction
         if (getattr(overlay, "flip_h", False) or getattr(overlay, "flip_v", False)
                 or overlay.rotation):
-            # _apply_flip_text composes flip + rotation
             self._apply_flip_text()
         if getattr(overlay, "locked", False):
             self.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIsMovable, False)

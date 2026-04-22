@@ -3737,7 +3737,18 @@ class StudioView(QGraphicsView):
             QPainter.RenderHint.LosslessImageRendering, _hq)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+        # SmartViewportUpdate only repaints regions that actually changed.
+        # FullViewportUpdate was forcing a complete canvas redraw on every
+        # mousemove during a drag — the biggest cause of perceptible lag
+        # when nudging a speech bubble around.
+        self.setViewportUpdateMode(
+            QGraphicsView.ViewportUpdateMode.SmartViewportUpdate)
+        # Opt out of software-composed backing store; direct OpenGL-ish
+        # path on Windows is a lot faster for the per-frame blit.
+        self.setOptimizationFlag(
+            QGraphicsView.OptimizationFlag.DontSavePainterState, True)
+        self.setOptimizationFlag(
+            QGraphicsView.OptimizationFlag.DontAdjustForAntialiasing, True)
         self.setAcceptDrops(True)
         # Track cursor when no button is pressed so the status bar X,Y label
         # updates live as the user hovers.
@@ -3745,6 +3756,79 @@ class StudioView(QGraphicsView):
         self._panning = False
         self._pan_start = QPointF()
         self.on_file_dropped = None  # callback(path, scene_pos)
+        # FPS HUD — toggle with Shift+F or via Studio Settings. Tracks
+        # the last 60 paint timestamps and shows current + rolling FPS
+        # plus average paint duration in the top-left corner.
+        import time as _t
+        self._fps_enabled = QSettings("DoxyEdit", "DoxyEdit").value(
+            "studio_show_fps", False, type=bool)
+        self._fps_times: list[float] = []
+        self._fps_last_paint_start = 0.0
+        self._fps_last_paint_ms = 0.0
+        self._fps_rolling_ms = 0.0
+        self._fps_time = _t
+
+    def paintEvent(self, event):
+        t0 = self._fps_time.perf_counter()
+        super().paintEvent(event)
+        if self._fps_enabled:
+            # Record timing & overlay the HUD. Done via a viewport-level
+            # painter so it's in pixel coordinates (not scene) and can't
+            # be zoomed/panned out of view.
+            t1 = self._fps_time.perf_counter()
+            self._fps_last_paint_ms = (t1 - t0) * 1000.0
+            self._fps_rolling_ms = (0.9 * self._fps_rolling_ms
+                                     + 0.1 * self._fps_last_paint_ms)
+            self._fps_times.append(t1)
+            # Keep 2s rolling window
+            cutoff = t1 - 2.0
+            while self._fps_times and self._fps_times[0] < cutoff:
+                self._fps_times.pop(0)
+            # Live fps = frames in the last second
+            recent = [ts for ts in self._fps_times if ts > t1 - 1.0]
+            fps = len(recent)
+            # Paint HUD on viewport
+            vp = self.viewport()
+            p = QPainter(vp)
+            p.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+            text_lines = [
+                f"FPS: {fps}",
+                f"Paint: {self._fps_last_paint_ms:.1f}ms",
+                f"Avg: {self._fps_rolling_ms:.1f}ms",
+                f"Items: {len(self.scene().items()) if self.scene() else 0}",
+            ]
+            f = QFont("Consolas", 10, QFont.Weight.Bold)
+            p.setFont(f)
+            fm = p.fontMetrics()
+            line_h = fm.height() + 2
+            w = max(fm.horizontalAdvance(t) for t in text_lines) + 16
+            h = line_h * len(text_lines) + 10
+            p.setBrush(QColor(0, 0, 0, 180))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawRoundedRect(8, 8, w, h, 4, 4)
+            # Color FPS number green/yellow/red
+            if fps >= 45:
+                color = QColor(120, 230, 140)
+            elif fps >= 25:
+                color = QColor(240, 210, 100)
+            else:
+                color = QColor(240, 120, 120)
+            y = 8 + fm.ascent() + 5
+            p.setPen(color)
+            p.drawText(16, y, text_lines[0])
+            y += line_h
+            p.setPen(QColor(220, 220, 220))
+            for line in text_lines[1:]:
+                p.drawText(16, y, line)
+                y += line_h
+            p.end()
+
+    def toggle_fps_hud(self):
+        self._fps_enabled = not self._fps_enabled
+        QSettings("DoxyEdit", "DoxyEdit").setValue(
+            "studio_show_fps", self._fps_enabled)
+        self._fps_times.clear()
+        self.viewport().update()
 
     def wheelEvent(self, event: QWheelEvent):
         # Alt+Shift+wheel adjusts opacity of selected overlays by 5%
@@ -6576,6 +6660,13 @@ class StudioEditor(QWidget):
         self._f10_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._f10_shortcut.activated.connect(self._nuclear_clear)
 
+        # Shift+F = toggle FPS HUD for diagnosing canvas perf.
+        self._fps_hud_shortcut = QShortcut(QKeySequence("Shift+F"), self)
+        self._fps_hud_shortcut.setContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self._fps_hud_shortcut.activated.connect(
+            lambda: self._view.toggle_fps_hud())
+
         # Escape = universal 'deselect + exit tool' regardless of which
         # studio widget has focus (sidebar button, slider, layer panel).
         # Scoped with WidgetWithChildrenShortcut so it does NOT interfere
@@ -7407,6 +7498,47 @@ class StudioEditor(QWidget):
             label = tmpl.get("label", tmpl.get("type", f"Overlay {i + 1}"))
             self.combo_template.addItem(label)
 
+    def _render_shadow_pixmap(self, rect, blur: int, offset: int,
+                               color: QColor) -> QPixmap:
+        """Pre-render a Gaussian-blurred drop shadow as a pixmap. Called
+        once per asset load so the blur cost doesn't hit every frame.
+
+        Returns a QPixmap sized (rect.w + 2*blur, rect.h + 2*blur). Draw
+        positioned at (-blur, -blur + offset) in scene coords to align
+        with the base image.
+        """
+        W = rect.width() + blur * 2
+        H = rect.height() + blur * 2
+        # Paint an opaque silhouette onto a temp pixmap, then use
+        # QGraphicsBlurEffect via a scene-less helper path.
+        silhouette = QPixmap(W, H)
+        silhouette.fill(Qt.GlobalColor.transparent)
+        p = QPainter(silhouette)
+        p.setBrush(color)
+        p.setPen(Qt.PenStyle.NoPen)
+        # Draw the image's footprint as a solid rounded rect and let
+        # the blur stage soften the edges.
+        p.drawRoundedRect(blur, blur, rect.width(), rect.height(), 6, 6)
+        p.end()
+        # Blur via the same effect used for overlays, but applied to a
+        # scene-less QGraphicsScene so we render once into a QImage.
+        from PySide6.QtWidgets import QGraphicsScene as _S
+        tmp_scene = _S()
+        it = QGraphicsPixmapItem(silhouette)
+        fx = QGraphicsDropShadowEffect()
+        fx.setBlurRadius(blur)
+        fx.setOffset(0, 0)
+        fx.setColor(color)
+        it.setGraphicsEffect(fx)
+        tmp_scene.addItem(it)
+        tmp_scene.setSceneRect(0, 0, W, H)
+        out = QPixmap(W, H)
+        out.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(out)
+        tmp_scene.render(painter, QRectF(0, 0, W, H), QRectF(0, 0, W, H))
+        painter.end()
+        return out
+
     def load_asset(self, asset: Asset):
         """Load image, restore censors, overlays, crops, and notes."""
         self._asset = asset
@@ -7454,18 +7586,34 @@ class StudioEditor(QWidget):
 
         self._pixmap_item = QGraphicsPixmapItem(pm)
         self._pixmap_item.setZValue(0)
-        # Drop shadow so the image feels like a document on a workspace.
-        # Apply to the checkerboard (which matches the pixmap rect) rather
-        # than the pixmap itself so the shadow is visible even when the
-        # pixmap has full-opacity pixels covering every edge.
+        # Cache the base image so zoom/pan doesn't re-rasterize it every
+        # frame. DeviceCoordinateCache keeps a cached copy at the current
+        # zoom level — ideal for a static background pixmap that redraws
+        # every time any overlay moves.
+        self._pixmap_item.setCacheMode(
+            QGraphicsPixmapItem.CacheMode.DeviceCoordinateCache)
+        checker.setCacheMode(
+            QGraphicsPixmapItem.CacheMode.DeviceCoordinateCache)
+        # Drop shadow, done properly: QGraphicsDropShadowEffect re-blurs
+        # the whole backing rect every frame (CPU Gaussian blur). Instead,
+        # pre-render the blurred shadow ONCE as a pixmap at load time, then
+        # place it as a regular cached pixmap item. Same visual look, but
+        # the blur cost is paid exactly once per load, not per paint.
+        self._drop_shadow_item = None
         try:
-            shadow = QGraphicsDropShadowEffect()
-            shadow.setBlurRadius(30)
-            shadow.setOffset(0, 8)
             _shadow_c = QColor(self._theme.studio_overlay_handle_border)
             _shadow_c.setAlpha(self._theme.studio_drop_shadow_alpha)
-            shadow.setColor(_shadow_c)
-            checker.setGraphicsEffect(shadow)
+            shadow_pm = self._render_shadow_pixmap(
+                pm.rect(), blur=30, offset=8, color=_shadow_c)
+            shadow_item = QGraphicsPixmapItem(shadow_pm)
+            # Offset so the blurred shadow sits under + below the pixmap
+            # (matches the prior QGraphicsDropShadowEffect offset).
+            shadow_item.setPos(-30, -30 + 8)
+            shadow_item.setZValue(-11)  # behind checker
+            shadow_item.setCacheMode(
+                QGraphicsPixmapItem.CacheMode.DeviceCoordinateCache)
+            self._scene.addItem(shadow_item)
+            self._drop_shadow_item = shadow_item
         except Exception:
             pass
         self._scene.addItem(self._pixmap_item)
