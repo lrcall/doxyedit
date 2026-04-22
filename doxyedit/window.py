@@ -6133,17 +6133,19 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         dlg.exec()
 
     def _show_shortcuts(self):
-        """Display keyboard shortcuts, generated from the real QAction registry
-        so the list cannot drift from the actual bindings.
+        """Display keyboard shortcuts in a tabbed, scrollable dialog.
+        Entries are grouped by context (App / Studio / Tray / Preview /
+        Tags / Project custom) so the user isn't hunting through one
+        giant text block."""
+        # Singleton guard — raise the existing dialog instead of stacking
+        existing = getattr(self, "_shortcuts_dialog", None)
+        if existing is not None and existing.isVisible():
+            existing.raise_()
+            existing.activateWindow()
+            return
 
-        Walks the menubar recursively, pulling every QAction that has a
-        non-empty .shortcut(). Appends project-specific custom_shortcuts
-        at the end. Falls back to a small hardcoded list of in-view
-        shortcuts that aren't registered as QActions (preview keys, grid
-        keys) where Qt doesn't expose them.
-        """
-
-        lines: list[str] = []
+        # Collect menubar shortcuts from QAction registry
+        menu_entries: list[tuple[str, str]] = []
         seen_keys: set[str] = set()
 
         def _walk(menu):
@@ -6160,16 +6162,16 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 if not label:
                     continue
                 seen_keys.add(ks)
-                lines.append(f"{ks}  —  {label}")
+                menu_entries.append((ks, label))
 
         mb = self.menuBar()
         if mb:
             for a in mb.actions():
                 if a.menu():
                     _walk(a.menu())
+        menu_entries.sort()
 
-        # Context-specific shortcuts not registered as QActions on the menubar
-        extras = [
+        app_extras = [
             ("F1", "Jump to Assets tab"),
             ("S", "Jump to Studio tab"),
             ("F3", "Jump to Social tab"),
@@ -6179,63 +6181,132 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             ("F2", "Rename file on disk"),
             ("Ctrl+Scroll", "Zoom thumbnails"),
             ("Ctrl+Click tag", "Search by tag"),
-            ("Studio - Q", "Select tool"),
-            ("Studio - X", "Censor tool"),
-            ("Studio - E", "Watermark / logo tool"),
-            ("Studio - T", "Text tool"),
-            ("Studio - C", "Crop tool"),
-            ("Studio - N", "Note tool"),
-            ("Studio - I", "Eyedropper (sample color)"),
-            ("Studio - G", "Toggle snap grid"),
-            ("Studio - F", "Fit view"),
-            ("Studio - H", "Toggle overlay visibility"),
-            ("Studio - L", "Toggle layer panel"),
-            ("Studio - Space", "Hold for pan tool"),
-            ("Studio - Ctrl+0", "Fit view to canvas"),
-            ("Studio - Ctrl+Shift+0", "Zoom to selection"),
-            ("Studio - Ctrl+1", "Zoom to 100%"),
-            ("Studio - Ctrl++ / Ctrl+-", "Zoom in / out"),
-            ("Studio - Ctrl+D", "Duplicate selected"),
-            ("Studio - Ctrl+Z / Ctrl+Y", "Undo / redo"),
-            ("Studio - Ctrl+] / Ctrl+[", "Bring forward / send backward"),
-            ("Studio - Ctrl+Shift+H / V", "Flip selected horizontal / vertical"),
-            ("Studio - Ctrl+Shift+I", "Invert selection"),
-            ("Studio - Tab / Shift+Tab", "Cycle selection next / prev"),
-            ("Studio - Alt+click", "Duplicate overlay/censor in place"),
-            ("Studio - . (period)", "Focus mode toggle"),
-            ("Studio - 0-9", "Set opacity on selected overlay"),
-            ("Studio - Shift+drag", "Constrain to square (censor/crop)"),
-            ("Studio - Shift+rotate", "Snap rotation to 15 degrees"),
-            ("Studio - A", "Arrow annotation tool"),
-            ("Studio ruler", "Drag into canvas to place a guide"),
-            ("Studio guide", "Drag to move, double-click to delete"),
-            ("Studio double-click crop", "Rename"),
-            ("Studio double-click empty canvas", "Fit view"),
-            ("Studio right-click empty canvas", "Grid / thirds / copy menu"),
-            ("Studio - R / Shift+R", "Rotate selected overlay 90 CW / CCW"),
-            ("Studio - V", "Select tool (Photoshop alias for Q)"),
-            ("Studio - Home / End", "First / last item"),
-            ("Studio - Ctrl+Shift+A", "Deselect all"),
-            ("Studio - Ctrl+L", "Toggle lock on selected"),
-            ("Studio - [ / ]", "Arrowhead size -/+ on selected arrows"),
-            ("Preview - N", "Add note"),
-            ("Preview - V", "Toggle notes visible"),
-            ("Preview - Esc", "Close"),
-            ("Tags - 1-9", "Toggle content tags"),
-            ("Tags - 0", "Toggle Ignore"),
+        ]
+        studio_entries = [
+            ("Q", "Select tool"),
+            ("V", "Select (Photoshop alias for Q)"),
+            ("X", "Censor tool"),
+            ("E", "Watermark / logo tool"),
+            ("T", "Text tool"),
+            ("C", "Crop tool"),
+            ("N", "Note tool"),
+            ("A", "Arrow annotation tool"),
+            ("I", "Eyedropper (sample color)"),
+            ("G", "Toggle snap grid"),
+            ("F", "Fit view"),
+            ("H", "Toggle overlay visibility"),
+            ("L", "Toggle layer panel"),
+            ("Space (hold)", "Temporary pan tool"),
+            ("Ctrl+0", "Fit view to canvas"),
+            ("Ctrl+Shift+0", "Zoom to selection"),
+            ("Ctrl+1", "Zoom to 100%"),
+            ("Ctrl++ / Ctrl+-", "Zoom in / out"),
+            ("Ctrl+D", "Duplicate selected"),
+            ("Ctrl+L", "Toggle lock on selected"),
+            ("Ctrl+Z / Ctrl+Y", "Undo / redo"),
+            ("Ctrl+] / Ctrl+[", "Bring forward / send backward"),
+            ("Ctrl+Shift+H / V", "Flip horizontal / vertical"),
+            ("Ctrl+Shift+I", "Invert selection"),
+            ("Ctrl+Shift+A", "Deselect all"),
+            ("Tab / Shift+Tab", "Cycle selection next / prev"),
+            ("Home / End", "First / last item"),
+            ("R / Shift+R", "Rotate selected 90 CW / CCW"),
+            ("[ / ]", "Arrowhead size -/+ on selected arrows"),
+            (". (period)", "Focus mode toggle"),
+            ("0-9", "Set opacity on selected overlay"),
+            ("Alt+click", "Duplicate overlay / censor in place"),
+            ("Shift+drag", "Constrain to square (censor / crop)"),
+            ("Shift+rotate", "Snap rotation to 15 degrees"),
+            ("Double-click crop", "Rename"),
+            ("Double-click empty canvas", "Fit view"),
+            ("Right-click empty canvas", "Grid / thirds / copy menu"),
+            ("Drag ruler into canvas", "Place guide"),
+            ("Drag guide", "Move; double-click to delete"),
+        ]
+        tray_entries = [
+            ("Ctrl+Shift+W", "Toggle Work Tray visibility"),
+            ("Arrow keys", "Navigate items (when tray has focus)"),
+            ("Space", "Preview current item (hover preview)"),
+            ("Enter / Return", "Send current item to Studio"),
+            ("Delete", "Remove selected from tray"),
+            ("1 - 5", "Set star color on selected"),
+            ("0", "Unstar selected"),
+            ("Ctrl+A", "Select all items"),
+            ("Ctrl+D", "Deselect all"),
+            ("Ctrl+Z", "Undo last Remove / Clear"),
+            ("Drag item onto tab", "Move to that tray (Shift copies)"),
+            ("Right-click title / count", "Tray Options menu"),
+            ("Right-click empty area", "Paste / Import / Sort / Export"),
+            ("Right-click tab", "Rename / Duplicate / Merge / Default"),
+        ]
+        preview_entries = [
+            ("N", "Add note"),
+            ("V", "Toggle notes visible"),
+            ("Esc", "Close"),
+            ("S", "Send to Studio"),
+        ]
+        tags_entries = [
+            ("1-9", "Toggle content tags"),
+            ("0", "Toggle Ignore"),
         ]
 
-        shortcuts_text = "\n".join(sorted(lines))
-        if extras:
-            shortcuts_text += "\n\nExtra shortcuts:\n"
-            shortcuts_text += "\n".join(f"{k}  —  {v}" for k, v in extras)
-
+        project_entries: list[tuple[str, str]] = []
         if self.project and getattr(self.project, "custom_shortcuts", None):
-            shortcuts_text += "\n\nProject shortcuts:\n"
             for key, tid in self.project.custom_shortcuts.items():
-                shortcuts_text += f"{key}  —  {tid}\n"
+                project_entries.append((key, tid))
 
-        QMessageBox.information(self, "Keyboard Shortcuts", shortcuts_text.strip())
+        # Build dialog
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Keyboard Shortcuts")
+        dlg.resize(720, 560)
+        dlg.setObjectName("shortcuts_dialog")
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(8, 8, 8, 8)
+        tabs = QTabWidget()
+        layout.addWidget(tabs)
+
+        def _add_tab(title: str, entries: list[tuple[str, str]]):
+            if not entries:
+                return
+            tb = QTextBrowser()
+            tb.setObjectName("shortcuts_tab_body")
+            tb.setOpenExternalLinks(False)
+            # HTML table — native scrollbar handles overflow
+            rows = "".join(
+                f'<tr><td class="k">{k}</td>'
+                f'<td class="v">{v}</td></tr>'
+                for k, v in entries)
+            html = (
+                "<style>"
+                "table { border-collapse: collapse; width: 100%; }"
+                "td { padding: 6px 10px; vertical-align: top; }"
+                "td.k { white-space: nowrap; font-family: Consolas, monospace; "
+                "font-weight: bold; width: 40%; }"
+                "td.v { width: 60%; }"
+                "tr:nth-child(even) td { background: rgba(127,127,127,0.06); }"
+                "</style>"
+                f"<table>{rows}</table>")
+            tb.setHtml(html)
+            tabs.addTab(tb, f"{title}  ({len(entries)})")
+
+        _add_tab("App", app_extras + menu_entries)
+        _add_tab("Studio", studio_entries)
+        _add_tab("Tray", tray_entries)
+        _add_tab("Preview", preview_entries)
+        _add_tab("Tags", tags_entries)
+        _add_tab("Project custom", project_entries)
+
+        close_row = QHBoxLayout()
+        close_row.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dlg.close)
+        close_row.addWidget(close_btn)
+        layout.addLayout(close_row)
+
+        self._shortcuts_dialog = dlg
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
 
     def _show_whats_new(self):
         """Read docs/CHANGELOG.md and show the latest entries in a dialog."""
