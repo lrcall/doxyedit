@@ -7017,22 +7017,29 @@ class StudioEditor(QWidget):
         """Align / distribute the currently selected moveable overlays.
 
         Modes: ``left``, ``right``, ``hcenter``, ``top``, ``bottom``,
-        ``vcenter``, ``dist_h``, ``dist_v``. 2+ items required; distribute
-        needs 3+. Operates on sceneBoundingRect and writes back through the
-        overlay's x / y (or shape_w/shape_h center for shapes) so undo /
-        serialization stays consistent."""
+        ``vcenter``, ``dist_h``, ``dist_v``. 1 item aligns to the canvas;
+        2+ items align to their union rect; distribute needs 3+. Operates
+        on sceneBoundingRect and writes back through the overlay's x / y
+        (or shape_w/shape_h center for shapes) so undo / serialization
+        stays consistent."""
         items = self._all_selected_moveable()
-        if len(items) < 2:
+        if not items:
             return
         rects = [(it, it.sceneBoundingRect()) for it in items]
         if mode.startswith("dist_") and len(items) < 3:
             self.info_label.setText("Distribute needs 3 or more items")
             return
-        # Union bounding rect as the anchor for align modes
-        minx = min(r.left() for _, r in rects)
-        maxx = max(r.right() for _, r in rects)
-        miny = min(r.top() for _, r in rects)
-        maxy = max(r.bottom() for _, r in rects)
+        if len(items) == 1 and self._pixmap_item:
+            # Single-item align references the canvas rect, not the item.
+            pm = self._pixmap_item.pixmap()
+            minx, miny = 0, 0
+            maxx = pm.width()
+            maxy = pm.height()
+        else:
+            minx = min(r.left() for _, r in rects)
+            maxx = max(r.right() for _, r in rects)
+            miny = min(r.top() for _, r in rects)
+            maxy = max(r.bottom() for _, r in rects)
         cx = (minx + maxx) / 2
         cy = (miny + maxy) / 2
 
