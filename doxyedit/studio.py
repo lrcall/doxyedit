@@ -5794,6 +5794,10 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_Slash:
             self._show_shortcuts_cheat_sheet()
             return
+        # F1 alias for the cheat sheet (standard help key).
+        if key == Qt.Key.Key_F1 and not ctrl and not shift:
+            self._show_shortcuts_cheat_sheet()
+            return
         # Ctrl+, opens Studio Settings (conventional app-settings shortcut).
         if ctrl and key == Qt.Key.Key_Comma:
             self._show_studio_settings()
