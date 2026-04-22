@@ -180,13 +180,15 @@ class WorkTray(QWidget):
         header.addWidget(self._close_btn)
         layout.addLayout(header)
 
-        # Tab bar for named trays
+        # Tab bar for named trays. tabData(i) holds the CLEAN tray name;
+        # tabText(i) may include a count suffix like "Tray 1 (12)".
         self._tab_bar = QTabBar()
         self._tab_bar.setObjectName("tray_tab_bar")
         self._tab_bar.setExpanding(False)
         self._tab_bar.setTabsClosable(False)
         self._tab_bar.setMovable(True)
         self._tab_bar.addTab("Tray 1")
+        self._tab_bar.setTabData(0, "Tray 1")
         self._add_tray_btn = QPushButton("+")
         self._add_tray_btn.setObjectName("tray_small_btn")
         self._add_tray_btn.setFixedSize(_cb, _cb)
@@ -358,6 +360,23 @@ class WorkTray(QWidget):
     def _update_count(self):
         n = len(self._asset_ids)
         self._count_label.setText(f"{n} item{'s' if n != 1 else ''}")
+        self._refresh_tab_counts()
+
+    def _refresh_tab_counts(self):
+        """Update each tab's display text to include a live item count.
+        Clean name stays in tabData so rename / context-menu logic can
+        fetch it without parsing the '(N)' suffix out."""
+        # Make sure the current tray's internal counter matches the mirror
+        if self._current_tray in self._trays:
+            # Only the active tray has live _asset_ids; inactive trays
+            # hold their count in self._trays[name]
+            self._trays[self._current_tray] = list(self._asset_ids)
+        for i in range(self._tab_bar.count()):
+            name = self._tab_bar.tabData(i) or self._tab_bar.tabText(i)
+            count = len(self._trays.get(name, []))
+            label = f"{name} ({count})" if count else name
+            if self._tab_bar.tabText(i) != label:
+                self._tab_bar.setTabText(i, label)
 
     def _on_item_clicked(self, item):
         asset_id = item.data(Qt.ItemDataRole.UserRole)
@@ -595,19 +614,26 @@ class WorkTray(QWidget):
     # --- Tab management ---
 
     def _add_tray(self):
+        # Pick a name that doesn't collide even after reorder/rename
         n = self._tab_bar.count() + 1
         name = f"Tray {n}"
+        while name in self._trays:
+            n += 1
+            name = f"Tray {n}"
         self._trays[name] = []
-        self._tab_bar.addTab(name)
-        self._tab_bar.setCurrentIndex(self._tab_bar.count() - 1)
+        idx = self._tab_bar.addTab(name)
+        self._tab_bar.setTabData(idx, name)
+        self._tab_bar.setCurrentIndex(idx)
+        self._refresh_tab_counts()
 
     def _on_tab_changed(self, index: int):
         if index < 0:
             return
         # Save current tray contents
         self._trays[self._current_tray] = list(self._asset_ids)
-        # Switch to new tray
-        new_name = self._tab_bar.tabText(index)
+        # Switch to new tray (use tabData so the count suffix doesn't get
+        # treated as part of the tray name).
+        new_name = self._tab_bar.tabData(index) or self._tab_bar.tabText(index)
         self._current_tray = new_name
         # Reload list from stored data
         self._list.clear()
@@ -623,12 +649,12 @@ class WorkTray(QWidget):
         # Request thumbnails for the newly visible items
         if self._asset_ids:
             self.pixmaps_needed.emit(list(self._asset_ids))
+        self._refresh_tab_counts()
 
     def _tab_context_menu(self, pos):
         index = self._tab_bar.tabAt(pos)
         if index < 0:
             return
-        name = self._tab_bar.tabText(index)
         menu = QMenu(self)
         menu.addAction("Rename", lambda: self._rename_tray(index))
         if self._tab_bar.count() > 1:
@@ -636,30 +662,38 @@ class WorkTray(QWidget):
         menu.exec(self._tab_bar.mapToGlobal(pos))
 
     def _rename_tray(self, index: int):
-        old_name = self._tab_bar.tabText(index)
+        old_name = self._tab_bar.tabData(index) or self._tab_bar.tabText(index)
         new_name, ok = QInputDialog.getText(self, "Rename Tray", "Name:", text=old_name)
         if ok and new_name.strip() and new_name != old_name:
             new_name = new_name.strip()
+            if new_name in self._trays and new_name != old_name:
+                # Collision — bail silently rather than clobbering
+                return
             self._trays[new_name] = self._trays.pop(old_name, [])
             if self._current_tray == old_name:
                 self._current_tray = new_name
-            self._tab_bar.setTabText(index, new_name)
+            self._tab_bar.setTabData(index, new_name)
+            self._refresh_tab_counts()
 
     def _close_tray(self, index: int):
-        name = self._tab_bar.tabText(index)
+        name = self._tab_bar.tabData(index) or self._tab_bar.tabText(index)
         self._trays.pop(name, None)
         self._tab_bar.removeTab(index)
         # If we closed the active tray, switch to first remaining
         if name == self._current_tray:
-            self._current_tray = self._tab_bar.tabText(0)
+            self._current_tray = (self._tab_bar.tabData(0)
+                                   or self._tab_bar.tabText(0))
+        self._refresh_tab_counts()
 
     # --- Save/Load ---
 
     def save_state(self):
         """Return tray data. Dict of tray_name → asset_ids for named trays.
 
-        Iterates the QTabBar in display order so user-reordered tabs
-        round-trip correctly (Python dicts preserve insertion order).
+        Iterates the QTabBar in display order (using tabData for clean
+        names, since tabText now carries a '(N)' count suffix) so user
+        reorder and rename round-trip correctly. Python dicts preserve
+        insertion order.
         """
         # Save current tray before serializing
         self._trays[self._current_tray] = list(self._asset_ids)
@@ -668,7 +702,7 @@ class WorkTray(QWidget):
             return self._trays["Tray 1"]
         ordered = {}
         for i in range(self._tab_bar.count()):
-            name = self._tab_bar.tabText(i)
+            name = self._tab_bar.tabData(i) or self._tab_bar.tabText(i)
             ordered[name] = self._trays.get(name, [])
         # Include any trays that somehow aren't on the tab bar (shouldn't happen)
         for name, items in self._trays.items():
@@ -695,7 +729,8 @@ class WorkTray(QWidget):
         while self._tab_bar.count():
             self._tab_bar.removeTab(0)
         for name in tray_dict:
-            self._tab_bar.addTab(name)
+            idx = self._tab_bar.addTab(name)
+            self._tab_bar.setTabData(idx, name)
         first_name = next(iter(tray_dict), "Tray 1")
         self._current_tray = first_name
         self._tab_bar.setCurrentIndex(0)
@@ -704,6 +739,7 @@ class WorkTray(QWidget):
             asset = project.get_asset(aid)
             if asset:
                 self.add_asset(aid, Path(asset.source_path).name, path=asset.source_path)
+        self._refresh_tab_counts()
 
     def update_pixmap(self, asset_id: str, pixmap: QPixmap):
         """Update thumbnail for an item already in the tray."""
