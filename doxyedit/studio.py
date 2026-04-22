@@ -7839,6 +7839,50 @@ class StudioEditor(QWidget):
         _al_row.addWidget(self.btn_align_right)
         _al_row.addStretch()
         _dlg_layout.addRow("Align", _al_widget)
+
+        # Case transform row: UPPER / lower / Title. Rewrites the
+        # content of every selected text overlay's .text field.
+        _case_row = QHBoxLayout()
+        _case_row.setContentsMargins(0, 0, 0, 0)
+        def _case_transform(fn, label):
+            sel = [it for it in self._scene.selectedItems()
+                   if isinstance(it, OverlayTextItem)]
+            if not sel:
+                self.info_label.setText(
+                    "Select a text overlay first")
+                return
+            for it in sel:
+                new_text = fn(it.overlay.text or "")
+                if new_text != it.overlay.text:
+                    it.overlay.text = new_text
+                    it.setPlainText(new_text)
+                    if hasattr(it, "_apply_font"):
+                        it._apply_font()
+            # Also refresh the mini text editor.
+            if hasattr(self, "_tc_content_edit") and sel:
+                self._tc_content_syncing = True
+                try:
+                    self._tc_content_edit.setPlainText(sel[0].overlay.text or "")
+                finally:
+                    self._tc_content_syncing = False
+            self._sync_overlays_to_asset()
+            self.info_label.setText(f"{label} applied")
+        _btn_upper = QPushButton("UPPER")
+        _btn_upper.setToolTip("Transform selected text to UPPERCASE")
+        _btn_upper.clicked.connect(lambda: _case_transform(str.upper, "UPPER"))
+        _case_row.addWidget(_btn_upper)
+        _btn_lower = QPushButton("lower")
+        _btn_lower.setToolTip("Transform selected text to lowercase")
+        _btn_lower.clicked.connect(lambda: _case_transform(str.lower, "lower"))
+        _case_row.addWidget(_btn_lower)
+        _btn_title = QPushButton("Title")
+        _btn_title.setToolTip("Transform selected text to Title Case")
+        _btn_title.clicked.connect(lambda: _case_transform(str.title, "Title"))
+        _case_row.addWidget(_btn_title)
+        _case_row.addStretch()
+        _case_w = QWidget(_dlg)
+        _case_w.setLayout(_case_row)
+        _dlg_layout.addRow("Case", _case_w)
         _col_widget = QWidget(_dlg)
         _col_row = QHBoxLayout(_col_widget)
         _col_row.setContentsMargins(0, 0, 0, 0)
