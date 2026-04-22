@@ -7007,6 +7007,21 @@ class StudioEditor(QWidget):
         qp_fv_btn.clicked.connect(lambda: self._qp_flip("v"))
         quickbar.addWidget(qp_fv_btn)
 
+        qp_group_btn = QPushButton("Group")
+        qp_group_btn.setObjectName("studio_qp_group")
+        qp_group_btn.setToolTip(
+            "Group selected overlays (Ctrl+G). Clicking one member "
+            "then selects the whole group.")
+        qp_group_btn.clicked.connect(self._qp_group_selection)
+        quickbar.addWidget(qp_group_btn)
+
+        qp_ungroup_btn = QPushButton("Ungroup")
+        qp_ungroup_btn.setObjectName("studio_qp_ungroup")
+        qp_ungroup_btn.setToolTip(
+            "Ungroup selected overlays (Ctrl+Shift+G)")
+        qp_ungroup_btn.clicked.connect(self._qp_ungroup_selection)
+        quickbar.addWidget(qp_ungroup_btn)
+
         self._qp_label = QLabel("(no selection)")
         self._qp_label.setObjectName("studio_qp_label")
         quickbar.addWidget(self._qp_label)
@@ -10111,6 +10126,33 @@ class StudioEditor(QWidget):
         self._sync_overlays_to_asset()
         self._rebuild_layer_panel()
         self.info_label.setText("Hidden" if hidden else "Visible")
+
+    def _qp_group_selection(self):
+        """Quickbar Group button - assigns a fresh group_id to every
+        selected overlay. Mirrors Ctrl+G."""
+        sel = [it for it in self._scene.selectedItems() if hasattr(it, "overlay")]
+        if len(sel) < 2:
+            self.info_label.setText("Group needs 2+ overlays")
+            return
+        import uuid as _uuid
+        gid = f"g_{_uuid.uuid4().hex[:8]}"
+        for it in sel:
+            it.overlay.group_id = gid
+        self._sync_overlays_to_asset()
+        self.info_label.setText(f"Grouped {len(sel)} overlays")
+
+    def _qp_ungroup_selection(self):
+        """Quickbar Ungroup button - clears group_id on selected
+        overlays. Mirrors Ctrl+Shift+G."""
+        sel = [it for it in self._scene.selectedItems() if hasattr(it, "overlay")]
+        cleared = 0
+        for it in sel:
+            if getattr(it.overlay, "group_id", ""):
+                it.overlay.group_id = ""
+                cleared += 1
+        if cleared:
+            self._sync_overlays_to_asset()
+            self.info_label.setText(f"Ungrouped {cleared} overlays")
 
     def _qp_flip(self, axis: str):
         """Flip selected overlays horizontally or vertically. axis='h'
