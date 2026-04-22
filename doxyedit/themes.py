@@ -182,6 +182,8 @@ class Theme:
     studio_temp_arrow_pen_width: int = 4              # draft arrow pen width
     studio_temp_shape: str = "#ffd700"                # draft shape color while dragging
     studio_temp_shape_pen_width: int = 2              # draft shape pen width
+    studio_swatch_ring_pen_width: int = 3             # color-swatch outline ring thickness
+    studio_swatch_border_pen_width: int = 1           # color-swatch filled border thickness
     # Browser extras
     grid_folder_tag_alpha: int = 60        # folder label tag bg opacity
     tag_bar_active_alpha: int = 255        # active tag button opacity

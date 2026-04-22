@@ -3028,14 +3028,22 @@ class _StudioIcons:
     dark variant so the icon reads against any theme backdrop."""
 
     @staticmethod
-    def _pen(color_hex: str, w: float = 1.6) -> QPen:
+    def _fg() -> str:
+        return THEMES[DEFAULT_THEME].studio_icon_fg
+
+    @staticmethod
+    def _pen(color_hex: str | None = None, w: float = 1.6) -> QPen:
+        if color_hex is None:
+            color_hex = _StudioIcons._fg()
         p = QPen(QColor(color_hex), w)
         p.setCapStyle(Qt.PenCapStyle.RoundCap)
         p.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         return p
 
     @staticmethod
-    def make(draw_fn, size: int = 20, color: str = "#2a2a2a") -> QIcon:
+    def make(draw_fn, size: int = 20, color: str | None = None) -> QIcon:
+        if color is None:
+            color = _StudioIcons._fg()
         pix = QPixmap(size, size)
         pix.fill(Qt.GlobalColor.transparent)
         p = QPainter(pix)
@@ -3053,14 +3061,14 @@ class _StudioIcons:
             pts = [QPointF(4, 3), QPointF(4, s - 5),
                    QPointF(s // 2 - 1, s // 2 + 1),
                    QPointF(s - 5, s - 5)]
-            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.setBrush(QBrush(QColor(_StudioIcons._fg())))
             p.drawPolygon(QPolygonF(pts))
         return _StudioIcons.make(d)
 
     @staticmethod
     def text():
         def d(p, s):
-            pen = _StudioIcons._pen("#2a2a2a", 2.2)
+            pen = _StudioIcons._pen(_StudioIcons._fg(), 2.2)
             p.setPen(pen)
             p.drawLine(3, 5, s - 3, 5)
             p.drawLine(s // 2, 5, s // 2, s - 4)
@@ -3070,7 +3078,7 @@ class _StudioIcons:
     def censor():
         def d(p, s):
             r = QRectF(3, 6, s - 6, s - 12)
-            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.setBrush(QBrush(QColor(_StudioIcons._fg())))
             p.drawRect(r)
         return _StudioIcons.make(d)
 
@@ -3110,7 +3118,7 @@ class _StudioIcons:
             # Arrowhead
             pts = [QPointF(s - 3, 3), QPointF(s - 3, 9),
                    QPointF(s - 9, 3)]
-            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.setBrush(QBrush(QColor(_StudioIcons._fg())))
             p.drawPolygon(QPolygonF(pts))
         return _StudioIcons.make(d)
 
@@ -3125,7 +3133,7 @@ class _StudioIcons:
         def d(p, s):
             p.drawLine(3, s - 3, s - 6, 6)
             # Tip
-            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.setBrush(QBrush(QColor(_StudioIcons._fg())))
             p.drawEllipse(QPointF(3.5, s - 3.5), 2.3, 2.3)
             # Top cap
             p.drawRect(QRectF(s - 7, 3, 5, 5))
@@ -3139,7 +3147,7 @@ class _StudioIcons:
             path.moveTo(s - 3, s // 2)
             path.arcTo(QRectF(3, 3, s - 6, s - 6), 0, 210)
             p.drawPath(path)
-            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.setBrush(QBrush(QColor(_StudioIcons._fg())))
             pts = [QPointF(6, s - 6), QPointF(2, s - 3),
                    QPointF(6, s)]
             p.drawPolygon(QPolygonF(pts))
@@ -3152,7 +3160,7 @@ class _StudioIcons:
             path.moveTo(3, s // 2)
             path.arcTo(QRectF(3, 3, s - 6, s - 6), 180, 210)
             p.drawPath(path)
-            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.setBrush(QBrush(QColor(_StudioIcons._fg())))
             pts = [QPointF(s - 6, s - 6), QPointF(s - 2, s - 3),
                    QPointF(s - 6, s)]
             p.drawPolygon(QPolygonF(pts))
@@ -3234,7 +3242,7 @@ class _StudioIcons:
     def flip():
         def d(p, s):
             p.drawLine(s // 2, 3, s // 2, s - 3)
-            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.setBrush(QBrush(QColor(_StudioIcons._fg())))
             p.drawPolygon(QPolygonF([
                 QPointF(s // 2 - 2, 6), QPointF(4, s // 2),
                 QPointF(s // 2 - 2, s - 6)]))
@@ -3247,7 +3255,7 @@ class _StudioIcons:
     def export():
         def d(p, s):
             p.drawLine(s // 2, 3, s // 2, s - 8)
-            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.setBrush(QBrush(QColor(_StudioIcons._fg())))
             p.drawPolygon(QPolygonF([
                 QPointF(s // 2 - 4, s - 12), QPointF(s // 2, s - 8),
                 QPointF(s // 2 + 4, s - 12)]))
@@ -3274,7 +3282,7 @@ class _StudioIcons:
             p.drawLine(3, 6, s - 3, 6)
             p.drawLine(3, s // 2, s - 3, s // 2)
             p.drawLine(3, s - 6, s - 3, s - 6)
-            p.setBrush(QBrush(QColor("#2a2a2a")))
+            p.setBrush(QBrush(QColor(_StudioIcons._fg())))
             p.drawEllipse(QPointF(4, 6), 1.5, 1.5)
             p.drawEllipse(QPointF(4, s // 2), 1.5, 1.5)
             p.drawEllipse(QPointF(4, s - 6), 1.5, 1.5)
@@ -3292,7 +3300,8 @@ class _ColorSwatchButton(QPushButton):
     def __init__(self, is_outline: bool = False, parent=None):
         super().__init__("", parent)
         self._is_outline = is_outline
-        self._color = QColor("#000000")
+        _t = THEMES[DEFAULT_THEME]
+        self._color = QColor(_t.studio_overlay_handle_border)
         self.setMinimumSize(32, 26)
         # on_color_picked: (hex) -> None, called when user picks a
         # recent color from the right-click popup. Owner sets this.
@@ -3380,18 +3389,20 @@ class _ColorSwatchButton(QPushButton):
     def paintEvent(self, ev):
         # Let the theme draw the button frame, then paint the swatch on top.
         super().paintEvent(ev)
+        _t = THEMES[DEFAULT_THEME]
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = self.rect().adjusted(6, 5, -6, -5)
         if self._is_outline:
-            # Hollow ring: outlined rect on checkerboard so transparency is
+            # Hollow ring: outlined rect on neutral bg so transparency is
             # self-explanatory.
-            p.setBrush(QBrush(QColor("#ffffff")))
-            p.setPen(QPen(self._color, 3))
+            p.setBrush(QBrush(QColor(_t.studio_icon_fg)))
+            p.setPen(QPen(self._color, _t.studio_swatch_ring_pen_width))
             p.drawRect(r)
         else:
             p.setBrush(QBrush(self._color))
-            p.setPen(QPen(QColor("#333333"), 1))
+            p.setPen(QPen(QColor(_t.studio_icon_border),
+                          _t.studio_swatch_border_pen_width))
             p.drawRect(r)
         p.end()
 
