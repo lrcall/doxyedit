@@ -665,7 +665,9 @@ class OverlayShapeItem(QGraphicsItem):
     def hoverMoveEvent(self, event):
         # Swap cursor when hovering a handle so users know they can resize
         if self.isSelected():
-            if self._tail_handle_under(event.scenePos()):
+            if self._rotate_handle_under(event.scenePos()):
+                self.setCursor(Qt.CursorShape.PointingHandCursor)
+            elif self._tail_handle_under(event.scenePos()):
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
             else:
                 h = self._handle_under(event.scenePos())
@@ -811,6 +813,20 @@ class OverlayShapeItem(QGraphicsItem):
         return (abs(scene_pos.x() - tip.x()) <= r
                 and abs(scene_pos.y() - tip.y()) <= r)
 
+    def _rotate_handle_pos(self) -> QPointF:
+        """Scene-space position of the rotate handle: above the top edge
+        of the body, offset by a screen-space margin so it's always
+        reachable regardless of zoom."""
+        x, y = self.overlay.x, self.overlay.y
+        w = self.overlay.shape_w
+        return QPointF(x + w / 2, y - 22)
+
+    def _rotate_handle_under(self, scene_pos: QPointF) -> bool:
+        rh = self._rotate_handle_pos()
+        r = self.HANDLE_HIT_RADIUS
+        return (abs(scene_pos.x() - rh.x()) <= r
+                and abs(scene_pos.y() - rh.y()) <= r)
+
     def _is_bubble(self) -> bool:
         return self.overlay.shape_kind in ("speech_bubble", "thought_bubble")
 
@@ -832,7 +848,15 @@ class OverlayShapeItem(QGraphicsItem):
             max_x = max(r.right(), tip.x() + tail_pad)
             max_y = max(r.bottom(), tip.y() + tail_pad)
             r = QRectF(min_x, min_y, max_x - min_x, max_y - min_y)
-        return r
+        # Expand upward so the rotate-handle circle is inside the paint
+        # region when selected (otherwise dragging it leaves artifacts).
+        rh = self._rotate_handle_pos()
+        rh_pad = 10
+        min_x = min(r.left(), rh.x() - rh_pad)
+        min_y = min(r.top(), rh.y() - rh_pad)
+        max_x = max(r.right(), rh.x() + rh_pad)
+        max_y = max(r.bottom(), rh.y() + rh_pad)
+        return QRectF(min_x, min_y, max_x - min_x, max_y - min_y)
 
     def paint(self, painter, option, widget=None):
         r = QRectF(self.overlay.x, self.overlay.y,
@@ -910,6 +934,16 @@ class OverlayShapeItem(QGraphicsItem):
             painter.setBrush(QBrush(QColor(255, 200, 0)))
             for pt in self._handle_positions().values():
                 painter.drawRect(QRectF(pt.x() - _r, pt.y() - _r, 2 * _r, 2 * _r))
+            # Rotate handle: small green circle + connector line above the
+            # top-center edge. Drag to rotate; the Ctrl+R / R shortcuts
+            # still work but this makes the affordance discoverable.
+            rh = self._rotate_handle_pos()
+            top_mid = QPointF(r.center().x(), r.top())
+            painter.setPen(QPen(QColor(0, 200, 0), 1, Qt.PenStyle.DashLine))
+            painter.drawLine(top_mid, rh)
+            painter.setBrush(QBrush(QColor(120, 220, 120)))
+            painter.setPen(QPen(QColor(0, 0, 0), 1))
+            painter.drawEllipse(rh, 6, 6)
             # Tail tip handle for speech / thought bubbles: a cyan-outlined
             # circle at the tail point. Drag to move where the bubble points.
             if self._is_bubble():
@@ -941,6 +975,14 @@ class OverlayShapeItem(QGraphicsItem):
         # carry a stale previous value into a new drag session.
         self._drag_prev_value = QPointF(0, 0)
         if self.isSelected():
+            # Rotate handle wins over body/tail/resize - it sits outside
+            # the bbox and must be checked first or the tail/corner
+            # checks would miss it.
+            if self._rotate_handle_under(event.scenePos()):
+                self._dragging_handle = 'rotate'
+                self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                event.accept()
+                return
             # Tail handle wins when the shape is a bubble, so dragging the
             # tail tip never accidentally starts a body resize.
             if self._tail_handle_under(event.scenePos()):
@@ -985,6 +1027,27 @@ class OverlayShapeItem(QGraphicsItem):
         return None
 
     def mouseMoveEvent(self, event):
+        if self._dragging_handle == 'rotate':
+            # Rotate around body center toward the cursor. Shift snaps
+            # to 15° increments (InDesign convention).
+            import math as _m
+            cx = self.overlay.x + self.overlay.shape_w / 2
+            cy = self.overlay.y + self.overlay.shape_h / 2
+            sp = event.scenePos()
+            dx = sp.x() - cx
+            dy = sp.y() - cy
+            ang = _m.degrees(_m.atan2(dy, dx)) + 90  # 0 = up
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                ang = round(ang / 15) * 15
+            self.overlay.rotation = int(ang) % 360
+            self.setTransformOriginPoint(cx, cy)
+            self.setRotation(self.overlay.rotation)
+            self.update()
+            if self._editor:
+                self._editor.info_label.setText(
+                    f"Rotation: {self.overlay.rotation}°")
+            event.accept()
+            return
         if self._dragging_handle == 'tail':
             sp = event.scenePos()
             self.overlay.tail_x = int(sp.x())
