@@ -1880,8 +1880,29 @@ def generate_stylesheet(theme: Theme) -> str:
         }}
 
         /* ── Studio editor ─────────────────────────────────────────── */
+        /* Compact button tokens across all Studio toolbars. The default
+         * QPushButton padding is pad_lg which gives short labels too
+         * much space (the user sees 3-letter buttons with ~40% empty
+         * padding). Override to 2-3 px side padding so text fits the
+         * glyph. Scoped to the Studio wrappers so rest of app is
+         * unchanged. */
+        QWidget#studio_toolbar_wrap QPushButton,
+        QWidget#studio_quickbar_wrap QPushButton,
         QWidget#studio_props_row QPushButton {{
-            padding: 2px 4px; min-width: 24px;
+            padding: 2px 4px; min-width: 18px;
+        }}
+        QWidget#studio_toolbar_wrap QPushButton:checked,
+        QWidget#studio_quickbar_wrap QPushButton:checked,
+        QWidget#studio_props_row QPushButton:checked {{
+            padding: 2px 4px;
+        }}
+        /* Studio toolbars: spin / combo boxes get the same tight
+         * treatment so the combos don't tower over adjacent buttons. */
+        QWidget#studio_toolbar_wrap QSpinBox,
+        QWidget#studio_quickbar_wrap QSpinBox,
+        QWidget#studio_toolbar_wrap QComboBox,
+        QWidget#studio_quickbar_wrap QComboBox {{
+            padding: 1px 4px;
         }}
         QListWidget#studio_layer_panel {{
             background: {theme.bg_deep};

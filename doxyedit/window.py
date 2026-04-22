@@ -4440,6 +4440,17 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # first needing to click inside the canvas.
         if widget is self.studio:
             self.studio.setFocus()
+        else:
+            # Leaving the Studio tab: dismiss the Text Controls popup so
+            # it doesn't hang over unrelated tabs. Studio re-shows it
+            # automatically when the user selects text + returns.
+            if hasattr(self, "studio") and hasattr(
+                    self.studio, "_text_controls_dlg"):
+                try:
+                    if self.studio._text_controls_dlg.isVisible():
+                        self.studio._text_controls_dlg.hide()
+                except Exception:
+                    pass
 
     def _on_social_tick(self):
         """Auto-refresh social tab components every 60s if visible."""
