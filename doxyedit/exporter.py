@@ -214,21 +214,32 @@ def _composite_bubble_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Imag
             draw.rounded_rectangle(
                 body, radius=pad, fill=fill_rgba, outline=stroke_rgba,
                 width=width)
-            # Tail
+            # Tail. Overlap the base into the body interior so the tail
+            # polygon's fill covers the body outline at the attachment
+            # point (seamless outline). Only the two diagonal tail
+            # sides get drawn as lines, so there's no explicit base line
+            # crossing the body.
             tx = ov.tail_x or (x - int(w * 0.15))
             ty = ov.tail_y or (y + h + int(h * 0.35))
             cx, cy = x + w / 2, y + h / 2
             dx, dy = tx - cx, ty - cy
             horiz = abs(dx) > abs(dy)
             base_len = int(min(w, h) * 0.25)
+            overlap = max(4, int(min(w, h) * 0.08))
             if horiz:
-                edge_x = (x + w) if dx > 0 else x
+                if dx > 0:
+                    edge_x = (x + w) - overlap
+                else:
+                    edge_x = x + overlap
                 mid_y = int(max(y + pad,
                                  min(y + h - pad, ty * 0.5 + cy * 0.5)))
                 b1 = (edge_x, mid_y - base_len // 2)
                 b2 = (edge_x, mid_y + base_len // 2)
             else:
-                edge_y = (y + h) if dy > 0 else y
+                if dy > 0:
+                    edge_y = (y + h) - overlap
+                else:
+                    edge_y = y + overlap
                 mid_x = int(max(x + pad,
                                  min(x + w - pad, tx * 0.5 + cx * 0.5)))
                 b1 = (mid_x - base_len // 2, edge_y)

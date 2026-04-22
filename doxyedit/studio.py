@@ -699,7 +699,10 @@ class OverlayShapeItem(QGraphicsItem):
 
     def _paint_speech_bubble(self, painter, r: QRectF):
         """Rounded-rect body with a triangular tail anchored on the closest
-        edge to tail_tip."""
+        edge to tail_tip. Base points are pushed INTO the body by a small
+        overlap so path.united merges the tail and body into a single
+        seamless outline (no visible seam where the triangle meets the
+        rounded-rect edge)."""
         from PySide6.QtGui import QPainterPath
         pad = min(r.width(), r.height()) * 0.18
         tip = self._tail_tip(r)
@@ -708,14 +711,24 @@ class OverlayShapeItem(QGraphicsItem):
         dx, dy = tip.x() - cx, tip.y() - cy
         horiz = abs(dx) > abs(dy)
         base_len = min(r.width(), r.height()) * 0.25
+        # Overlap the tail base into the body interior so the union erases
+        # the seam. ~8% of body short-side, clamped to a minimum so small
+        # bubbles still merge cleanly.
+        overlap = max(4.0, min(r.width(), r.height()) * 0.08)
         if horiz:
-            edge_x = r.right() if dx > 0 else r.left()
+            if dx > 0:
+                edge_x = r.right() - overlap
+            else:
+                edge_x = r.left() + overlap
             mid_y = max(r.top() + pad,
                          min(r.bottom() - pad, tip.y() * 0.5 + cy * 0.5))
             b1 = QPointF(edge_x, mid_y - base_len / 2)
             b2 = QPointF(edge_x, mid_y + base_len / 2)
         else:
-            edge_y = r.bottom() if dy > 0 else r.top()
+            if dy > 0:
+                edge_y = r.bottom() - overlap
+            else:
+                edge_y = r.top() + overlap
             mid_x = max(r.left() + pad,
                          min(r.right() - pad, tip.x() * 0.5 + cx * 0.5))
             b1 = QPointF(mid_x - base_len / 2, edge_y)
@@ -924,6 +937,9 @@ class OverlayShapeItem(QGraphicsItem):
                 painter.drawEllipse(QPointF(ex, ey), 6, 6)
 
     def mousePressEvent(self, event):
+        # Fresh drag baseline so the delta tracker in itemChange doesn't
+        # carry a stale previous value into a new drag session.
+        self._drag_prev_value = QPointF(0, 0)
         if self.isSelected():
             # Tail handle wins when the shape is a bubble, so dragging the
             # tail tip never accidentally starts a body resize.
@@ -1049,6 +1065,10 @@ class OverlayShapeItem(QGraphicsItem):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
+        # Body-drag path: flush the accumulated delta reference so the
+        # next drag starts from zero. Also sync the overlay state
+        # through to the undo / save pipeline.
+        self._drag_prev_value = QPointF(0, 0)
         if self._dragging_handle is not None:
             self._dragging_handle = None
             self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
@@ -1056,6 +1076,8 @@ class OverlayShapeItem(QGraphicsItem):
                 self._editor._sync_overlays_to_asset()
             event.accept()
             return
+        if self._editor:
+            self._editor._sync_overlays_to_asset()
         super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event):
@@ -1079,10 +1101,16 @@ class OverlayShapeItem(QGraphicsItem):
         super().mouseDoubleClickEvent(event)
 
     def itemChange(self, change, value):
-        if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            pos = self.pos()
-            if pos != QPointF(0, 0):
-                dx, dy = int(pos.x()), int(pos.y())
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
+            # Feedback-loop fix: keep the item anchored at (0,0) so
+            # painting (which uses absolute overlay.x/y) never gets
+            # double-offset by Qt's transform. Apply only the incremental
+            # delta since the last itemChange to overlay.x/y so repeated
+            # mouseMoves don't cumulatively multiply the motion.
+            prev = getattr(self, "_drag_prev_value", QPointF(0, 0))
+            dx = int(value.x() - prev.x())
+            dy = int(value.y() - prev.y())
+            if dx or dy:
                 self.overlay.x += dx
                 self.overlay.y += dy
                 # Drag the tail with the body so the pointer stays anchored
@@ -1098,8 +1126,10 @@ class OverlayShapeItem(QGraphicsItem):
                             it.overlay.y += dy
                             it.setPos(it.overlay.x, it.overlay.y)
                             break
-                self.setPos(0, 0)
                 self.prepareGeometryChange()
+            self._drag_prev_value = value
+            # Refuse the position change so Qt leaves the item at (0,0).
+            return QPointF(0, 0)
         return super().itemChange(change, value)
 
     def contextMenuEvent(self, event):
@@ -4691,10 +4721,10 @@ class StudioEditor(QWidget):
             lambda txt: self.btn_redo.setToolTip(
                 f"Redo {txt} (Ctrl+Y)" if txt else "Redo (Ctrl+Y)"))
 
-        self.btn_history = QPushButton("⏱")
+        self.btn_history = QPushButton("Hist")
         self.btn_history.setObjectName("studio_btn_history")
         self.btn_history.setToolTip("Undo history panel")
-        self.btn_history.setFixedWidth(_icon_btn_w)
+        self.btn_history.setFixedWidth(int(_dt.font_size * 3.2))
         self.btn_history.clicked.connect(self._show_undo_history)
         toolbar.addWidget(self.btn_history)
         toolbar.addWidget(self.btn_undo)
@@ -4743,7 +4773,9 @@ class StudioEditor(QWidget):
         self._crop_combo.setObjectName("studio_crop_combo")
         from doxyedit.themes import THEMES, DEFAULT_THEME as _DT
         _t = THEMES[_DT]
-        self._crop_combo.setMinimumWidth(0)
+        # Wide enough for the longest platform slot label without eliding.
+        # `_icon_btn_w` * ~12 gives ~300px at the default Studio font size.
+        self._crop_combo.setMinimumWidth(max(160, int(_t.font_size * 14)))
         self._crop_combo.addItem("Free crop", None)
         for pid, platform in PLATFORMS.items():
             self._crop_combo.insertSeparator(self._crop_combo.count())
@@ -4868,62 +4900,71 @@ class StudioEditor(QWidget):
         self.spin_grid.valueChanged.connect(self._on_grid_spacing_changed)
         toolbar.addWidget(self.spin_grid)
 
-        self.chk_thirds = QPushButton("⅓")
+        # Toggle buttons use short ASCII labels instead of the obscure
+        # unicode glyphs that earlier versions relied on — user reported
+        # multiple Windows font setups where the glyphs rendered blank.
+        # Short 3-4 char strings are universally visible at any button
+        # width + theme combo. Tooltip still carries the full description.
+        _tog_w = max(_tw, int(_dt.font_size * 3.6))  # wider for labels
+
+        self.chk_thirds = QPushButton("Thirds")
         self.chk_thirds.setObjectName("studio_thirds_toggle")
         self.chk_thirds.setToolTip("Rule-of-thirds (Shift+G)")
         self.chk_thirds.setCheckable(True)
-        self.chk_thirds.setFixedWidth(_icon_btn_w)
+        self.chk_thirds.setFixedWidth(_tog_w)
         self.chk_thirds.toggled.connect(self._on_thirds_toggled)
         toolbar.addWidget(self.chk_thirds)
 
-        # View toggles — checkable QPushButtons, icon IS the button
-        self.chk_rulers = QPushButton("⫼")
+        # View toggles — checkable QPushButtons with text labels.
+        self.chk_rulers = QPushButton("Rulers")
         self.chk_rulers.setObjectName("studio_rulers_toggle")
         self.chk_rulers.setToolTip("Rulers")
         self.chk_rulers.setCheckable(True)
-        self.chk_rulers.setFixedWidth(_icon_btn_w)
+        self.chk_rulers.setFixedWidth(_tog_w)
         self.chk_rulers.setChecked(True)
         self.chk_rulers.toggled.connect(self._on_rulers_toggled)
         toolbar.addWidget(self.chk_rulers)
 
-        self.chk_notes = QPushButton("≣")
+        self.chk_notes = QPushButton("Notes")
         self.chk_notes.setObjectName("studio_notes_toggle")
         self.chk_notes.setToolTip("Notes")
         self.chk_notes.setCheckable(True)
-        self.chk_notes.setFixedWidth(_icon_btn_w)
+        self.chk_notes.setFixedWidth(_tog_w)
         self.chk_notes.setChecked(True)
         self.chk_notes.toggled.connect(self._on_notes_toggled)
         toolbar.addWidget(self.chk_notes)
 
-        self.chk_base = QPushButton("▣")
+        self.chk_base = QPushButton("Base")
         self.chk_base.setObjectName("studio_base_toggle")
         self.chk_base.setToolTip("Base image")
         self.chk_base.setCheckable(True)
-        self.chk_base.setFixedWidth(_icon_btn_w)
+        self.chk_base.setFixedWidth(_tog_w)
         self.chk_base.setChecked(True)
         self.chk_base.toggled.connect(self._on_base_toggled)
         toolbar.addWidget(self.chk_base)
 
-        self.chk_minimap = QPushButton("⊟")
+        self.chk_minimap = QPushButton("Map")
         self.chk_minimap.setObjectName("studio_minimap_toggle")
         self.chk_minimap.setToolTip("Minimap (M)")
         self.chk_minimap.setCheckable(True)
-        self.chk_minimap.setFixedWidth(_icon_btn_w)
+        self.chk_minimap.setFixedWidth(_tog_w)
         self.chk_minimap.toggled.connect(self._on_minimap_toggled)
         toolbar.addWidget(self.chk_minimap)
 
-        self.btn_focus = QPushButton("⛶")
+        self.btn_focus = QPushButton("Focus")
         self.btn_focus.setObjectName("studio_btn_focus")
         self.btn_focus.setToolTip("Hide layer panel + filmstrip for a larger canvas (period to toggle)")
         self.btn_focus.setCheckable(True)
+        self.btn_focus.setFixedWidth(_tog_w)
         self.btn_focus.toggled.connect(self._on_focus_toggled)
         toolbar.addWidget(self.btn_focus)
 
-        self.btn_flip_view = QPushButton("⇄")
+        self.btn_flip_view = QPushButton("Flip")
         self.btn_flip_view.setObjectName("studio_btn_flip_view")
         self.btn_flip_view.setToolTip(
             "Flip canvas preview horizontally (non-destructive composition check)")
         self.btn_flip_view.setCheckable(True)
+        self.btn_flip_view.setFixedWidth(_tog_w)
         self.btn_flip_view.toggled.connect(self._on_flip_view_toggled)
         toolbar.addWidget(self.btn_flip_view)
 
@@ -4960,27 +5001,28 @@ class StudioEditor(QWidget):
 
         toolbar.addWidget(QLabel("|"))
 
-        # Group 5: Export
-        self.btn_export = QPushButton("◉")
+        # Group 5: Export - text labels for visibility across themes.
+        self.btn_export = QPushButton("Export")
         self.btn_export.setObjectName("studio_btn_export")
         self.btn_export.setToolTip("Export preview PNG")
+        self.btn_export.setFixedWidth(_tog_w)
         self.btn_export.clicked.connect(self._export_preview)
         toolbar.addWidget(self.btn_export)
 
-        self.btn_export_plat = QPushButton("↥")
+        self.btn_export_plat = QPushButton("Export Platform")
         self.btn_export_plat.setObjectName("studio_btn_export_plat")
         self.btn_export_plat.setToolTip(
             "Export current platform (crop selected in combo)")
         self.btn_export_plat.clicked.connect(self._export_current_platform)
         toolbar.addWidget(self.btn_export_plat)
 
-        self.btn_export_all = QPushButton("⇑")
+        self.btn_export_all = QPushButton("Export All")
         self.btn_export_all.setObjectName("studio_btn_export_all")
         self.btn_export_all.setToolTip("Export all platforms")
         self.btn_export_all.clicked.connect(self._export_all_platforms)
         toolbar.addWidget(self.btn_export_all)
 
-        btn_queue = QPushButton("◷")
+        btn_queue = QPushButton("Queue")
         btn_queue.setObjectName("studio_queue_btn")
         btn_queue.setToolTip("Queue this asset for posting")
         btn_queue.clicked.connect(self._queue_current)
@@ -7049,6 +7091,10 @@ class StudioEditor(QWidget):
                 cursor = item.textCursor()
                 cursor.select(cursor.SelectionType.Document)
                 item.setTextCursor(cursor)
+        # Layer panel needs to refresh so the new text row shows up. Prior
+        # versions skipped this and the text was invisible in the list
+        # until the user clicked something else that triggered a rebuild.
+        self._rebuild_layer_panel()
         self._update_info()
 
     def _apply_template(self, index: int):
@@ -7151,7 +7197,9 @@ class StudioEditor(QWidget):
     def _sync_text_controls_visibility(self):
         """Show the floating text-controls dialog only when text context is
         active (text tool selected or a text overlay selected). Position
-        above the canvas so it doesn't block the cursor."""
+        above the canvas so it doesn't block the cursor. Robust against
+        off-screen restored geometry, hidden parents, and stacking races
+        so the dialog reliably appears when the user switches to text."""
         if not hasattr(self, "_text_controls_dlg"):
             return
         active_tool = getattr(self._scene, "current_tool", None)
@@ -7159,24 +7207,50 @@ class StudioEditor(QWidget):
         has_text_selected = any(
             isinstance(it, OverlayTextItem)
             for it in self._scene.selectedItems())
+        dlg = self._text_controls_dlg
         if has_text_tool or has_text_selected:
-            if not self._text_controls_dlg.isVisible():
-                # Inherit the app-wide stylesheet + Windows 11 caption tint
-                win = self.window()
-                if win is not None:
-                    self._text_controls_dlg.setStyleSheet(win.styleSheet())
-                self._text_controls_dlg.show()
-                if win is not None and hasattr(win, "_theme_dialog_titlebar"):
-                    win._theme_dialog_titlebar(self._text_controls_dlg)
-                # Position top-right of the canvas on first show
-                gv = self._view
-                if gv is not None:
-                    gp = gv.mapToGlobal(gv.viewport().rect().topRight())
-                    self._text_controls_dlg.move(
-                        gp.x() - self._text_controls_dlg.width() - 12,
-                        gp.y() + 12)
+            # Inherit the app-wide stylesheet + Windows 11 caption tint
+            win = self.window()
+            if win is not None:
+                dlg.setStyleSheet(win.styleSheet())
+            if not dlg.isVisible():
+                dlg.show()
+            if win is not None and hasattr(win, "_theme_dialog_titlebar"):
+                win._theme_dialog_titlebar(dlg)
+            # Clamp to the primary screen so a stale saved geometry
+            # can never park the dialog off-screen.
+            from PySide6.QtWidgets import QApplication
+            screen = QApplication.primaryScreen()
+            if screen is not None:
+                avail = screen.availableGeometry()
+                # If the dialog's top-left is offscreen or width/height
+                # is zero (fresh-show race), re-anchor to the canvas.
+                g = dlg.frameGeometry()
+                needs_reposition = (
+                    g.width() < 50 or g.height() < 50
+                    or not avail.intersects(g)
+                )
+                if needs_reposition:
+                    gv = self._view
+                    if gv is not None and gv.isVisible():
+                        gp = gv.mapToGlobal(gv.viewport().rect().topRight())
+                        target_x = gp.x() - max(dlg.width(), 360) - 12
+                        target_y = gp.y() + 12
+                    else:
+                        target_x = avail.right() - 380
+                        target_y = avail.top() + 80
+                    # Final clamp so we can't land past the screen
+                    target_x = max(avail.left() + 10,
+                                    min(avail.right() - 200, target_x))
+                    target_y = max(avail.top() + 10,
+                                    min(avail.bottom() - 200, target_y))
+                    dlg.move(target_x, target_y)
+            # Bring to front in case user had something else on top.
+            dlg.raise_()
+            dlg.activateWindow()
         else:
-            self._text_controls_dlg.hide()
+            if dlg.isVisible():
+                dlg.hide()
 
     def _on_selection_changed(self):
         # Text-controls popup follows selection
