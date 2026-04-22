@@ -8,6 +8,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QSize, QUrl, QMimeData, QSettings
 from PySide6.QtGui import QPixmap, QIcon, QDrag, QCursor
 from doxyedit.themes import ui_font_size
+from doxyedit.preview import HoverPreview
+from doxyedit.models import toggle_tags
 
 
 NAME_ROLE = Qt.ItemDataRole.UserRole + 1  # stores display name for view mode switching
@@ -73,14 +75,12 @@ class DragOutListWidget(QListWidget):
             if item:
                 path = item.data(PATH_ROLE)
                 if path:
-                    from doxyedit.preview import HoverPreview
                     HoverPreview.instance().show_for(path, QCursor.pos())
                     return
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.MiddleButton:
-            from doxyedit.preview import HoverPreview
             HoverPreview.instance().hide_preview()
             return
         super().mouseReleaseEvent(event)
@@ -466,7 +466,6 @@ class WorkTray(QWidget):
     def _toggle_tray_tag(self, asset_id: str, tag_id: str):
         if not hasattr(self, '_project') or not self._project:
             return
-        from doxyedit.models import toggle_tags
         asset = self._project.get_asset(asset_id)
         if asset:
             toggle_tags([asset], tag_id)
