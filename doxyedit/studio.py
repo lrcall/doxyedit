@@ -5061,6 +5061,20 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             dh_btn.toggled.connect(_arrow_dh)
             form.addRow("", dh_btn)
 
+            flip_dir_btn = QPushButton("Flip arrow direction")
+            flip_dir_btn.setToolTip(
+                "Swap arrow tail + tip endpoints so the arrow points "
+                "the other way without moving the overall line.")
+            def _flip_dir(_it=item):
+                ov_a = _it.overlay
+                ov_a.x, ov_a.end_x = ov_a.end_x, ov_a.x
+                ov_a.y, ov_a.end_y = ov_a.end_y, ov_a.y
+                _it.prepareGeometryChange()
+                _it.update()
+                editor._sync_overlays_to_asset()
+            flip_dir_btn.clicked.connect(_flip_dir)
+            form.addRow("", flip_dir_btn)
+
         self._root_layout.addStretch(1)
 
 
