@@ -377,7 +377,8 @@ class WorkTray(QWidget):
     def _refresh_tab_counts(self):
         """Update each tab's display text to include a live item count.
         Clean name stays in tabData so rename / context-menu logic can
-        fetch it without parsing the '(N)' suffix out."""
+        fetch it without parsing the '(N)' suffix out. Tooltip gets a
+        richer per-tray breakdown (T11)."""
         # Make sure the current tray's internal counter matches the mirror
         if self._current_tray in self._trays:
             # Only the active tray has live _asset_ids; inactive trays
@@ -389,6 +390,36 @@ class WorkTray(QWidget):
             label = f"{name} ({count})" if count else name
             if self._tab_bar.tabText(i) != label:
                 self._tab_bar.setTabText(i, label)
+            self._tab_bar.setTabToolTip(i, self._tab_stats_tooltip(name))
+
+    def _tab_stats_tooltip(self, name: str) -> str:
+        """Compute a breakdown for tray `name` (starred / tagged /
+        untagged / assigned). Returns plain text so native Qt tooltip
+        handles wrapping; no QSS needed."""
+        ids = self._trays.get(name, [])
+        n = len(ids)
+        if not n:
+            return f"{name}\n(empty)"
+        if not self._project:
+            return f"{name}: {n} items"
+        starred = tagged = untagged = assigned = 0
+        for aid in ids:
+            asset = self._project.get_asset(aid)
+            if asset is None:
+                continue
+            if asset.starred > 0:
+                starred += 1
+            if asset.tags:
+                tagged += 1
+            else:
+                untagged += 1
+            if asset.assignments:
+                assigned += 1
+        return (f"{name}: {n} item{'s' if n != 1 else ''}\n"
+                f"Starred: {starred}\n"
+                f"Tagged: {tagged}   Untagged: {untagged}\n"
+                f"Platform-assigned: {assigned}\n"
+                f"Right-click tab for actions")
 
     def _on_item_clicked(self, item):
         asset_id = item.data(Qt.ItemDataRole.UserRole)
