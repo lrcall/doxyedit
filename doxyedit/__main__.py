@@ -39,9 +39,12 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from doxyedit.models import (
+    Project, PLATFORMS, SocialPost, SocialPostStatus, check_fitness,
+)
+
 
 def cmd_summary(path: str):
-    from doxyedit.models import Project
     proj = Project.load(path)
     s = proj.summary()
     total = s.get("total_assets", 0)
@@ -55,7 +58,6 @@ def cmd_summary(path: str):
 
 
 def cmd_tags(path: str):
-    from doxyedit.models import Project
     proj = Project.load(path)
     for a in proj.assets:
         tags = ", ".join(a.tags) if a.tags else "(none)"
@@ -65,7 +67,6 @@ def cmd_tags(path: str):
 
 
 def cmd_untagged(path: str):
-    from doxyedit.models import Project
     proj = Project.load(path)
     untagged = [a for a in proj.assets if not a.tags]
     for a in untagged:
@@ -74,7 +75,6 @@ def cmd_untagged(path: str):
 
 
 def cmd_starred(path: str):
-    from doxyedit.models import Project
     proj = Project.load(path)
     for a in proj.assets:
         if a.starred > 0:
@@ -83,7 +83,6 @@ def cmd_starred(path: str):
 
 
 def cmd_ignored(path: str):
-    from doxyedit.models import Project
     proj = Project.load(path)
     for a in proj.assets:
         if "ignore" in a.tags:
@@ -92,7 +91,6 @@ def cmd_ignored(path: str):
 
 
 def cmd_notes(path: str):
-    from doxyedit.models import Project
     proj = Project.load(path)
     for a in proj.assets:
         if a.notes.strip():
@@ -102,7 +100,6 @@ def cmd_notes(path: str):
 
 
 def cmd_search(path: str, query: str):
-    from doxyedit.models import Project
     proj = Project.load(path)
     q = query.lower()
     results = [a for a in proj.assets
@@ -113,7 +110,6 @@ def cmd_search(path: str, query: str):
 
 
 def cmd_add_tag(path: str, asset_id: str, tag: str):
-    from doxyedit.models import Project
     proj = Project.load(path)
     asset = proj.get_asset(asset_id)
     if not asset:
@@ -128,7 +124,6 @@ def cmd_add_tag(path: str, asset_id: str, tag: str):
 
 
 def cmd_remove_tag(path: str, asset_id: str, tag: str):
-    from doxyedit.models import Project
     proj = Project.load(path)
     asset = proj.get_asset(asset_id)
     if not asset:
@@ -143,7 +138,6 @@ def cmd_remove_tag(path: str, asset_id: str, tag: str):
 
 
 def cmd_set_star(path: str, asset_id: str, value: str):
-    from doxyedit.models import Project
     proj = Project.load(path)
     asset = proj.get_asset(asset_id)
     if not asset:
@@ -155,14 +149,12 @@ def cmd_set_star(path: str, asset_id: str, value: str):
 
 
 def cmd_export_json(path: str):
-    from doxyedit.models import Project
     proj = Project.load(path)
     print(Path(path).read_text())
 
 
 def cmd_sync_tags(path: str, registry_path: str):
     """Merge tags bidirectionally between doxyproj and an external registry JSON."""
-    from doxyedit.models import Project
     proj = Project.load(path)
     reg = json.loads(Path(registry_path).read_text())
     reg_assets = {Path(a["path"]).stem: a for a in reg.get("assets", [])}
@@ -189,7 +181,6 @@ def cmd_sync_tags(path: str, registry_path: str):
 
 def cmd_strip_tags(path: str, tags_to_strip: str):
     """Bulk remove specific tags from all assets."""
-    from doxyedit.models import Project
     proj = Project.load(path)
     strip = set(tags_to_strip.split(","))
     count = 0
@@ -204,7 +195,6 @@ def cmd_strip_tags(path: str, tags_to_strip: str):
 
 def cmd_find_dupes(path: str, threshold: int = 10):
     """Perceptual hash scan for duplicates."""
-    from doxyedit.models import Project
     from PIL import Image as PILImage
     proj = Project.load(path)
 
@@ -243,7 +233,6 @@ def cmd_find_dupes(path: str, threshold: int = 10):
 
 def cmd_assign_slots(path: str):
     """Auto-suggest best-fit images for each platform slot."""
-    from doxyedit.models import Project, PLATFORMS, check_fitness
     from PIL import Image as PILImage
     proj = Project.load(path)
 
@@ -280,7 +269,6 @@ def cmd_assign_slots(path: str):
 
 def cmd_export_platform(path: str, platform_id: str, output: str):
     """Export assigned slot images resized to platform specs."""
-    from doxyedit.models import Project
     from doxyedit.exporter import export_project
     proj = Project.load(path)
     # Filter to just this platform
@@ -296,7 +284,6 @@ def cmd_export_platform(path: str, platform_id: str, output: str):
 
 def cmd_search_advanced(path: str, tag: str = None, min_width: int = 0, aspect: str = None):
     """Advanced search by tag, dimensions, aspect."""
-    from doxyedit.models import Project
     proj = Project.load(path)
     results = proj.assets
     if tag:
@@ -343,7 +330,6 @@ def cmd_search_advanced(path: str, tag: str = None, min_width: int = 0, aspect: 
 
 def cmd_extract_thumbs(path: str, size: int = 512, output: str = None):
     """Extract proxy thumbnails for all assets that don't have one yet."""
-    from doxyedit.models import Project
     from doxyedit.imaging import open_for_thumb
     from PIL import Image as PILImage
 
@@ -378,7 +364,6 @@ def cmd_extract_thumbs(path: str, size: int = 512, output: str = None):
 
 
 def cmd_status(path: str):
-    from doxyedit.models import Project, PLATFORMS
     proj = Project.load(path)
     for pid in proj.platforms:
         platform = PLATFORMS.get(pid)
@@ -404,7 +389,6 @@ def cmd_status(path: str):
 
 def cmd_schedule(project_path: str, args: list):
     """Show upcoming post schedule with optional filters."""
-    from doxyedit.models import Project, SocialPostStatus
     proj = Project.load(project_path)
 
     from_date = to_date = status_filter = fmt = None
@@ -463,7 +447,6 @@ def cmd_schedule(project_path: str, args: list):
 
 def cmd_gaps(project_path: str, args: list):
     """Find days with no scheduled posts."""
-    from doxyedit.models import Project
     proj = Project.load(project_path)
 
     from_date = None
@@ -510,7 +493,6 @@ def cmd_gaps(project_path: str, args: list):
 
 def cmd_post_list(project_path: str, args: list):
     """List all posts with status, schedule, platforms, caption preview."""
-    from doxyedit.models import Project
     proj = Project.load(project_path)
 
     status_filter = None
@@ -548,7 +530,6 @@ def cmd_post_list(project_path: str, args: list):
 
 def cmd_post_show(project_path: str, post_id: str):
     """Show all fields for a single post."""
-    from doxyedit.models import Project
     proj = Project.load(project_path)
     post = proj.get_post(post_id)
     if not post:
@@ -591,7 +572,6 @@ def cmd_post_show(project_path: str, post_id: str):
 
 def cmd_post_create(project_path: str, args: list):
     """Create a draft post."""
-    from doxyedit.models import Project, SocialPost, SocialPostStatus
 
     asset_ids = []
     platforms = []
@@ -702,7 +682,6 @@ def cmd_post_create(project_path: str, args: list):
 
 def cmd_post_update(project_path: str, post_id: str, args: list):
     """Update an existing post."""
-    from doxyedit.models import Project, SocialPostStatus
 
     proj = Project.load(project_path)
     post = proj.get_post(post_id)
@@ -761,7 +740,6 @@ def cmd_post_update(project_path: str, post_id: str, args: list):
 
 def cmd_post_push(project_path: str, args: list):
     """Push post(s) to OneUp."""
-    from doxyedit.models import Project, SocialPostStatus
 
     all_drafts = "--all-drafts" in args
     post_id = None
@@ -845,7 +823,6 @@ def cmd_post_push(project_path: str, args: list):
 
 def cmd_post_sync(project_path: str, args: list):
     """Sync post statuses from OneUp."""
-    from doxyedit.models import Project, SocialPostStatus
 
     proj = Project.load(project_path)
     queued = [p for p in proj.posts if p.status == SocialPostStatus.QUEUED and p.oneup_post_id]
@@ -887,7 +864,6 @@ def cmd_post_sync(project_path: str, args: list):
 
 def cmd_post_delete(project_path: str, post_id: str):
     """Delete a post (cancels on OneUp if queued)."""
-    from doxyedit.models import Project, SocialPostStatus
 
     proj = Project.load(project_path)
     post = proj.get_post(post_id)
@@ -917,7 +893,6 @@ def cmd_post_delete(project_path: str, post_id: str):
 
 def cmd_watermark(project_path: str, args: list):
     """Apply a watermark overlay to an image. Watermark config from config.yaml."""
-    from doxyedit.models import Project
     from pathlib import Path as _Path
     from PIL import Image, ImageDraw, ImageFont
 
@@ -1045,7 +1020,6 @@ def cmd_watermark(project_path: str, args: list):
 
 def cmd_flatten(project_path: str, args: list):
     """Flatten PSD/PSB files to PNG/JPG for posting. Also handles crop regions."""
-    from doxyedit.models import Project
     from pathlib import Path as _Path
 
     proj = Project.load(project_path)
@@ -1129,7 +1103,6 @@ def cmd_flatten(project_path: str, args: list):
 def cmd_plan_posts(project_path: str, args: list):
     """Generate a posting plan briefing — asset inventory, post history, gaps, identity.
     Outputs everything Claude needs to plan months of posts."""
-    from doxyedit.models import Project, SocialPost, SocialPostStatus
 
     proj = Project.load(project_path)
 
@@ -1331,7 +1304,6 @@ def cmd_plan_posts(project_path: str, args: list):
 
 def cmd_post_history(project_path: str, args: list):
     """Show what's been posted — full history for reference."""
-    from doxyedit.models import Project
     proj = Project.load(project_path)
     fmt = "table"
     i = 0
@@ -1375,7 +1347,6 @@ def cmd_post_history(project_path: str, args: list):
 
 def cmd_suggest(project_path: str, args: list):
     """Suggest unposted assets scored by stars + tag rarity."""
-    from doxyedit.models import Project
 
     count = 10
     exclude_tags = set()
@@ -1444,7 +1415,6 @@ def cmd_transport(project_path: str, args: list):
     Stores original paths in each asset's specs.original_path / specs.original_folder.
     Enables local_mode so the project becomes fully portable.
     """
-    from doxyedit.models import Project
 
     dry_run = "--dry-run" in args
     compact = "--compact" in args
@@ -1614,7 +1584,6 @@ def cmd_transport(project_path: str, args: list):
 
 def cmd_untransport(project_path: str):
     """Restore original absolute paths from transport metadata in specs."""
-    from doxyedit.models import Project
 
     proj = Project.load(project_path)
     restored = 0
