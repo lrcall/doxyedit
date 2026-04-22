@@ -26,7 +26,9 @@ from PySide6.QtGui import (
 from doxyedit.models import (
     Asset, Project, TAG_PRESETS, TAG_SIZED, TAG_ALL, TAG_SHORTCUTS,
     TagPreset, toggle_tags, next_tag_color, STAR_COLORS, VINIK_COLORS,
+    PLATFORMS, PlatformAssignment, PostStatus,
 )
+from doxyedit.themes import THEMES, DEFAULT_THEME
 from doxyedit.preview import HoverPreview
 from doxyedit.thumbcache import ThumbCache, THUMB_SIZE
 
@@ -380,7 +382,6 @@ class ThumbnailModel(QAbstractListModel):
     def update_readiness(self, project, default_platforms: list[str]):
         """Compute readiness for all assets. Call after project changes."""
         from doxyedit.pipeline import check_readiness
-        from doxyedit.models import PLATFORMS
         for asset in self._assets:
             if asset.id in self._readiness_cache:
                 continue
@@ -436,7 +437,6 @@ class ThumbnailDelegate(QStyledItemDelegate):
         self._scaled_cache_max = 2048  # cap to bound QPixmap memory growth
         self._fonts: dict[int, QFont] = {}       # size → QFont (cached to avoid per-paint allocs)
         self._fms: dict[int, QFontMetrics] = {}  # size → QFontMetrics
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         self._theme = THEMES[DEFAULT_THEME]
         self._update_metrics()
 
@@ -1089,7 +1089,6 @@ class FolderSection(QWidget):
             bg = QColor(theme.bg_deep)
             is_dark = bg.lightness() < 128
         else:
-            from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
             base = QColor(_dt.accent)
             bg = QColor(_dt.bg_deep)
@@ -1113,7 +1112,6 @@ class FolderSection(QWidget):
     def _set_random_chip(self):
         """Left border chip indicator — theme-aware."""
         color = self._theme_accent_variant()
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         color.setAlpha(_dt.tag_bar_active_alpha)  # chip needs full opacity
         self._chip_color = color.name()
@@ -2224,8 +2222,7 @@ class AssetBrowser(QWidget):
         if self.filter_posted.isChecked():
             preds.append(lambda a: any(pa.status == "posted" for pa in a.assignments))
         if self.filter_needs_censor.isChecked():
-            from doxyedit.models import PLATFORMS as _PLATS
-            _cp = {pid for pid, p in _PLATS.items() if p.needs_censor}
+            _cp = {pid for pid, p in PLATFORMS.items() if p.needs_censor}
             preds.append(lambda a, cp=_cp:
                          any(pa.platform in cp for pa in a.assignments) and not a.censors)
 
@@ -3282,21 +3279,19 @@ class AssetBrowser(QWidget):
             menu.addAction("Find Similar Assets", lambda: self._find_similar(asset))
         # Platform status update submenu
         if asset.assignments:
-            from doxyedit.models import PostStatus as _PS
             status_menu = menu.addMenu(f"Update Status ({len(asset.assignments)} assignments)")
             for pa in asset.assignments:
                 sub = status_menu.addMenu(f"{pa.platform} / {pa.slot} [{pa.status}]")
-                for s in (_PS.PENDING, _PS.READY, _PS.POSTED, _PS.SKIP):
+                for s in (PostStatus.PENDING, PostStatus.READY, PostStatus.POSTED, PostStatus.SKIP):
                     label = f"{'✓ ' if pa.status == s else ''}{s}"
                     sub.addAction(label, lambda _pa=pa, _s=s: self._set_assignment_status(_pa, _s))
 
         # Platform assignment submenu
-        from doxyedit.models import PLATFORMS as _PLATS, PlatformAssignment, PostStatus
         if self.project.platforms:
             assign_menu = menu.addMenu("Assign to Platform")
             sel_assets = self.get_selected_assets() or [asset]
             for pid in self.project.platforms:
-                plat = _PLATS.get(pid)
+                plat = PLATFORMS.get(pid)
                 if not plat:
                     continue
                 p_menu = assign_menu.addMenu(plat.name)
