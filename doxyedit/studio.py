@@ -4227,6 +4227,48 @@ class StudioEditor(QWidget):
         if ctrl and alt and not shift and key == Qt.Key.Key_T:
             self._open_transform_dialog()
             return
+        # Ctrl+Alt+S - scale selected overlay(s) by percentage (dialog).
+        # Scales w and h uniformly; image overlays also scale via `scale`
+        # attr so the pixmap gets regenerated at the new size.
+        if ctrl and alt and not shift and key == Qt.Key.Key_S:
+            value, ok = QInputDialog.getInt(
+                self, "Scale Overlay",
+                "Scale percentage (100 = no change):",
+                value=100, minValue=5, maxValue=1000)
+            if ok and value != 100:
+                factor = value / 100.0
+                touched = False
+                for item in self._scene.selectedItems():
+                    ov = getattr(item, "overlay", None)
+                    if ov is None:
+                        continue
+                    if isinstance(item, OverlayShapeItem):
+                        # Pivot around the current center so the scale
+                        # looks natural. Update tail alongside.
+                        cx = ov.x + ov.shape_w / 2
+                        cy = ov.y + ov.shape_h / 2
+                        ov.shape_w = max(4, int(ov.shape_w * factor))
+                        ov.shape_h = max(4, int(ov.shape_h * factor))
+                        ov.x = int(cx - ov.shape_w / 2)
+                        ov.y = int(cy - ov.shape_h / 2)
+                        item.prepareGeometryChange()
+                        item.update()
+                        touched = True
+                    elif isinstance(item, OverlayImageItem):
+                        ov.scale = max(0.05, ov.scale * factor)
+                        if hasattr(item, "_apply_flip"):
+                            item._apply_flip()
+                        item.update()
+                        touched = True
+                    elif isinstance(item, OverlayTextItem):
+                        ov.font_size = max(4, int(ov.font_size * factor))
+                        if hasattr(item, "_apply_font"):
+                            item._apply_font()
+                        touched = True
+                if touched:
+                    self._sync_overlays_to_asset()
+                    self.info_label.setText(f"Scaled by {value}%")
+            return
         # F12 toggles snap on/off. Remembers the last non-zero threshold
         # so the user can flip between 'no snap' and 'my usual snap'
         # without re-entering the value each time.
