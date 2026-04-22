@@ -8019,10 +8019,16 @@ class StudioEditor(QWidget):
         quickbar.addWidget(self._qp_label)
 
         quickbar.addStretch()
-        _quickbar_wrap = QWidget()
-        _quickbar_wrap.setObjectName("studio_quickbar_wrap")
-        _quickbar_wrap.setLayout(quickbar)
-        root.addWidget(_quickbar_wrap)
+        self._quickbar_wrap = QWidget()
+        self._quickbar_wrap.setObjectName("studio_quickbar_wrap")
+        self._quickbar_wrap.setLayout(quickbar)
+        root.addWidget(self._quickbar_wrap)
+        # Restore hide / show pref across sessions - user has a setting
+        # in Studio Settings > View > 'Show Quick Actions bar' for this.
+        from PySide6.QtCore import QSettings as _QS
+        _qb_vis = _QS("DoxyEdit", "DoxyEdit").value(
+            "studio_quickbar_visible", True, type=bool)
+        self._quickbar_wrap.setVisible(_qb_vis)
 
         # Row 2: Overlay properties (visible when text/watermark selected)
         self._props_row = QWidget()
@@ -13077,64 +13083,129 @@ class StudioEditor(QWidget):
             item.setHidden(bool(needle) and needle not in label)
 
     def _show_studio_settings(self):
-        """Studio-wide settings popup: snap, grid, rulers, minimap,
-        bubble autofit, zoom upscale mode, base bg color preset, etc.
-        Single dialog beats hunting across ruler right-clicks + canvas
-        right-clicks + toolbar toggles for preferences the user wants
-        persistent.
-        """
+        """Studio-wide settings popup organized into tabs so the long
+        list of preferences (snap, grid, rulers, rendering, bubbles,
+        tools, shortcuts) fits on a reasonable screen and gets grouped
+        by intent. Single place to tune everything — no more hunting
+        across ruler right-clicks / canvas right-clicks / toolbar
+        toggles for persistent preferences."""
         from PySide6.QtWidgets import (
-            QDialog, QFormLayout, QSpinBox, QCheckBox, QComboBox,
-            QDialogButtonBox, QLabel)
+            QDialog, QFormLayout, QSpinBox, QDoubleSpinBox, QCheckBox,
+            QComboBox, QDialogButtonBox, QLabel, QTabWidget, QWidget,
+            QVBoxLayout)
         from PySide6.QtCore import QSettings as _QS
         qs = _QS("DoxyEdit", "DoxyEdit")
         dlg = QDialog(self)
         dlg.setWindowTitle("Studio Settings")
-        dlg.setMinimumWidth(360)
-        form = QFormLayout(dlg)
+        dlg.setMinimumWidth(460)
+        dlg.setMinimumHeight(540)
+        root = QVBoxLayout(dlg)
+        tabs = QTabWidget(dlg)
+        root.addWidget(tabs)
 
-        form.addRow(QLabel("<b>Snap & Grid</b>"))
+        # ── Tab: Snap & Grid ─────────────────────────────────────────
+        tab_snap = QWidget()
+        snap_form = QFormLayout(tab_snap)
         snap_spin = QSpinBox()
         snap_spin.setRange(0, 50)
         snap_spin.setSuffix(" px")
         snap_spin.setValue(qs.value("studio_snap_threshold_px", 0, type=int))
         snap_spin.setToolTip(
-            "Distance (px) within which items snap to other edges / guides. "
-            "0 disables snap. F12 toggles.")
-        form.addRow("Snap proximity", snap_spin)
+            "Distance (px) within which items snap to other edges / "
+            "guides. 0 disables snap. F12 toggles.")
+        snap_form.addRow("Snap proximity", snap_spin)
+
+        snap_center_cb = QCheckBox("Snap to canvas center lines")
+        snap_center_cb.setChecked(qs.value(
+            "studio_snap_canvas_center", True, type=bool))
+        snap_form.addRow("", snap_center_cb)
+
+        snap_edge_cb = QCheckBox("Snap to canvas edges")
+        snap_edge_cb.setChecked(qs.value(
+            "studio_snap_canvas_edge", True, type=bool))
+        snap_form.addRow("", snap_edge_cb)
+
+        snap_sib_cb = QCheckBox("Snap to other overlays (smart guides)")
+        snap_sib_cb.setChecked(qs.value(
+            "studio_snap_siblings", True, type=bool))
+        snap_form.addRow("", snap_sib_cb)
 
         grid_cb = QCheckBox("Show snap grid")
         grid_cb.setChecked(qs.value("studio_grid_visible", False, type=bool))
-        form.addRow("", grid_cb)
+        snap_form.addRow("", grid_cb)
+
+        grid_unit_combo = QComboBox()
+        grid_unit_combo.addItem("Pixels", "px")
+        grid_unit_combo.addItem("Percent of canvas width", "pct")
+        cur_grid_unit = qs.value("studio_grid_unit", "px", type=str)
+        grid_unit_combo.setCurrentIndex(
+            0 if cur_grid_unit != "pct" else 1)
+        grid_unit_combo.setToolTip(
+            "Grid cells in pixels (fixed) or percent of canvas width "
+            "(scales with asset).")
+        snap_form.addRow("Grid unit", grid_unit_combo)
 
         grid_spin = QSpinBox()
-        grid_spin.setRange(5, 500)
-        grid_spin.setSingleStep(5)
+        grid_spin.setRange(1, 500)
+        grid_spin.setSingleStep(1)
         grid_spin.setSuffix(" px")
         grid_spin.setValue(qs.value(
             "studio_grid_spacing", STUDIO_GRID_SPACING, type=int))
-        form.addRow("Grid spacing", grid_spin)
+        snap_form.addRow("Grid spacing (px)", grid_spin)
 
-        form.addRow(QLabel(""))
-        form.addRow(QLabel("<b>View</b>"))
+        grid_pct_spin = QDoubleSpinBox()
+        grid_pct_spin.setRange(0.5, 50.0)
+        grid_pct_spin.setDecimals(1)
+        grid_pct_spin.setSingleStep(0.5)
+        grid_pct_spin.setSuffix(" %")
+        grid_pct_spin.setValue(qs.value(
+            "studio_grid_spacing_pct", 5.0, type=float))
+        snap_form.addRow("Grid spacing (%)", grid_pct_spin)
+        tabs.addTab(tab_snap, "Snap / Grid")
+
+        # ── Tab: View ────────────────────────────────────────────────
+        tab_view = QWidget()
+        view_form = QFormLayout(tab_view)
         rulers_cb = QCheckBox("Show rulers")
         rulers_cb.setChecked(qs.value("studio_rulers_visible", True, type=bool))
-        form.addRow("", rulers_cb)
+        view_form.addRow("", rulers_cb)
+
+        ruler_unit_combo = QComboBox()
+        ruler_unit_combo.addItem("Pixels (px)", "px")
+        ruler_unit_combo.addItem("Millimetres (mm)", "mm")
+        ruler_unit_combo.addItem("Inches (in)", "in")
+        ruler_unit_combo.addItem("Percent (%)", "pct")
+        _ru = qs.value("studio_ruler_unit", "px", type=str)
+        _ru_idx = {"px": 0, "mm": 1, "in": 2, "pct": 3}.get(_ru, 0)
+        ruler_unit_combo.setCurrentIndex(_ru_idx)
+        view_form.addRow("Ruler units", ruler_unit_combo)
 
         thirds_cb = QCheckBox("Rule-of-thirds overlay")
         thirds_cb.setChecked(qs.value("studio_thirds_visible", False, type=bool))
-        form.addRow("", thirds_cb)
+        view_form.addRow("", thirds_cb)
 
         notes_cb = QCheckBox("Show note overlays")
         notes_cb.setChecked(qs.value("studio_notes_visible", True, type=bool))
-        form.addRow("", notes_cb)
+        view_form.addRow("", notes_cb)
 
         minimap_cb = QCheckBox("Show minimap")
         minimap_cb.setChecked(qs.value("studio_minimap_visible", False, type=bool))
-        form.addRow("", minimap_cb)
+        view_form.addRow("", minimap_cb)
 
-        form.addRow(QLabel(""))
-        form.addRow(QLabel("<b>Canvas rendering</b>"))
+        quickbar_cb = QCheckBox("Show Quick Actions bar")
+        quickbar_cb.setChecked(qs.value(
+            "studio_quickbar_visible", True, type=bool))
+        view_form.addRow("", quickbar_cb)
+
+        props_cb = QCheckBox("Show properties row")
+        props_cb.setChecked(qs.value(
+            "studio_propsrow_visible", True, type=bool))
+        view_form.addRow("", props_cb)
+        tabs.addTab(tab_view, "View")
+
+        # ── Tab: Rendering ───────────────────────────────────────────
+        tab_render = QWidget()
+        rend_form = QFormLayout(tab_render)
         upscale_combo = QComboBox()
         upscale_combo.addItem("Smooth (bilinear)", "smooth")
         upscale_combo.addItem("Nearest (pixel art)", "nearest")
@@ -13143,25 +13214,127 @@ class StudioEditor(QWidget):
         upscale_combo.setToolTip(
             "Smoothing applied when the canvas is zoomed in past 100%. "
             "Nearest preserves hard pixel edges for pixel art.")
-        form.addRow("Zoom upscale", upscale_combo)
+        rend_form.addRow("Zoom upscale", upscale_combo)
 
-        form.addRow(QLabel(""))
-        form.addRow(QLabel("<b>Bubble workflow</b>"))
+        aa_cb = QCheckBox("Antialias shape + arrow outlines")
+        aa_cb.setChecked(qs.value("studio_render_aa", True, type=bool))
+        rend_form.addRow("", aa_cb)
+
+        text_aa_cb = QCheckBox("Antialias text")
+        text_aa_cb.setChecked(qs.value("studio_render_text_aa", True, type=bool))
+        rend_form.addRow("", text_aa_cb)
+
+        hq_cb = QCheckBox("High-quality pixmap transform")
+        hq_cb.setChecked(qs.value("studio_render_hq", True, type=bool))
+        hq_cb.setToolTip(
+            "Slower but higher fidelity when rotating / scaling "
+            "images. Turn off for better performance on huge assets.")
+        rend_form.addRow("", hq_cb)
+
+        lossless_cb = QCheckBox("Lossless-text rendering (LcdText)")
+        lossless_cb.setChecked(qs.value(
+            "studio_render_lossless_text", False, type=bool))
+        lossless_cb.setToolTip(
+            "Uses LCD subpixel-optimised text rendering. Looks great "
+            "on LCD monitors, worse on rotated / non-native-DPI screens.")
+        rend_form.addRow("", lossless_cb)
+
+        canvas_bg_combo = QComboBox()
+        canvas_bg_combo.addItem("Theme default", "theme")
+        canvas_bg_combo.addItem("Black", "#000000")
+        canvas_bg_combo.addItem("White", "#ffffff")
+        canvas_bg_combo.addItem("Dark gray", "#3a3a3a")
+        canvas_bg_combo.addItem("Light gray", "#cccccc")
+        canvas_bg_combo.addItem("Checkerboard", "checker")
+        cur_bg = qs.value("studio_bg_color", "theme", type=str)
+        _bg_idx = {
+            "theme": 0, "#000000": 1, "#ffffff": 2,
+            "#3a3a3a": 3, "#cccccc": 4, "checker": 5,
+        }.get(cur_bg, 0)
+        canvas_bg_combo.setCurrentIndex(_bg_idx)
+        rend_form.addRow("Canvas background", canvas_bg_combo)
+        tabs.addTab(tab_render, "Rendering")
+
+        # ── Tab: Bubbles ─────────────────────────────────────────────
+        tab_bub = QWidget()
+        bub_form = QFormLayout(tab_bub)
         autofit_cb = QCheckBox("Auto-fit bubble to text on edit exit")
         autofit_cb.setChecked(qs.value(
             "studio_bubble_autofit", True, type=bool))
-        form.addRow("", autofit_cb)
+        bub_form.addRow("", autofit_cb)
 
-        form.addRow(QLabel(""))
-        form.addRow(QLabel("<b>Tools</b>"))
+        tail_curve_spin = QDoubleSpinBox()
+        tail_curve_spin.setRange(-1.0, 1.0)
+        tail_curve_spin.setSingleStep(0.1)
+        tail_curve_spin.setDecimals(2)
+        tail_curve_spin.setValue(qs.value(
+            "studio_bubble_default_tail_curve", 0.0, type=float))
+        tail_curve_spin.setToolTip(
+            "Default tail curvature on newly-drawn speech / thought "
+            "bubbles (-1 = curves left, +1 = curves right, 0 = straight).")
+        bub_form.addRow("Default tail curve", tail_curve_spin)
+
+        bubble_margin_spin = QSpinBox()
+        bubble_margin_spin.setRange(4, 100)
+        bubble_margin_spin.setSuffix(" px")
+        bubble_margin_spin.setValue(qs.value(
+            "studio_bubble_text_margin", 20, type=int))
+        bubble_margin_spin.setToolTip(
+            "Padding between bubble interior and the text block when "
+            "auto-fit resizes the bubble.")
+        bub_form.addRow("Text padding", bubble_margin_spin)
+        tabs.addTab(tab_bub, "Bubbles")
+
+        # ── Tab: Tools ───────────────────────────────────────────────
+        tab_tools = QWidget()
+        tools_form = QFormLayout(tab_tools)
         sticky_cb = QCheckBox("Sticky tools (stay selected after use)")
-        sticky_cb.setChecked(qs.value("studio_sticky_tools", True, type=bool))
-        form.addRow("", sticky_cb)
+        sticky_cb.setChecked(qs.value(
+            "studio_sticky_tools", True, type=bool))
+        tools_form.addRow("", sticky_cb)
+
+        nudge_spin = QSpinBox()
+        nudge_spin.setRange(1, 50)
+        nudge_spin.setSuffix(" px")
+        nudge_spin.setValue(qs.value(
+            "studio_nudge_step", 1, type=int))
+        nudge_spin.setToolTip(
+            "Arrow-key nudge distance for selected overlays.")
+        tools_form.addRow("Nudge distance", nudge_spin)
+
+        shift_mult_spin = QSpinBox()
+        shift_mult_spin.setRange(2, 100)
+        shift_mult_spin.setValue(qs.value(
+            "studio_nudge_shift_mult", 10, type=int))
+        shift_mult_spin.setToolTip(
+            "Multiplier for Shift+arrow nudge (e.g. 10 = Shift+arrow "
+            "moves 10× the base nudge).")
+        tools_form.addRow("Shift nudge multiplier", shift_mult_spin)
+
+        wheel_zoom_combo = QComboBox()
+        wheel_zoom_combo.addItem(
+            "Plain wheel = zoom, Shift+wheel = pan", "zoom")
+        wheel_zoom_combo.addItem(
+            "Plain wheel = pan, Ctrl+wheel = zoom", "pan")
+        cur_ws = qs.value("studio_wheel_scheme", "zoom", type=str)
+        wheel_zoom_combo.setCurrentIndex(0 if cur_ws != "pan" else 1)
+        tools_form.addRow("Mouse wheel", wheel_zoom_combo)
+
+        pan_accel_spin = QDoubleSpinBox()
+        pan_accel_spin.setRange(0.1, 5.0)
+        pan_accel_spin.setSingleStep(0.1)
+        pan_accel_spin.setDecimals(2)
+        pan_accel_spin.setValue(qs.value(
+            "studio_pan_accel", 1.0, type=float))
+        pan_accel_spin.setToolTip(
+            "Multiplier for Space+drag / middle-drag pan speed.")
+        tools_form.addRow("Pan speed", pan_accel_spin)
+        tabs.addTab(tab_tools, "Tools")
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
             | QDialogButtonBox.StandardButton.Cancel)
-        form.addRow(buttons)
+        root.addWidget(buttons)
         buttons.accepted.connect(dlg.accept)
         buttons.rejected.connect(dlg.reject)
 
@@ -13176,15 +13349,34 @@ class StudioEditor(QWidget):
             return
         # Apply + persist
         qs.setValue("studio_snap_threshold_px", snap_spin.value())
+        qs.setValue("studio_snap_canvas_center", snap_center_cb.isChecked())
+        qs.setValue("studio_snap_canvas_edge", snap_edge_cb.isChecked())
+        qs.setValue("studio_snap_siblings", snap_sib_cb.isChecked())
         qs.setValue("studio_grid_visible", grid_cb.isChecked())
+        qs.setValue("studio_grid_unit", grid_unit_combo.currentData())
         qs.setValue("studio_grid_spacing", grid_spin.value())
+        qs.setValue("studio_grid_spacing_pct", grid_pct_spin.value())
         qs.setValue("studio_rulers_visible", rulers_cb.isChecked())
+        qs.setValue("studio_ruler_unit", ruler_unit_combo.currentData())
         qs.setValue("studio_thirds_visible", thirds_cb.isChecked())
         qs.setValue("studio_notes_visible", notes_cb.isChecked())
         qs.setValue("studio_minimap_visible", minimap_cb.isChecked())
+        qs.setValue("studio_quickbar_visible", quickbar_cb.isChecked())
+        qs.setValue("studio_propsrow_visible", props_cb.isChecked())
         qs.setValue("studio_upscale_mode", upscale_combo.currentData())
+        qs.setValue("studio_render_aa", aa_cb.isChecked())
+        qs.setValue("studio_render_text_aa", text_aa_cb.isChecked())
+        qs.setValue("studio_render_hq", hq_cb.isChecked())
+        qs.setValue("studio_render_lossless_text", lossless_cb.isChecked())
+        qs.setValue("studio_bg_color", canvas_bg_combo.currentData())
         qs.setValue("studio_bubble_autofit", autofit_cb.isChecked())
+        qs.setValue("studio_bubble_default_tail_curve", tail_curve_spin.value())
+        qs.setValue("studio_bubble_text_margin", bubble_margin_spin.value())
         qs.setValue("studio_sticky_tools", sticky_cb.isChecked())
+        qs.setValue("studio_nudge_step", nudge_spin.value())
+        qs.setValue("studio_nudge_shift_mult", shift_mult_spin.value())
+        qs.setValue("studio_wheel_scheme", wheel_zoom_combo.currentData())
+        qs.setValue("studio_pan_accel", pan_accel_spin.value())
         # Reflect the check-state in the matching toolbar toggles so the
         # UI stays in sync without a restart.
         if hasattr(self, "chk_grid"):
@@ -13199,15 +13391,23 @@ class StudioEditor(QWidget):
             self.chk_minimap.setChecked(minimap_cb.isChecked())
         if hasattr(self, "spin_grid"):
             self.spin_grid.setValue(grid_spin.value())
-        # Apply upscale mode to the view
+        # Apply quickbar / props row visibility
+        if hasattr(self, "_quickbar_wrap"):
+            self._quickbar_wrap.setVisible(quickbar_cb.isChecked())
+        if hasattr(self, "_props_row"):
+            self._props_row.setVisible(props_cb.isChecked())
+        # Apply rendering flags
         if hasattr(self, "_view"):
             from PySide6.QtGui import QPainter as _QP
-            if upscale_combo.currentData() == "nearest":
-                self._view.setRenderHint(
-                    _QP.RenderHint.SmoothPixmapTransform, False)
-            else:
-                self._view.setRenderHint(
-                    _QP.RenderHint.SmoothPixmapTransform, True)
+            self._view.setRenderHint(
+                _QP.RenderHint.SmoothPixmapTransform,
+                upscale_combo.currentData() != "nearest" and hq_cb.isChecked())
+            self._view.setRenderHint(
+                _QP.RenderHint.Antialiasing, aa_cb.isChecked())
+            self._view.setRenderHint(
+                _QP.RenderHint.TextAntialiasing, text_aa_cb.isChecked())
+            self._view.setRenderHint(
+                _QP.RenderHint.LosslessImageRendering, hq_cb.isChecked())
         self.info_label.setText("Studio settings saved")
 
     def _show_shortcuts_cheat_sheet(self):
