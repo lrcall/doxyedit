@@ -4122,6 +4122,31 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             blend_combo.currentTextChanged.connect(_blend_changed)
             form.addRow("Blend mode", blend_combo)
 
+            # Save-as-default row. Persists stroke / fill / width / line
+            # style as the defaults applied to newly-drawn shapes.
+            save_default_btn = QPushButton("Save as default shape style")
+            save_default_btn.setToolTip(
+                "Current stroke / fill / width / line style become the "
+                "defaults for new shapes drawn with the Shape tool.")
+            def _save_default(_it=item):
+                from PySide6.QtCore import QSettings as _QS
+                qs = _QS("DoxyEdit", "DoxyEdit")
+                qs.setValue("studio_shape_stroke_color",
+                             _it.overlay.stroke_color or "#000000")
+                qs.setValue("studio_shape_fill_color",
+                             _it.overlay.fill_color or "")
+                qs.setValue("studio_shape_stroke_width",
+                             int(_it.overlay.stroke_width or 2))
+                qs.setValue("studio_shape_line_style",
+                             getattr(_it.overlay, "line_style", "solid"))
+                qs.setValue("studio_shape_corner_radius",
+                             int(_it.overlay.corner_radius or 0))
+                if hasattr(editor, "info_label"):
+                    editor.info_label.setText(
+                        "Saved default shape style")
+            save_default_btn.clicked.connect(_save_default)
+            form.addRow("", save_default_btn)
+
             # Corner radius (only for non-bubble rects)
             if ov.shape_kind == "rect":
                 cr_spin = QSpinBox()
