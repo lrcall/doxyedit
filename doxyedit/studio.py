@@ -7243,8 +7243,14 @@ class StudioEditor(QWidget):
         self._qp_opacity.setRange(0, 100)
         self._qp_opacity.setValue(100)
         self._qp_opacity.setFixedWidth(int(_dt.font_size * 5))
-        self._qp_opacity.setToolTip("Opacity of selection (%)")
+        self._qp_opacity.setToolTip(
+            "Opacity of selection (%). Double-click to reset to 100.")
         self._qp_opacity.valueChanged.connect(self._qp_apply_opacity)
+        # Double-click to reset to 100%
+        _orig_op_mdc = self._qp_opacity.mouseDoubleClickEvent
+        def _op_dclick(ev, _orig=_orig_op_mdc):
+            self._qp_opacity.setValue(100)
+        self._qp_opacity.mouseDoubleClickEvent = _op_dclick
         quickbar.addWidget(self._qp_opacity)
         self._qp_opacity_lbl = QLabel("100")
         self._qp_opacity_lbl.setFixedWidth(int(_dt.font_size * 2.2))
