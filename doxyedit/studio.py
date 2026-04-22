@@ -353,9 +353,8 @@ class CensorRectItem(QGraphicsRectItem):
                 self._editor._censor_items.append(new_item)
                 self._editor._refresh_layer_panel()
         elif chosen is save_default_act and self._editor:
-            from PySide6.QtCore import QSettings as _QS
             cr = getattr(self, "_censor_region", None)
-            qs = _QS("DoxyEdit", "DoxyEdit")
+            qs = QSettings("DoxyEdit", "DoxyEdit")
             qs.setValue("studio_censor_default_style", self.style)
             if cr is not None:
                 qs.setValue("studio_censor_default_blur", int(cr.blur_radius or 20))
@@ -1734,8 +1733,7 @@ class OverlayShapeItem(QGraphicsItem):
                 self.overlay.stroke_color = new.name()
                 self.update()
                 self._editor._sync_overlays_to_asset()
-                from PySide6.QtCore import QSettings as _QS
-                _QS("DoxyEdit", "DoxyEdit").setValue(
+                QSettings("DoxyEdit", "DoxyEdit").setValue(
                     "studio_shape_stroke_color", new.name())
                 self._editor._add_recent_color(new.name())
         elif chosen is fill_act and self._editor:
@@ -1747,8 +1745,7 @@ class OverlayShapeItem(QGraphicsItem):
                 self.overlay.fill_color = new.name()
                 self.update()
                 self._editor._sync_overlays_to_asset()
-                from PySide6.QtCore import QSettings as _QS
-                _QS("DoxyEdit", "DoxyEdit").setValue(
+                QSettings("DoxyEdit", "DoxyEdit").setValue(
                     "studio_shape_fill_color", new.name())
                 self._editor._add_recent_color(new.name())
         elif chosen is clear_fill_act and self._editor:
@@ -1756,8 +1753,7 @@ class OverlayShapeItem(QGraphicsItem):
             self.update()
             self._editor._sync_overlays_to_asset()
         elif chosen is save_default_act and self._editor:
-            from PySide6.QtCore import QSettings as _QS
-            qs = _QS("DoxyEdit", "DoxyEdit")
+            qs = QSettings("DoxyEdit", "DoxyEdit")
             qs.setValue("studio_shape_stroke_color",
                          self.overlay.stroke_color or self.overlay.color or "#ffd700")
             qs.setValue("studio_shape_fill_color", self.overlay.fill_color or "")
@@ -1768,8 +1764,7 @@ class OverlayShapeItem(QGraphicsItem):
                          getattr(self.overlay, "line_style", "solid"))
             self._editor.info_label.setText("Saved default shape style")
         elif chosen is reset_default_act and self._editor:
-            from PySide6.QtCore import QSettings as _QS
-            qs = _QS("DoxyEdit", "DoxyEdit")
+            qs = QSettings("DoxyEdit", "DoxyEdit")
             for k in ("studio_shape_stroke_color", "studio_shape_fill_color",
                        "studio_shape_stroke_width", "studio_shape_corner_radius",
                        "studio_shape_line_style"):
@@ -2137,8 +2132,7 @@ class OverlayArrowItem(QGraphicsItem):
                 self.update()
                 self._editor._sync_overlays_to_asset()
                 # Remember this color for the next new arrow
-                from PySide6.QtCore import QSettings as _QS
-                _QS("DoxyEdit", "DoxyEdit").setValue(
+                QSettings("DoxyEdit", "DoxyEdit").setValue(
                     "studio_arrow_color", new.name())
                 self._editor._add_recent_color(new.name())
         elif chosen is dup_act and self._editor:
@@ -2412,8 +2406,7 @@ class OverlayTextItem(QGraphicsTextItem):
         # default True), resize the bubble to wrap the new text. Keeps
         # comic pages tidy without a manual right-click.
         if self._editor is not None and self.overlay.label:
-            from PySide6.QtCore import QSettings as _QS
-            autofit = _QS("DoxyEdit", "DoxyEdit").value(
+            autofit = QSettings("DoxyEdit", "DoxyEdit").value(
                 "studio_bubble_autofit", True, type=bool)
             if autofit:
                 for bubble_item in self._editor._overlay_items:
@@ -2835,8 +2828,7 @@ class StudioScene(QGraphicsScene):
     # via the canvas menu "Snap Proximity..." apply without restart.
     @property
     def SNAP_THRESHOLD_PX(self):
-        from PySide6.QtCore import QSettings as _QS
-        return _QS("DoxyEdit", "DoxyEdit").value(
+        return QSettings("DoxyEdit", "DoxyEdit").value(
             "studio_snap_threshold_px", 0, type=int)
 
     def __init__(self, parent=None):
@@ -2869,8 +2861,7 @@ class StudioScene(QGraphicsScene):
     def set_theme(self, theme):
         self._theme = theme
         # Respect user-overridden bg color if one is saved
-        from PySide6.QtCore import QSettings as _QS
-        saved = _QS("DoxyEdit", "DoxyEdit").value("studio_bg_color", "", type=str)
+        saved = QSettings("DoxyEdit", "DoxyEdit").value("studio_bg_color", "", type=str)
         if saved:
             self.setBackgroundBrush(QBrush(QColor(saved)))
         else:
@@ -3372,8 +3363,7 @@ class StudioScene(QGraphicsScene):
             # user wants to tweak it immediately (which needs Select),
             # so revert regardless of the sticky flag. Illustrator
             # behavior.
-            from PySide6.QtCore import QSettings as _QS
-            sticky = _QS("DoxyEdit", "DoxyEdit").value(
+            sticky = QSettings("DoxyEdit", "DoxyEdit").value(
                 "studio_sticky_tools", True, type=bool)
             prev_tool = self.current_tool
             if not sticky or prev_tool == StudioTool.TEXT_OVERLAY:
@@ -3844,18 +3834,16 @@ class StudioScene(QGraphicsScene):
         elif chosen is tog_thirds_act:
             editor.chk_thirds.setChecked(not editor.chk_thirds.isChecked())
         elif chosen is bg_color_act:
-            from PySide6.QtCore import QSettings as _QS
-            saved = _QS("DoxyEdit", "DoxyEdit").value(
+            saved = QSettings("DoxyEdit", "DoxyEdit").value(
                 "studio_bg_color", editor._theme.bg_deep, type=str)
             color = QColorDialog.getColor(
                 QColor(saved), editor, "Canvas background color")
             if color.isValid():
-                _QS("DoxyEdit", "DoxyEdit").setValue(
+                QSettings("DoxyEdit", "DoxyEdit").setValue(
                     "studio_bg_color", color.name())
                 editor._scene.setBackgroundBrush(QBrush(color))
         elif chosen is reset_bg_act:
-            from PySide6.QtCore import QSettings as _QS
-            _QS("DoxyEdit", "DoxyEdit").remove("studio_bg_color")
+            QSettings("DoxyEdit", "DoxyEdit").remove("studio_bg_color")
             editor._scene.setBackgroundBrush(
                 QBrush(QColor(editor._theme.bg_deep)))
         elif chosen in (bg_black_act, bg_white_act, bg_gray_act):
@@ -3863,8 +3851,7 @@ class StudioScene(QGraphicsScene):
                 "#000000" if chosen is bg_black_act else
                 "#ffffff" if chosen is bg_white_act else
                 "#3a3a3a")
-            from PySide6.QtCore import QSettings as _QS
-            _QS("DoxyEdit", "DoxyEdit").setValue("studio_bg_color", color_name)
+            QSettings("DoxyEdit", "DoxyEdit").setValue("studio_bg_color", color_name)
             editor._scene.setBackgroundBrush(QBrush(QColor(color_name)))
         elif chosen in (sel_text_act, sel_wm_act, sel_arrow_act,
                          sel_shape_act, sel_censor_act,
@@ -4022,8 +4009,7 @@ class StudioScene(QGraphicsScene):
                 editor.info_label.setText(
                     "Normalized Z values")
         elif chosen is snap_threshold_act:
-            from PySide6.QtCore import QSettings as _QS
-            qs = _QS("DoxyEdit", "DoxyEdit")
+            qs = QSettings("DoxyEdit", "DoxyEdit")
             cur = qs.value("studio_snap_threshold_px", 5, type=int)
             value, ok = QInputDialog.getInt(
                 editor, "Snap proximity",
@@ -4242,8 +4228,7 @@ class _GuideLineItem(QGraphicsLineItem):
 
     def mouseDoubleClickEvent(self, event):
         # Double-click removes the guide, unless lock-guides is on.
-        from PySide6.QtCore import QSettings as _QS
-        if _QS("DoxyEdit", "DoxyEdit").value(
+        if QSettings("DoxyEdit", "DoxyEdit").value(
                 "studio_lock_guides", False, type=bool):
             if self._editor and hasattr(self._editor, "info_label"):
                 self._editor.info_label.setText(
@@ -4415,8 +4400,7 @@ class _StudioRuler(QWidget):
             return super().contextMenuEvent(event)
         menu = _themed_menu(self._view)
         unit_sub = menu.addMenu("Units")
-        from PySide6.QtCore import QSettings as _QS
-        qs = _QS("DoxyEdit", "DoxyEdit")
+        qs = QSettings("DoxyEdit", "DoxyEdit")
         current_unit = qs.value("studio_ruler_unit", "px", type=str)
         unit_px = unit_sub.addAction("Pixels (px)")
         unit_mm = unit_sub.addAction("Millimetres (mm)")
@@ -4522,8 +4506,7 @@ class _StudioRuler(QWidget):
         # Unit conversion: 96 DPI canonical — 1 in = 96 px, 1 mm = 96 /
         # 25.4 ≈ 3.7795 px. The tick values are rendered in the chosen
         # unit but the screen-pixel math still uses the raw px delta.
-        from PySide6.QtCore import QSettings as _QS
-        _unit = _QS("DoxyEdit", "DoxyEdit").value(
+        _unit = QSettings("DoxyEdit", "DoxyEdit").value(
             "studio_ruler_unit", "px", type=str)
         if _unit == "mm":
             unit_per_px = 25.4 / 96.0  # mm per px at 96 DPI
@@ -4652,8 +4635,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        from PySide6.QtCore import QSettings as _QS
-        self._qs = _QS("DoxyEdit", "DoxyEdit")
+        self._qs = QSettings("DoxyEdit", "DoxyEdit")
         self._editor = parent
         self._current_kind = None  # last rebuilt kind
         self._pin_on_top = False
@@ -4982,8 +4964,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 "Current stroke / fill / width / line style become the "
                 "defaults for new shapes drawn with the Shape tool.")
             def _save_default(_checked=False, _it=item):
-                from PySide6.QtCore import QSettings as _QS
-                qs = _QS("DoxyEdit", "DoxyEdit")
+                qs = QSettings("DoxyEdit", "DoxyEdit")
                 qs.setValue("studio_shape_stroke_color",
                              _it.overlay.stroke_color or "#000000")
                 qs.setValue("studio_shape_fill_color",
@@ -5005,8 +4986,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 "Apply the saved default shape style to every "
                 "selected shape.")
             def _apply_default():
-                from PySide6.QtCore import QSettings as _QS
-                qs = _QS("DoxyEdit", "DoxyEdit")
+                qs = QSettings("DoxyEdit", "DoxyEdit")
                 sel = [it for it in editor._scene.selectedItems()
                        if isinstance(it, OverlayShapeItem)]
                 if not sel:
@@ -5747,8 +5727,7 @@ class _TextControlsDialog(QtWidgets.QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        from PySide6.QtCore import QSettings as _QS
-        self._qs = _QS("DoxyEdit", "DoxyEdit")
+        self._qs = QSettings("DoxyEdit", "DoxyEdit")
         self._pin_on_top = False
         # Install shortcuts: pin + snap-left / snap-right.
         from PySide6.QtGui import QShortcut, QKeySequence
@@ -6181,8 +6160,7 @@ class _ColorSwatchButton(QPushButton):
             paste_hex_act.triggered.connect(_paste_hex)
         clear_act = menu.addAction("Clear recent colors")
         def _clear_recent():
-            from PySide6.QtCore import QSettings as _QS
-            _QS("DoxyEdit", "DoxyEdit").setValue("studio_recent_colors", "")
+            QSettings("DoxyEdit", "DoxyEdit").setValue("studio_recent_colors", "")
             if hasattr(editor, "_refresh_recent_swatches"):
                 editor._refresh_recent_swatches()
         clear_act.triggered.connect(_clear_recent)
@@ -6481,8 +6459,7 @@ class StudioView(QGraphicsView):
         # 'antialias off / nearest upscale / text aa off' choices
         # actually take effect at app start, not just after they
         # re-open the settings dialog.
-        from PySide6.QtCore import QSettings as _QS
-        _qs = _QS("DoxyEdit", "DoxyEdit")
+        _qs = QSettings("DoxyEdit", "DoxyEdit")
         _aa = _qs.value("studio_render_aa", True, type=bool)
         _text_aa = _qs.value("studio_render_text_aa", True, type=bool)
         _hq = _qs.value("studio_render_hq", True, type=bool)
@@ -6569,8 +6546,7 @@ class StudioView(QGraphicsView):
         # plain-wheel-zooms behavior; "pan" flips it so plain wheel
         # scrolls vertically (common for long comic pages) and Ctrl+
         # wheel zooms. Either way, Ctrl+wheel is always a zoom path.
-        from PySide6.QtCore import QSettings as _QS
-        _ws = _QS("DoxyEdit", "DoxyEdit").value(
+        _ws = QSettings("DoxyEdit", "DoxyEdit").value(
             "studio_wheel_scheme", "zoom", type=str)
         _is_ctrl = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
         if _ws == "pan" and not _is_ctrl:
@@ -6702,8 +6678,7 @@ class StudioEditor(QWidget):
         self._build()
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         # Restore last-used tool (default: SELECT)
-        from PySide6.QtCore import QSettings as _QS
-        last_tool_name = _QS("DoxyEdit", "DoxyEdit").value(
+        last_tool_name = QSettings("DoxyEdit", "DoxyEdit").value(
             "studio_last_tool", "SELECT", type=str)
         try:
             _last_tool = StudioTool[last_tool_name]
@@ -7437,8 +7412,7 @@ class StudioEditor(QWidget):
         # so the user can flip between 'no snap' and 'my usual snap'
         # without re-entering the value each time.
         if key == Qt.Key.Key_F12 and not ctrl and not shift:
-            from PySide6.QtCore import QSettings as _QS
-            qs = _QS("DoxyEdit", "DoxyEdit")
+            qs = QSettings("DoxyEdit", "DoxyEdit")
             cur = qs.value("studio_snap_threshold_px", 0, type=int)
             if cur > 0:
                 qs.setValue("studio_snap_threshold_px_prev", cur)
@@ -7565,12 +7539,11 @@ class StudioEditor(QWidget):
             if touched:
                 self._sync_overlays_to_asset()
                 if touched_arrow:
-                    from PySide6.QtCore import QSettings as _QS
                     first_arrow = next(
                         (it for it in self._scene.selectedItems()
                          if isinstance(it, OverlayArrowItem)), None)
                     if first_arrow is not None:
-                        _QS("DoxyEdit", "DoxyEdit").setValue(
+                        QSettings("DoxyEdit", "DoxyEdit").setValue(
                             "studio_arrow_head",
                             first_arrow.overlay.arrowhead_size)
                 return
@@ -8631,8 +8604,7 @@ class StudioEditor(QWidget):
         # Restore collapsed state + whole-bar visibility from settings.
         # Default to COLLAPSED so the bar doesn't eat a row of vertical
         # real-estate on first run - the user can expand on demand.
-        from PySide6.QtCore import QSettings as _QS
-        _qs = _QS("DoxyEdit", "DoxyEdit")
+        _qs = QSettings("DoxyEdit", "DoxyEdit")
         _qb_vis = _qs.value(
             "studio_quickbar_visible", True, type=bool)
         self._quickbar_wrap.setVisible(_qb_vis)
@@ -8649,7 +8621,7 @@ class StudioEditor(QWidget):
             self._qb_chevron.setText(
                 "Quick Actions ▶" if collapsed
                 else "Quick Actions ▼")
-            _QS("DoxyEdit", "DoxyEdit").setValue(
+            QSettings("DoxyEdit", "DoxyEdit").setValue(
                 "studio_quickbar_collapsed", collapsed)
         self._qb_chevron.clicked.connect(_toggle_qb)
         root.addWidget(self._quickbar_wrap)
@@ -8867,8 +8839,7 @@ class StudioEditor(QWidget):
             Qt.WindowType.CustomizeWindowHint |
             Qt.WindowType.WindowTitleHint |
             Qt.WindowType.WindowCloseButtonHint)
-        from PySide6.QtCore import QSettings as _QS
-        _qs_geom = _QS("DoxyEdit", "DoxyEdit")
+        _qs_geom = QSettings("DoxyEdit", "DoxyEdit")
         # Explicit reparent each control to the dialog BEFORE adding it to
         # the QFormLayout. Without this, widgets inherit their original
         # _props_row parent's hidden state, leaving the dialog blank.
@@ -9353,8 +9324,7 @@ class StudioEditor(QWidget):
 
         # Snap grid overlay — flag on the scene, drawn via foreground.
         # Both spacing and visibility are user prefs persisted via QSettings.
-        from PySide6.QtCore import QSettings as _QS
-        _qs = _QS("DoxyEdit", "DoxyEdit")
+        _qs = QSettings("DoxyEdit", "DoxyEdit")
         _gs = _qs.value("studio_grid_spacing", STUDIO_GRID_SPACING, type=int)
         _gv = _qs.value("studio_grid_visible", False, type=bool)
         _tv = _qs.value("studio_thirds_visible", False, type=bool)
@@ -10267,8 +10237,7 @@ class StudioEditor(QWidget):
     def _save_view_bookmark(self, slot: int):
         """Save the current zoom + scroll position into slot 1..4.
         Persists via QSettings under studio_view_bookmark_<slot>."""
-        from PySide6.QtCore import QSettings as _QS
-        qs = _QS("DoxyEdit", "DoxyEdit")
+        qs = QSettings("DoxyEdit", "DoxyEdit")
         factor = self._view.transform().m11() or 1.0
         h_sb = self._view.horizontalScrollBar().value()
         v_sb = self._view.verticalScrollBar().value()
@@ -10281,8 +10250,7 @@ class StudioEditor(QWidget):
     def _load_view_bookmark(self, slot: int):
         """Restore a previously-saved zoom + scroll into the viewport.
         No-op if the slot is empty."""
-        from PySide6.QtCore import QSettings as _QS
-        qs = _QS("DoxyEdit", "DoxyEdit")
+        qs = QSettings("DoxyEdit", "DoxyEdit")
         blob = qs.value(f"studio_view_bookmark_{slot}", "", type=str)
         if not blob or blob.count("|") != 2:
             self.info_label.setText(
@@ -10364,8 +10332,7 @@ class StudioEditor(QWidget):
         from PySide6.QtWidgets import QVBoxLayout, QListWidget as _QL
         if not hasattr(self, "_undo_history_dlg") or \
                 self._undo_history_dlg is None:
-            from PySide6.QtCore import QSettings as _QS
-            _qs = _QS("DoxyEdit", "DoxyEdit")
+            _qs = QSettings("DoxyEdit", "DoxyEdit")
 
             class _UndoHistoryDialog(QtWidgets.QDialog):
                 _GEOM_KEY = "studio_undo_history_geom"
@@ -10601,8 +10568,7 @@ class StudioEditor(QWidget):
         # Persist the last-used tool so the next Studio session starts there.
         # Watermark is excluded because it's a one-shot file-dialog flow.
         if tool != StudioTool.WATERMARK:
-            from PySide6.QtCore import QSettings as _QS
-            _QS("DoxyEdit", "DoxyEdit").setValue(
+            QSettings("DoxyEdit", "DoxyEdit").setValue(
                 "studio_last_tool", tool.name)
 
     def _sync_tool_buttons(self, tool: StudioTool):
@@ -10659,8 +10625,7 @@ class StudioEditor(QWidget):
     def _on_censor_style_changed(self, style: str):
         self._scene.set_censor_style(style)
         # Persist so next Studio launch defaults to the user's preferred style
-        from PySide6.QtCore import QSettings as _QS
-        _QS("DoxyEdit", "DoxyEdit").setValue(
+        QSettings("DoxyEdit", "DoxyEdit").setValue(
             "studio_censor_default_style", style)
 
     # ---- censor callbacks ----
@@ -10681,8 +10646,7 @@ class StudioEditor(QWidget):
             return
         # Remember the last-used arrow color + stroke so a series of arrows
         # stays visually consistent without having to re-pick each time.
-        from PySide6.QtCore import QSettings as _QS
-        _qs = _QS("DoxyEdit", "DoxyEdit")
+        _qs = QSettings("DoxyEdit", "DoxyEdit")
         color = _qs.value("studio_arrow_color", "#ff3b30", type=str)
         stroke = _qs.value("studio_arrow_stroke", 4, type=int)
         head = _qs.value("studio_arrow_head", 18, type=int)
@@ -10724,8 +10688,7 @@ class StudioEditor(QWidget):
         }.get(self.combo_shape_kind.currentText() if hasattr(self, "combo_shape_kind") else "", "")
         if combo_kind:
             kind = combo_kind
-        from PySide6.QtCore import QSettings as _QS
-        _qs = _QS("DoxyEdit", "DoxyEdit")
+        _qs = QSettings("DoxyEdit", "DoxyEdit")
         # Bubbles get black-on-white defaults (comic convention);
         # non-bubble shapes keep the amber outline style.
         if kind in ("speech_bubble", "thought_bubble"):
@@ -11068,9 +11031,8 @@ class StudioEditor(QWidget):
     )
 
     def _load_watermark_style_defaults(self) -> dict:
-        from PySide6.QtCore import QSettings as _QS
         import json as _json
-        raw = _QS("DoxyEdit", "DoxyEdit").value(
+        raw = QSettings("DoxyEdit", "DoxyEdit").value(
             "studio_watermark_defaults", "", type=str)
         if not raw:
             return {}
@@ -11082,16 +11044,14 @@ class StudioEditor(QWidget):
             return {}
 
     def _save_watermark_style_as_default(self, ov: CanvasOverlay):
-        from PySide6.QtCore import QSettings as _QS
         import json as _json
         payload = {k: getattr(ov, k) for k in self._WATERMARK_STYLE_FIELDS}
-        _QS("DoxyEdit", "DoxyEdit").setValue(
+        QSettings("DoxyEdit", "DoxyEdit").setValue(
             "studio_watermark_defaults", _json.dumps(payload, ensure_ascii=False))
         self.info_label.setText("Saved default watermark style")
 
     def _reset_watermark_style_defaults(self):
-        from PySide6.QtCore import QSettings as _QS
-        _QS("DoxyEdit", "DoxyEdit").remove("studio_watermark_defaults")
+        QSettings("DoxyEdit", "DoxyEdit").remove("studio_watermark_defaults")
         self.info_label.setText("Reset default watermark style")
 
     def _refresh_overlay_image(self, item):
@@ -11238,8 +11198,7 @@ class StudioEditor(QWidget):
         locked to that pixel width so multi-line bubbles wrap to fit."""
         self._add_text_overlay(int(pos.x()), int(pos.y()), text_width=width)
         # Sticky tool means cursor should stay cross; otherwise arrow.
-        from PySide6.QtCore import QSettings as _QS
-        sticky = _QS("DoxyEdit", "DoxyEdit").value(
+        sticky = QSettings("DoxyEdit", "DoxyEdit").value(
             "studio_sticky_tools", True, type=bool)
         if not sticky:
             self._view.setCursor(Qt.CursorShape.ArrowCursor)
@@ -11259,9 +11218,8 @@ class StudioEditor(QWidget):
 
     def _load_text_style_defaults(self) -> dict:
         """Return the user's saved default text style (or {} if none)."""
-        from PySide6.QtCore import QSettings as _QS
         import json as _json
-        raw = _QS("DoxyEdit", "DoxyEdit").value("studio_text_defaults", "", type=str)
+        raw = QSettings("DoxyEdit", "DoxyEdit").value("studio_text_defaults", "", type=str)
         if not raw:
             return {}
         try:
@@ -11272,25 +11230,22 @@ class StudioEditor(QWidget):
 
     def _save_text_style_as_default(self, ov: CanvasOverlay):
         """Persist the overlay's style fields as the new default."""
-        from PySide6.QtCore import QSettings as _QS
         import json as _json
         payload = {k: getattr(ov, k) for k in self._TEXT_STYLE_FIELDS}
-        _QS("DoxyEdit", "DoxyEdit").setValue(
+        QSettings("DoxyEdit", "DoxyEdit").setValue(
             "studio_text_defaults", _json.dumps(payload, ensure_ascii=False))
         self.info_label.setText("Saved default text style")
 
     def _reset_text_style_defaults(self):
         """Clear the saved text style defaults (revert to CanvasOverlay()
         dataclass fields)."""
-        from PySide6.QtCore import QSettings as _QS
-        _QS("DoxyEdit", "DoxyEdit").remove("studio_text_defaults")
+        QSettings("DoxyEdit", "DoxyEdit").remove("studio_text_defaults")
         self.info_label.setText("Reset default text style")
 
     def _load_named_text_styles(self) -> dict:
         """Return {name: {field: value}} of user-saved named text styles."""
-        from PySide6.QtCore import QSettings as _QS
         import json as _json
-        raw = _QS("DoxyEdit", "DoxyEdit").value("studio_text_named_styles", "", type=str)
+        raw = QSettings("DoxyEdit", "DoxyEdit").value("studio_text_named_styles", "", type=str)
         if not raw:
             return {}
         try:
@@ -11302,9 +11257,8 @@ class StudioEditor(QWidget):
             return {}
 
     def _write_named_text_styles(self, styles: dict):
-        from PySide6.QtCore import QSettings as _QS
         import json as _json
-        _QS("DoxyEdit", "DoxyEdit").setValue(
+        QSettings("DoxyEdit", "DoxyEdit").setValue(
             "studio_text_named_styles",
             _json.dumps(styles, ensure_ascii=False))
 
@@ -11391,9 +11345,8 @@ class StudioEditor(QWidget):
                 f"Applied '{name}' to {len(sel)} text overlay(s)")
         else:
             # Set as default for future text overlays
-            from PySide6.QtCore import QSettings as _QS
             import json as _json
-            _QS("DoxyEdit", "DoxyEdit").setValue(
+            QSettings("DoxyEdit", "DoxyEdit").setValue(
                 "studio_text_defaults",
                 _json.dumps(fields, ensure_ascii=False))
             self.info_label.setText(
@@ -11463,8 +11416,7 @@ class StudioEditor(QWidget):
         """Prepend a hex color to the recent list, capped and deduped."""
         if not hex_color:
             return
-        from PySide6.QtCore import QSettings as _QS
-        qs = _QS("DoxyEdit", "DoxyEdit")
+        qs = QSettings("DoxyEdit", "DoxyEdit")
         raw = qs.value("studio_recent_colors", "", type=str)
         recent = [c for c in raw.split(",") if c]
         # Move/insert to front
@@ -11474,8 +11426,7 @@ class StudioEditor(QWidget):
         self._refresh_recent_swatches()
 
     def _get_recent_colors(self) -> list:
-        from PySide6.QtCore import QSettings as _QS
-        raw = _QS("DoxyEdit", "DoxyEdit").value(
+        raw = QSettings("DoxyEdit", "DoxyEdit").value(
             "studio_recent_colors", "", type=str)
         return [c for c in raw.split(",") if c][:self._MAX_RECENT_COLORS]
 
@@ -11506,16 +11457,14 @@ class StudioEditor(QWidget):
             clear_all_act = menu.addAction("Clear All Recent Colors")
             chosen = menu.exec(btn.mapToGlobal(pos))
             if chosen is clear_all_act:
-                from PySide6.QtCore import QSettings as _QS
-                _QS("DoxyEdit", "DoxyEdit").setValue("studio_recent_colors", "")
+                QSettings("DoxyEdit", "DoxyEdit").setValue("studio_recent_colors", "")
                 self._refresh_recent_swatches()
             return
         menu = _themed_menu(btn)
         remove_act = menu.addAction(f"Remove {color}")
         clear_all_act = menu.addAction("Clear All Recent Colors")
         chosen = menu.exec(btn.mapToGlobal(pos))
-        from PySide6.QtCore import QSettings as _QS
-        qs = _QS("DoxyEdit", "DoxyEdit")
+        qs = QSettings("DoxyEdit", "DoxyEdit")
         if chosen is remove_act:
             recent = [c for c in qs.value("studio_recent_colors", "", type=str).split(",")
                        if c and c != color]
@@ -12652,8 +12601,7 @@ class StudioEditor(QWidget):
         back to full opacity when no selection exists or the setting is
         off. Doesn't mutate CanvasOverlay.opacity - just the live
         QGraphicsItem display opacity."""
-        from PySide6.QtCore import QSettings as _QS
-        enabled = _QS("DoxyEdit", "DoxyEdit").value(
+        enabled = QSettings("DoxyEdit", "DoxyEdit").value(
             "studio_dim_nonselected", False, type=bool)
         sel = set(self._scene.selectedItems()) if self._scene else set()
         has_sel = bool(sel)
@@ -12966,8 +12914,7 @@ class StudioEditor(QWidget):
                     description="Change arrow width",
                 )
                 # Remember this stroke for the next new arrow
-                from PySide6.QtCore import QSettings as _QS
-                _QS("DoxyEdit", "DoxyEdit").setValue(
+                QSettings("DoxyEdit", "DoxyEdit").setValue(
                     "studio_arrow_stroke", max(1, value))
         self._sync_overlays_to_asset()
 
@@ -13017,8 +12964,7 @@ class StudioEditor(QWidget):
         """Update the snap-grid spacing and persist across sessions."""
         self._grid_spacing = value
         self._scene._grid_spacing = value
-        from PySide6.QtCore import QSettings as _QS
-        _QS("DoxyEdit", "DoxyEdit").setValue("studio_grid_spacing", value)
+        QSettings("DoxyEdit", "DoxyEdit").setValue("studio_grid_spacing", value)
         if self._scene._grid_visible:
             self._scene.update()
 
@@ -13027,15 +12973,13 @@ class StudioEditor(QWidget):
         through the same path so the two stay in sync)."""
         self._grid_visible = on
         self._scene._grid_visible = on
-        from PySide6.QtCore import QSettings as _QS
-        _QS("DoxyEdit", "DoxyEdit").setValue("studio_grid_visible", on)
+        QSettings("DoxyEdit", "DoxyEdit").setValue("studio_grid_visible", on)
         self._scene.update()
 
     def _on_thirds_toggled(self, on: bool):
         """Toggle rule-of-thirds guide overlay."""
         self._scene._thirds_visible = on
-        from PySide6.QtCore import QSettings as _QS
-        _QS("DoxyEdit", "DoxyEdit").setValue("studio_thirds_visible", on)
+        QSettings("DoxyEdit", "DoxyEdit").setValue("studio_thirds_visible", on)
         self._scene.update()
 
     def _on_focus_toggled(self, on: bool):
@@ -13053,15 +12997,13 @@ class StudioEditor(QWidget):
             self._canvas_wrap._h_ruler.setVisible(on)
             self._canvas_wrap._v_ruler.setVisible(on)
             self._canvas_wrap._corner.setVisible(on)
-        from PySide6.QtCore import QSettings as _QS
-        _QS("DoxyEdit", "DoxyEdit").setValue("studio_rulers_visible", on)
+        QSettings("DoxyEdit", "DoxyEdit").setValue("studio_rulers_visible", on)
 
     def _on_notes_toggled(self, on: bool):
         """Show or hide all note annotations at once."""
         for note in getattr(self, "_notes", []):
             note.setVisible(on)
-        from PySide6.QtCore import QSettings as _QS
-        _QS("DoxyEdit", "DoxyEdit").setValue("studio_notes_visible", on)
+        QSettings("DoxyEdit", "DoxyEdit").setValue("studio_notes_visible", on)
 
     def _on_base_toggled(self, on: bool):
         """Hide / show the base image + checkerboard so users can focus on
@@ -13083,8 +13025,7 @@ class StudioEditor(QWidget):
                 mm.move(v.width() - mm.width() - 12,
                          v.height() - mm.height() - 12)
                 mm.update()
-        from PySide6.QtCore import QSettings as _QS
-        _QS("DoxyEdit", "DoxyEdit").setValue("studio_minimap_visible", on)
+        QSettings("DoxyEdit", "DoxyEdit").setValue("studio_minimap_visible", on)
 
     def _on_flip_view_toggled(self, on: bool):
         """Mirror the view horizontally for composition checking.
@@ -13107,8 +13048,7 @@ class StudioEditor(QWidget):
 
     def _persist_canvas_split(self, *_):
         """Save the canvas/layer-panel splitter geometry to QSettings."""
-        from PySide6.QtCore import QSettings as _QS
-        _QS("DoxyEdit", "DoxyEdit").setValue(
+        QSettings("DoxyEdit", "DoxyEdit").setValue(
             "studio_canvas_split_state", self._canvas_split.saveState())
 
     def _save_as_template(self):
@@ -13477,9 +13417,8 @@ class StudioEditor(QWidget):
             chosen = empty_menu.exec(global_pos_empty)
             if chosen in (thumb_s, thumb_m, thumb_l):
                 sz = 16 if chosen is thumb_s else 28 if chosen is thumb_m else 48
-                from PySide6.QtCore import QSettings as _QS, QSize as _QSZ
-                self._layer_panel.setIconSize(_QSZ(sz, sz))
-                _QS("DoxyEdit", "DoxyEdit").setValue(
+                self._layer_panel.setIconSize(QSize(sz, sz))
+                QSettings("DoxyEdit", "DoxyEdit").setValue(
                     "studio_layer_thumb_size", sz)
                 self._rebuild_layer_panel()
                 return
@@ -14207,8 +14146,7 @@ class StudioEditor(QWidget):
             QDialog, QFormLayout, QSpinBox, QDoubleSpinBox, QCheckBox,
             QComboBox, QDialogButtonBox, QLabel, QTabWidget, QWidget,
             QVBoxLayout)
-        from PySide6.QtCore import QSettings as _QS
-        qs = _QS("DoxyEdit", "DoxyEdit")
+        qs = QSettings("DoxyEdit", "DoxyEdit")
         dlg = QDialog(self)
         self._settings_dlg = dlg
         dlg.setWindowTitle("Studio Settings")
