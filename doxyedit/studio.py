@@ -4568,8 +4568,12 @@ class StudioEditor(QWidget):
 
         self.combo_shape_kind = QComboBox()
         self.combo_shape_kind.setObjectName("studio_shape_kind")
-        self.combo_shape_kind.addItems(["Rectangle", "Ellipse"])
-        self.combo_shape_kind.setToolTip("Shape kind — click Shape then drag to draw")
+        self.combo_shape_kind.addItems([
+            "Rectangle", "Ellipse",
+            "Speech Bubble", "Thought Bubble", "Burst",
+        ])
+        self.combo_shape_kind.setToolTip(
+            "Shape kind - click Shape then drag to draw")
         toolbar.addWidget(self.combo_shape_kind)
 
         self.btn_delete = QPushButton("Delete")
@@ -5861,16 +5865,36 @@ class StudioEditor(QWidget):
         """Called when a shape rect or ellipse is finished drawing."""
         if not self._asset:
             return
+        # Resolve the real shape kind from the combo so Speech / Thought
+        # Bubble / Burst rolled through the same drag-to-size flow pick up
+        # their bubble shape_kind instead of falling back to rect.
+        combo_kind = {
+            "Rectangle": "rect",
+            "Ellipse": "ellipse",
+            "Speech Bubble": "speech_bubble",
+            "Thought Bubble": "thought_bubble",
+            "Burst": "burst",
+        }.get(self.combo_shape_kind.currentText() if hasattr(self, "combo_shape_kind") else "", "")
+        if combo_kind:
+            kind = combo_kind
         from PySide6.QtCore import QSettings as _QS
         _qs = _QS("DoxyEdit", "DoxyEdit")
-        stroke = _qs.value("studio_shape_stroke_color", "#ffd700", type=str)
-        fill = _qs.value("studio_shape_fill_color", "", type=str)
-        sw = _qs.value("studio_shape_stroke_width", 2, type=int)
+        # Bubbles get black-on-white defaults (comic convention);
+        # non-bubble shapes keep the amber outline style.
+        if kind in ("speech_bubble", "thought_bubble"):
+            stroke = _qs.value("studio_bubble_stroke_color", "#000000", type=str)
+            fill = _qs.value("studio_bubble_fill_color", "#ffffff", type=str)
+            sw = _qs.value("studio_bubble_stroke_width", 3, type=int)
+        else:
+            stroke = _qs.value("studio_shape_stroke_color", "#ffd700", type=str)
+            fill = _qs.value("studio_shape_fill_color", "", type=str)
+            sw = _qs.value("studio_shape_stroke_width", 2, type=int)
         radius = _qs.value("studio_shape_corner_radius", 0, type=int)
         line_style = _qs.value("studio_shape_line_style", "solid", type=str)
+        label = kind.replace("_", " ").title() if kind != "rect" else "Shape"
         ov = CanvasOverlay(
             type="shape",
-            label="Shape",
+            label=label,
             shape_kind=kind,
             color=stroke,
             stroke_color=stroke,
@@ -5882,6 +5906,11 @@ class StudioEditor(QWidget):
             corner_radius=radius,
             line_style=line_style,
         )
+        # Bubbles get a sensible initial tail so the paint path has
+        # something to draw against.
+        if kind in ("speech_bubble", "thought_bubble"):
+            ov.tail_x = int(rect.x() + rect.width() * 0.25)
+            ov.tail_y = int(rect.y() + rect.height() * 1.35)
         self._asset.overlays.append(ov)
         item = OverlayShapeItem(ov)
         item._editor = self
