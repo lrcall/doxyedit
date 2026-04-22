@@ -6730,6 +6730,13 @@ class StudioEditor(QWidget):
             else:
                 self.info_label.setText("Nothing was hidden")
             return
+        # Alt+N — toggle note-overlay visibility (the yellow stickies).
+        # Doesn't conflict with the N tool shortcut (plain N) because
+        # this branch requires the Alt modifier.
+        if alt and not ctrl and not shift and key == Qt.Key.Key_N:
+            if hasattr(self, "chk_notes"):
+                self.chk_notes.setChecked(not self.chk_notes.isChecked())
+            return
         # Alt+H — toggle visibility (hide / show) on every selected
         # overlay. Faster than Shift+click in the layer panel when
         # you want to flip several layers at once. Censors and crops
