@@ -4,6 +4,7 @@ from PIL import Image
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox,
     QFrame, QScrollArea, QTextEdit, QPushButton, QSplitter, QColorDialog,
+    QMenu, QInputDialog,
 )
 from PySide6.QtCore import Qt, Signal, QPoint, QRect
 from PySide6.QtGui import QColor, QPainter, QPen, QBrush
@@ -337,7 +338,6 @@ class TagRow(QFrame):
             self.checkbox.blockSignals(False)
 
     def contextMenuEvent(self, event):
-        from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
         pin_label = "Unpin from top" if getattr(self, '_pinned', False) else "Pin to top"
         menu.addAction(pin_label, lambda: self.pin_requested.emit(self.tag.id))
@@ -356,7 +356,6 @@ class TagRow(QFrame):
         menu.exec(event.globalPos())
 
     def _pick_color(self):
-        from PySide6.QtGui import QColor
         color = QColorDialog.getColor(QColor(self.tag.color), self.window(), "Tag Color")
         if color.isValid():
             hex_color = color.name()
@@ -370,7 +369,6 @@ class TagRow(QFrame):
             self.color_changed.emit(self.tag.id, hex_color)
 
     def _request_rename(self):
-        from PySide6.QtWidgets import QInputDialog
         dlg = QInputDialog(self.window())
         dlg.setWindowTitle("Rename Tag")
         dlg.setLabelText(f"New name for '{self.tag.label}':")
@@ -790,7 +788,6 @@ class TagPanel(QWidget):
 
     def _set_shortcut(self, tag_id: str):
         """Let user assign (or clear) a keyboard shortcut key for a tag."""
-        from PySide6.QtWidgets import QInputDialog
         current = self._custom_shortcuts.get(tag_id, "")
         current_hint = f" (current: {current})" if current else ""
         key, ok = QInputDialog.getText(
@@ -842,7 +839,6 @@ class TagPanel(QWidget):
     def contextMenuEvent(self, event):
         """Batch context menu when multiple tag rows are selected."""
         if len(self._selected_tag_rows) > 1:
-            from PySide6.QtWidgets import QMenu
             menu = QMenu(self)
             n = len(self._selected_tag_rows)
             menu.addAction(f"Apply Selected Tags to Assets", self._batch_apply_to_assets)
