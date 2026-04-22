@@ -7434,6 +7434,26 @@ class StudioEditor(QWidget):
         qp_fit_btn.clicked.connect(self._qp_fit_selection)
         quickbar.addWidget(qp_fit_btn)
 
+        qp_sel_all_btn = QPushButton("Sel All")
+        qp_sel_all_btn.setObjectName("studio_qp_sel_all")
+        qp_sel_all_btn.setToolTip("Select every overlay / censor (Ctrl+A)")
+        def _qp_sel_all():
+            for it in self._scene.items():
+                if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                    OverlayArrowItem, OverlayShapeItem,
+                                    CensorRectItem, ResizableCropItem,
+                                    NoteRectItem)):
+                    it.setSelected(True)
+        qp_sel_all_btn.clicked.connect(_qp_sel_all)
+        quickbar.addWidget(qp_sel_all_btn)
+
+        qp_deselect_btn = QPushButton("Deselect")
+        qp_deselect_btn.setObjectName("studio_qp_deselect")
+        qp_deselect_btn.setToolTip("Clear selection (Ctrl+Shift+A / Esc)")
+        qp_deselect_btn.clicked.connect(
+            lambda: self._scene.clearSelection())
+        quickbar.addWidget(qp_deselect_btn)
+
         self._qp_label = QLabel("(no selection)")
         self._qp_label.setObjectName("studio_qp_label")
         quickbar.addWidget(self._qp_label)
