@@ -1,4 +1,5 @@
 """Batch export — exports all assigned assets with proper naming and sizing."""
+import math
 from pathlib import Path
 from PIL import Image, ImageFilter
 from doxyedit.models import (
@@ -52,7 +53,6 @@ def apply_overlays(img: Image.Image, overlays: list[CanvasOverlay], project_dir:
 def _composite_shape_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
     """Render a rectangle / ellipse / gradient / bubble annotation."""
     from PIL import ImageDraw
-    import math
     if ov.shape_kind in ("gradient_linear", "gradient_radial"):
         return _composite_gradient_overlay(img, ov)
     if ov.shape_kind in ("speech_bubble", "thought_bubble", "burst"):
@@ -111,22 +111,21 @@ def _composite_shape_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image
                               outline=(sr, sg, sb, a), width=width)
             else:
                 # Trace an elliptical arc as segmented line points
-                import math as _m
                 cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
                 rx, ry = (x1 - x0) / 2.0, (y1 - y0) / 2.0
                 on_len, off_len = (12, 6) if style == "dash" else (2, 4)
                 period = on_len + off_len
                 # Approximate circumference for step count
-                circ = 2 * _m.pi * _m.hypot(rx, ry) / 2
+                circ = 2 * math.pi * math.hypot(rx, ry) / 2
                 steps = max(64, int(circ))
-                points = [(cx + rx * _m.cos(2 * _m.pi * i / steps),
-                           cy + ry * _m.sin(2 * _m.pi * i / steps))
+                points = [(cx + rx * math.cos(2 * math.pi * i / steps),
+                           cy + ry * math.sin(2 * math.pi * i / steps))
                           for i in range(steps + 1)]
                 acc = 0.0
                 prev = points[0]
                 drawing = True
                 for pt in points[1:]:
-                    seg = _m.hypot(pt[0] - prev[0], pt[1] - prev[1])
+                    seg = math.hypot(pt[0] - prev[0], pt[1] - prev[1])
                     if drawing:
                         draw.line([prev, pt], fill=(sr, sg, sb, a), width=width)
                     acc += seg
@@ -186,7 +185,6 @@ def _composite_bubble_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Imag
     match the Studio canvas rendering paths as closely as possible.
     """
     from PIL import ImageDraw
-    import math
     try:
         def _hex(s):
             c = (s or "#000000").lstrip("#")
@@ -349,7 +347,6 @@ def _composite_gradient_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Im
     """Render a linear or radial gradient into a rect region using numpy."""
     try:
         import numpy as _np
-        import math as _m
         w, h = int(ov.shape_w), int(ov.shape_h)
         if w < 1 or h < 1:
             return img
@@ -372,13 +369,13 @@ def _composite_gradient_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Im
         ys, xs = _np.mgrid[0:h, 0:w].astype(_np.float32)
         if ov.shape_kind == "gradient_radial":
             cx, cy = (w - 1) / 2.0, (h - 1) / 2.0
-            max_r = _m.hypot(cx, cy)
+            max_r = math.hypot(cx, cy)
             if max_r == 0:
                 max_r = 1
             t = _np.clip(_np.hypot(xs - cx, ys - cy) / max_r, 0, 1)
         else:
-            ang = _m.radians(ov.gradient_angle or 0)
-            dx, dy = _m.cos(ang), _m.sin(ang)
+            ang = math.radians(ov.gradient_angle or 0)
+            dx, dy = math.cos(ang), math.sin(ang)
             # Project each pixel onto the direction vector; normalize 0..1
             proj = (xs * dx + ys * dy)
             pmin = float(proj.min())
@@ -404,7 +401,6 @@ def _composite_gradient_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Im
 def _composite_arrow_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
     """Render an arrow annotation onto the base image."""
     from PIL import ImageDraw
-    import math
 
     try:
         def _hex(s):
