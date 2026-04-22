@@ -2,7 +2,7 @@
 from pathlib import Path
 from PIL import Image, ImageFilter
 from doxyedit.models import (
-    Project, Asset, PLATFORMS, PostStatus, CensorRegion, CanvasOverlay,
+    Project, PLATFORMS, PostStatus, CensorRegion, CanvasOverlay,
 )
 
 
