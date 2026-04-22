@@ -6763,6 +6763,33 @@ class StudioEditor(QWidget):
         if ctrl and shift and key == Qt.Key.Key_A:
             self._scene.clearSelection()
             return
+        # Ctrl+Shift+O — toggle stroke visibility on selected shapes.
+        # If stroke_width > 0, remember it on the item and zero it out;
+        # on next toggle, restore. Matches Illustrator's 'No stroke' X
+        # stripe toggle without needing the Shape Controls dropdown.
+        if ctrl and shift and key == Qt.Key.Key_O:
+            touched = 0
+            for it in self._scene.selectedItems():
+                if isinstance(it, OverlayShapeItem):
+                    cur = int(it.overlay.stroke_width or 0)
+                    if cur > 0:
+                        # Remember on the item itself, not in the asset
+                        # data, since this is a transient visibility
+                        # toggle (user may undo / redo).
+                        setattr(it, "_stroke_width_memo", cur)
+                        it.overlay.stroke_width = 0
+                    else:
+                        it.overlay.stroke_width = (
+                            getattr(it, "_stroke_width_memo", 2))
+                    it.prepareGeometryChange()
+                    it.update()
+                    touched += 1
+            if touched:
+                self._sync_overlays_to_asset()
+                self.info_label.setText(
+                    f"Toggled stroke on {touched} shape"
+                    f"{'s' if touched != 1 else ''}")
+            return
         # Ctrl+Shift+D — Illustrator / Photoshop 'deselect' alias.
         if ctrl and shift and key == Qt.Key.Key_D:
             self._scene.clearSelection()
