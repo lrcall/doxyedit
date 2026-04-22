@@ -9571,8 +9571,34 @@ class StudioEditor(QWidget):
         # Cursor position + selection count — graphics-editor staples
         self._tool_label = QLabel("Select")
         self._tool_label.setObjectName("studio_tool_label")
-        self._tool_label.setToolTip("Active Studio tool")
+        self._tool_label.setToolTip(
+            "Active Studio tool (right-click to switch)")
         self._tool_label.setFixedWidth(int(_dt.font_size * 9))
+        self._tool_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Right-click the tool name in the status bar to switch tools
+        # without reaching for the toolbar or remembering the shortcut.
+        self._tool_label.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        def _tool_ctx(pos):
+            m = _themed_menu(self._tool_label)
+            tools_list = [
+                ("Select (Q / V)", StudioTool.SELECT),
+                ("Text (T)", StudioTool.TEXT_OVERLAY),
+                ("Shape (rect)", StudioTool.SHAPE_RECT),
+                ("Shape (ellipse)", StudioTool.SHAPE_ELLIPSE),
+                ("Arrow (A)", StudioTool.ARROW),
+                ("Censor (X)", StudioTool.CENSOR),
+                ("Crop (C)", StudioTool.CROP),
+                ("Watermark (E)", StudioTool.WATERMARK),
+                ("Note (N)", StudioTool.NOTE),
+                ("Eyedropper (I)", StudioTool.EYEDROPPER),
+            ]
+            for label_s, tool in tools_list:
+                act = m.addAction(label_s)
+                act.triggered.connect(
+                    lambda _c=False, t=tool: self._set_tool(t))
+            m.exec(self._tool_label.mapToGlobal(pos))
+        self._tool_label.customContextMenuRequested.connect(_tool_ctx)
         status_bar.addWidget(self._tool_label)
 
         self._cursor_label = QLabel("0, 0")
