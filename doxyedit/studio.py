@@ -440,47 +440,46 @@ class StudioScene(QGraphicsScene):
         candidates_x = []  # list of (target_x, y_range_lo, y_range_hi)
         candidates_y = []  # list of (target_y, x_range_lo, x_range_hi)
 
-        # Canvas-center snaps (finds the pixmap item if present)
-        for it in self.items():
-            if isinstance(it, QGraphicsPixmapItem):
-                pm = it.sceneBoundingRect()
-                candidates_x.append((pm.center().x(), pm.top(), pm.bottom()))
-                candidates_y.append((pm.center().y(), pm.left(), pm.right()))
-                break
-
-        # Every other item's edges + centers
+        # Single scene-walk — prior code called self.items() three times
+        # (canvas center, overlays, guide lines) which allocates a fresh
+        # list of every scene item each time. With many overlays + guides
+        # that's 3*N allocation + iteration per drag frame with snap on.
+        _snap_types = (OverlayImageItem, OverlayTextItem,
+                       OverlayArrowItem, OverlayShapeItem,
+                       CensorRectItem, ResizableCropItem,
+                       NoteRectItem)
+        canvas_found = False
         for it in self.items():
             if it is moving_item or it.parentItem() is not None:
                 continue
-            if not isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                   OverlayArrowItem, OverlayShapeItem,
-                                   CensorRectItem, ResizableCropItem,
-                                   NoteRectItem, QGraphicsPixmapItem)):
-                continue
-            if it is moving_item:
-                continue
-            ob = it.sceneBoundingRect()
-            for x in (ob.left(), ob.center().x(), ob.right()):
-                candidates_x.append((x, ob.top(), ob.bottom()))
-            for y in (ob.top(), ob.center().y(), ob.bottom()):
-                candidates_y.append((y, ob.left(), ob.right()))
-
-        # Drag-out guides — treat each as an infinitely-long snap line so
-        # items snap to them exactly like any other edge. Include any
-        # user-dragged offset via pos() so a moved guide still snaps.
-        for it in self.items():
-            if not isinstance(it, _GuideLineItem):
-                continue
-            line = it.line()
-            off = it.pos()
-            if getattr(it, "_guide_orientation", 'h') == 'v':
-                candidates_x.append((line.x1() + off.x(),
-                                      line.y1() + off.y(),
-                                      line.y2() + off.y()))
-            else:
-                candidates_y.append((line.y1() + off.y(),
-                                      line.x1() + off.x(),
-                                      line.x2() + off.x()))
+            if isinstance(it, QGraphicsPixmapItem):
+                pm = it.sceneBoundingRect()
+                if not canvas_found:
+                    candidates_x.append((pm.center().x(), pm.top(), pm.bottom()))
+                    candidates_y.append((pm.center().y(), pm.left(), pm.right()))
+                    canvas_found = True
+                # Also treat the canvas edges as snap targets
+                for x in (pm.left(), pm.center().x(), pm.right()):
+                    candidates_x.append((x, pm.top(), pm.bottom()))
+                for y in (pm.top(), pm.center().y(), pm.bottom()):
+                    candidates_y.append((y, pm.left(), pm.right()))
+            elif isinstance(it, _GuideLineItem):
+                line = it.line()
+                off = it.pos()
+                if getattr(it, "_guide_orientation", 'h') == 'v':
+                    candidates_x.append((line.x1() + off.x(),
+                                          line.y1() + off.y(),
+                                          line.y2() + off.y()))
+                else:
+                    candidates_y.append((line.y1() + off.y(),
+                                          line.x1() + off.x(),
+                                          line.x2() + off.x()))
+            elif isinstance(it, _snap_types):
+                ob = it.sceneBoundingRect()
+                for x in (ob.left(), ob.center().x(), ob.right()):
+                    candidates_x.append((x, ob.top(), ob.bottom()))
+                for y in (ob.top(), ob.center().y(), ob.bottom()):
+                    candidates_y.append((y, ob.left(), ob.right()))
 
         thr = self.SNAP_THRESHOLD_PX
         best_dx, best_dy = 0.0, 0.0
