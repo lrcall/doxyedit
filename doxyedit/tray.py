@@ -17,6 +17,9 @@ NAME_ROLE = Qt.ItemDataRole.UserRole + 1  # stores display name for view mode sw
 PATH_ROLE = Qt.ItemDataRole.UserRole + 2  # stores source_path for drag-out
 TRAY_ICON_SIZE = 80
 MIN_HANDLE_WIDTH = 12
+# Custom mime so tab-bar drops can recover asset IDs directly instead
+# of having to reverse-map file URLs back to project asset IDs.
+TRAY_IDS_MIME = "application/x-doxyedit-tray-ids"
 
 
 class DragOutListWidget(QListWidget):
@@ -34,20 +37,29 @@ class DragOutListWidget(QListWidget):
             return
         mime = QMimeData()
         urls = []
+        ids = []
         for item in items:
             path = item.data(PATH_ROLE)
+            aid = item.data(Qt.ItemDataRole.UserRole)
             if path:
                 urls.append(QUrl.fromLocalFile(path))
-        if not urls:
+            if aid:
+                ids.append(aid)
+        if not urls and not ids:
             return
-        mime.setUrls(urls)
+        if urls:
+            mime.setUrls(urls)
+        if ids:
+            # Custom mime lets tab-bar drops identify assets without having
+            # to reverse-resolve URLs back to asset IDs.
+            mime.setData(TRAY_IDS_MIME, ",".join(ids).encode())
         drag = QDrag(self)
         drag.setMimeData(mime)
         # Use the first item's icon as drag pixmap
         icon = items[0].icon()
         if not icon.isNull():
             drag.setPixmap(icon.pixmap(64, 64))
-        drag.exec(Qt.DropAction.CopyAction)
+        drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -98,6 +110,54 @@ class DragOutListWidget(QListWidget):
             event.acceptProposedAction()
         else:
             super().dropEvent(event)
+
+
+class TrayTabBar(QTabBar):
+    """QTabBar that accepts drops of tray items so the user can drag items
+    from the list onto a target tab to move them. Shift held during drop
+    copies instead of moving."""
+
+    def __init__(self, tray, parent=None):
+        super().__init__(parent)
+        self._tray = tray
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat(TRAY_IDS_MIME):
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat(TRAY_IDS_MIME):
+            event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        mime = event.mimeData()
+        if not mime.hasFormat(TRAY_IDS_MIME):
+            super().dropEvent(event)
+            return
+        try:
+            point = event.position().toPoint()
+        except AttributeError:
+            point = event.pos()
+        target_idx = self.tabAt(point)
+        if target_idx < 0:
+            event.ignore()
+            return
+        target_name = self.tabData(target_idx) or self.tabText(target_idx)
+        raw = bytes(mime.data(TRAY_IDS_MIME)).decode("utf-8", errors="ignore")
+        asset_ids = [i for i in raw.split(",") if i]
+        if not asset_ids:
+            event.ignore()
+            return
+        copy = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+        if self._tray._handle_tab_drop(asset_ids, target_name, copy=copy):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
 
 
 class WorkTray(QWidget):
@@ -188,7 +248,7 @@ class WorkTray(QWidget):
 
         # Tab bar for named trays. tabData(i) holds the CLEAN tray name;
         # tabText(i) may include a count suffix like "Tray 1 (12)".
-        self._tab_bar = QTabBar()
+        self._tab_bar = TrayTabBar(self)
         self._tab_bar.setObjectName("tray_tab_bar")
         self._tab_bar.setExpanding(False)
         self._tab_bar.setTabsClosable(False)
@@ -711,6 +771,33 @@ class WorkTray(QWidget):
             import subprocess
             win_path = out_path.replace("/", "\\")
             subprocess.Popen(f'explorer /select,"{win_path}"')
+
+    def _handle_tab_drop(self, asset_ids: list, target_name: str,
+                          copy: bool) -> bool:
+        """Called by TrayTabBar after a drop lands on a tab. Moves (default)
+        or copies (Shift) the dragged asset_ids into target_name. Returns
+        True if anything changed."""
+        if target_name not in self._trays:
+            return False
+        if target_name == self._current_tray:
+            # Dropping on self is a no-op — user probably meant reorder,
+            # which happens via QListWidget internal DnD, not the tab bar.
+            return False
+        # Target is always an inactive tray (can't be current per the check
+        # above), so we append directly to its list.
+        dst = self._trays.setdefault(target_name, [])
+        dst_set = set(dst)
+        added = 0
+        for aid in asset_ids:
+            if aid not in dst_set:
+                dst.append(aid)
+                dst_set.add(aid)
+                added += 1
+        if not copy:
+            for aid in asset_ids:
+                self.remove_asset(aid)
+        self._refresh_tab_counts()
+        return added > 0 or not copy
 
     def _send_to_other_tray(self, asset_id: str, tray_name: str):
         """Move an asset from current tray to another tray."""
