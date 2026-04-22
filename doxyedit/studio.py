@@ -6525,6 +6525,17 @@ class StudioEditor(QWidget):
         _dlg_layout.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
         _dlg_layout.setSpacing(_pad)
         _dlg_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        # Text content editor at the top — live-edits the selected
+        # text overlay's .text without needing to enter scene-edit
+        # mode. Multiline so speech-bubble text with line breaks works.
+        from PySide6.QtWidgets import QPlainTextEdit as _QPT
+        self._tc_content_edit = _QPT(_dlg)
+        self._tc_content_edit.setObjectName("studio_tc_content")
+        self._tc_content_edit.setPlaceholderText(
+            "Text content (edits selected text overlay)")
+        self._tc_content_edit.setFixedHeight(int(_dt.font_size * 4.4))
+        self._tc_content_edit.textChanged.connect(self._on_tc_content_changed)
+        _dlg_layout.addRow("Text", self._tc_content_edit)
         _dlg_layout.addRow("Position", self.combo_position)
         _dlg_layout.addRow("Font", self.font_combo)
         _dlg_layout.addRow("Size", self.slider_font_size)
@@ -8856,6 +8867,15 @@ class StudioEditor(QWidget):
                   self.slider_rotation, self.slider_text_width, self.slider_outline):
             w.blockSignals(True)
 
+        # Push the selected text overlay's content into the mini editor
+        # in the Text Controls popup so the user can type to it directly.
+        if hasattr(self, "_tc_content_edit"):
+            self._tc_content_syncing = True
+            try:
+                if self._tc_content_edit.toPlainText() != ov.text:
+                    self._tc_content_edit.setPlainText(ov.text or "")
+            finally:
+                self._tc_content_syncing = False
         self.slider_opacity.setValue(int(ov.opacity * 100))
         self.slider_scale.setValue(int(ov.scale * 100))
         pos_text = ov.position if ov.position != "custom" else "custom (drag)"
@@ -9097,6 +9117,26 @@ class StudioEditor(QWidget):
         color = QColorDialog.getColor(current, self, "Overlay Color")
         if color.isValid():
             self._apply_text_color(color.name())
+
+    def _on_tc_content_changed(self):
+        """Live-edit the selected text overlay's content from the mini
+        editor in the Text Controls popup. Blocks re-entry so our own
+        programmatic setPlainText during selection-change doesn't echo
+        back into the selected overlay."""
+        if getattr(self, "_tc_content_syncing", False):
+            return
+        sel = [it for it in self._scene.selectedItems()
+               if isinstance(it, OverlayTextItem)]
+        if not sel:
+            return
+        txt = self._tc_content_edit.toPlainText()
+        for it in sel:
+            if it.overlay.text != txt:
+                it.overlay.text = txt
+                it.setPlainText(txt)
+                if hasattr(it, "_apply_font"):
+                    it._apply_font()
+        self._sync_overlays_to_asset()
 
     def _qp_pick_fill_color(self):
         """Quickbar fill-swatch click -> open QColorDialog and apply to
