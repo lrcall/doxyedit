@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -136,7 +136,6 @@ class PostComposerWidget(QWidget):
         left_layout.setSpacing(_pad)
 
         # Schedule picker (top of left panel for visibility)
-        from datetime import datetime as _dt, timedelta as _td
 
         sched_box = QGroupBox("Schedule")
         sched_box.setObjectName("composer_left_schedule")
@@ -146,7 +145,7 @@ class PostComposerWidget(QWidget):
         self._left_schedule.setObjectName("composer_left_schedule_edit")
         self._left_schedule.setCalendarPopup(True)
         self._left_schedule.setDisplayFormat("yyyy-MM-dd hh:mm AP")
-        tomorrow = _dt.now() + _td(days=1)
+        tomorrow = datetime.now() + timedelta(days=1)
         self._left_schedule.setDateTime(
             QDateTime(tomorrow.year, tomorrow.month, tomorrow.day,
                       tomorrow.hour, tomorrow.minute, 0))
@@ -263,10 +262,9 @@ class PostComposerWidget(QWidget):
         """Update timezone display on left schedule picker."""
         try:
             from zoneinfo import ZoneInfo
-            from datetime import datetime as _dtm
             qt_dt = self._left_schedule.dateTime()
             py_dt = qt_dt.toPython()
-            local_tz = _dtm.now().astimezone().tzinfo
+            local_tz = datetime.now().astimezone().tzinfo
             aware = py_dt.replace(tzinfo=local_tz)
             parts = []
             for tz_name, label in [("US/Eastern", "EST"), ("US/Pacific", "PST"), ("Asia/Tokyo", "JST")]:
@@ -325,8 +323,7 @@ class PostComposerWidget(QWidget):
         # Sync schedule to left panel
         if post.scheduled_time:
             try:
-                from datetime import datetime as _dtm
-                dt = _dtm.fromisoformat(post.scheduled_time)
+                dt = datetime.fromisoformat(post.scheduled_time)
                 self._left_schedule.setDateTime(
                     QDateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute, 0))
             except Exception:
