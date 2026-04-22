@@ -6620,6 +6620,21 @@ class StudioEditor(QWidget):
             self._scene.clearSelection()
             self.info_label.setText("Deselected")
             return
+        # Ctrl+Shift+N — add a new text overlay at the last cursor
+        # position (or the canvas center if the cursor hasn't been
+        # tracked yet). Mirrors the 'new note / new asset' family of
+        # shortcuts without reaching for the T tool.
+        if ctrl and shift and key == Qt.Key.Key_N:
+            last = getattr(self, "_last_cursor_scene_pos", None)
+            if last is not None:
+                x, y = int(last.x()), int(last.y())
+            elif self._pixmap_item is not None:
+                br = self._pixmap_item.boundingRect()
+                x, y = int(br.center().x()), int(br.center().y())
+            else:
+                x, y = 50, 50
+            self._add_text_overlay(x, y)
+            return
         # Ctrl+Shift+B — copy geometry of selected item as text to clipboard
         if ctrl and shift and key == Qt.Key.Key_B:
             sel = self._scene.selectedItems()
