@@ -12,9 +12,11 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QTextEdit, QPushButton, QCheckBox, QDateTimeEdit, QFrame,
     QScrollArea, QGroupBox, QStackedWidget, QTextBrowser,
-    QSizePolicy, QComboBox, QSpinBox,
+    QSizePolicy, QComboBox, QSpinBox, QSplitter, QRadioButton,
+    QButtonGroup, QProgressDialog, QApplication, QMessageBox,
+    QDialog, QFileDialog,
 )
-from PySide6.QtCore import Qt, QDateTime, Signal
+from PySide6.QtCore import Qt, QDateTime, Signal, QSettings, QThread, QTimer
 from doxyedit.browser import FlowLayout
 from doxyedit.models import Project, SocialPost
 
@@ -103,8 +105,7 @@ class ContentPanel(QWidget):
         self._project = project
         self._project_dir = project_dir
         self._extra_projects: list = extra_projects or []
-        from PySide6.QtCore import QSettings as _QS
-        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _cb = max(14, int(_f * 1.17))
 
         self._platform_checks: dict[str, QCheckBox] = {}
@@ -125,9 +126,7 @@ class ContentPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        from PySide6.QtWidgets import QSplitter
-        from PySide6.QtCore import QSettings as _QS
-        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
 
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
@@ -271,7 +270,6 @@ class ContentPanel(QWidget):
         platforms_layout.addWidget(manual_container)
 
         # Censor mode (collapsible)
-        from PySide6.QtWidgets import QRadioButton, QButtonGroup
         censor_toggle = QPushButton("Censor Mode \u25bc")
         censor_toggle.setObjectName("composer_section_toggle")
         censor_toggle.setCheckable(True)
@@ -689,8 +687,7 @@ class ContentPanel(QWidget):
 
     def _rebuild_per_platform_captions(self) -> None:
         """Rebuild per-platform caption fields for CHECKED platforms only."""
-        from PySide6.QtCore import QSettings as _QS
-        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         # Save existing caption text
         saved_captions = {
             pid: te.toPlainText() for pid, te in self._platform_captions.items()
@@ -799,7 +796,6 @@ class ContentPanel(QWidget):
     def _wrap_html(self, body: str) -> str:
         """Wrap rendered markdown with theme-aware CSS for compact display."""
         from doxyedit.themes import THEMES, DEFAULT_THEME
-        from PySide6.QtCore import QSettings
         theme_id = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
         theme = THEMES.get(theme_id)
         if not theme:
@@ -856,7 +852,6 @@ a {{ color: {theme.accent}; }}
             Additional actions appended after the standard items but before
             Claude actions (e.g. strategy-specific buttons).
         """
-        from PySide6.QtCore import QSettings
         from doxyedit.themes import THEMES, DEFAULT_THEME
 
         menu = editor.createStandardContextMenu()
@@ -1038,7 +1033,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             return
 
         from doxyedit.strategy import generate_ai_strategy
-        from PySide6.QtCore import QThread, Signal as _Signal
 
         current = self._get_strategy_text()
         if current and not self._local_strategy_cache:
@@ -1055,20 +1049,18 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._ai_strategy_btn.setText("Generating...")
 
         # Show themed modal
-        from PySide6.QtWidgets import QProgressDialog
         self._ai_progress = QProgressDialog("Claude: generating strategy...", None, 0, 0, self)
         self._ai_progress.setObjectName("claude_progress")
         self._ai_progress.setWindowTitle("Claude")
         self._ai_progress.setWindowModality(Qt.WindowModality.ApplicationModal)
         self._ai_progress.setCancelButton(None)
         self._ai_progress.setMinimumDuration(0)
-        from PySide6.QtCore import QSettings as _QS_ai
-        _f_ai = _QS_ai("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f_ai = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         self._ai_progress.setMinimumWidth(int(_f_ai * self.AI_PROGRESS_MIN_WIDTH_RATIO))
         self._ai_progress.show()
 
         class _StrategyWorker(QThread):
-            finished = _Signal(str)
+            finished = Signal(str)
             def __init__(self, project, post):
                 super().__init__()
                 self._project = project
@@ -1120,7 +1112,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if not strategy or strategy.startswith("*Analyzing"):
             return
 
-        from PySide6.QtCore import QThread, Signal as _Signal
 
         platforms = [p for p, cb in self._platform_checks.items() if cb.isChecked()]
 
@@ -1249,7 +1240,6 @@ RULES:
     def patreon_quick_post(self, post: "SocialPost", project: "Project", project_dir: str = "."):
         """Copy caption, export image, open Patreon in browser."""
         import webbrowser
-        from PySide6.QtWidgets import QApplication
 
         # Get caption for Patreon (per-platform or default)
         caption = post.captions.get("patreon", post.caption_default)
@@ -1368,7 +1358,6 @@ RULES:
         current = self._identity_combo.currentData() or ""
         identity = dict(self._project.identities.get(current, {})) if current else {}
 
-        from PySide6.QtCore import QSettings
         _settings = QSettings("DoxyEdit", "DoxyEdit")
 
         dlg = QDialog(self)
@@ -1506,8 +1495,7 @@ RULES:
 
         # Detect Profiles button
         profile_list = QListWidget()
-        from PySide6.QtCore import QSettings as _QS_prof
-        _f_prof = _QS_prof("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f_prof = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         profile_list.setMaximumHeight(int(_f_prof * self.PROFILE_LIST_MAX_HEIGHT_RATIO))
         profile_list.hide()
 
@@ -1582,12 +1570,11 @@ RULES:
         tabs.addTab(posting_tab, "Posting")
 
         # ── Import/Export + Buttons ──
-        from PySide6.QtWidgets import QFileDialog as _QFD
         btn_row = QHBoxLayout()
         import_btn = QPushButton("Import...")
         import_btn.setObjectName("identity_import_btn")
         def _import_identity():
-            path, _ = _QFD.getOpenFileName(dlg, "Import Identity", "", "JSON (*.json)")
+            path, _ = QFileDialog.getOpenFileName(dlg, "Import Identity", "", "JSON (*.json)")
             if not path:
                 return
             import json
@@ -1614,7 +1601,7 @@ RULES:
         export_btn.setObjectName("identity_export_btn")
         def _export_identity():
             export_name = name_edit.text().strip() or "identity"
-            path, _ = _QFD.getSaveFileName(dlg, "Export Identity", f"{export_name}.json", "JSON (*.json)")
+            path, _ = QFileDialog.getSaveFileName(dlg, "Export Identity", f"{export_name}.json", "JSON (*.json)")
             if not path:
                 return
             import json
@@ -1788,8 +1775,7 @@ RULES:
 
         chain_platforms = self._get_chain_platforms()
 
-        from PySide6.QtCore import QSettings as _QS2
-        _f2 = _QS2("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f2 = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
 
         for idx, step in enumerate(self._release_steps):
             row = QWidget()
