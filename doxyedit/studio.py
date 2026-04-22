@@ -28,7 +28,8 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
     QKeyEvent, QTransform, QUndoCommand, QUndoStack, QIcon,
-    QPolygonF, QPainterPath,
+    QPolygonF, QPainterPath, QImage, QShortcut, QKeySequence,
+    QTextCursor,
 )
 import copy
 from PIL import Image
@@ -3923,7 +3924,6 @@ class StudioScene(QGraphicsScene):
                 f"Selected {count} on {target}")
         elif chosen is copy_canvas_act:
             if editor._pixmap_item:
-                from PySide6.QtGui import QImage
                 pm = editor._pixmap_item.pixmap()
                 img = QImage(pm.size(), QImage.Format.Format_ARGB32)
                 img.fill(Qt.GlobalColor.transparent)
@@ -4094,7 +4094,6 @@ class StudioScene(QGraphicsScene):
         then put the result on the system clipboard."""
         if editor._pixmap_item is None:
             return
-        from PySide6.QtGui import QImage
         r = target.rect().translated(target.pos())
         img = QImage(int(r.width()), int(r.height()),
                       QImage.Format.Format_ARGB32)
@@ -4644,7 +4643,6 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
         # Ctrl+P pin-on-top toggle + Ctrl+Shift+L / R snap-to-edge
         # park positions. Mirror of _TextControlsDialog so both popups
         # respond to the same 'dock-ish' gestures.
-        from PySide6.QtGui import QShortcut, QKeySequence
         _pin_sc = QShortcut(QKeySequence("Ctrl+P"), self)
         _pin_sc.setContext(Qt.ShortcutContext.WindowShortcut)
         _pin_sc.activated.connect(self._toggle_pin_on_top)
@@ -5713,7 +5711,6 @@ class _TextControlsDialog(QtWidgets.QDialog):
         self._qs = QSettings("DoxyEdit", "DoxyEdit")
         self._pin_on_top = False
         # Install shortcuts: pin + snap-left / snap-right.
-        from PySide6.QtGui import QShortcut, QKeySequence
         _pin_sc = QShortcut(QKeySequence("Ctrl+P"), self)
         _pin_sc.setContext(Qt.ShortcutContext.WindowShortcut)
         _pin_sc.activated.connect(self._toggle_pin_on_top)
@@ -9276,7 +9273,6 @@ class StudioEditor(QWidget):
         self._view.on_file_dropped = self._on_file_dropped
 
         # F10 = cycling testbed
-        from PySide6.QtGui import QShortcut, QKeySequence
         self._f10_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F10), self)
         self._f10_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._f10_shortcut.activated.connect(self._nuclear_clear)
@@ -9778,7 +9774,6 @@ class StudioEditor(QWidget):
         if not hasattr(self, "_pending_guide"):
             self._pending_guide = None
         pixmap_rect = self._pixmap_item.boundingRect()
-        from PySide6.QtGui import QPen, QColor
         if self._pending_guide is None:
             line = _GuideLineItem()
             line._guide_orientation = orientation
@@ -9895,7 +9890,6 @@ class StudioEditor(QWidget):
         if not guides:
             return
         pixmap_rect = self._pixmap_item.boundingRect()
-        from PySide6.QtGui import QPen, QColor
         for entry in guides:
             orient = entry.get("orientation", "h")
             pos = entry.get("position", 0)
@@ -11033,7 +11027,6 @@ class StudioEditor(QWidget):
         # trip through PIL so we get a real gaussian instead of bespoke math.
         mode = getattr(ov, "filter_mode", "") or ""
         if mode in ("grayscale", "invert"):
-            from PySide6.QtGui import QImage
             qimg = src.toImage().convertToFormat(QImage.Format.Format_ARGB32)
             w, h = qimg.width(), qimg.height()
             for y in range(h):
@@ -11052,7 +11045,6 @@ class StudioEditor(QWidget):
             src = QPixmap.fromImage(qimg)
         elif mode in ("blur3", "blur8"):
             radius = 3 if mode == "blur3" else 8
-            from PySide6.QtGui import QImage
             from PIL import Image as _PImg, ImageFilter as _PF
             import io as _io
             buf = _io.BytesIO()
@@ -11071,7 +11063,6 @@ class StudioEditor(QWidget):
         _ct = float(getattr(ov, "img_contrast", 0.0) or 0.0)
         _st = float(getattr(ov, "img_saturation", 0.0) or 0.0)
         if _br or _ct or _st:
-            from PySide6.QtGui import QImage
             from PIL import Image as _PImg, ImageEnhance as _PE
             import io as _io
             buf = _io.BytesIO()
@@ -15424,7 +15415,6 @@ class StudioEditor(QWidget):
         sel = self._scene.selectedItems()
         if not sel or not self._pixmap_item:
             return
-        from PySide6.QtGui import QImage
         # Union bbox with small pad
         bounds = sel[0].sceneBoundingRect()
         for it in sel[1:]:
@@ -15484,7 +15474,6 @@ class StudioEditor(QWidget):
         path. Useful for sticker packs or asset sharing."""
         if not self._asset or not self._pixmap_item:
             return
-        from PySide6.QtGui import QImage
         pm = self._pixmap_item.pixmap()
         path, _ = QFileDialog.getSaveFileName(
             self, "Export overlays as transparent PNG",
