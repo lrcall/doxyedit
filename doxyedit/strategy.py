@@ -11,6 +11,7 @@ Two modes:
 from __future__ import annotations
 
 import subprocess
+import sys
 from collections import Counter
 from datetime import datetime, timedelta
 from typing import Optional
