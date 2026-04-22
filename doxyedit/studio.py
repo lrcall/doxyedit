@@ -3511,6 +3511,41 @@ class _StudioRuler(QWidget):
                 p.drawLine(0, int(cursor_px), self.width(), int(cursor_px))
 
 
+class _ColorSwatchButton(QPushButton):
+    """QPushButton that paints a filled square showing the current color
+    and an outline ring. Used for the fill / outline color pickers in
+    the Text Controls dialog so a theme QSS can never make the swatch
+    invisible (the glyph fallback went white-on-white in some themes)."""
+
+    def __init__(self, is_outline: bool = False, parent=None):
+        super().__init__("", parent)
+        self._is_outline = is_outline
+        self._color = QColor("#000000")
+        self.setMinimumSize(32, 26)
+
+    def setSwatchColor(self, color: QColor | str):
+        self._color = QColor(color) if not isinstance(color, QColor) else color
+        self.update()
+
+    def paintEvent(self, ev):
+        # Let the theme draw the button frame, then paint the swatch on top.
+        super().paintEvent(ev)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect().adjusted(6, 5, -6, -5)
+        if self._is_outline:
+            # Hollow ring: outlined rect on checkerboard so transparency is
+            # self-explanatory.
+            p.setBrush(QBrush(QColor("#ffffff")))
+            p.setPen(QPen(self._color, 3))
+            p.drawRect(r)
+        else:
+            p.setBrush(QBrush(self._color))
+            p.setPen(QPen(QColor("#333333"), 1))
+            p.drawRect(r)
+        p.end()
+
+
 class _FlowLayout(QtWidgets.QLayout):
     """Wrapping horizontal layout — like QHBoxLayout but children fold onto
     the next row when they don't fit the available width. Adapted from the
@@ -4784,13 +4819,14 @@ class StudioEditor(QWidget):
         self.btn_italic.clicked.connect(self._on_italic_changed)
         props.addWidget(self.btn_italic)
 
-        self.btn_color = QPushButton("■")
+        self.btn_color = _ColorSwatchButton(is_outline=False)
         self.btn_color.setObjectName("studio_color_btn")
         self.btn_color.setFixedWidth(_icon_btn_w)
+        self.btn_color.setToolTip("Fill color")
         self.btn_color.clicked.connect(self._on_color_pick)
         props.addWidget(self.btn_color)
 
-        self.btn_outline_color = QPushButton("◻")
+        self.btn_outline_color = _ColorSwatchButton(is_outline=True)
         self.btn_outline_color.setObjectName("studio_outline_btn")
         self.btn_outline_color.setFixedWidth(_icon_btn_w)
         self.btn_outline_color.setToolTip("Outline color")
@@ -6834,6 +6870,12 @@ class StudioEditor(QWidget):
         self.slider_rotation.setValue(int(ov.rotation))
         self.slider_text_width.setValue(ov.text_width)
         self.slider_outline.setValue(ov.stroke_width)
+        # Keep the color-swatch buttons in sync with the selected overlay
+        # so the user can always see what color will be changed by a click.
+        if hasattr(self.btn_color, "setSwatchColor"):
+            self.btn_color.setSwatchColor(ov.color or "#000000")
+        if hasattr(self.btn_outline_color, "setSwatchColor"):
+            self.btn_outline_color.setSwatchColor(ov.stroke_color or "#000000")
 
         for w in (self.slider_opacity, self.slider_scale, self.combo_position,
                   self.font_combo, self.slider_font_size, self.btn_bold,
@@ -6959,6 +7001,8 @@ class StudioEditor(QWidget):
                         apply_cb=lambda it, _v: it._apply_font(),
                         description="Change text color",
                     )
+            if hasattr(self.btn_color, "setSwatchColor"):
+                self.btn_color.setSwatchColor(color)
             self._sync_overlays_to_asset()
 
     def _on_outline_color_pick(self):
@@ -6968,6 +7012,8 @@ class StudioEditor(QWidget):
         current = QColor(items[0].overlay.stroke_color or "#000000")
         color = QColorDialog.getColor(current, self, "Outline Color")
         if color.isValid():
+            if hasattr(self.btn_outline_color, "setSwatchColor"):
+                self.btn_outline_color.setSwatchColor(color)
             for item in items:
                 if isinstance(item, OverlayTextItem):
                     self._push_overlay_attr(
