@@ -3126,6 +3126,8 @@ class StudioScene(QGraphicsScene):
         add_speech_act = add_menu.addAction("Speech Bubble (with text)")
         add_thought_act = add_menu.addAction("Thought Bubble (with text)")
         add_burst_act = add_menu.addAction("Burst / Action Star")
+        add_star_act = add_menu.addAction("Star (5-point)")
+        add_poly_act = add_menu.addAction("Polygon (hexagon)")
         add_lingrad_act = add_menu.addAction("Linear Gradient (dark top)")
         add_radgrad_act = add_menu.addAction("Radial Gradient (vignette)")
         fit_act = menu.addAction("Fit View  (Ctrl+0)")
@@ -3189,9 +3191,15 @@ class StudioScene(QGraphicsScene):
         pos = event.scenePos()
         if chosen is add_text_act:
             editor._add_text_overlay(int(pos.x()), int(pos.y()))
-        elif chosen in (add_rect_act, add_ellipse_act):
-            kind = "ellipse" if chosen is add_ellipse_act else "rect"
-            w, h = 200, 120
+        elif chosen in (add_rect_act, add_ellipse_act, add_star_act, add_poly_act):
+            if chosen is add_rect_act:
+                kind, w, h = "rect", 200, 120
+            elif chosen is add_ellipse_act:
+                kind, w, h = "ellipse", 200, 120
+            elif chosen is add_star_act:
+                kind, w, h = "star", 180, 180
+            else:
+                kind, w, h = "polygon", 180, 180
             ov = CanvasOverlay(
                 type="shape", label=kind.title(), shape_kind=kind,
                 color="#ffd700", stroke_color="#ffd700", stroke_width=2,
@@ -3199,6 +3207,11 @@ class StudioScene(QGraphicsScene):
                 x=int(pos.x() - w / 2), y=int(pos.y() - h / 2),
                 shape_w=w, shape_h=h,
             )
+            if kind == "star":
+                ov.star_points = 5
+                ov.inner_ratio = 0.4
+            elif kind == "polygon":
+                ov.star_points = 6
             editor._asset.overlays.append(ov)
             new_item = editor._create_overlay_item(ov)
             if new_item:
