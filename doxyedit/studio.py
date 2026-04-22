@@ -9511,8 +9511,16 @@ class StudioEditor(QWidget):
         Escape cleanup regardless of whether the focus widget is the
         scene, view, sidebar button, or a spin / slider input. Previous
         behavior was that Escape on a sidebar button just went to the
-        parent widget and did nothing."""
+        parent widget and did nothing.
+
+        If isolation mode is active, Escape exits isolation first
+        rather than immediately clearing the selection — gives the
+        user a way out of isolation without hunting for the layer
+        panel right-click."""
         if not self.isVisible():
+            return
+        if getattr(self, "_isolation_active", False):
+            self._exit_isolation()
             return
         if self._scene is not None:
             focus = self._scene.focusItem()
