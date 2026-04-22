@@ -193,8 +193,10 @@ class _ResizeHandle(QGraphicsRectItem):
         super().__init__(-3, -3, 6, 6, parent_censor)
         self._parent = parent_censor
         self._position = position  # "tl", "tr", "bl", "br", "t", "b", "l", "r"
-        self.setBrush(QBrush(QColor(255, 255, 255)))
-        self.setPen(QPen(QColor(0, 0, 0), 1))
+        _dt = THEMES[DEFAULT_THEME]
+        self.setBrush(QBrush(QColor(_dt.studio_resize_handle_fill)))
+        self.setPen(QPen(QColor(_dt.studio_overlay_handle_border),
+                         _dt.studio_overlay_handle_pen_width))
         self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable, True)
         self.setCursor(Qt.CursorShape.SizeFDiagCursor if position in ("tl", "br")
                        else Qt.CursorShape.SizeBDiagCursor if position in ("tr", "bl")
@@ -214,8 +216,10 @@ class _RotateHandle(QGraphicsRectItem):
     def __init__(self, parent_censor):
         super().__init__(-4, -4, 8, 8, parent_censor)
         self._parent = parent_censor
-        self.setBrush(QBrush(QColor(200, 220, 255)))
-        self.setPen(QPen(QColor(0, 0, 0), 1))
+        _dt = THEMES[DEFAULT_THEME]
+        self.setBrush(QBrush(QColor(_dt.studio_rotate_handle_fill)))
+        self.setPen(QPen(QColor(_dt.studio_overlay_handle_border),
+                         _dt.studio_overlay_handle_pen_width))
         self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable, True)
         self.setCursor(Qt.CursorShape.CrossCursor)
         self.setZValue(1001)
@@ -249,15 +253,26 @@ class CensorRectItem(QGraphicsRectItem):
         self._update_handle_positions()
 
     def _apply_style(self):
+        _dt = THEMES[DEFAULT_THEME]
+        pen_w = _dt.studio_censor_pen_width
         if self.style == "black":
-            self.setBrush(QBrush(QColor(0, 0, 0, 220)))
-            self.setPen(QPen(QColor("#ff4444"), 1.5, Qt.PenStyle.DashLine))
+            fill = QColor(_dt.studio_censor_blackout_fill)
+            fill.setAlpha(_dt.studio_censor_blackout_fill_alpha)
+            self.setBrush(QBrush(fill))
+            self.setPen(QPen(QColor(_dt.studio_censor_blackout_pen), pen_w,
+                             Qt.PenStyle.DashLine))
         elif self.style == "blur":
-            self.setBrush(QBrush(QColor(100, 100, 255, 80)))
-            self.setPen(QPen(QColor("#6666ff"), 1.5, Qt.PenStyle.DashLine))
+            fill = QColor(_dt.studio_censor_blur_fill)
+            fill.setAlpha(_dt.studio_censor_blur_fill_alpha)
+            self.setBrush(QBrush(fill))
+            self.setPen(QPen(QColor(_dt.studio_censor_blur_pen), pen_w,
+                             Qt.PenStyle.DashLine))
         elif self.style == "pixelate":
-            self.setBrush(QBrush(QColor(100, 255, 100, 80)))
-            self.setPen(QPen(QColor("#66ff66"), 1.5, Qt.PenStyle.DashLine))
+            fill = QColor(_dt.studio_censor_pixelate_fill)
+            fill.setAlpha(_dt.studio_censor_pixelate_fill_alpha)
+            self.setBrush(QBrush(fill))
+            self.setPen(QPen(QColor(_dt.studio_censor_pixelate_pen), pen_w,
+                             Qt.PenStyle.DashLine))
 
     def _update_handle_positions(self):
         r = self.rect()

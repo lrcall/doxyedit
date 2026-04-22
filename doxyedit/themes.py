@@ -128,6 +128,48 @@ class Theme:
     filmstrip_thumb_min: int = 60          # filmstrip thumbnail minimum height
     filmstrip_height_ratio: float = 5.0    # filmstrip height × font_size
     filmstrip_label_ratio: float = 2.5     # filmstrip label area × font_size
+    # Studio scene / overlay paint (CLAUDE.md overlay exception: fixed
+    # high-contrast colors, not theme-dependent, but tokenized here so
+    # paint methods never hardcode QColor(r,g,b) / QColor("#hex") inline.
+    studio_resize_handle_fill: str = "#ffffff"
+    studio_rotate_handle_fill: str = "#c8dcff"
+    studio_overlay_handle_border: str = "#000000"
+    studio_overlay_handle_pen_width: float = 1.0
+    studio_censor_blackout_fill: str = "#000000"
+    studio_censor_blackout_fill_alpha: int = 220
+    studio_censor_blackout_pen: str = "#ff4444"
+    studio_censor_blur_fill: str = "#6464ff"
+    studio_censor_blur_fill_alpha: int = 80
+    studio_censor_blur_pen: str = "#6666ff"
+    studio_censor_pixelate_fill: str = "#64ff64"
+    studio_censor_pixelate_fill_alpha: int = 80
+    studio_censor_pixelate_pen: str = "#66ff66"
+    studio_censor_pen_width: float = 1.5
+    studio_scene_align_guide: str = "#ff00c8"
+    studio_scene_align_guide_alpha: int = 200
+    studio_scene_checker_dark: str = "#3c3c3c"
+    studio_scene_checker_light: str = "#545454"
+    studio_minimap_bg: str = "#141414"
+    studio_minimap_bg_alpha: int = 200
+    studio_minimap_text: str = "#969696"
+    studio_minimap_view_border: str = "#ffd200"
+    studio_minimap_view_pen_alpha: int = 220
+    studio_minimap_view_fill_alpha: int = 40
+    studio_minimap_border_dim: str = "#505050"
+    studio_drop_shadow_alpha: int = 160
+    studio_arrow_icon_accent: str = "#78b4dc"
+    studio_icon_bg: str = "#2a2a2a"
+    studio_icon_fg: str = "#ffffff"
+    studio_icon_border: str = "#333333"
+    studio_error_dot: str = "#ff0000"
+    studio_error_dot_alpha: int = 200
+    studio_link_guide_warn: str = "#ffc800"
+    studio_link_guide_ok: str = "#00c800"
+    studio_link_bubble_tail: str = "#64c8ff"
+    studio_link_bubble_tail_alt: str = "#dc64c8"
+    studio_link_bubble_rotate: str = "#50c8b4"
+    studio_link_bubble_scale: str = "#e6a03c"
+    studio_link_bubble_highlight: str = "#78dc78"
     # Browser extras
     grid_folder_tag_alpha: int = 60        # folder label tag bg opacity
     tag_bar_active_alpha: int = 255        # active tag button opacity
