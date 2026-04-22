@@ -4483,6 +4483,17 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_1:
             self._set_zoom(1.0)
             return
+        # Ctrl+2 / Ctrl+3 / Ctrl+4 → 200% / 300% / 400% zoom. Common in
+        # graphics apps for pixel-level work on a specific region.
+        if ctrl and key == Qt.Key.Key_2:
+            self._set_zoom(2.0)
+            return
+        if ctrl and key == Qt.Key.Key_3:
+            self._set_zoom(3.0)
+            return
+        if ctrl and key == Qt.Key.Key_4:
+            self._set_zoom(4.0)
+            return
         if ctrl and key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
             self._view.scale(1.25, 1.25)
             self._zoom_label.setText(f"{int(self._view.transform().m11() * 100)}%")
