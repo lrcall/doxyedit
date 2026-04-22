@@ -6561,6 +6561,14 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_BracketLeft:
             self._z_shift_selected(-1)
             return
+        # Alt+] / Alt+[ — select next / previous overlay in stack order
+        # (graphics-app convention; walks z-order with wrap-around).
+        if alt and not ctrl and not shift and key in (
+            Qt.Key.Key_BracketLeft, Qt.Key.Key_BracketRight,
+        ):
+            self._select_layer_relative(
+                +1 if key == Qt.Key.Key_BracketRight else -1)
+            return
         # Ctrl+L — toggle lock on selected overlays
         if ctrl and not shift and key == Qt.Key.Key_L:
             changed = False
@@ -12774,6 +12782,8 @@ class StudioEditor(QWidget):
             "<td>Bring forward / send backward</td></tr>"
             "<tr><td><b>Ctrl+Shift+]</b> / <b>Ctrl+Shift+[</b></td>"
             "<td>Bring to front / send to back</td></tr>"
+            "<tr><td><b>Alt+]</b> / <b>Alt+[</b></td>"
+            "<td>Select next / previous layer (wraps)</td></tr>"
             "<tr><td><b>Ctrl+L</b></td><td>Lock / unlock</td></tr>"
             "<tr><td><b>H</b></td><td>Toggle overlay visibility</td></tr>"
             "</table>"
@@ -13098,6 +13108,38 @@ class StudioEditor(QWidget):
                 continue
             cmd = SetZValueCmd(item, cur, new_z, label)
             self._undo_stack.push(cmd)
+
+    def _select_layer_relative(self, direction: int):
+        """Select the overlay one step above (+1) or below (-1) the
+        currently-selected one in scene z-order. Wraps at the ends so
+        Alt+] past the top goes back to the bottom (Illustrator /
+        Photoshop convention). Ignores locked + disabled overlays so the
+        cycle lands only on interactive items."""
+        z_classes = (
+            OverlayImageItem, OverlayTextItem,
+            OverlayShapeItem, OverlayArrowItem, CensorRectItem,
+        )
+        candidates = [
+            it for it in self._scene.items()
+            if isinstance(it, z_classes) and it.isVisible()
+            and (it.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
+        ]
+        if not candidates:
+            return
+        candidates.sort(key=lambda it: it.zValue())
+        selected = [it for it in candidates if it.isSelected()]
+        if selected:
+            idx = candidates.index(selected[0])
+            new_idx = (idx + direction) % len(candidates)
+        else:
+            new_idx = 0 if direction > 0 else len(candidates) - 1
+        self._scene.clearSelection()
+        target = candidates[new_idx]
+        target.setSelected(True)
+        try:
+            self._view.centerOn(target)
+        except Exception:
+            pass
 
     # ---- alignment + distribute ----
 
