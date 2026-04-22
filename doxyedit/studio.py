@@ -6901,6 +6901,18 @@ class StudioEditor(QWidget):
         qp_pixel_btn.clicked.connect(self._qp_snap_to_pixel)
         quickbar.addWidget(qp_pixel_btn)
 
+        qp_fh_btn = QPushButton("Flip H")
+        qp_fh_btn.setObjectName("studio_qp_fliph")
+        qp_fh_btn.setToolTip("Flip selected overlay(s) horizontally")
+        qp_fh_btn.clicked.connect(lambda: self._qp_flip("h"))
+        quickbar.addWidget(qp_fh_btn)
+
+        qp_fv_btn = QPushButton("Flip V")
+        qp_fv_btn.setObjectName("studio_qp_flipv")
+        qp_fv_btn.setToolTip("Flip selected overlay(s) vertically")
+        qp_fv_btn.clicked.connect(lambda: self._qp_flip("v"))
+        quickbar.addWidget(qp_fv_btn)
+
         self._qp_label = QLabel("(no selection)")
         self._qp_label.setObjectName("studio_qp_label")
         quickbar.addWidget(self._qp_label)
@@ -9979,6 +9991,45 @@ class StudioEditor(QWidget):
         self._sync_overlays_to_asset()
         self._rebuild_layer_panel()
         self.info_label.setText("Hidden" if hidden else "Visible")
+
+    def _qp_flip(self, axis: str):
+        """Flip selected overlays horizontally or vertically. axis='h'
+        flips flip_h; 'v' flips flip_v. Image / text honor via
+        _apply_flip / _apply_flip_text; shapes flip via QTransform
+        scale."""
+        sel = [it for it in self._scene.selectedItems() if hasattr(it, "overlay")]
+        if not sel:
+            return
+        for it in sel:
+            ov = it.overlay
+            if axis == "h":
+                ov.flip_h = not bool(getattr(ov, "flip_h", False))
+            else:
+                ov.flip_v = not bool(getattr(ov, "flip_v", False))
+            if hasattr(it, "_apply_flip"):
+                it._apply_flip()
+            elif hasattr(it, "_apply_flip_text"):
+                it._apply_flip_text()
+            elif isinstance(it, OverlayShapeItem):
+                from PySide6.QtGui import QTransform as _QT
+                cx = ov.x + ov.shape_w / 2
+                cy = ov.y + ov.shape_h / 2
+                it.setTransformOriginPoint(cx, cy)
+                sx = -1.0 if getattr(ov, "flip_h", False) else 1.0
+                sy = -1.0 if getattr(ov, "flip_v", False) else 1.0
+                import math as _m
+                t = _QT()
+                if getattr(ov, "skew_x", 0.0) or getattr(ov, "skew_y", 0.0):
+                    t.shear(_m.tan(_m.radians(ov.skew_x)),
+                             _m.tan(_m.radians(ov.skew_y)))
+                t.scale(sx, sy)
+                it.setTransform(t)
+                it.prepareGeometryChange()
+                it.update()
+            else:
+                it.update()
+        self._sync_overlays_to_asset()
+        self.info_label.setText(f"Flipped {axis.upper()}")
 
     def _qp_snap_to_pixel(self):
         """Snap every selected overlay's x/y/w/h to integer pixels.
