@@ -4386,6 +4386,23 @@ class StudioEditor(QWidget):
         if key == Qt.Key.Key_Backslash and not event.isAutoRepeat():
             self._set_overlays_preview_hidden(True)
             return
+        # Shift+F - fit view to the union bounding rect of the current
+        # selection. Zoom-to-selection. If nothing's selected, no-op.
+        if shift and not ctrl and key == Qt.Key.Key_F:
+            sel = self._scene.selectedItems()
+            if sel:
+                bounds = sel[0].sceneBoundingRect()
+                for it in sel[1:]:
+                    bounds = bounds.united(it.sceneBoundingRect())
+                bounds.adjust(-40, -40, 40, 40)
+                self._view.fitInView(
+                    bounds, Qt.AspectRatioMode.KeepAspectRatio)
+                if hasattr(self, "_zoom_label"):
+                    self._zoom_label.setText(
+                        f"{int(self._view.transform().m11() * 100)}%")
+                if hasattr(self, "_canvas_wrap"):
+                    self._canvas_wrap.refresh()
+            return
         # Shift+H / Shift+V drops a horizontal / vertical guide at the
         # current cursor position. Saves the ruler-drag gesture for a
         # single click-and-go workflow when the user knows where they
