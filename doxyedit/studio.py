@@ -6962,9 +6962,13 @@ class StudioEditor(QWidget):
         self._layer_panel.setObjectName("studio_layer_panel")
         self._layer_panel.setMaximumWidth(int(_dt.font_size * LAYER_PANEL_MAX_WIDTH_RATIO))
         self._layer_panel.setDragDropMode(QListWidget.DragDropMode.InternalMove)
-        # Show small thumbnails alongside each layer name
-        from PySide6.QtCore import QSize
-        self._layer_panel.setIconSize(QSize(28, 28))
+        # Show thumbnails alongside each layer name. Size is a user
+        # pref (studio_layer_thumb_size: small=16, medium=28, large=48).
+        from PySide6.QtCore import QSize, QSettings as _QSS
+        _thumb_sz = _QSS("DoxyEdit", "DoxyEdit").value(
+            "studio_layer_thumb_size", 28, type=int)
+        _thumb_sz = max(12, min(64, _thumb_sz))
+        self._layer_panel.setIconSize(QSize(_thumb_sz, _thumb_sz))
         # Click-on-thumbnail toggles visibility (like Photoshop's eye column)
         _orig_layer_press = self._layer_panel.mousePressEvent
         def _layer_mouse_press(event, _orig=_orig_layer_press):
@@ -10428,9 +10432,25 @@ class StudioEditor(QWidget):
         if list_item is None:
             empty_menu = _themed_menu(self._layer_panel)
             sel_all_act = empty_menu.addAction("Select All Overlays")
+            thumb_sub = empty_menu.addMenu("Thumbnail Size")
+            thumb_s = thumb_sub.addAction("Small (16px)")
+            thumb_m = thumb_sub.addAction("Medium (28px)")
+            thumb_l = thumb_sub.addAction("Large (48px)")
+            for act, sz in ((thumb_s, 16), (thumb_m, 28), (thumb_l, 48)):
+                act.setCheckable(True)
+                act.setChecked(
+                    self._layer_panel.iconSize().width() == sz)
             empty_menu.addSeparator()
             clear_all_act = empty_menu.addAction("Clear All Layers...")
             chosen = empty_menu.exec(global_pos_empty)
+            if chosen in (thumb_s, thumb_m, thumb_l):
+                sz = 16 if chosen is thumb_s else 28 if chosen is thumb_m else 48
+                from PySide6.QtCore import QSettings as _QS, QSize as _QSZ
+                self._layer_panel.setIconSize(_QSZ(sz, sz))
+                _QS("DoxyEdit", "DoxyEdit").setValue(
+                    "studio_layer_thumb_size", sz)
+                self._rebuild_layer_panel()
+                return
             if chosen is sel_all_act:
                 for it in self._overlay_items:
                     if hasattr(it, "setSelected"):
