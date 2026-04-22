@@ -13138,6 +13138,7 @@ class StudioEditor(QWidget):
             "Bring forward" if direction > 0 else
             "Send backward"
         )
+        moved = 0
         for item in list(self._scene.selectedItems()):
             if not isinstance(item, z_classes):
                 continue
@@ -13154,6 +13155,17 @@ class StudioEditor(QWidget):
                 continue
             cmd = SetZValueCmd(item, cur, new_z, label)
             self._undo_stack.push(cmd)
+            moved += 1
+        try:
+            if moved:
+                self.info_label.setText(
+                    f"{label}: {moved} layer{'s' if moved != 1 else ''}")
+            else:
+                # Nothing actually changed — most likely already at the
+                # limit ('already at front' after a Front command).
+                self.info_label.setText(f"{label}: already at limit")
+        except Exception:
+            pass
 
     def _select_layer_relative(self, direction: int):
         """Select the overlay one step above (+1) or below (-1) the
