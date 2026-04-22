@@ -287,8 +287,10 @@ class CensorRectItem(QGraphicsRectItem):
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         save_default_act = menu.addAction("Save as Default Censor Style")
         menu.addSeparator()
+        front_act = menu.addAction("Bring to Front  (Ctrl+Shift+])")
         fwd_act = menu.addAction("Bring Forward  (Ctrl+])")
         bwd_act = menu.addAction("Send Backward  (Ctrl+[)")
+        back_act = menu.addAction("Send to Back  (Ctrl+Shift+[)")
         menu.addSeparator()
         plat_sub = all_act = plat_actions = None
         if self._editor and self._editor._project:
@@ -364,6 +366,12 @@ class CensorRectItem(QGraphicsRectItem):
             self._editor._undo_stack.push(cmd)
         elif chosen is bwd_act and self._editor:
             cmd = SetZValueCmd(self, self.zValue(), max(100, self.zValue() - 1), "Send backward")
+            self._editor._undo_stack.push(cmd)
+        elif chosen is front_act and self._editor:
+            cmd = SetZValueCmd(self, self.zValue(), self.zValue() + 999, "Bring to front")
+            self._editor._undo_stack.push(cmd)
+        elif chosen is back_act and self._editor:
+            cmd = SetZValueCmd(self, self.zValue(), 100, "Send to back")
             self._editor._undo_stack.push(cmd)
         elif plat_actions and (chosen is all_act or chosen in plat_actions):
             new_plats = _resolve_platform_menu(chosen, all_act, plat_actions, self.platforms)
@@ -507,8 +515,10 @@ class OverlayImageItem(QGraphicsPixmapItem):
         rot_ccw_act = menu.addAction("Rotate 90° CCW")
         reset_xform_act = menu.addAction("Reset Transform")
         menu.addSeparator()
+        front_act = menu.addAction("Bring to Front  (Ctrl+Shift+])")
         fwd_act = menu.addAction("Bring Forward  (Ctrl+])")
         bwd_act = menu.addAction("Send Backward  (Ctrl+[)")
+        back_act = menu.addAction("Send to Back  (Ctrl+Shift+[)")
         menu.addSeparator()
         plat_sub = all_act = plat_actions = None
         if self._editor and self._editor._project:
@@ -614,6 +624,19 @@ class OverlayImageItem(QGraphicsPixmapItem):
                 self._editor._undo_stack.push(cmd)
             else:
                 self.setZValue(self.zValue() + 1)
+        elif chosen is front_act:
+            new_z = self.zValue() + 999
+            if self._editor:
+                cmd = SetZValueCmd(self, self.zValue(), new_z, "Bring to front")
+                self._editor._undo_stack.push(cmd)
+            else:
+                self.setZValue(new_z)
+        elif chosen is back_act:
+            if self._editor:
+                cmd = SetZValueCmd(self, self.zValue(), 200, "Send to back")
+                self._editor._undo_stack.push(cmd)
+            else:
+                self.setZValue(200)
         elif chosen is bwd_act:
             new_z = max(200, self.zValue() - 1)
             if self._editor:
@@ -2345,8 +2368,10 @@ class OverlayTextItem(QGraphicsTextItem):
         rot_ccw_act = menu.addAction("Rotate 90° CCW")
         reset_xform_act = menu.addAction("Reset Transform")
         menu.addSeparator()
+        front_act = menu.addAction("Bring to Front  (Ctrl+Shift+])")
         fwd_act = menu.addAction("Bring Forward  (Ctrl+])")
         bwd_act = menu.addAction("Send Backward  (Ctrl+[)")
+        back_act = menu.addAction("Send to Back  (Ctrl+Shift+[)")
         menu.addSeparator()
         plat_sub = all_act = plat_actions = None
         if self._editor and self._editor._project:
@@ -2513,6 +2538,19 @@ class OverlayTextItem(QGraphicsTextItem):
                 self._editor._undo_stack.push(cmd)
             else:
                 self.setZValue(self.zValue() + 1)
+        elif chosen is front_act:
+            new_z = self.zValue() + 999
+            if self._editor:
+                cmd = SetZValueCmd(self, self.zValue(), new_z, "Bring to front")
+                self._editor._undo_stack.push(cmd)
+            else:
+                self.setZValue(new_z)
+        elif chosen is back_act:
+            if self._editor:
+                cmd = SetZValueCmd(self, self.zValue(), 200, "Send to back")
+                self._editor._undo_stack.push(cmd)
+            else:
+                self.setZValue(200)
         elif chosen is bwd_act:
             new_z = max(200, self.zValue() - 1)
             if self._editor:
