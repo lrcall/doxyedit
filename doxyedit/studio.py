@@ -6219,8 +6219,23 @@ class StudioView(QGraphicsView):
                             editor.spin_rotation_layer.blockSignals(False)
                             break
                 return
-        # Ctrl+wheel zooms 1.5x per tick (faster). Plain wheel 1.15x.
-        _zoom = 1.5 if (event.modifiers() & Qt.KeyboardModifier.ControlModifier) else 1.15
+        # Wheel scheme (user setting): "zoom" keeps the classic
+        # plain-wheel-zooms behavior; "pan" flips it so plain wheel
+        # scrolls vertically (common for long comic pages) and Ctrl+
+        # wheel zooms. Either way, Ctrl+wheel is always a zoom path.
+        from PySide6.QtCore import QSettings as _QS
+        _ws = _QS("DoxyEdit", "DoxyEdit").value(
+            "studio_wheel_scheme", "zoom", type=str)
+        _is_ctrl = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        if _ws == "pan" and not _is_ctrl:
+            # Plain wheel = vertical pan
+            sb = self.verticalScrollBar()
+            step = sb.singleStep() * 5 if sb.singleStep() else 40
+            dy = event.angleDelta().y()
+            sb.setValue(sb.value() - (step if dy > 0 else -step))
+            return
+        # Otherwise: zoom (Ctrl is faster)
+        _zoom = 1.5 if _is_ctrl else 1.15
         factor = _zoom if event.angleDelta().y() > 0 else 1 / _zoom
         self.setTransform(self.transform().scale(factor, factor))
         if self._studio_editor is not None:
@@ -9358,7 +9373,12 @@ class StudioEditor(QWidget):
         # Give the scene extra rect around the image so there's margin for
         # the shadow + workspace feel
         _pm_rect = QRectF(pm.rect())
-        _margin = max(200, int(max(pm.width(), pm.height()) * 0.1))
+        # Wide margin so the user can always pan freely in every
+        # direction, including when the canvas + current zoom makes
+        # the pixmap bigger than the viewport. Previous 10% margin
+        # felt locked for users who wanted to pan the canvas off-
+        # center; 50% gives a generous buffer.
+        _margin = max(400, int(max(pm.width(), pm.height()) * 0.5))
         self._scene.setSceneRect(_pm_rect.adjusted(
             -_margin, -_margin, _margin, _margin))
         self._view.fitInView(self._pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
