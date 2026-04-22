@@ -1126,6 +1126,18 @@ class OverlayShapeItem(QGraphicsItem):
             painter.setBrush(QBrush(fill))
         else:
             painter.setBrush(Qt.BrushStyle.NoBrush)
+        # Stroke alignment: Qt's default is 'center' (pen straddles the
+        # edge). 'inside' shrinks the draw rect by half a stroke so the
+        # stroke sits entirely inside the user-drawn bounds; 'outside'
+        # grows it. Matches Illustrator / Photoshop semantics.
+        _align = getattr(self.overlay, "stroke_align", "center")
+        _sw = self.overlay.stroke_width or 0
+        if _align == "inside" and _sw > 0:
+            _half = _sw / 2.0
+            r = r.adjusted(_half, _half, -_half, -_half)
+        elif _align == "outside" and _sw > 0:
+            _half = _sw / 2.0
+            r = r.adjusted(-_half, -_half, _half, _half)
         kind = self.overlay.shape_kind
         if kind == "speech_bubble":
             self._paint_speech_bubble(painter, r)
@@ -4521,6 +4533,25 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             sd_row.addStretch()
             _sdw = _QW(); _sdw.setLayout(sd_row)
             form.addRow("", _sdw)
+
+            # Stroke alignment: inside / center / outside. Affects where
+            # the stroke sits relative to the shape bounds.
+            align_combo = QComboBox()
+            align_combo.addItems(["inside", "center", "outside"])
+            align_combo.setCurrentText(
+                getattr(ov, "stroke_align", "center"))
+            align_combo.setToolTip(
+                "Where the stroke sits relative to the shape:\n"
+                "• inside - stroke entirely within the shape bounds\n"
+                "• center - stroke straddles the edge (default)\n"
+                "• outside - stroke entirely outside the bounds")
+            def _align_changed(s, _it=item):
+                _it.overlay.stroke_align = s
+                _it.prepareGeometryChange()
+                _it.update()
+                editor._sync_overlays_to_asset()
+            align_combo.currentTextChanged.connect(_align_changed)
+            form.addRow("Stroke align", align_combo)
 
             # Swap fill <-> stroke colors. Illustrator 'X' equivalent.
             # Only meaningful when stroke_width > 0 (otherwise the

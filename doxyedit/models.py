@@ -288,6 +288,11 @@ class CanvasOverlay:
     # viewed tip-up; negative = counter-clockwise. Rendered via
     # quadratic bezier sides instead of straight lines.
     tail_curve: float = 0.0
+    # Stroke alignment for shape outlines. "center" (default) is Qt's
+    # native behavior - the pen centers on the edge. "inside" draws the
+    # stroke entirely inside the shape's bounds; "outside" entirely
+    # outside. Matters for pixel-perfect alignment against image edges.
+    stroke_align: str = "center"
 
     def to_dict(self) -> dict:
         return asdict(self)
