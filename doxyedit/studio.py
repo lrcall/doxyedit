@@ -4259,8 +4259,11 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             form.addRow("Blend mode", blend_combo)
 
             # Save-as-default row. Persists stroke / fill / width / line
-            # style as the defaults applied to newly-drawn shapes.
-            save_default_btn = QPushButton("Save as default shape style")
+            # style as the defaults applied to newly-drawn shapes. Paired
+            # with an Apply-default button for round-trip.
+            sd_row = QHBoxLayout()
+            sd_row.setContentsMargins(0, 0, 0, 0)
+            save_default_btn = QPushButton("Save Default")
             save_default_btn.setToolTip(
                 "Current stroke / fill / width / line style become the "
                 "defaults for new shapes drawn with the Shape tool.")
@@ -4281,7 +4284,49 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     editor.info_label.setText(
                         "Saved default shape style")
             save_default_btn.clicked.connect(_save_default)
-            form.addRow("", save_default_btn)
+            sd_row.addWidget(save_default_btn)
+
+            apply_default_btn = QPushButton("Apply Default")
+            apply_default_btn.setToolTip(
+                "Apply the saved default shape style to every "
+                "selected shape.")
+            def _apply_default():
+                from PySide6.QtCore import QSettings as _QS
+                qs = _QS("DoxyEdit", "DoxyEdit")
+                sel = [it for it in editor._scene.selectedItems()
+                       if isinstance(it, OverlayShapeItem)]
+                if not sel:
+                    if hasattr(editor, "info_label"):
+                        editor.info_label.setText(
+                            "Select shapes to apply default")
+                    return
+                for _it in sel:
+                    _ov = _it.overlay
+                    _ov.stroke_color = qs.value(
+                        "studio_shape_stroke_color",
+                        _ov.stroke_color or "#000000", type=str)
+                    _ov.fill_color = qs.value(
+                        "studio_shape_fill_color",
+                        _ov.fill_color or "", type=str)
+                    _ov.stroke_width = qs.value(
+                        "studio_shape_stroke_width",
+                        _ov.stroke_width or 2, type=int)
+                    _ov.line_style = qs.value(
+                        "studio_shape_line_style",
+                        getattr(_ov, "line_style", "solid"), type=str)
+                    _ov.corner_radius = qs.value(
+                        "studio_shape_corner_radius",
+                        _ov.corner_radius or 0, type=int)
+                    _it.update()
+                editor._sync_overlays_to_asset()
+                if hasattr(editor, "info_label"):
+                    editor.info_label.setText(
+                        f"Applied default to {len(sel)} shape(s)")
+            apply_default_btn.clicked.connect(_apply_default)
+            sd_row.addWidget(apply_default_btn)
+            sd_row.addStretch()
+            _sdw = _QW(); _sdw.setLayout(sd_row)
+            form.addRow("", _sdw)
 
             # Corner radius (only for non-bubble rects)
             if ov.shape_kind == "rect":
