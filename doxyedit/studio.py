@@ -7079,6 +7079,12 @@ class StudioEditor(QWidget):
             if hasattr(self, "chk_thirds"):
                 self.chk_thirds.setChecked(not self.chk_thirds.isChecked())
             return
+        # F9 = toggle minimap. Fn row gives each overlay-helper its
+        # own key: F3 grid, F4 thirds, F9 minimap, F12 snap.
+        if key == Qt.Key.Key_F9 and not ctrl and not shift:
+            if hasattr(self, "chk_minimap"):
+                self.chk_minimap.setChecked(not self.chk_minimap.isChecked())
+            return
         # F5..F8 = recall view bookmark slots 1..4.
         # Shift+F5..F8 = save the CURRENT zoom + scroll position into
         # the corresponding slot. Bookmarks persist in QSettings so
