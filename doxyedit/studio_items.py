@@ -1740,15 +1740,27 @@ class OverlayShapeItem(QGraphicsItem):
                 if self.overlay.tail_x or self.overlay.tail_y:
                     self.overlay.tail_x += dx
                     self.overlay.tail_y += dy
-                # Paired text overlay tracks the bubble
-                if self.overlay.linked_text_id and self._editor is not None:
-                    for it in self._editor._overlay_items:
-                        if (isinstance(it, OverlayTextItem)
-                                and it.overlay.label == self.overlay.linked_text_id):
-                            it.overlay.x += dx
-                            it.overlay.y += dy
-                            it.setPos(it.overlay.x, it.overlay.y)
-                            break
+                # Paired text overlay tracks the bubble. Cache the linked
+                # text item reference so we don't scan _overlay_items
+                # (O(N)) on every drag mousemove. Invalidate the cache
+                # whenever the linked_text_id changes.
+                linked_id = self.overlay.linked_text_id
+                if linked_id and self._editor is not None:
+                    cached = getattr(self, "_linked_text_cache", None)
+                    cached_for = getattr(self, "_linked_text_cache_id", None)
+                    if cached is None or cached_for != linked_id:
+                        cached = None
+                        for it in self._editor._overlay_items:
+                            if (isinstance(it, OverlayTextItem)
+                                    and it.overlay.label == linked_id):
+                                cached = it
+                                break
+                        self._linked_text_cache = cached
+                        self._linked_text_cache_id = linked_id
+                    if cached is not None:
+                        cached.overlay.x += dx
+                        cached.overlay.y += dy
+                        cached.setPos(cached.overlay.x, cached.overlay.y)
                 self.prepareGeometryChange()
             self._drag_prev_value = value
             # Refuse the position change so Qt leaves the item at (0,0).
