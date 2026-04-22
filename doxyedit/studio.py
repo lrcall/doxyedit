@@ -1846,6 +1846,21 @@ class OverlayTextItem(QGraphicsTextItem):
         self.setTextCursor(cursor)
         self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self.overlay.text = self.toPlainText()
+        # If this text is the payload of a speech/thought bubble AND the
+        # user has opted into auto-fit (studio_bubble_autofit setting,
+        # default True), resize the bubble to wrap the new text. Keeps
+        # comic pages tidy without a manual right-click.
+        if self._editor is not None and self.overlay.label:
+            from PySide6.QtCore import QSettings as _QS
+            autofit = _QS("DoxyEdit", "DoxyEdit").value(
+                "studio_bubble_autofit", True, type=bool)
+            if autofit:
+                for bubble_item in self._editor._overlay_items:
+                    if (isinstance(bubble_item, OverlayShapeItem)
+                            and bubble_item.overlay.linked_text_id
+                                == self.overlay.label):
+                        bubble_item._fit_to_linked_text()
+                        break
         super().focusOutEvent(event)
 
     def contextMenuEvent(self, event):
