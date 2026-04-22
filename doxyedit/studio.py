@@ -34,6 +34,7 @@ from PySide6.QtGui import (
     QTextBlockFormat, QPainterPathStroker,
 )
 import copy
+import math
 from PIL import Image
 
 from doxyedit.models import Asset, Project, CensorRegion, CanvasOverlay, CropRegion, PLATFORMS
@@ -235,7 +236,6 @@ class CensorRectItem(QGraphicsRectItem):
 
     def _on_rotate_handle_moved(self, scene_pos):
         """Compute angle from rect center to the handle position and apply setRotation."""
-        import math
         center_scene = self.mapToScene(self.rect().center())
         dx = scene_pos.x() - center_scene.x()
         dy = scene_pos.y() - center_scene.y()
@@ -759,7 +759,6 @@ class OverlayShapeItem(QGraphicsItem):
         a full ellipse), bubble_oval_stretch (±1 squashes the aspect),
         bubble_wobble (0-1 adds sinusoidal perturbation along the
         outline)."""
-        import math as _m
         pad = min(r.width(), r.height()) * 0.18
         tip = self._tail_tip(r)
         # Tail base: pick two points on the body edge closest to the tip
@@ -817,13 +816,12 @@ class OverlayShapeItem(QGraphicsItem):
             # b1 - tip line, offset by curve * base_len * 1.2. Sides of
             # the tail both curve in the same direction so the tail
             # swoops instead of going straight.
-            import math as _m
             def _perp_ctrl(src, dst, amount):
                 mx = (src.x() + dst.x()) / 2
                 my = (src.y() + dst.y()) / 2
                 dx = dst.x() - src.x()
                 dy = dst.y() - src.y()
-                length = _m.hypot(dx, dy) or 1.0
+                length = math.hypot(dx, dy) or 1.0
                 nx = -dy / length
                 ny = dx / length
                 return QPointF(mx + nx * amount, my + ny * amount)
@@ -852,10 +850,10 @@ class OverlayShapeItem(QGraphicsItem):
                 pct = t / length
                 pt = path.pointAtPercent(pct)
                 ang = path.angleAtPercent(pct)
-                normal = _m.radians(ang + 90)
-                push = _m.sin(pct * _m.pi * 8) * amp
-                nx = pt.x() + _m.cos(normal) * push
-                ny = pt.y() - _m.sin(normal) * push
+                normal = math.radians(ang + 90)
+                push = math.sin(pct * math.pi * 8) * amp
+                nx = pt.x() + math.cos(normal) * push
+                ny = pt.y() - math.sin(normal) * push
                 if i == 0:
                     wobbled.moveTo(nx, ny)
                 else:
@@ -871,7 +869,6 @@ class OverlayShapeItem(QGraphicsItem):
         cx, cy = r.center().x(), r.center().y()
         rx, ry = r.width() / 2, r.height() / 2
         path.addEllipse(r.adjusted(rx * 0.22, ry * 0.22, -rx * 0.22, -ry * 0.22))
-        import math
         n_puffs = 10
         puff_r = min(rx, ry) * 0.28
         for i in range(n_puffs):
@@ -897,7 +894,6 @@ class OverlayShapeItem(QGraphicsItem):
 
     def _paint_burst(self, painter, r: QRectF):
         """Jagged star/burst polygon with alternating outer/inner radii."""
-        import math
         cx, cy = r.center().x(), r.center().y()
         rx, ry = r.width() / 2, r.height() / 2
         points = []
@@ -915,7 +911,6 @@ class OverlayShapeItem(QGraphicsItem):
         """Regular n-pointed star. Controlled by overlay.star_points
         (number of outer points, default 5) and overlay.inner_ratio
         (inner/outer radius fraction, default 0.4)."""
-        import math
         cx, cy = r.center().x(), r.center().y()
         rx, ry = r.width() / 2, r.height() / 2
         n_points = max(3, int(getattr(self.overlay, "star_points", 5) or 5))
@@ -934,7 +929,6 @@ class OverlayShapeItem(QGraphicsItem):
         """Regular n-sided polygon. Controlled by overlay.star_points
         (vertex count, default 6 = hexagon). Rotated so a flat edge
         sits at the bottom for n=4,6,8 (a pointy top for n=3,5,7)."""
-        import math
         cx, cy = r.center().x(), r.center().y()
         rx, ry = r.width() / 2, r.height() / 2
         n = max(3, int(getattr(self.overlay, "star_points", 6) or 6))
@@ -1182,14 +1176,13 @@ class OverlayShapeItem(QGraphicsItem):
             c0.setAlphaF(c0.alphaF() * self.overlay.opacity)
             c1.setAlphaF(c1.alphaF() * self.overlay.opacity)
             if kind == "gradient_linear":
-                import math as _m
-                ang = _m.radians(self.overlay.gradient_angle)
+                ang = math.radians(self.overlay.gradient_angle)
                 cx, cy = r.center().x(), r.center().y()
                 half_w = r.width() / 2
-                gx0 = cx - _m.cos(ang) * half_w
-                gy0 = cy - _m.sin(ang) * half_w
-                gx1 = cx + _m.cos(ang) * half_w
-                gy1 = cy + _m.sin(ang) * half_w
+                gx0 = cx - math.cos(ang) * half_w
+                gy0 = cy - math.sin(ang) * half_w
+                gx1 = cx + math.cos(ang) * half_w
+                gy1 = cy + math.sin(ang) * half_w
                 grad = QLinearGradient(gx0, gy0, gx1, gy1)
             else:
                 grad = QRadialGradient(r.center(),
@@ -1274,15 +1267,14 @@ class OverlayShapeItem(QGraphicsItem):
             # For linear gradients, also show a direction line + two circles
             # representing the gradient start / end.
             if self.overlay.shape_kind == "gradient_linear":
-                import math as _m
-                ang = _m.radians(self.overlay.gradient_angle)
+                ang = math.radians(self.overlay.gradient_angle)
                 cx = self.overlay.x + self.overlay.shape_w / 2
                 cy = self.overlay.y + self.overlay.shape_h / 2
                 radius = min(self.overlay.shape_w, self.overlay.shape_h) / 2
-                sx = cx - _m.cos(ang) * radius
-                sy = cy - _m.sin(ang) * radius
-                ex = cx + _m.cos(ang) * radius
-                ey = cy + _m.sin(ang) * radius
+                sx = cx - math.cos(ang) * radius
+                sy = cy - math.sin(ang) * radius
+                ex = cx + math.cos(ang) * radius
+                ey = cy + math.sin(ang) * radius
                 painter.setPen(QPen(QColor(100, 200, 255), 1, Qt.PenStyle.DashLine))
                 painter.drawLine(int(sx), int(sy), int(ex), int(ey))
                 painter.setBrush(QBrush(QColor(100, 200, 255)))
@@ -1348,15 +1340,14 @@ class OverlayShapeItem(QGraphicsItem):
     def _gradient_handle_under(self, scene_pos: QPointF):
         """Return 'grad_start' / 'grad_end' if pos is near the gradient
         direction handles; None otherwise."""
-        import math as _m
-        ang = _m.radians(self.overlay.gradient_angle)
+        ang = math.radians(self.overlay.gradient_angle)
         cx = self.overlay.x + self.overlay.shape_w / 2
         cy = self.overlay.y + self.overlay.shape_h / 2
         radius = min(self.overlay.shape_w, self.overlay.shape_h) / 2
-        sx = cx - _m.cos(ang) * radius
-        sy = cy - _m.sin(ang) * radius
-        ex = cx + _m.cos(ang) * radius
-        ey = cy + _m.sin(ang) * radius
+        sx = cx - math.cos(ang) * radius
+        sy = cy - math.sin(ang) * radius
+        ex = cx + math.cos(ang) * radius
+        ey = cy + math.sin(ang) * radius
         r = 9
         if abs(scene_pos.x() - sx) <= r and abs(scene_pos.y() - sy) <= r:
             return 'grad_start'
@@ -1368,13 +1359,12 @@ class OverlayShapeItem(QGraphicsItem):
         if self._dragging_handle == 'rotate':
             # Rotate around body center toward the cursor. Shift snaps
             # to 15° increments (InDesign convention).
-            import math as _m
             cx = self.overlay.x + self.overlay.shape_w / 2
             cy = self.overlay.y + self.overlay.shape_h / 2
             sp = event.scenePos()
             dx = sp.x() - cx
             dy = sp.y() - cy
-            ang = _m.degrees(_m.atan2(dy, dx)) + 90  # 0 = up
+            ang = math.degrees(math.atan2(dy, dx)) + 90  # 0 = up
             if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
                 ang = round(ang / 15) * 15
             self.overlay.rotation = int(ang) % 360
@@ -1457,13 +1447,12 @@ class OverlayShapeItem(QGraphicsItem):
             return
         if self._dragging_handle in ('grad_start', 'grad_end'):
             # Drag updates the gradient angle, pivoting on the rect center
-            import math as _m
             cx = self.overlay.x + self.overlay.shape_w / 2
             cy = self.overlay.y + self.overlay.shape_h / 2
             sp = event.scenePos()
             dx = sp.x() - cx
             dy = sp.y() - cy
-            ang = _m.degrees(_m.atan2(dy, dx))
+            ang = math.degrees(math.atan2(dy, dx))
             if self._dragging_handle == 'grad_start':
                 ang = (ang + 180) % 360
             self.overlay.gradient_angle = int(ang)
@@ -1967,7 +1956,6 @@ class OverlayArrowItem(QGraphicsItem):
         painter.setPen(pen)
         painter.drawLine(int(x1), int(y1), int(x2), int(y2))
         # Arrowhead — equilateral triangle at tip
-        import math
         dx, dy = x2 - x1, y2 - y1
         length = math.hypot(dx, dy)
         if length < 1:
@@ -2169,17 +2157,16 @@ class OverlayArrowItem(QGraphicsItem):
             # Snap the arrow's angle to the nearest 15°, preserving
             # length and tail anchor. Same math as the Shape Controls
             # button so the two stay in sync.
-            import math as _math
             ov_a = self.overlay
             dx = ov_a.end_x - ov_a.x
             dy = ov_a.end_y - ov_a.y
-            length = _math.hypot(dx, dy)
+            length = math.hypot(dx, dy)
             if length >= 1:
-                angle = _math.degrees(_math.atan2(dy, dx))
+                angle = math.degrees(math.atan2(dy, dx))
                 snapped = round(angle / 15.0) * 15.0
-                rad = _math.radians(snapped)
-                ov_a.end_x = int(round(ov_a.x + length * _math.cos(rad)))
-                ov_a.end_y = int(round(ov_a.y + length * _math.sin(rad)))
+                rad = math.radians(snapped)
+                ov_a.end_x = int(round(ov_a.x + length * math.cos(rad)))
+                ov_a.end_y = int(round(ov_a.y + length * math.sin(rad)))
                 self.prepareGeometryChange()
                 self.update()
                 if self._editor:
@@ -3250,15 +3237,13 @@ class StudioScene(QGraphicsScene):
                 w = abs(int(pos.x() - self._draw_start.x()))
                 h = abs(int(pos.y() - self._draw_start.y()))
                 if isinstance(self._temp_item, QGraphicsLineItem):
-                    import math as _m
-                    length = int(_m.hypot(w, h))
+                    length = int(math.hypot(w, h))
                     editor.info_label.setText(f"Length: {length}px")
                 else:
                     editor.info_label.setText(f"Size: {w}x{h}")
             if isinstance(self._temp_item, QGraphicsLineItem):
                 # Shift constrains arrow direction to 45° steps
                 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
-                    import math
                     dx = pos.x() - self._draw_start.x()
                     dy = pos.y() - self._draw_start.y()
                     length = math.hypot(dx, dy)
@@ -3949,8 +3934,7 @@ class StudioScene(QGraphicsScene):
                     if o.type == "shape":
                         return -(o.shape_w * o.shape_h)
                     if o.type == "arrow":
-                        import math as _m
-                        return -int(_m.hypot(
+                        return -int(math.hypot(
                             o.end_x - o.x, o.end_y - o.y))
                     return 0
                 ovs.sort(key=_area)
@@ -5666,18 +5650,17 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 "keeping the tail anchored. Useful for lining up "
                 "diagrams and callouts.")
             def _straighten(_checked=False, _it=item):
-                import math as _math
                 ov_a = _it.overlay
                 dx = ov_a.end_x - ov_a.x
                 dy = ov_a.end_y - ov_a.y
-                length = _math.hypot(dx, dy)
+                length = math.hypot(dx, dy)
                 if length < 1:
                     return
-                angle = _math.degrees(_math.atan2(dy, dx))
+                angle = math.degrees(math.atan2(dy, dx))
                 snapped = round(angle / 15.0) * 15.0
-                rad = _math.radians(snapped)
-                ov_a.end_x = int(round(ov_a.x + length * _math.cos(rad)))
-                ov_a.end_y = int(round(ov_a.y + length * _math.sin(rad)))
+                rad = math.radians(snapped)
+                ov_a.end_x = int(round(ov_a.x + length * math.cos(rad)))
+                ov_a.end_y = int(round(ov_a.y + length * math.sin(rad)))
                 _it.prepareGeometryChange()
                 _it.update()
                 editor._sync_overlays_to_asset()
@@ -6009,14 +5992,13 @@ class _StudioIcons:
     @staticmethod
     def settings():
         def d(p, s):
-            import math as _m
             cx, cy = s / 2, s / 2
             for i in range(6):
-                ang = _m.radians(i * 60)
-                x1 = cx + _m.cos(ang) * (s / 2 - 5)
-                y1 = cy + _m.sin(ang) * (s / 2 - 5)
-                x2 = cx + _m.cos(ang) * (s / 2 - 2)
-                y2 = cy + _m.sin(ang) * (s / 2 - 2)
+                ang = math.radians(i * 60)
+                x1 = cx + math.cos(ang) * (s / 2 - 5)
+                y1 = cy + math.sin(ang) * (s / 2 - 5)
+                x2 = cx + math.cos(ang) * (s / 2 - 2)
+                y2 = cy + math.sin(ang) * (s / 2 - 2)
                 p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
             p.drawEllipse(QPointF(cx, cy), s / 4, s / 4)
         return _StudioIcons.make(d)
@@ -12420,11 +12402,10 @@ class StudioEditor(QWidget):
                 it.setTransformOriginPoint(cx, cy)
                 sx = -1.0 if getattr(ov, "flip_h", False) else 1.0
                 sy = -1.0 if getattr(ov, "flip_v", False) else 1.0
-                import math as _m
                 t = QTransform()
                 if getattr(ov, "skew_x", 0.0) or getattr(ov, "skew_y", 0.0):
-                    t.shear(_m.tan(_m.radians(ov.skew_x)),
-                             _m.tan(_m.radians(ov.skew_y)))
+                    t.shear(math.tan(math.radians(ov.skew_x)),
+                             math.tan(math.radians(ov.skew_y)))
                 t.scale(sx, sy)
                 it.setTransform(t)
                 it.prepareGeometryChange()
@@ -14804,15 +14785,14 @@ class StudioEditor(QWidget):
     def _apply_transform_to_shape(self, item):
         """Combine rotation + skew_x + skew_y into the shape's QTransform.
         Pivots on the body center so rotation / skew feel natural."""
-        import math as _m
         ov = item.overlay
         cx = ov.x + ov.shape_w / 2
         cy = ov.y + ov.shape_h / 2
         item.setTransformOriginPoint(cx, cy)
         t = QTransform()
         if getattr(ov, "skew_x", 0.0) or getattr(ov, "skew_y", 0.0):
-            t.shear(_m.tan(_m.radians(ov.skew_x)),
-                    _m.tan(_m.radians(ov.skew_y)))
+            t.shear(math.tan(math.radians(ov.skew_x)),
+                    math.tan(math.radians(ov.skew_y)))
         item.setTransform(t)
         item.setRotation(ov.rotation)
         item.prepareGeometryChange()
