@@ -6233,15 +6233,18 @@ class StudioView(QGraphicsView):
             if sel:
                 step = 5 if event.angleDelta().y() > 0 else -5
                 editor._rotate_selected(step)
-                # Sync the rotation spinbox if showing
-                if hasattr(editor, "spin_rotation_layer"):
-                    for it in sel:
-                        if hasattr(it, "overlay"):
-                            editor.spin_rotation_layer.blockSignals(True)
-                            editor.spin_rotation_layer.setValue(
-                                int(it.overlay.rotation))
-                            editor.spin_rotation_layer.blockSignals(False)
-                            break
+                # Sync the rotation spinbox + slider if showing
+                for it in sel:
+                    if hasattr(it, "overlay"):
+                        _rv = int(it.overlay.rotation)
+                        for _w_name in ("spin_rotation_layer",
+                                         "slider_rotation_layer"):
+                            _w = getattr(editor, _w_name, None)
+                            if _w is not None:
+                                _w.blockSignals(True)
+                                _w.setValue(_rv)
+                                _w.blockSignals(False)
+                        break
                 return
         # Wheel scheme (user setting): "zoom" keeps the classic
         # plain-wheel-zooms behavior; "pan" flips it so plain wheel
@@ -8949,35 +8952,97 @@ class StudioEditor(QWidget):
         self.chk_layer_locked.toggled.connect(self._on_layer_locked_toggled)
         _props_layout.addWidget(self.chk_layer_locked)
 
-        # Numeric position: X, Y pair in one row
-        _pos_row = QHBoxLayout()
-        _pos_row.addWidget(QLabel("X"))
+        # Position X: slider (coarse drag) + spinbox (precise text entry)
+        # User asked for 'X/Y and rotation in layer mode should be
+        # sliders with text entry fields' - both widgets edit the same
+        # value and stay in sync via blockSignals when one updates.
+        _px_row = QHBoxLayout()
+        _px_row.setContentsMargins(0, 0, 0, 0)
+        _px_row.addWidget(QLabel("X"))
+        self.slider_pos_x = QSlider(Qt.Orientation.Horizontal)
+        self.slider_pos_x.setObjectName("studio_pos_x_slider")
+        self.slider_pos_x.setRange(-10000, 10000)
+        _px_row.addWidget(self.slider_pos_x, 2)
         self.spin_pos_x = QSpinBox()
         self.spin_pos_x.setObjectName("studio_pos_x_spin")
         self.spin_pos_x.setRange(-50000, 50000)
         self.spin_pos_x.setSuffix(" px")
-        self.spin_pos_x.valueChanged.connect(
-            lambda v: self._on_pos_field_changed('x', v))
-        _pos_row.addWidget(self.spin_pos_x, 1)
-        _pos_row.addWidget(QLabel("Y"))
+        self.spin_pos_x.setFixedWidth(int(_dt.font_size * 6.2))
+        _px_row.addWidget(self.spin_pos_x)
+        def _x_slider_changed(v):
+            if self.spin_pos_x.value() != v:
+                self.spin_pos_x.blockSignals(True)
+                self.spin_pos_x.setValue(v)
+                self.spin_pos_x.blockSignals(False)
+            self._on_pos_field_changed('x', v)
+        def _x_spin_changed(v):
+            if self.slider_pos_x.value() != v:
+                self.slider_pos_x.blockSignals(True)
+                self.slider_pos_x.setValue(max(-10000, min(10000, v)))
+                self.slider_pos_x.blockSignals(False)
+            self._on_pos_field_changed('x', v)
+        self.slider_pos_x.valueChanged.connect(_x_slider_changed)
+        self.spin_pos_x.valueChanged.connect(_x_spin_changed)
+        _props_layout.addLayout(_px_row)
+
+        _py_row = QHBoxLayout()
+        _py_row.setContentsMargins(0, 0, 0, 0)
+        _py_row.addWidget(QLabel("Y"))
+        self.slider_pos_y = QSlider(Qt.Orientation.Horizontal)
+        self.slider_pos_y.setObjectName("studio_pos_y_slider")
+        self.slider_pos_y.setRange(-10000, 10000)
+        _py_row.addWidget(self.slider_pos_y, 2)
         self.spin_pos_y = QSpinBox()
         self.spin_pos_y.setObjectName("studio_pos_y_spin")
         self.spin_pos_y.setRange(-50000, 50000)
         self.spin_pos_y.setSuffix(" px")
-        self.spin_pos_y.valueChanged.connect(
-            lambda v: self._on_pos_field_changed('y', v))
-        _pos_row.addWidget(self.spin_pos_y, 1)
-        _props_layout.addLayout(_pos_row)
+        self.spin_pos_y.setFixedWidth(int(_dt.font_size * 6.2))
+        _py_row.addWidget(self.spin_pos_y)
+        def _y_slider_changed(v):
+            if self.spin_pos_y.value() != v:
+                self.spin_pos_y.blockSignals(True)
+                self.spin_pos_y.setValue(v)
+                self.spin_pos_y.blockSignals(False)
+            self._on_pos_field_changed('y', v)
+        def _y_spin_changed(v):
+            if self.slider_pos_y.value() != v:
+                self.slider_pos_y.blockSignals(True)
+                self.slider_pos_y.setValue(max(-10000, min(10000, v)))
+                self.slider_pos_y.blockSignals(False)
+            self._on_pos_field_changed('y', v)
+        self.slider_pos_y.valueChanged.connect(_y_slider_changed)
+        self.spin_pos_y.valueChanged.connect(_y_spin_changed)
+        _props_layout.addLayout(_py_row)
 
-        # Rotation spinbox — numeric precision beyond R / Shift+R
+        # Rotation: slider (-360..360) + spinbox with same range.
         _rot_row = QHBoxLayout()
-        _rot_row.addWidget(QLabel("Rotation"))
+        _rot_row.setContentsMargins(0, 0, 0, 0)
+        _rot_row.addWidget(QLabel("Rot"))
+        self.slider_rotation_layer = QSlider(Qt.Orientation.Horizontal)
+        self.slider_rotation_layer.setObjectName(
+            "studio_rotation_layer_slider")
+        self.slider_rotation_layer.setRange(-360, 360)
+        _rot_row.addWidget(self.slider_rotation_layer, 2)
         self.spin_rotation_layer = QSpinBox()
         self.spin_rotation_layer.setObjectName("studio_rotation_layer_spin")
         self.spin_rotation_layer.setRange(-360, 360)
         self.spin_rotation_layer.setSuffix("°")
-        self.spin_rotation_layer.valueChanged.connect(self._on_layer_rotation_changed)
-        _rot_row.addWidget(self.spin_rotation_layer, 1)
+        self.spin_rotation_layer.setFixedWidth(int(_dt.font_size * 5.2))
+        _rot_row.addWidget(self.spin_rotation_layer)
+        def _rot_slider_changed(v):
+            if self.spin_rotation_layer.value() != v:
+                self.spin_rotation_layer.blockSignals(True)
+                self.spin_rotation_layer.setValue(v)
+                self.spin_rotation_layer.blockSignals(False)
+            self._on_layer_rotation_changed(v)
+        def _rot_spin_changed(v):
+            if self.slider_rotation_layer.value() != v:
+                self.slider_rotation_layer.blockSignals(True)
+                self.slider_rotation_layer.setValue(v)
+                self.slider_rotation_layer.blockSignals(False)
+            self._on_layer_rotation_changed(v)
+        self.slider_rotation_layer.valueChanged.connect(_rot_slider_changed)
+        self.spin_rotation_layer.valueChanged.connect(_rot_spin_changed)
         _props_layout.addLayout(_rot_row)
         # Trailing stretch: keeps rows pinned to the top instead of letting
         # QVBoxLayout inflate the gaps when the panel is tall (e.g., Focus
@@ -12880,15 +12945,26 @@ class StudioEditor(QWidget):
             self.chk_layer_locked.blockSignals(True)
             self.chk_layer_locked.setChecked(bool(getattr(ov, "locked", False)))
             self.chk_layer_locked.blockSignals(False)
-            self.spin_pos_x.blockSignals(True)
-            self.spin_pos_x.setValue(int(ov.x))
-            self.spin_pos_x.blockSignals(False)
-            self.spin_pos_y.blockSignals(True)
-            self.spin_pos_y.setValue(int(ov.y))
-            self.spin_pos_y.blockSignals(False)
-            self.spin_rotation_layer.blockSignals(True)
-            self.spin_rotation_layer.setValue(int(getattr(ov, "rotation", 0)))
-            self.spin_rotation_layer.blockSignals(False)
+            # Sync BOTH the spinbox and the matching slider so the
+            # two halves of each slider+spinbox pair display the same
+            # value after a selection change.
+            for _widget in (self.spin_pos_x, self.slider_pos_x):
+                _widget.blockSignals(True)
+                _widget.setValue(
+                    max(_widget.minimum(),
+                         min(_widget.maximum(), int(ov.x))))
+                _widget.blockSignals(False)
+            for _widget in (self.spin_pos_y, self.slider_pos_y):
+                _widget.blockSignals(True)
+                _widget.setValue(
+                    max(_widget.minimum(),
+                         min(_widget.maximum(), int(ov.y))))
+                _widget.blockSignals(False)
+            _rv = int(getattr(ov, "rotation", 0))
+            for _widget in (self.spin_rotation_layer, self.slider_rotation_layer):
+                _widget.blockSignals(True)
+                _widget.setValue(_rv)
+                _widget.blockSignals(False)
             self._layer_props_widget.setEnabled(True)
             self._layer_props_selection = ("overlay", idx)
         else:
