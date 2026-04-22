@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import calendar
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
@@ -359,7 +359,6 @@ class CalendarPane(LazyRefreshMixin, QWidget):
         """Update the JST clock display."""
         try:
             from zoneinfo import ZoneInfo
-            from datetime import datetime
             now_jst = datetime.now(ZoneInfo("Asia/Tokyo"))
             now_local = datetime.now().astimezone()
             local_str = now_local.strftime("%I:%M%p").lstrip("0")
