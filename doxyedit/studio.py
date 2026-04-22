@@ -7528,6 +7528,39 @@ class StudioEditor(QWidget):
         self.btn_shadow_color.clicked.connect(self._pick_shadow_color)
         self.btn_shadow_color.on_color_picked = self._apply_shadow_color
         _shadow_row.addWidget(self.btn_shadow_color)
+        # Reset button — clears shadow_color / offset / blur together.
+        _shadow_reset_btn = QPushButton("Clr")
+        _shadow_reset_btn.setFixedWidth(36)
+        _shadow_reset_btn.setToolTip("Clear shadow (color / offset / blur)")
+        def _clear_shadow():
+            sel = [it for it in self._scene.selectedItems()
+                   if isinstance(it, OverlayTextItem)]
+            if not sel:
+                return
+            for it in sel:
+                it.overlay.shadow_color = ""
+                it.overlay.shadow_offset = 0
+                it.overlay.shadow_blur = 0
+                if hasattr(it, "_apply_font"):
+                    it._apply_font()
+                it.update()
+            # Sync UI
+            if hasattr(self, "btn_shadow_toggle"):
+                self.btn_shadow_toggle.blockSignals(True)
+                self.btn_shadow_toggle.setChecked(False)
+                self.btn_shadow_toggle.blockSignals(False)
+            if hasattr(self, "slider_shadow_offset"):
+                self.slider_shadow_offset.blockSignals(True)
+                self.slider_shadow_offset.setValue(0)
+                self.slider_shadow_offset.blockSignals(False)
+            if hasattr(self, "slider_shadow_blur"):
+                self.slider_shadow_blur.blockSignals(True)
+                self.slider_shadow_blur.setValue(0)
+                self.slider_shadow_blur.blockSignals(False)
+            self._sync_overlays_to_asset()
+            self.info_label.setText("Shadow cleared")
+        _shadow_reset_btn.clicked.connect(_clear_shadow)
+        _shadow_row.addWidget(_shadow_reset_btn)
         _shadow_widget = QWidget(_dlg)
         _shadow_widget.setLayout(_shadow_row)
         _dlg_layout.addRow("Shadow", _shadow_widget)
