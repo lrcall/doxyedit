@@ -3780,16 +3780,18 @@ class StudioView(QGraphicsView):
         # minimal region — the union of old + new sceneBoundingRect for
         # the moving item, which for most bubble drags is just a few
         # hundred pixels square.
-        # GPU viewport — opt-in via studio_use_gl_viewport (default on).
-        # When on, Qt composites through OpenGL (hardware-accelerated
-        # textures), which on a 2000x3000 canvas is typically 3-5x
-        # faster per blit than the software raster path. Required
-        # caveat: GL viewport forces FullViewportUpdate (partial rect
-        # updates don't work on a GL surface — the whole framebuffer
-        # is redrawn per swap anyway). If the user hits a regression on
-        # their specific GPU/driver combo they can toggle the pref off
-        # and Studio falls back to the tuned raster path below.
-        _use_gl = _qs.value("studio_use_gl_viewport", True, type=bool)
+        # GPU viewport — opt-in via studio_use_gl_viewport (default OFF).
+        # Perf-log data (post-GL-enable) showed GL's required
+        # FullViewportUpdate path measured ~20ms/frame because it
+        # repaints the whole 1628x1005 viewport every drag frame, while
+        # the raster path below with MinimalViewportUpdate repaints only
+        # the moving item's swept region (~200x200 = ~40k pixels vs
+        # ~1.6M). The net win is on the raster side until we migrate to
+        # a proper texture-resident pipeline (see docs/canvas-
+        # architecture-deep-dive.md Option D — Skia backend).
+        # GL is still available as an opt-in for users on very high-end
+        # GPUs or for stress-testing large scenes.
+        _use_gl = _qs.value("studio_use_gl_viewport", False, type=bool)
         gl_ok = False
         if _use_gl:
             try:
@@ -3932,6 +3934,7 @@ class StudioView(QGraphicsView):
                     "avg_ms": round(self._fps_rolling_ms, 2),
                     "dirty_w": event.rect().width(),
                     "dirty_h": event.rect().height(),
+                    "gl": self._gl_viewport_active,
                 })
             # Paint HUD on viewport
             vp = self.viewport()
