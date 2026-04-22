@@ -4522,6 +4522,27 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             _sdw = _QW(); _sdw.setLayout(sd_row)
             form.addRow("", _sdw)
 
+            # Swap fill <-> stroke colors. Illustrator 'X' equivalent.
+            # Only meaningful when stroke_width > 0 (otherwise the
+            # swapped stroke is invisible).
+            swap_btn = QPushButton("Swap fill ↔ stroke color")
+            swap_btn.setToolTip(
+                "Exchange the fill color with the stroke color. "
+                "Illustrator calls this 'X'.")
+            def _swap_fs(_it=item):
+                ov_s = _it.overlay
+                ov_s.fill_color, ov_s.stroke_color = (
+                    ov_s.stroke_color, ov_s.fill_color)
+                _it.update()
+                editor._sync_overlays_to_asset()
+                # Refresh this dialog so the swatch buttons update.
+                if hasattr(editor, "_shape_controls_dlg"):
+                    editor._shape_controls_dlg.rebuild_for(_it)
+                if hasattr(editor, "info_label"):
+                    editor.info_label.setText("Swapped fill and stroke")
+            swap_btn.clicked.connect(_swap_fs)
+            form.addRow("", swap_btn)
+
             # Corner radius (only for non-bubble rects)
             if ov.shape_kind == "rect":
                 cr_spin = QSpinBox()
