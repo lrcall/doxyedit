@@ -1184,6 +1184,15 @@ class OverlayShapeItem(QGraphicsItem):
             # delta since the last itemChange to overlay.x/y so repeated
             # mouseMoves don't cumulatively multiply the motion.
             prev = getattr(self, "_drag_prev_value", QPointF(0, 0))
+            # Shift-lock drag axis: read modifiers live from
+            # QApplication since itemChange isn't an event. Lock to the
+            # axis with the larger cumulative delta from drag start.
+            from PySide6.QtWidgets import QApplication
+            if QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier:
+                if abs(value.x()) > abs(value.y()):
+                    value = QPointF(value.x(), 0)
+                else:
+                    value = QPointF(0, value.y())
             dx = int(value.x() - prev.x())
             dy = int(value.y() - prev.y())
             if dx or dy:
