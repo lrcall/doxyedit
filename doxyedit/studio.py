@@ -6562,6 +6562,25 @@ class StudioEditor(QWidget):
                 QApplication.clipboard().setText(txt)
                 self.info_label.setText(f"Copied geometry: {txt}")
             return
+        # Ctrl+Shift+C — copy the hex color of the primary selected
+        # overlay to clipboard. For shapes: fill_color (falls back to
+        # stroke_color). For text: color. For arrows: color. Useful
+        # for round-tripping a color into external tools.
+        if ctrl and shift and key == Qt.Key.Key_C:
+            sel = [it for it in self._scene.selectedItems()
+                   if getattr(it, "overlay", None) is not None]
+            if sel:
+                ov = sel[0].overlay
+                hex_c = (getattr(ov, "fill_color", "")
+                          or getattr(ov, "color", "")
+                          or getattr(ov, "stroke_color", ""))
+                if hex_c:
+                    from PySide6.QtWidgets import QApplication
+                    QApplication.clipboard().setText(hex_c)
+                    self.info_label.setText(f"Copied color: {hex_c}")
+                else:
+                    self.info_label.setText("Selection has no color")
+            return
         # Alt+B / Alt+Shift+B - cycle blend mode forward / backward on
         # all selected non-censor overlays. Photoshop has Shift++ /
         # Shift+- but those conflict with zoom; Alt+B keeps bindings
