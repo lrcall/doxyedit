@@ -7233,8 +7233,13 @@ class StudioEditor(QWidget):
         self._qp_rot.setRange(-360, 360)
         self._qp_rot.setSuffix("°")
         self._qp_rot.setFixedWidth(int(_dt.font_size * 5))
-        self._qp_rot.setToolTip("Rotation of selection (degrees)")
+        self._qp_rot.setToolTip(
+            "Rotation of selection (degrees). Double-click to reset to 0°.")
         self._qp_rot.valueChanged.connect(self._qp_apply_rotation)
+        # Double-click to reset to 0°
+        def _rot_dclick(ev):
+            self._qp_rot.setValue(0)
+        self._qp_rot.mouseDoubleClickEvent = _rot_dclick
         quickbar.addWidget(self._qp_rot)
 
         quickbar.addWidget(QLabel("Opc"))
@@ -7263,8 +7268,12 @@ class StudioEditor(QWidget):
         self._qp_scale.setValue(100)
         self._qp_scale.setSuffix("%")
         self._qp_scale.setFixedWidth(int(_dt.font_size * 5.2))
-        self._qp_scale.setToolTip("Scale selected shape / image (%)")
+        self._qp_scale.setToolTip(
+            "Scale selected shape / image (%). Double-click to reset to 100%.")
         self._qp_scale.valueChanged.connect(self._qp_apply_scale)
+        def _scale_dclick(ev):
+            self._qp_scale.setValue(100)
+        self._qp_scale.mouseDoubleClickEvent = _scale_dclick
         quickbar.addWidget(self._qp_scale)
 
         # Quick lock / visibility / align-to-pixel buttons. Photoshop-
