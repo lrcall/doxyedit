@@ -1782,8 +1782,15 @@ class _StudioRuler(QWidget):
         self.update()
 
     def set_cursor_scene(self, value: float):
-        if value != self._cursor_scene:
-            self._cursor_scene = value
+        # Quantize to integer scene-pixels. Every mouse move sends a
+        # fresh float that drifts by sub-pixel amounts on modern high-
+        # rate pointer devices, and the prior float-equality guard let
+        # every single one trigger a full ruler repaint (tick math +
+        # text drawing per major tick). One repaint per scene-pixel
+        # change is indistinguishable to the user.
+        iv = int(value)
+        if iv != int(self._cursor_scene):
+            self._cursor_scene = iv
             self.update()
 
     def paintEvent(self, _event):
