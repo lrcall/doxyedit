@@ -166,3 +166,41 @@
 10:56  Stopwatch started — DoxyEdit v2.2 — 71 commits
 11:14  Stopwatch stopped (17m) — DoxyEdit v2.2 — 71 commits
 18:18  Stopwatch started — DoxyEdit v2.2 — 71 commits
+
+## 2026-04-16
+15:23  Cleared focus
+16:53  Note: New focus: DoxyEdit v2.4 — Studio Export Pipeline | Tasks: Escape fix → Export All per-crop → Export Platform → Identity import/export + tokenization
+16:59  Format cleaned: removed headers and empty lines, added checkboxes to tasks
+17:00  Note: Escape still blocked by QGraphicsTextItem. F10 and click-empty-canvas work. App eventFilter installed but Escape key specifically eaten before it reaches filter.
+17:00  Format cleaned: removed headers and empty lines, added checkboxes to tasks
+17:01  Format cleaned: removed headers and empty lines, added checkboxes to tasks
+17:02  Format cleaned: removed headers and empty lines, added checkboxes to tasks
+
+## 2026-04-22
+Wrap-up session. 449 commits. Autonomous cron loop retired mid-session per user directive "time to wrap up studio features and focusing on solidifying what is there and cleaning up code."
+
+Phases:
+  Feat push (pre-wrap): ~25 Studio additions - status-bar label right-click menus (cursor / zoom / tool / selection), quickbar slider preset menus, ruler guide-preset submenu, per-layer tag colors, layer-panel Copy/Paste Layer Style, Sort Layers by Tag Color / Opacity, Select All By Tag Color, Align Stack In Row / Column, Ctrl+Shift+O stroke-visibility toggle, Ctrl+Shift+Z redo, Quick Actions compressed to single row, dialog-dedupe so Settings / Transform / Shortcuts don't stack duplicates.
+  Dedupe sweep: ~60 cleanup commits - hoist Qt/stdlib/doxyedit imports across ~30 modules, drop inline duplicates and _QS/_QT/_QP alias antipatterns. studio.py dropped 1.3k lines, __main__.py dropped 35 inline 'from doxyedit.models import Project'.
+  Regression fixes (caught via launch-test):
+    797f27a  Bug: empty thumbnail view on load. Root cause: dedupe sweep removed inline 'import re' in thumbcache.py without hoisting; _safe_name crashed inside _rebind_project, aborted thumbnail subfolder setup.
+    2d04b25  Same class of regression in composer_left / preview / platforms / tray (re / os missing). Proactive AST scan found 4 more before user hit them.
+    f12d2f2  StudioEditor.keyPressEvent referenced 'alt' without defining it — every keypress raised UnboundLocalError. Reason: ctrl + shift extracted, alt forgotten. Silent in logs, user never noticed because excepthook swallowed it.
+    39f8d93  Bug: overlay image blur / brightness / contrast crashed. Root cause: QImage.save(BytesIO, "PNG") — PySide6 requires file path or QIODevice, not BytesIO. Fixed by adding qimage_to_pil() helper to imaging.py; call sites now skip PNG round-trip entirely.
+
+16:25  Post-review cleanup (do-now from code-reviewer):
+    f9ba597  refactor: consolidate 3 tag-color maps into TAG_COLORS table
+    0408534  refactor: extract _OVERLAY_ITEM_TYPES / _SELECTABLE / _CANVAS tuples (20 call sites deduped)
+    8bf8928  perf: drop 11 redundant _rebuild_layer_panel() calls - _sync_overlays_to_asset already rebuilds internally
+16:25  Tokenize pass:
+    463b875  studio swatch buttons: hardcoded #333/#555 hex moved to QSS (#studio_swatch rules) via theme tokens. Dynamic user color stays inline (runtime data, not theme chrome).
+16:25  Defer items (user follow-up):
+    9189d84  drop remaining inline import dupes + _dt/_uuid aliases in window.py; drop inline apply_censors/apply_overlays dup in studio.py
+    95c0edc  extract _attach_ctx_menu helper, refactor 4 status-bar label handlers to use it
+    bb915a5  Split studio.py -> studio.py + studio_items.py. studio.py shrinks 15,713 -> 12,945 lines. Items, undo cmds, helpers, constants, StudioTool enum all move to studio_items.py (2,832 lines). External consumers keep working via re-export.
+
+Launch-test discipline held. Every substantive commit: AST parse + `from doxyedit import X` + 5-8s `python run.py` + tail log. Four regressions caught before user.
+
+Remaining deferred:
+  - Dict-dispatch keyPressEvent at studio.py:6626-7100 (475 lines of flat modifier branches). Would've caught the 'alt' regression earlier.
+  - Full tokenization audit: 48 QColor(r,g,b) + 95 setContentsMargins sites across codebase — most in overlay-exception paint paths per CLAUDE.md, exceeds wrap-up scope.
