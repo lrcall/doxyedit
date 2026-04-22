@@ -13485,6 +13485,8 @@ class StudioEditor(QWidget):
                 else "Isolate (solo)")
             act_rename = prefix.addAction("Rename...")
             act_opacity = prefix.addAction("Opacity...")
+            act_copy_style = prefix.addAction("Copy Layer Style")
+            act_paste_style = prefix.addAction("Paste Layer Style")
             # Tag color submenu. Matches Finder / macOS style labels
             # (colored dots). Stored per-overlay so it persists across
             # sessions and survives rebuild_layer_panel.
@@ -13542,6 +13544,14 @@ class StudioEditor(QWidget):
                 return
             if chosen is act_rename:
                 self._on_layer_double_clicked(list_item)
+                return
+            if chosen is act_copy_style:
+                self._copy_style(ov)
+                self.info_label.setText("Copied layer style")
+                return
+            if chosen is act_paste_style:
+                self._paste_style(ov, scene_item)
+                self._rebuild_layer_panel()
                 return
             if tag_acts and chosen in tag_acts:
                 ov.tag_color = tag_acts[chosen]
