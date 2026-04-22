@@ -4011,6 +4011,76 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 cr_spin.valueChanged.connect(_cr_changed)
                 form.addRow("Corner radius", cr_spin)
 
+            # Gradient presets — only when the shape is a gradient.
+            if ov.shape_kind in ("gradient_linear", "gradient_radial"):
+                self._root_layout.addWidget(QLabel("<b>Gradient</b>"))
+                preset_row = QHBoxLayout()
+                preset_row.setContentsMargins(0, 0, 0, 0)
+                preset_combo = QComboBox()
+                preset_combo.addItems([
+                    "(current)", "Monochrome (black -> transparent)",
+                    "Sunset (orange -> pink)", "Ocean (blue -> teal)",
+                    "Fire (red -> yellow)", "Forest (green -> lime)",
+                    "Dusk (purple -> navy)", "Paper (cream -> warm)",
+                    "Vignette (black -> transparent)",
+                ])
+                presets = {
+                    "Monochrome (black -> transparent)":
+                        ("#000000ff", "#00000000"),
+                    "Sunset (orange -> pink)": ("#ff7043", "#ec407a"),
+                    "Ocean (blue -> teal)": ("#1e88e5", "#00acc1"),
+                    "Fire (red -> yellow)": ("#e53935", "#fdd835"),
+                    "Forest (green -> lime)": ("#2e7d32", "#c0ca33"),
+                    "Dusk (purple -> navy)": ("#5e35b1", "#1a237e"),
+                    "Paper (cream -> warm)": ("#fff8e1", "#ffccbc"),
+                    "Vignette (black -> transparent)":
+                        ("#000000ff", "#00000000"),
+                }
+                def _apply_preset(name, _it=item):
+                    if name == "(current)" or name not in presets:
+                        return
+                    s, e = presets[name]
+                    _it.overlay.gradient_start_color = s
+                    _it.overlay.gradient_end_color = e
+                    _it.update()
+                    editor._sync_overlays_to_asset()
+                    if hasattr(editor, "info_label"):
+                        editor.info_label.setText(f"Gradient: {name}")
+                preset_combo.currentTextChanged.connect(_apply_preset)
+                preset_row.addWidget(preset_combo, 1)
+                swap_btn = QPushButton("Swap")
+                swap_btn.setToolTip("Swap gradient start / end colors")
+                def _swap_grad(_it=item):
+                    _it.overlay.gradient_start_color, \
+                        _it.overlay.gradient_end_color = (
+                            _it.overlay.gradient_end_color,
+                            _it.overlay.gradient_start_color)
+                    _it.update()
+                    editor._sync_overlays_to_asset()
+                swap_btn.clicked.connect(_swap_grad)
+                preset_row.addWidget(swap_btn)
+                # Angle spin for linear gradients
+                if ov.shape_kind == "gradient_linear":
+                    angle_spin = QSpinBox()
+                    angle_spin.setRange(-360, 360)
+                    angle_spin.setSuffix("°")
+                    angle_spin.setValue(int(ov.gradient_angle))
+                    angle_spin.setFixedWidth(70)
+                    def _angle_changed(v, _it=item):
+                        _it.overlay.gradient_angle = v
+                        _it.update()
+                        editor._sync_overlays_to_asset()
+                    angle_spin.valueChanged.connect(_angle_changed)
+                    preset_row.addWidget(angle_spin)
+                _pw = _QW()
+                _pw.setLayout(preset_row)
+                grad_form = QFormLayout()
+                grad_form.setContentsMargins(0, 0, 0, 0)
+                grad_form.addRow("Preset", _pw)
+                _gfw = _QW()
+                _gfw.setLayout(grad_form)
+                self._root_layout.addWidget(_gfw)
+
             # Bubble deformers — only when the shape is a bubble
             if is_bubble:
                 self._root_layout.addWidget(QLabel("<b>Bubble shape</b>"))
