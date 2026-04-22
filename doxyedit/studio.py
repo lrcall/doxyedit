@@ -9845,10 +9845,27 @@ class StudioEditor(QWidget):
     # ---- actions ----
 
     def _delete_selected(self):
-        """Remove selected censors/overlays/crops/notes from scene and model."""
+        """Remove selected censors/overlays/crops/notes from scene and
+        model. Speech/thought bubbles cascade their linked text overlay
+        so the bubble + its linked text always travel together."""
         cmd = DeleteItemCmd(self)
         has_undoable = False
-        for item in self._scene.selectedItems():
+        selected = list(self._scene.selectedItems())
+        # Expand the selection to include linked-text overlays whose
+        # owning bubble is being deleted. Walk up front so indices /
+        # references remain valid during the main loop.
+        cascade_labels = set()
+        for item in selected:
+            if (isinstance(item, OverlayShapeItem)
+                    and getattr(item.overlay, "linked_text_id", "")):
+                cascade_labels.add(item.overlay.linked_text_id)
+        if cascade_labels:
+            for other in list(self._overlay_items):
+                if (isinstance(other, OverlayTextItem)
+                        and other.overlay.label in cascade_labels
+                        and other not in selected):
+                    selected.append(other)
+        for item in selected:
             if isinstance(item, CensorRectItem):
                 # Build CensorRegion from current item state for undo
                 r = item.rect()
@@ -9903,11 +9920,31 @@ class StudioEditor(QWidget):
         self._update_info()
 
     def _remove_overlay_item(self, item):
-        """Remove a single overlay item from scene + model (for context menu)."""
+        """Remove a single overlay item from scene + model. Cascades to
+        the paired text overlay when the item is a bubble with a
+        linked_text_id — previously the bubble was removed but the
+        text overlay was left floating in the asset (and hence visible
+        on-canvas with no owner)."""
+        pending_cascade = []
+        if isinstance(item, OverlayShapeItem):
+            lid = getattr(item.overlay, "linked_text_id", "")
+            if lid:
+                for other in list(self._overlay_items):
+                    if (isinstance(other, OverlayTextItem)
+                            and other.overlay.label == lid):
+                        pending_cascade.append(other)
         self._scene.removeItem(item)
         if item in self._overlay_items:
             self._overlay_items.remove(item)
+        for other in pending_cascade:
+            try:
+                self._scene.removeItem(other)
+            except Exception:
+                pass
+            if other in self._overlay_items:
+                self._overlay_items.remove(other)
         self._sync_overlays_to_asset()
+        self._rebuild_layer_panel()
         self._update_info()
 
     def _duplicate_overlay_item(self, item):
