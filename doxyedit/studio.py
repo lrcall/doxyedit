@@ -4595,12 +4595,26 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             sw_spin.setRange(1, 30)
             sw_spin.setValue(ov.stroke_width or 3)
             sw_spin.setSuffix(" px")
+            sw_spin.setFixedWidth(70)
             def _arrow_sw(v, _it=item):
                 _it.overlay.stroke_width = v
                 _it.update()
                 editor._sync_overlays_to_asset()
             sw_spin.valueChanged.connect(_arrow_sw)
-            form.addRow("Line width", sw_spin)
+            a_sw_row = QHBoxLayout()
+            a_sw_row.setContentsMargins(0, 0, 0, 0)
+            a_sw_row.addWidget(sw_spin)
+            for _aw in (1, 2, 3, 5, 8):
+                apb = QPushButton(str(_aw))
+                apb.setFixedWidth(26)
+                apb.setToolTip(f"Line {_aw} px")
+                def _apick(v=_aw):
+                    sw_spin.setValue(v)
+                apb.clicked.connect(_apick)
+                a_sw_row.addWidget(apb)
+            a_sw_row.addStretch()
+            a_sw_w = _QW(); a_sw_w.setLayout(a_sw_row)
+            form.addRow("Line width", a_sw_w)
 
             head_spin = QSpinBox()
             head_spin.setRange(4, 80)
