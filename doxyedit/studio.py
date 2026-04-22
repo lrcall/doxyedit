@@ -5056,6 +5056,14 @@ class _ColorSwatchButton(QPushButton):
         act = QWidgetAction(menu)
         act.setDefaultWidget(grid_widget)
         menu.addAction(act)
+        menu.addSeparator()
+        clear_act = menu.addAction("Clear recent colors")
+        def _clear_recent():
+            from PySide6.QtCore import QSettings as _QS
+            _QS("DoxyEdit", "DoxyEdit").setValue("studio_recent_colors", "")
+            if hasattr(editor, "_refresh_recent_swatches"):
+                editor._refresh_recent_swatches()
+        clear_act.triggered.connect(_clear_recent)
         menu.exec(self.mapToGlobal(pos))
 
     def paintEvent(self, ev):
