@@ -5,6 +5,7 @@ import random
 import shutil
 import subprocess
 import uuid
+from datetime import datetime
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListView, QStyledItemDelegate,
@@ -1792,7 +1793,6 @@ class AssetBrowser(QWidget):
                                if s.get("path", "").replace("\\", "/") == folder_norm), None)
                 cutoff = None
                 if source and source.get("filter_newer_than"):
-                    from datetime import datetime
                     try:
                         cutoff = datetime.fromisoformat(source["filter_newer_than"]).timestamp()
                     except ValueError:
@@ -2895,20 +2895,19 @@ class AssetBrowser(QWidget):
 
     def _record_import_source(self, source_type: str, path: str, recursive: bool = False):
         """Record an import source so the project knows where its assets came from."""
-        import datetime
         sources = self.project.import_sources
         # Update existing record for same path rather than duplicating
         for rec in sources:
             if rec.get("path") == path and rec.get("type") == source_type:
                 rec["recursive"] = recursive
-                rec["last_imported"] = datetime.datetime.now().isoformat(timespec="seconds")
+                rec["last_imported"] = datetime.now().isoformat(timespec="seconds")
                 return
         sources.append({
             "type": source_type,
             "path": path,
             "recursive": recursive,
-            "added_at": datetime.datetime.now().isoformat(timespec="seconds"),
-            "last_imported": datetime.datetime.now().isoformat(timespec="seconds"),
+            "added_at": datetime.now().isoformat(timespec="seconds"),
+            "last_imported": datetime.now().isoformat(timespec="seconds"),
             "filter_newer_than": "",
         })
 
@@ -2932,7 +2931,6 @@ class AssetBrowser(QWidget):
                                      if s.get("path", "").replace("\\", "/") == str(f.parent).replace("\\", "/")
                                      or s.get("path", "").replace("\\", "/") == folder.replace("\\", "/")), None)
                 if source_entry and source_entry.get("filter_newer_than"):
-                    from datetime import datetime
                     try:
                         cutoff = datetime.fromisoformat(source_entry["filter_newer_than"]).timestamp()
                         if f.stat().st_mtime < cutoff:
