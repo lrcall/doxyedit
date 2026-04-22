@@ -13674,6 +13674,57 @@ class StudioEditor(QWidget):
         tools_form.addRow("Pan speed", pan_accel_spin)
         tabs.addTab(tab_tools, "Tools")
 
+        # ── Tab: Reset ───────────────────────────────────────────────
+        from PySide6.QtWidgets import QPushButton as _QPB
+        tab_reset = QWidget()
+        reset_form = QFormLayout(tab_reset)
+        reset_form.addRow(QLabel(
+            "<i>Recovery actions - take effect immediately.</i>"))
+
+        _btn_reset_dlg = _QPB("Reset floating panel positions")
+        _btn_reset_dlg.setToolTip(
+            "Clear saved geometry for Text Controls, Shape Controls, "
+            "and the undo-history popup. They'll open at a default "
+            "spot next time.")
+        def _reset_dialogs():
+            for key in ("studio_text_controls_geom",
+                         "studio_shape_controls_geom",
+                         "studio_undo_history_geom"):
+                qs.remove(key)
+            # Also reset the 'positioned_once' flag on live dialogs so
+            # they reposition on next show.
+            for dlg_attr in ("_text_controls_dlg",
+                              "_shape_controls_dlg"):
+                _d = getattr(self, dlg_attr, None)
+                if _d is not None and hasattr(_d, "_positioned_once"):
+                    _d._positioned_once = False
+            self.info_label.setText("Reset floating panel positions")
+        _btn_reset_dlg.clicked.connect(_reset_dialogs)
+        reset_form.addRow("", _btn_reset_dlg)
+
+        _btn_clear_bm = _QPB("Clear view bookmarks (F5..F8)")
+        _btn_clear_bm.setToolTip(
+            "Wipe the four view-bookmark slots. Shift+F5..F8 sets "
+            "them fresh.")
+        def _clear_bookmarks():
+            for slot in (1, 2, 3, 4):
+                qs.remove(f"studio_view_bookmark_{slot}")
+            self.info_label.setText("Cleared view bookmarks")
+        _btn_clear_bm.clicked.connect(_clear_bookmarks)
+        reset_form.addRow("", _btn_clear_bm)
+
+        _btn_reset_recent = _QPB("Clear recent colors")
+        _btn_reset_recent.setToolTip(
+            "Empty the swatch-grid of recently-picked colors.")
+        def _clear_recents():
+            qs.setValue("studio_recent_colors", "")
+            if hasattr(self, "_refresh_recent_swatches"):
+                self._refresh_recent_swatches()
+            self.info_label.setText("Cleared recent colors")
+        _btn_reset_recent.clicked.connect(_clear_recents)
+        reset_form.addRow("", _btn_reset_recent)
+        tabs.addTab(tab_reset, "Reset")
+
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
             | QDialogButtonBox.StandardButton.Cancel)
