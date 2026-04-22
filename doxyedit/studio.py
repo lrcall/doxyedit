@@ -7352,6 +7352,32 @@ class StudioEditor(QWidget):
         _style_row.addWidget(self.btn_style_delete)
         _dlg_layout.addRow("Style", _style_widget)
         self._populate_text_styles_combo()
+
+        # Save-current-as-default button for text. Persists the first
+        # selected text overlay's style fields into
+        # studio_text_defaults so new text overlays inherit them.
+        _td_row = QHBoxLayout()
+        _td_row.setContentsMargins(0, 0, 0, 0)
+        _save_def_btn = QPushButton("Save as Default Text Style")
+        _save_def_btn.setObjectName("studio_save_text_default_btn")
+        _save_def_btn.setToolTip(
+            "Persist the selected text overlay's style as the "
+            "default for new text overlays.")
+        def _save_text_default():
+            sel = [it for it in self._scene.selectedItems()
+                   if isinstance(it, OverlayTextItem)]
+            if not sel:
+                if hasattr(self, "info_label"):
+                    self.info_label.setText(
+                        "Select a text overlay to save as default")
+                return
+            self._save_text_style_as_default(sel[0].overlay)
+        _save_def_btn.clicked.connect(_save_text_default)
+        _td_row.addWidget(_save_def_btn)
+        _td_row.addStretch()
+        _td_w = QWidget(_dlg)
+        _td_w.setLayout(_td_row)
+        _dlg_layout.addRow("", _td_w)
         # Reasonable min size envelope. Restore persisted geometry if any.
         _dlg.setMinimumWidth(max(360, int(_dt.font_size * 32)))
         _dlg.setMinimumHeight(420)
