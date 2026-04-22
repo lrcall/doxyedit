@@ -229,7 +229,6 @@ class CensorRectItem(QGraphicsRectItem):
     def _on_rotate_handle_moved(self, scene_pos):
         """Compute angle from rect center to the handle position and apply setRotation."""
         import math
-        from PySide6.QtWidgets import QApplication
         center_scene = self.mapToScene(self.rect().center())
         dx = scene_pos.x() - center_scene.x()
         dy = scene_pos.y() - center_scene.y()
@@ -1577,7 +1576,6 @@ class OverlayShapeItem(QGraphicsItem):
             # Shift-lock drag axis: read modifiers live from
             # QApplication since itemChange isn't an event. Lock to the
             # axis with the larger cumulative delta from drag start.
-            from PySide6.QtWidgets import QApplication
             if QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier:
                 if abs(value.x()) > abs(value.y()):
                     value = QPointF(value.x(), 0)
@@ -3933,7 +3931,6 @@ class StudioScene(QGraphicsScene):
                 f"Selected {count} on {target}")
         elif chosen is copy_canvas_act:
             if editor._pixmap_item:
-                from PySide6.QtWidgets import QApplication
                 from PySide6.QtGui import QImage
                 pm = editor._pixmap_item.pixmap()
                 img = QImage(pm.size(), QImage.Format.Format_ARGB32)
@@ -4105,7 +4102,6 @@ class StudioScene(QGraphicsScene):
         then put the result on the system clipboard."""
         if editor._pixmap_item is None:
             return
-        from PySide6.QtWidgets import QApplication
         from PySide6.QtGui import QImage
         r = target.rect().translated(target.pos())
         img = QImage(int(r.width()), int(r.height()),
@@ -4684,7 +4680,6 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             else "Shape Controls")
 
     def _snap_to_edge(self, side: str):
-        from PySide6.QtWidgets import QApplication
         screen = QApplication.primaryScreen()
         if screen is None:
             return
@@ -5759,7 +5754,6 @@ class _TextControlsDialog(QtWidgets.QDialog):
             else "Text Controls")
 
     def _snap_to_edge(self, side: str):
-        from PySide6.QtWidgets import QApplication
         screen = QApplication.primaryScreen()
         if screen is None:
             return
@@ -6134,7 +6128,6 @@ class _ColorSwatchButton(QPushButton):
         copy_hex_act = menu.addAction(
             f"Copy current swatch ({self._color.name()}) to clipboard")
         def _copy_hex():
-            from PySide6.QtWidgets import QApplication
             QApplication.clipboard().setText(self._color.name())
             if hasattr(editor, "info_label"):
                 editor.info_label.setText(
@@ -6142,7 +6135,6 @@ class _ColorSwatchButton(QPushButton):
         copy_hex_act.triggered.connect(_copy_hex)
         # Paste from clipboard if the clipboard holds a valid hex.
         # Accepts #rgb, #rrggbb, #rrggbbaa with or without leading #.
-        from PySide6.QtWidgets import QApplication
         clip_txt = (QApplication.clipboard().text() or "").strip()
         clip_hex_candidate = clip_txt.lstrip("#")
         _is_valid_hex = (
@@ -6809,7 +6801,6 @@ class StudioEditor(QWidget):
                 r = sel[0].sceneBoundingRect()
                 for it in sel[1:]:
                     r = r.united(it.sceneBoundingRect())
-                from PySide6.QtWidgets import QApplication
                 txt = f"X={int(r.x())}, Y={int(r.y())}, W={int(r.width())}, H={int(r.height())}"
                 QApplication.clipboard().setText(txt)
                 self.info_label.setText(f"Copied geometry: {txt}")
@@ -6891,7 +6882,6 @@ class StudioEditor(QWidget):
                           or getattr(ov, "color", "")
                           or getattr(ov, "stroke_color", ""))
                 if hex_c:
-                    from PySide6.QtWidgets import QApplication
                     QApplication.clipboard().setText(hex_c)
                     self.info_label.setText(f"Copied color: {hex_c}")
                 else:
@@ -9729,7 +9719,6 @@ class StudioEditor(QWidget):
         self._cursor_label.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu)
         def _cursor_ctx(pos):
-            from PySide6.QtWidgets import QApplication
             m = _themed_menu(self._cursor_label)
             act_copy = m.addAction("Copy coordinate to clipboard")
             act_goto = m.addAction("Go to coordinate...")
@@ -11522,7 +11511,6 @@ class StudioEditor(QWidget):
             self.info_label.setText(f"Eyedropper: applied {hex_}")
         else:
             # No text selected — stash the color on clipboard for the user
-            from PySide6.QtWidgets import QApplication
             QApplication.clipboard().setText(hex_)
             self.info_label.setText(f"Eyedropper: {hex_} copied to clipboard")
 
@@ -11769,7 +11757,6 @@ class StudioEditor(QWidget):
                 if not getattr(dlg, "_positioned_once", False):
                     gv = self._view
                     if gv is not None and gv.isVisible():
-                        from PySide6.QtWidgets import QApplication
                         avail = QApplication.primaryScreen().availableGeometry()
                         g = dlg.frameGeometry()
                         if not avail.intersects(g):
@@ -11832,7 +11819,6 @@ class StudioEditor(QWidget):
             # only if the saved geometry is actually unusable - otherwise
             # the sync handler was overriding the user's drag position
             # on every selection change.
-            from PySide6.QtWidgets import QApplication
             screen = QApplication.primaryScreen()
             if screen is not None and not getattr(
                     dlg, "_positioned_once", False):
@@ -13764,7 +13750,6 @@ class StudioEditor(QWidget):
         if not data:
             return
         kind, idx = data
-        from PySide6.QtWidgets import QApplication
         mods = QApplication.keyboardModifiers()
         if kind == "overlay" and 0 <= idx < len(self._asset.overlays):
             ov = self._asset.overlays[idx]
@@ -15343,7 +15328,6 @@ class StudioEditor(QWidget):
         Serialized as JSON under a custom MIME type. Uses a schema version
         so future format changes can bump and reject older payloads.
         """
-        from PySide6.QtWidgets import QApplication
         from PySide6.QtCore import QMimeData
         from dataclasses import asdict
         overlays, censors = [], []
@@ -15373,7 +15357,6 @@ class StudioEditor(QWidget):
         """Paste previously-copied overlays + censors, offset from originals.
         Falls back to system-clipboard image (e.g. screenshot) which is
         saved to a cache folder and dropped as a new watermark overlay."""
-        from PySide6.QtWidgets import QApplication
         mime = QApplication.clipboard().mimeData()
         if not self._asset:
             return
