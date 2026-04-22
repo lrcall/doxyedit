@@ -6610,6 +6610,26 @@ class StudioEditor(QWidget):
                 QApplication.clipboard().setText(txt)
                 self.info_label.setText(f"Copied geometry: {txt}")
             return
+        # Alt+H — toggle visibility (hide / show) on every selected
+        # overlay. Faster than Shift+click in the layer panel when
+        # you want to flip several layers at once. Censors and crops
+        # respect the same shortcut.
+        if alt and not ctrl and not shift and key == Qt.Key.Key_H:
+            sel = self._scene.selectedItems()
+            touched = 0
+            for it in sel:
+                ov = getattr(it, "overlay", None)
+                if ov is not None:
+                    ov.enabled = not ov.enabled
+                    it.setVisible(ov.enabled)
+                    touched += 1
+            if touched:
+                self._sync_overlays_to_asset()
+                self._rebuild_layer_panel()
+                self.info_label.setText(
+                    f"Toggled visibility on {touched} layer"
+                    f"{'s' if touched != 1 else ''}")
+            return
         # Ctrl+Shift+T — toggle the left tool palette (Main side bar)
         # visibility. Useful for a cleaner canvas-only view when you're
         # just nudging existing overlays.
