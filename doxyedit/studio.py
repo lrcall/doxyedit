@@ -6486,6 +6486,13 @@ class StudioEditor(QWidget):
             super().keyPressEvent(event)
             return
 
+        # Shift+B inserts a thought bubble at cursor (sibling to plain
+        # B for speech bubble and K for burst). Fired before the 'no
+        # modifier' block below since this one specifically wants Shift.
+        if shift and not ctrl and not alt and key == Qt.Key.Key_B:
+            self._quick_add_bubble(kind="thought_bubble")
+            return
+
         # Tool shortcuts (only when no modifier)
         if not ctrl and not shift:
             # V is the Photoshop Move tool; Q is already Select. Map both
