@@ -2650,6 +2650,16 @@ class OverlayTextItem(QGraphicsTextItem):
             self._editor._remove_overlay_item(self)
 
 
+# ── Scene-item type tuples (for isinstance checks) ────────────────
+# Defined once the four Overlay* classes are loaded. NoteRectItem and
+# ResizableCropItem come from doxyedit.preview (imported at top).
+_OVERLAY_ITEM_TYPES = (
+    OverlayImageItem, OverlayTextItem, OverlayArrowItem, OverlayShapeItem,
+)
+_SELECTABLE_ITEM_TYPES = _OVERLAY_ITEM_TYPES + (CensorRectItem,)
+_CANVAS_ITEM_TYPES = _SELECTABLE_ITEM_TYPES + (ResizableCropItem, NoteRectItem)
+
+
 class AnnotationTextItem(QGraphicsTextItem):
     """Ephemeral text annotation — no model reference, lost on asset change."""
 
@@ -2985,7 +2995,7 @@ class StudioScene(QGraphicsScene):
                 # New item is added at top-of-stack; select it so the drag
                 # propagates naturally.
                 self.clearSelection()
-                if editor._overlay_items and isinstance(top, (OverlayImageItem, OverlayTextItem, OverlayArrowItem, OverlayShapeItem)):
+                if editor._overlay_items and isinstance(top, _OVERLAY_ITEM_TYPES):
                     editor._overlay_items[-1].setSelected(True)
                 elif editor._censor_items and isinstance(top, CensorRectItem):
                     editor._censor_items[-1].setSelected(True)
@@ -3213,9 +3223,7 @@ class StudioScene(QGraphicsScene):
                 and event.buttons() & Qt.MouseButton.LeftButton
                 and self.mouseGrabberItem() is not None):
             grabber = self.mouseGrabberItem()
-            if isinstance(grabber, (OverlayImageItem, OverlayTextItem,
-                                    OverlayArrowItem, OverlayShapeItem,
-                                    CensorRectItem, ResizableCropItem, NoteRectItem)):
+            if isinstance(grabber, _CANVAS_ITEM_TYPES):
                 # Let Qt move it first, then snap
                 super().mouseMoveEvent(event)
                 dx, dy, guides = self._compute_snap_guides(grabber)
@@ -6693,9 +6701,7 @@ class StudioEditor(QWidget):
         # Ctrl+A — select all scene items
         if ctrl and key == Qt.Key.Key_A:
             for it in self._scene.items():
-                if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                   OverlayArrowItem, OverlayShapeItem,
-                                   CensorRectItem, ResizableCropItem, NoteRectItem)):
+                if isinstance(it, _CANVAS_ITEM_TYPES):
                     it.setSelected(True)
             return
         # Ctrl+Shift+A — deselect all
@@ -6893,9 +6899,7 @@ class StudioEditor(QWidget):
         # Ctrl+Shift+I — invert selection among selectable items
         if ctrl and shift and key == Qt.Key.Key_I:
             for it in self._scene.items():
-                if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                   OverlayArrowItem, OverlayShapeItem,
-                                   CensorRectItem, ResizableCropItem, NoteRectItem)):
+                if isinstance(it, _CANVAS_ITEM_TYPES):
                     it.setSelected(not it.isSelected())
             return
         # Ctrl+Shift+H / Ctrl+Shift+V — flip selected overlays
@@ -7083,10 +7087,7 @@ class StudioEditor(QWidget):
         # Shift+Ctrl+I invert selection among selectable items.
         if ctrl and shift and key == Qt.Key.Key_I:
             for it in self._scene.items():
-                if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                    OverlayArrowItem, OverlayShapeItem,
-                                    CensorRectItem, ResizableCropItem,
-                                    NoteRectItem)) and it.parentItem() is None:
+                if isinstance(it, _CANVAS_ITEM_TYPES) and it.parentItem() is None:
                     it.setSelected(not it.isSelected())
             self.info_label.setText("Selection inverted")
             return
@@ -7729,10 +7730,7 @@ class StudioEditor(QWidget):
             if key == Qt.Key.Key_Home:
                 # Select first alignable item
                 items = [it for it in self._scene.items()
-                          if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                              OverlayArrowItem, OverlayShapeItem,
-                                              CensorRectItem, ResizableCropItem,
-                                              NoteRectItem))
+                          if isinstance(it, _CANVAS_ITEM_TYPES)
                           and it.parentItem() is None]
                 if items:
                     items.sort(key=lambda it: (it.sceneBoundingRect().y(),
@@ -7743,10 +7741,7 @@ class StudioEditor(QWidget):
                 return
             if key == Qt.Key.Key_End:
                 items = [it for it in self._scene.items()
-                          if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                              OverlayArrowItem, OverlayShapeItem,
-                                              CensorRectItem, ResizableCropItem,
-                                              NoteRectItem))
+                          if isinstance(it, _CANVAS_ITEM_TYPES)
                           and it.parentItem() is None]
                 if items:
                     items.sort(key=lambda it: (it.sceneBoundingRect().y(),
@@ -8442,10 +8437,7 @@ class StudioEditor(QWidget):
         qp_sel_all_btn.setToolTip("Select every overlay / censor (Ctrl+A)")
         def _qp_sel_all():
             for it in self._scene.items():
-                if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                    OverlayArrowItem, OverlayShapeItem,
-                                    CensorRectItem, ResizableCropItem,
-                                    NoteRectItem)):
+                if isinstance(it, _CANVAS_ITEM_TYPES):
                     it.setSelected(True)
         qp_sel_all_btn.clicked.connect(_qp_sel_all)
         quickbar.addWidget(qp_sel_all_btn)
@@ -9688,17 +9680,13 @@ class StudioEditor(QWidget):
             chosen = m.exec(self._selection_label.mapToGlobal(pos))
             if chosen is act_all:
                 for it in self._scene.items():
-                    if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                         OverlayArrowItem, OverlayShapeItem,
-                                         CensorRectItem)):
+                    if isinstance(it, _SELECTABLE_ITEM_TYPES):
                         it.setSelected(True)
             elif chosen is act_none:
                 self._scene.clearSelection()
             elif chosen is act_inv:
                 for it in self._scene.items():
-                    if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                         OverlayArrowItem, OverlayShapeItem,
-                                         CensorRectItem)):
+                    if isinstance(it, _SELECTABLE_ITEM_TYPES):
                         it.setSelected(not it.isSelected())
         self._selection_label.customContextMenuRequested.connect(_sel_ctx)
         status_bar.addWidget(self._selection_label)
@@ -13884,8 +13872,7 @@ class StudioEditor(QWidget):
                 if item in self._censor_items:
                     self._censor_items.remove(item)
                 has_undoable = True
-            elif isinstance(item, (OverlayImageItem, OverlayTextItem,
-                                    OverlayArrowItem, OverlayShapeItem)):
+            elif isinstance(item, _OVERLAY_ITEM_TYPES):
                 cmd._overlays.append((item.overlay, item))
                 if item in self._overlay_items:
                     self._overlay_items.remove(item)
@@ -14778,10 +14765,7 @@ class StudioEditor(QWidget):
     def _cycle_selection(self, direction: int):
         """Tab / Shift+Tab: cycle through selectable scene items."""
         candidates = [it for it in self._scene.items()
-                      if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                          OverlayArrowItem, OverlayShapeItem,
-                                          CensorRectItem, ResizableCropItem,
-                                          NoteRectItem))
+                      if isinstance(it, _CANVAS_ITEM_TYPES)
                       and it.parentItem() is None]
         if not candidates:
             return
@@ -15047,9 +15031,7 @@ class StudioEditor(QWidget):
     def _alignable_items(self):
         """Return selected items we can align/distribute (overlays, censors, crops, notes, arrows, shapes)."""
         return [it for it in self._scene.selectedItems()
-                if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                   OverlayArrowItem, OverlayShapeItem,
-                                   CensorRectItem, ResizableCropItem, NoteRectItem))]
+                if isinstance(it, _CANVAS_ITEM_TYPES)]
 
     def _align_selected(self, edge: str):
         items = self._alignable_items()
@@ -15187,8 +15169,7 @@ class StudioEditor(QWidget):
         from dataclasses import asdict
         overlays, censors = [], []
         for it in self._scene.selectedItems():
-            if isinstance(it, (OverlayImageItem, OverlayTextItem,
-                                OverlayArrowItem, OverlayShapeItem)):
+            if isinstance(it, _OVERLAY_ITEM_TYPES):
                 overlays.append(it.overlay.to_dict())
             elif isinstance(it, CensorRectItem):
                 cr = getattr(it, "_censor_region", None)
