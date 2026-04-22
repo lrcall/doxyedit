@@ -8,9 +8,12 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QPoint, QRect
 from PySide6.QtGui import QColor, QPainter, QPen, QBrush
-from doxyedit.themes import ui_font_size
+from doxyedit.themes import ui_font_size, THEMES, DEFAULT_THEME
 
-from doxyedit.models import Asset, TAG_PRESETS, TAG_SIZED, TAG_SHORTCUTS, TagPreset, check_fitness
+from doxyedit.models import (
+    Asset, TAG_PRESETS, TAG_SIZED, TAG_SHORTCUTS, TagPreset,
+    check_fitness, VINIK_COLORS, VISUAL_TAGS,
+)
 
 
 FITNESS_COLORS = {
@@ -79,7 +82,6 @@ class _TagContainer(QWidget):
 
     def paintEvent(self, event):
         super().paintEvent(event)
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         p = QPainter(self)
         # Rubber-band rectangle
@@ -316,7 +318,6 @@ class TagRow(QFrame):
 
     def set_row_selected(self, selected: bool):
         self._row_selected = selected
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         _bw = max(2, self._f // 4)
         if selected:
@@ -571,7 +572,6 @@ class TagPanel(QWidget):
 
     def refresh_discovered_tags(self, assets: list, project=None):
         """Add rows for tags found in assets and custom_tags, sorted into sections."""
-        from doxyedit.models import VINIK_COLORS, VISUAL_TAGS
         existing_ids = set(self._rows.keys())
         # Un-hide any previously deleted rows whose tag has reappeared in assets
         tags_in_assets = {t for a in assets for t in a.tags}
@@ -778,7 +778,6 @@ class TagPanel(QWidget):
                             break
             self._tag_layout.removeWidget(row)
             self._tag_layout.insertWidget(target_idx, row)
-            from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
             _p = QColor(_dt.accent_dim); _p.setAlpha(_dt.composer_status_hover_alpha)
             _bw = max(2, row._f // 4)
