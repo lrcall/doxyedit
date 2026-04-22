@@ -159,6 +159,18 @@ class TrayItemDelegate(QStyledItemDelegate):
                 painter.drawRoundedRect(
                     rect.adjusted(2, 2, -2, -2), 4, 4)
 
+        # Pin indicator top-right (T16) — painted before platform badge
+        # so the badge (bottom-right) doesn't fight it.
+        if self._tray._is_pinned(aid):
+            pad = 4
+            size = 10
+            pin_x = rect.right() - size - pad
+            pin_y = rect.top() + pad
+            pin_color = QColor(theme.accent_bright or theme.accent)
+            painter.setPen(QPen(QColor(theme.border), 1))
+            painter.setBrush(QBrush(pin_color))
+            painter.drawEllipse(pin_x, pin_y, size, size)
+
         # Star overlay top-left
         if getattr(asset, "starred", 0) > 0:
             size = max(12, option.decorationSize.width() // 6)
@@ -305,6 +317,9 @@ class WorkTray(QWidget):
         self._pulse_timer = QTimer(self)
         self._pulse_timer.setInterval(60)
         self._pulse_timer.timeout.connect(self._on_pulse_tick)
+        # T16 pin state (session-only, not persisted). Per tray so the
+        # same asset can be pinned in one tray and loose in another.
+        self._pinned: dict[str, set[str]] = {}
         self._build()
 
     def _build(self):
@@ -577,14 +592,25 @@ class WorkTray(QWidget):
         self._update_count()
 
     def clear(self, _record_undo: bool = True):
-        if _record_undo and self._asset_ids:
-            self._push_undo(
-                "clear",
-                [(aid, i) for i, aid in enumerate(self._asset_ids)])
-        self._list.clear()
-        self._asset_ids.clear()
-        self._id_to_row.clear()
-        self._pixmaps.clear()
+        """Empty the tray — but keep pinned items in place. Only the
+        unpinned set hits the undo stack."""
+        pinned = self._pinned.get(self._current_tray, set())
+        to_remove = [(aid, i) for i, aid in enumerate(self._asset_ids)
+                      if aid not in pinned]
+        if not to_remove:
+            # Nothing un-pinned; clear is a no-op
+            return
+        if _record_undo:
+            self._push_undo("clear", to_remove)
+        # Remove from bottom to top so row indices stay valid
+        for aid, _row in sorted(to_remove, key=lambda t: -t[1]):
+            row = self._id_to_row.get(aid)
+            if row is not None:
+                self._list.takeItem(row)
+            self._pixmaps.pop(aid, None)
+            self._paths.pop(aid, None)
+        self._asset_ids = [aid for aid in self._asset_ids if aid in pinned]
+        self._rebuild_index()
         self._update_count()
 
     # --- Undo (T15) ------------------------------------------------------
@@ -593,6 +619,28 @@ class WorkTray(QWidget):
         """Append an undo entry for the active tray, bounded to 10."""
         stack = self._undo.setdefault(self._current_tray, deque(maxlen=10))
         stack.append((op, payload))
+
+    # --- T16 pin ----------------------------------------------------------
+
+    def _is_pinned(self, asset_id: str) -> bool:
+        return asset_id in self._pinned.get(self._current_tray, set())
+
+    def _toggle_pin(self, asset_id: str):
+        s = self._pinned.setdefault(self._current_tray, set())
+        if asset_id in s:
+            s.discard(asset_id)
+        else:
+            s.add(asset_id)
+        self._list.viewport().update()
+
+    def _bulk_set_pin(self, asset_ids: list, pinned: bool):
+        s = self._pinned.setdefault(self._current_tray, set())
+        if pinned:
+            s.update(asset_ids)
+        else:
+            for aid in asset_ids:
+                s.discard(aid)
+        self._list.viewport().update()
 
     def _bulk_send_to_studio(self, asset_ids: list):
         """Emit asset_to_studio for each selected id. The window owns the
@@ -800,6 +848,13 @@ class WorkTray(QWidget):
                 bulk_star.addAction(f"Star {s}",
                                      lambda _c=False, ids=list(selected), v=s:
                                          self._bulk_set_star(ids, v))
+            # Bulk pin / unpin (toggle based on current state — if any
+            # are un-pinned, Pin All pins them all)
+            pinned_all = all(self._is_pinned(a) for a in selected)
+            pin_verb = "Unpin" if pinned_all else "Pin"
+            menu.addAction(f"{pin_verb} {n_sel} Selected",
+                           lambda _c=False, ids=list(selected), p=not pinned_all:
+                               self._bulk_set_pin(ids, p))
             menu.addAction(f"Export Selection as ZIP... ({n_sel})",
                            lambda _c=False, ids=list(selected):
                                self._export_selection_zip(ids))
@@ -837,6 +892,10 @@ class WorkTray(QWidget):
         if not multi:
             menu.addAction("Move to Top", lambda: self._move_to_top(asset_id))
             menu.addAction("Move to Bottom", lambda: self._move_to_bottom(asset_id))
+            # Single-item pin toggle
+            pin_label = "Unpin" if self._is_pinned(asset_id) else "Pin"
+            menu.addAction(pin_label,
+                           lambda _c=False, aid=asset_id: self._toggle_pin(aid))
 
         # Quick Tag — user-defined tags only
         if self._project and asset:
@@ -1007,7 +1066,14 @@ class WorkTray(QWidget):
             "stars": key_stars,
             "recent": key_recent,
         }.get(mode, key_name)
-        new_order = sorted(self._asset_ids, key=keyfn)
+        # Pinned items always float to the top, keeping their relative
+        # order within the pinned group stable under the chosen sort.
+        pinned = self._pinned.get(self._current_tray, set())
+        pinned_ids = [a for a in self._asset_ids if a in pinned]
+        loose_ids = [a for a in self._asset_ids if a not in pinned]
+        pinned_sorted = sorted(pinned_ids, key=keyfn)
+        loose_sorted = sorted(loose_ids, key=keyfn)
+        new_order = pinned_sorted + loose_sorted
         if new_order == self._asset_ids:
             return
         # Rebuild list widget in the new order without losing pixmaps
