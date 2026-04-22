@@ -3478,6 +3478,25 @@ class StudioScene(QGraphicsScene):
         sel_arrow_act = select_menu.addAction("Arrows")
         sel_shape_act = select_menu.addAction("Shapes")
         sel_censor_act = select_menu.addAction("Censors")
+        # Platform-scoped sub-selection: grab every unique platform on
+        # any overlay + censor, add a 'Select All on <platform>' entry
+        # per platform. Overlays with empty platforms list are 'all
+        # platforms' and are never included in the platform-specific
+        # selections.
+        _plat_sel_acts = {}
+        if editor._asset:
+            _plats_seen = set()
+            for _o in editor._asset.overlays:
+                for _p in getattr(_o, "platforms", None) or []:
+                    _plats_seen.add(_p)
+            for _c in editor._asset.censors:
+                for _p in getattr(_c, "platforms", None) or []:
+                    _plats_seen.add(_p)
+            if _plats_seen:
+                by_plat_sub = select_menu.addMenu("By Platform")
+                for _p in sorted(_plats_seen):
+                    act = by_plat_sub.addAction(_p)
+                    _plat_sel_acts[act] = _p
         menu.addSeparator()
         lock_all_act = menu.addAction("Lock All Layers")
         unlock_all_act = menu.addAction("Unlock All Layers")
@@ -3732,6 +3751,26 @@ class StudioScene(QGraphicsScene):
             elif chosen is sel_censor_act:
                 for it in editor._censor_items:
                     it.setSelected(True)
+        elif _plat_sel_acts and chosen in _plat_sel_acts:
+            # Select overlays + censors scoped to the picked platform.
+            # Overlays with empty platforms list are 'all platforms'
+            # and are intentionally excluded here - otherwise 'Select
+            # on Twitter' would include universal overlays too.
+            target = _plat_sel_acts[chosen]
+            editor._scene.clearSelection()
+            count = 0
+            for it in editor._overlay_items:
+                ov = getattr(it, "overlay", None)
+                if ov is not None and target in (ov.platforms or []):
+                    it.setSelected(True)
+                    count += 1
+            for it in editor._censor_items:
+                cr = getattr(it, "_censor_region", None)
+                if cr is not None and target in (cr.platforms or []):
+                    it.setSelected(True)
+                    count += 1
+            editor.info_label.setText(
+                f"Selected {count} on {target}")
         elif chosen is copy_canvas_act:
             if editor._pixmap_item:
                 from PySide6.QtWidgets import QApplication
