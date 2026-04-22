@@ -7506,10 +7506,28 @@ class StudioEditor(QWidget):
         self.slider_shadow_offset.setObjectName("studio_shadow_offset")
         self.slider_shadow_offset.setRange(0, 15)
         self.slider_shadow_offset.setValue(0)
-        self.slider_shadow_offset.setFixedWidth(int(_dt.font_size * 6))
+        self.slider_shadow_offset.setFixedWidth(int(_dt.font_size * 5))
         self.slider_shadow_offset.setToolTip("Shadow offset (both x/y) in px")
         self.slider_shadow_offset.valueChanged.connect(self._on_shadow_offset_changed)
         _shadow_row.addWidget(self.slider_shadow_offset)
+        # Blur slider for the drop shadow
+        self.slider_shadow_blur = QSlider(Qt.Orientation.Horizontal)
+        self.slider_shadow_blur.setObjectName("studio_shadow_blur")
+        self.slider_shadow_blur.setRange(0, 15)
+        self.slider_shadow_blur.setValue(0)
+        self.slider_shadow_blur.setFixedWidth(int(_dt.font_size * 5))
+        self.slider_shadow_blur.setToolTip("Shadow blur radius in px")
+        self.slider_shadow_blur.valueChanged.connect(self._on_shadow_blur_changed)
+        _shadow_row.addWidget(self.slider_shadow_blur)
+        # Color swatch for the shadow itself
+        self.btn_shadow_color = _ColorSwatchButton(is_outline=False)
+        self.btn_shadow_color.setObjectName("studio_shadow_color_btn")
+        self.btn_shadow_color.setFixedWidth(30)
+        self.btn_shadow_color.setToolTip("Shadow color")
+        self.btn_shadow_color.setSwatchColor("#000000")
+        self.btn_shadow_color.clicked.connect(self._pick_shadow_color)
+        self.btn_shadow_color.on_color_picked = self._apply_shadow_color
+        _shadow_row.addWidget(self.btn_shadow_color)
         _shadow_widget = QWidget(_dlg)
         _shadow_widget.setLayout(_shadow_row)
         _dlg_layout.addRow("Shadow", _shadow_widget)
@@ -9955,6 +9973,13 @@ class StudioEditor(QWidget):
             self.slider_shadow_offset.blockSignals(True)
             self.slider_shadow_offset.setValue(int(ov.shadow_offset or 0))
             self.slider_shadow_offset.blockSignals(False)
+        if hasattr(self, "slider_shadow_blur"):
+            self.slider_shadow_blur.blockSignals(True)
+            self.slider_shadow_blur.setValue(int(ov.shadow_blur or 0))
+            self.slider_shadow_blur.blockSignals(False)
+        if hasattr(self, "btn_shadow_color"):
+            self.btn_shadow_color.setSwatchColor(
+                ov.shadow_color or "#000000")
         self.slider_kerning.setValue(int(ov.letter_spacing))
         self.slider_line_height.setValue(int(getattr(ov, 'line_height', 1.2) * 100))
         self.slider_rotation.setValue(int(ov.rotation))
@@ -10270,6 +10295,57 @@ class StudioEditor(QWidget):
             if hasattr(it, "_apply_font"):
                 it._apply_font()
             it.update()
+        self._sync_overlays_to_asset()
+
+    def _on_shadow_blur_changed(self, value: int):
+        sel = [it for it in self._scene.selectedItems()
+               if isinstance(it, OverlayTextItem)]
+        if not sel:
+            return
+        for it in sel:
+            it.overlay.shadow_blur = value
+            if value > 0 and not it.overlay.shadow_color:
+                it.overlay.shadow_color = "#000000"
+            if hasattr(it, "_apply_font"):
+                it._apply_font()
+            it.update()
+        self._sync_overlays_to_asset()
+
+    def _pick_shadow_color(self):
+        """Shadow color button click -> QColorDialog -> apply to selection."""
+        sel = [it for it in self._scene.selectedItems()
+               if isinstance(it, OverlayTextItem)]
+        if not sel:
+            return
+        cur = QColor(sel[0].overlay.shadow_color or "#000000")
+        c = QColorDialog.getColor(cur, self, "Shadow color",
+                                    QColorDialog.ColorDialogOption.ShowAlphaChannel)
+        if not c.isValid():
+            return
+        self._apply_shadow_color(c.name())
+
+    def _apply_shadow_color(self, hex_color: str):
+        col = QColor(hex_color)
+        if not col.isValid():
+            return
+        sel = [it for it in self._scene.selectedItems()
+               if isinstance(it, OverlayTextItem)]
+        if not sel:
+            return
+        if hasattr(self, "btn_shadow_color"):
+            self.btn_shadow_color.setSwatchColor(col)
+        for it in sel:
+            it.overlay.shadow_color = col.name()
+            if it.overlay.shadow_offset == 0 and it.overlay.shadow_blur == 0:
+                it.overlay.shadow_offset = 3
+                if hasattr(self, "slider_shadow_offset"):
+                    self.slider_shadow_offset.blockSignals(True)
+                    self.slider_shadow_offset.setValue(3)
+                    self.slider_shadow_offset.blockSignals(False)
+            if hasattr(it, "_apply_font"):
+                it._apply_font()
+            it.update()
+        self._add_recent_color(col.name())
         self._sync_overlays_to_asset()
 
     def _on_tc_content_changed(self):
