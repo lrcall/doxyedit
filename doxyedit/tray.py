@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidgetItem, QAbstractItemView, QMenu, QApplication,
-    QInputDialog, QSplitter, QSlider,
+    QInputDialog, QSplitter, QSlider, QLineEdit, QCheckBox,
 )
 from PySide6.QtCore import (
     Qt, Signal, QSize, QSettings, QEvent, QTimer,
@@ -63,6 +63,9 @@ class WorkTray(QWidget):
         self._icon_size = int(QSettings(
             "DoxyEdit", "DoxyEdit").value("tray_icon_size", TRAY_ICON_SIZE,
                                             type=int))
+        # T13 per-tray filter state (session-only). Keys: text,
+        # starred_only, unposted_only.
+        self._filters: dict[str, dict] = {}
         self._build()
 
     def _build(self):
@@ -163,6 +166,32 @@ class WorkTray(QWidget):
         self._tab_bar.currentChanged.connect(self._on_tab_changed)
         self._tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tab_bar.customContextMenuRequested.connect(self._tab_context_menu)
+
+        # T13 filter bar — hidden by default; toggled from Tray Options
+        self._filter_bar = QWidget()
+        self._filter_bar.setObjectName("tray_filter_bar")
+        fb_layout = QHBoxLayout(self._filter_bar)
+        fb_layout.setContentsMargins(2, 2, 2, 2)
+        fb_layout.setSpacing(max(2, _pad // 2))
+        self._filter_text = QLineEdit()
+        self._filter_text.setObjectName("tray_filter_text")
+        self._filter_text.setPlaceholderText("filter by name...")
+        self._filter_text.textChanged.connect(self._on_filter_text_changed)
+        fb_layout.addWidget(self._filter_text, 1)
+        self._filter_starred = QCheckBox("Starred")
+        self._filter_starred.toggled.connect(self._on_filter_starred_toggled)
+        fb_layout.addWidget(self._filter_starred)
+        self._filter_unposted = QCheckBox("Unposted")
+        self._filter_unposted.toggled.connect(self._on_filter_unposted_toggled)
+        fb_layout.addWidget(self._filter_unposted)
+        self._filter_clear = QPushButton("✕")
+        self._filter_clear.setObjectName("tray_small_btn")
+        self._filter_clear.setFixedSize(_cb, _cb)
+        self._filter_clear.setToolTip("Clear filter")
+        self._filter_clear.clicked.connect(self._clear_filters)
+        fb_layout.addWidget(self._filter_clear)
+        self._filter_bar.hide()
+        layout.addWidget(self._filter_bar)
 
         # Count — also a right-click handle for Tray Options
         self._count_label = QLabel("0 items")
@@ -504,6 +533,10 @@ class WorkTray(QWidget):
         self._count_label.setText(f"{n} item{'s' if n != 1 else ''}")
         self._refresh_tab_counts()
         self._update_empty_state()
+        # Re-apply filter in case a row was just added / removed / edited.
+        # If no filters are active this is cheap (short-circuits).
+        if hasattr(self, "_filter_bar") and self._filters_active():
+            self._apply_filter()
 
     def _update_empty_state(self):
         """Show / hide the 'Drag assets here' hint based on item count."""
@@ -721,6 +754,13 @@ class WorkTray(QWidget):
         button is not in reach)."""
         menu = QMenu(self)
         n = self._list.count()
+        # Filter bar toggle — first so power users find it fast
+        if hasattr(self, "_filter_bar"):
+            act = menu.addAction("Filter Bar")
+            act.setCheckable(True)
+            act.setChecked(self._filter_bar.isVisible())
+            act.triggered.connect(lambda _c=False: self._toggle_filter_bar())
+            menu.addSeparator()
         if include_view:
             view_menu = menu.addMenu("View")
             labels = [("List (with names)", 0),
@@ -960,6 +1000,107 @@ class WorkTray(QWidget):
         if path:
             QApplication.clipboard().setText(path)
 
+    # --- T13 filter -----------------------------------------------------
+
+    def _filter_state(self) -> dict:
+        return self._filters.setdefault(
+            self._current_tray,
+            {"text": "", "starred_only": False, "unposted_only": False})
+
+    def _filters_active(self) -> bool:
+        s = self._filter_state()
+        return bool(s["text"]) or s["starred_only"] or s["unposted_only"]
+
+    def _on_filter_text_changed(self, text: str):
+        self._filter_state()["text"] = text.strip().lower()
+        self._apply_filter()
+
+    def _on_filter_starred_toggled(self, on: bool):
+        self._filter_state()["starred_only"] = bool(on)
+        self._apply_filter()
+
+    def _on_filter_unposted_toggled(self, on: bool):
+        self._filter_state()["unposted_only"] = bool(on)
+        self._apply_filter()
+
+    def _clear_filters(self):
+        s = self._filter_state()
+        s["text"] = ""
+        s["starred_only"] = False
+        s["unposted_only"] = False
+        # Update UI without firing handlers recursively
+        for w, val in ((self._filter_text, ""),
+                        (self._filter_starred, False),
+                        (self._filter_unposted, False)):
+            w.blockSignals(True)
+            if isinstance(w, QLineEdit):
+                w.setText(val)
+            else:
+                w.setChecked(val)
+            w.blockSignals(False)
+        self._apply_filter()
+
+    def _toggle_filter_bar(self):
+        """Show / hide the filter bar. Called from Tray Options."""
+        show = not self._filter_bar.isVisible()
+        self._filter_bar.setVisible(show)
+        if show:
+            self._sync_filter_ui_to_state()
+            self._filter_text.setFocus()
+        else:
+            # Hiding clears active filters so rows aren't invisibly hidden
+            self._clear_filters()
+
+    def _sync_filter_ui_to_state(self):
+        """Push the current tray's filter state into the bar widgets
+        (silencing signals so handlers don't reapply)."""
+        s = self._filter_state()
+        for w, val, setter in (
+                (self._filter_text, s["text"], lambda x: self._filter_text.setText(x)),
+                (self._filter_starred, s["starred_only"], lambda x: self._filter_starred.setChecked(x)),
+                (self._filter_unposted, s["unposted_only"], lambda x: self._filter_unposted.setChecked(x))):
+            w.blockSignals(True)
+            setter(val)
+            w.blockSignals(False)
+
+    def _apply_filter(self):
+        """Hide list rows that don't match the current tray's filter.
+        Non-destructive: _asset_ids is unchanged; only row visibility
+        flips."""
+        s = self._filter_state()
+        text = s["text"]
+        starred_only = s["starred_only"]
+        unposted_only = s["unposted_only"]
+        # Update count label to show "visible / total" when filtered
+        total = self._list.count()
+        visible = 0
+        from doxyedit.models import SocialPostStatus  # avoid top-level circular
+        for i in range(total):
+            item = self._list.item(i)
+            aid = item.data(Qt.ItemDataRole.UserRole)
+            asset = self._project.get_asset(aid) if self._project else None
+            show = True
+            if text:
+                name = item.data(NAME_ROLE) or ""
+                show = text in name.lower()
+            if show and asset and starred_only:
+                show = getattr(asset, "starred", 0) > 0
+            if show and asset and unposted_only:
+                has_posted = any(
+                    getattr(a, "status", "") in ("posted", "POSTED",
+                                                     SocialPostStatus.POSTED)
+                    for a in (getattr(asset, "assignments", None) or []))
+                show = not has_posted
+            item.setHidden(not show)
+            if show:
+                visible += 1
+        if self._filters_active():
+            self._count_label.setText(
+                f"{visible} / {total} visible")
+        else:
+            self._count_label.setText(
+                f"{total} item{'s' if total != 1 else ''}")
+
     def _on_zoom_changed(self, value: int):
         """Thumbnail zoom slider — rescale existing icons from cached
         pixmaps, persist the preference, update the list widget's
@@ -1093,6 +1234,9 @@ class WorkTray(QWidget):
         # treated as part of the tray name).
         new_name = self._tab_bar.tabData(index) or self._tab_bar.tabText(index)
         self._current_tray = new_name
+        # Push any filter the new tray already had into the bar widgets
+        if hasattr(self, "_filter_bar"):
+            self._sync_filter_ui_to_state()
         # Reload list from stored data
         self._list.clear()
         self._asset_ids.clear()
