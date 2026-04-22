@@ -43,6 +43,7 @@ from PIL import Image
 from doxyedit.models import Asset, Project, CensorRegion, CanvasOverlay, CropRegion, PLATFORMS
 from doxyedit.exporter import apply_censors, apply_overlays
 from doxyedit.preview import NoteRectItem, ResizableCropItem
+from doxyedit.themes import THEMES, DEFAULT_THEME
 
 
 # ── Layout constants ──────────────────────────────────────────────
@@ -61,7 +62,6 @@ STUDIO_LAYER_PANEL_WIDTH = 200    # layer panel max width
 
 def _themed_menu(parent=None) -> QMenu:
     """Create a QMenu styled from the current theme (same pattern as window.py)."""
-    from doxyedit.themes import THEMES, DEFAULT_THEME
     t = THEMES[DEFAULT_THEME]
     menu = QMenu(parent)
     rad = max(3, t.font_size // 4)
@@ -2650,7 +2650,6 @@ class AnnotationTextItem(QGraphicsTextItem):
             QGraphicsTextItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsTextItem.GraphicsItemFlag.ItemIsSelectable
         )
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         self.setFont(QFont(_dt.font_family, _dt.font_size))
         self.setDefaultTextColor(QColor(_dt.text_primary))
@@ -2813,7 +2812,6 @@ class StudioScene(QGraphicsScene):
         super().__init__(parent)
         self._grid_visible = False
         self._grid_spacing = STUDIO_GRID_SPACING
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         self.setBackgroundBrush(QBrush(QColor(_dt.bg_deep)))
 
@@ -3044,7 +3042,6 @@ class StudioScene(QGraphicsScene):
         if self.current_tool == StudioTool.CROP:
             self._draw_start = pos
             self._temp_item = QGraphicsRectItem(QRectF(pos, pos))
-            from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
             _cc = QColor(_dt.crop_border)
             _cc.setAlpha(_dt.studio_handle_alpha)
@@ -3066,7 +3063,6 @@ class StudioScene(QGraphicsScene):
             # either a click-place (short drag) or a sized text box.
             self._draw_start = pos
             self._temp_item = QGraphicsRectItem(QRectF(pos, pos))
-            from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
             pen = QPen(QColor(_dt.accent), 1, Qt.PenStyle.DashLine)
             self._temp_item.setPen(pen)
@@ -3087,7 +3083,6 @@ class StudioScene(QGraphicsScene):
 
         if self.current_tool in (StudioTool.ANNOTATE_LINE, StudioTool.ANNOTATE_BOX):
             self._draw_start = pos
-            from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
             pen = QPen(QColor(_dt.accent_bright), _dt.crop_border_width - 1)
             if self.current_tool == StudioTool.ANNOTATE_LINE:
@@ -6605,7 +6600,6 @@ class StudioEditor(QWidget):
         self._asset: Asset | None = None
         self._project: Project | None = None
         self._project_path: str = ""
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         self._theme = THEMES[DEFAULT_THEME]
         self._pixmap_item: QGraphicsPixmapItem | None = None
         self._censor_items: list[CensorRectItem] = []
@@ -7820,7 +7814,6 @@ class StudioEditor(QWidget):
     # ---- construction ----
 
     def _build(self):
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         # ── Layout ratios (change here to rescale all Studio widgets) ──
         SLIDER_WIDTH_RATIO = 7.0               # standard slider track
@@ -7938,8 +7931,7 @@ class StudioEditor(QWidget):
 
         self._crop_combo = QComboBox()
         self._crop_combo.setObjectName("studio_crop_combo")
-        from doxyedit.themes import THEMES, DEFAULT_THEME as _DT
-        _t = THEMES[_DT]
+        _t = THEMES[DEFAULT_THEME]
         # Wide enough for the longest platform slot label without eliding.
         # `_icon_btn_w` * ~12 gives ~300px at the default Studio font size.
         self._crop_combo.setMinimumWidth(max(160, int(_t.font_size * 14)))
@@ -10800,7 +10792,6 @@ class StudioEditor(QWidget):
         path = path.subtracted(hole)
         self._crop_mask_item = QGraphicsPathItem(path)
         self._crop_mask_item.setPen(QPen(Qt.PenStyle.NoPen))
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _mask_bg = QColor(0, 0, 0); _mask_bg.setAlpha(THEMES[DEFAULT_THEME].preview_tooltip_bg_alpha)
         self._crop_mask_item.setBrush(QBrush(_mask_bg))
         self._crop_mask_item.setZValue(400)
