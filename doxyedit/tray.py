@@ -1133,7 +1133,12 @@ class WorkTray(QWidget):
         self._icon_size = max(40, min(200, value))
         QSettings("DoxyEdit", "DoxyEdit").setValue(
             "tray_icon_size", self._icon_size)
-        self._list.setIconSize(QSize(self._icon_size, self._icon_size))
+        # Reapply view mode so grid cell size tracks the new icon size
+        # (prevents overlap/cropping when zooming in grid modes).
+        if getattr(self, "_view_mode", 0) >= 2:
+            self._set_view_mode(self._view_mode)
+        else:
+            self._list.setIconSize(QSize(self._icon_size, self._icon_size))
         # Recompose every item's icon from its source pixmap cache so
         # the new size takes effect immediately.
         for aid, pm in self._pixmaps.items():
@@ -1189,9 +1194,11 @@ class WorkTray(QWidget):
                 if item and item.data(NAME_ROLE):
                     item.setText(item.data(NAME_ROLE))
         else:
-            # Grid modes (2 = 2-col, 3 = 3-col) — icon only, no text
-            cell = 120 if self._view_mode == 2 else 80
-            icon = cell - 10
+            # Grid modes (2 = 2-col, 3 = 3-col) — icon only, no text.
+            # Cell size derives from _icon_size so the zoom slider actually
+            # re-lays-out the grid instead of cropping/overlapping icons.
+            icon = self._icon_size
+            cell = icon + max(8, _pad * 2)
             self._view_btn.setText(
                 "▦" if self._view_mode == 2 else "3col")
             self._list.setViewMode(QListWidget.ViewMode.IconMode)
