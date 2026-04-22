@@ -8057,16 +8057,51 @@ class StudioEditor(QWidget):
         quickbar.addWidget(self._qp_label)
 
         quickbar.addStretch()
+        # Wrap the flow layout in a titled container with a collapse
+        # chevron so users know the whole strip is one deliberate panel
+        # and can hide it with one click (instead of hunting through
+        # Studio Settings). Header row has a bold label + chevron.
         self._quickbar_wrap = QWidget()
         self._quickbar_wrap.setObjectName("studio_quickbar_wrap")
-        self._quickbar_wrap.setLayout(quickbar)
-        root.addWidget(self._quickbar_wrap)
-        # Restore hide / show pref across sessions - user has a setting
-        # in Studio Settings > View > 'Show Quick Actions bar' for this.
+        _qb_v = QVBoxLayout(self._quickbar_wrap)
+        _qb_v.setContentsMargins(4, 2, 4, 2)
+        _qb_v.setSpacing(2)
+        _qb_header = QHBoxLayout()
+        _qb_header.setContentsMargins(0, 0, 0, 0)
+        _qb_title = QLabel("<b>Quick Actions</b>")
+        _qb_title.setObjectName("studio_quickbar_title")
+        _qb_header.addWidget(_qb_title)
+        _qb_header.addStretch()
+        self._qb_chevron = QPushButton("▼")
+        self._qb_chevron.setObjectName("studio_quickbar_chevron")
+        self._qb_chevron.setFlat(True)
+        self._qb_chevron.setFixedWidth(24)
+        self._qb_chevron.setToolTip("Collapse / expand the Quick Actions bar")
+        _qb_header.addWidget(self._qb_chevron)
+        _qb_v.addLayout(_qb_header)
+        self._qb_body = QWidget()
+        self._qb_body.setObjectName("studio_quickbar_body")
+        self._qb_body.setLayout(quickbar)
+        _qb_v.addWidget(self._qb_body)
+
+        # Restore collapsed state + whole-bar visibility from settings.
         from PySide6.QtCore import QSettings as _QS
-        _qb_vis = _QS("DoxyEdit", "DoxyEdit").value(
+        _qs = _QS("DoxyEdit", "DoxyEdit")
+        _qb_vis = _qs.value(
             "studio_quickbar_visible", True, type=bool)
         self._quickbar_wrap.setVisible(_qb_vis)
+        _qb_collapsed = _qs.value(
+            "studio_quickbar_collapsed", False, type=bool)
+        self._qb_body.setVisible(not _qb_collapsed)
+        self._qb_chevron.setText("▶" if _qb_collapsed else "▼")
+        def _toggle_qb():
+            collapsed = self._qb_body.isVisible()
+            self._qb_body.setVisible(not collapsed)
+            self._qb_chevron.setText("▶" if collapsed else "▼")
+            _QS("DoxyEdit", "DoxyEdit").setValue(
+                "studio_quickbar_collapsed", collapsed)
+        self._qb_chevron.clicked.connect(_toggle_qb)
+        root.addWidget(self._quickbar_wrap)
 
         # Row 2: Overlay properties (visible when text/watermark selected)
         self._props_row = QWidget()
