@@ -4086,17 +4086,31 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             _frw = _QW(); _frw.setLayout(fill_row)
             form.addRow("Fill color", _frw)
 
-            # Stroke width
+            # Stroke width — spin + preset buttons
+            sw_row = QHBoxLayout()
+            sw_row.setContentsMargins(0, 0, 0, 0)
             sw_spin = QSpinBox()
             sw_spin.setRange(0, 50)
             sw_spin.setValue(ov.stroke_width or 2)
             sw_spin.setSuffix(" px")
+            sw_spin.setFixedWidth(70)
             def _sw_changed(v, _it=item):
                 _it.overlay.stroke_width = v
                 _it.update()
                 editor._sync_overlays_to_asset()
             sw_spin.valueChanged.connect(_sw_changed)
-            form.addRow("Stroke width", sw_spin)
+            sw_row.addWidget(sw_spin)
+            for _w in (1, 2, 4, 8, 16):
+                pb = QPushButton(str(_w))
+                pb.setFixedWidth(26)
+                pb.setToolTip(f"Stroke {_w} px")
+                def _pick(v=_w):
+                    sw_spin.setValue(v)
+                pb.clicked.connect(_pick)
+                sw_row.addWidget(pb)
+            sw_row.addStretch()
+            sw_widget = _QW(); sw_widget.setLayout(sw_row)
+            form.addRow("Stroke width", sw_widget)
 
             # Line style
             style_combo = QComboBox()
