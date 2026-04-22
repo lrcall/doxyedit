@@ -4450,6 +4450,12 @@ class StudioEditor(QWidget):
             if key == Qt.Key.Key_C:
                 self._set_tool(StudioTool.CROP)
                 return
+            if key == Qt.Key.Key_B:
+                # Quick bubble: drop a speech bubble at the last cursor
+                # position (or canvas center) with paired text, then
+                # immediately enter edit mode. Comic workflow shortcut.
+                self._quick_add_bubble()
+                return
             if key == Qt.Key.Key_N:
                 self._set_tool(StudioTool.NOTE)
                 return
@@ -6845,6 +6851,76 @@ class StudioEditor(QWidget):
             from PySide6.QtWidgets import QApplication
             QApplication.clipboard().setText(hex_)
             self.info_label.setText(f"Eyedropper: {hex_} copied to clipboard")
+
+    def _quick_add_bubble(self, kind: str = "speech_bubble"):
+        """Drop a bubble + paired text at the last-known cursor position
+        (or canvas center if the user hasn't hovered yet) and jump straight
+        into text-edit mode. Bound to the `B` key for comic workflow.
+        """
+        if not self._asset or not self._pixmap_item:
+            return
+        last = getattr(self, "_last_cursor_scene_pos", None)
+        if last is None:
+            pm = self._pixmap_item.pixmap()
+            cx, cy = pm.width() / 2, pm.height() / 2
+        else:
+            cx, cy = last.x(), last.y()
+        w, h = (260, 160) if kind != "burst" else (220, 220)
+        x0 = int(cx - w / 2)
+        y0 = int(cy - h / 2)
+        import uuid as _uuid
+        link_id = f"bubble_text_{_uuid.uuid4().hex[:8]}"
+        bubble = CanvasOverlay(
+            type="shape", label=kind.replace("_", " ").title(),
+            shape_kind=kind,
+            color="#000000",
+            stroke_color="#000000", stroke_width=3,
+            fill_color="#ffffff", opacity=1.0,
+            x=x0, y=y0, shape_w=w, shape_h=h,
+            tail_x=int(cx - w * 0.6) if kind != "burst" else 0,
+            tail_y=int(cy + h * 0.8) if kind != "burst" else 0,
+            linked_text_id=link_id,
+        )
+        self._asset.overlays.append(bubble)
+        bubble_item = self._create_overlay_item(bubble)
+        if bubble_item:
+            bubble_item.setZValue(200 + len(self._overlay_items))
+            self._overlay_items.append(bubble_item)
+        pad_x = int(w * 0.15)
+        pad_y = int(h * 0.18)
+        text_ov = CanvasOverlay(
+            type="text",
+            label=link_id,
+            text="...",
+            opacity=1.0,
+            position="custom",
+            x=x0 + pad_x,
+            y=y0 + pad_y,
+            text_width=w - 2 * pad_x,
+            font_size=24,
+            text_align="center",
+            color="#000000",
+        )
+        for k, v in self._load_text_style_defaults().items():
+            if k == "text_width":
+                continue
+            setattr(text_ov, k, v)
+        self._asset.overlays.append(text_ov)
+        text_item = self._create_overlay_item(text_ov)
+        if text_item:
+            text_item.setZValue(200 + len(self._overlay_items))
+            self._overlay_items.append(text_item)
+            self._scene.clearSelection()
+            text_item.setSelected(True)
+            if hasattr(text_item, "setTextInteractionFlags"):
+                text_item.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.TextEditorInteraction)
+                text_item.setFocus()
+                cursor = text_item.textCursor()
+                cursor.select(cursor.SelectionType.Document)
+                text_item.setTextCursor(cursor)
+        self._rebuild_layer_panel()
+        self._update_info()
 
     def _add_text_overlay(self, x: int = 50, y: int = 50, text_width: int = 0):
         """Add a text overlay at the given position.
