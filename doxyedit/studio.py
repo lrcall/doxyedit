@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox, QTabWidget, QTextBrowser, QMessageBox,
     QWidgetAction, QDoubleSpinBox, QPlainTextEdit,
     QGraphicsDropShadowEffect, QGraphicsPathItem, QProgressDialog,
+    QSizePolicy,
 )
 from PySide6.QtCore import (
     Qt, QRectF, QPointF, QLineF, Signal, QSettings, QSize,
@@ -6260,19 +6261,14 @@ class StudioEditor(QWidget):
         _dlg_layout.addRow("Text", _tc_wrap)
         _dlg_layout.addRow("Position", self.combo_position)
         _dlg_layout.addRow("Font", self.font_combo)
-        # Font size row: slider + preset buttons (8 / 14 / 24 / 48 / 96 pt)
-        _sz_widget = QWidget(_dlg)
-        _sz_row = QHBoxLayout(_sz_widget)
-        _sz_row.setContentsMargins(0, 0, 0, 0)
-        _sz_row.addWidget(self.slider_font_size, 1)
-        for _sz in (8, 14, 24, 48, 96):
-            _psbtn = QPushButton(str(_sz))
-            _psbtn.setFixedWidth(28)
-            _psbtn.setToolTip(f"{_sz} pt")
-            _psbtn.clicked.connect(
-                lambda _checked=False, v=_sz: self.slider_font_size.setValue(v))
-            _sz_row.addWidget(_psbtn)
-        _dlg_layout.addRow("Size", _sz_widget)
+        # Font size row: single wide slider, no presets. The slider's fixed
+        # width from the top-of-Studio props bar is cleared so it can grow
+        # to fill the dialog row.
+        self.slider_font_size.setMinimumWidth(0)
+        self.slider_font_size.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX
+        self.slider_font_size.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        _dlg_layout.addRow("Size", self.slider_font_size)
         _bi_widget = QWidget(_dlg)
         _bi_row = QHBoxLayout(_bi_widget)
         _bi_row.setContentsMargins(0, 0, 0, 0)
@@ -6371,6 +6367,16 @@ class StudioEditor(QWidget):
         _ol_w = QWidget(_dlg)
         _ol_w.setLayout(_ol_row)
         _dlg_layout.addRow("Outline", _ol_w)
+        # These sliders were frozen to the narrow width from the top-of-
+        # Studio props bar. Clear the fixed width + expand policy so they
+        # fill the dialog row (same as the Font Size slider above).
+        for _sl in (self.slider_outline, self.slider_kerning,
+                    self.slider_line_height, self.slider_rotation,
+                    self.slider_text_width):
+            _sl.setMinimumWidth(0)
+            _sl.setMaximumWidth(16777215)
+            _sl.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         _dlg_layout.addRow("Kerning", self.slider_kerning)
         _dlg_layout.addRow("Line Height", self.slider_line_height)
         _dlg_layout.addRow("Rotation", self.slider_rotation)
@@ -6388,19 +6394,21 @@ class StudioEditor(QWidget):
         self.slider_shadow_offset.setObjectName("studio_shadow_offset")
         self.slider_shadow_offset.setRange(0, 15)
         self.slider_shadow_offset.setValue(0)
-        self.slider_shadow_offset.setFixedWidth(int(_dt.font_size * 5))
+        self.slider_shadow_offset.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.slider_shadow_offset.setToolTip("Shadow offset (both x/y) in px")
         self.slider_shadow_offset.valueChanged.connect(self._on_shadow_offset_changed)
-        _shadow_row.addWidget(self.slider_shadow_offset)
+        _shadow_row.addWidget(self.slider_shadow_offset, 1)
         # Blur slider for the drop shadow
         self.slider_shadow_blur = QSlider(Qt.Orientation.Horizontal)
         self.slider_shadow_blur.setObjectName("studio_shadow_blur")
         self.slider_shadow_blur.setRange(0, 15)
         self.slider_shadow_blur.setValue(0)
-        self.slider_shadow_blur.setFixedWidth(int(_dt.font_size * 5))
+        self.slider_shadow_blur.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.slider_shadow_blur.setToolTip("Shadow blur radius in px")
         self.slider_shadow_blur.valueChanged.connect(self._on_shadow_blur_changed)
-        _shadow_row.addWidget(self.slider_shadow_blur)
+        _shadow_row.addWidget(self.slider_shadow_blur, 1)
         # Color swatch for the shadow itself
         self.btn_shadow_color = _ColorSwatchButton(is_outline=False)
         self.btn_shadow_color.setObjectName("studio_shadow_color_btn")
