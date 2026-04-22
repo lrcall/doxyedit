@@ -1,5 +1,6 @@
 """Work tray — a collapsible right panel for quick-access images."""
 import os
+from collections import deque
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -275,6 +276,10 @@ class WorkTray(QWidget):
         # Named trays: tray_name → list of asset_ids
         self._trays: dict[str, list[str]] = {"Tray 1": []}
         self._current_tray: str = "Tray 1"
+        # Per-tray undo stacks. Each entry: (op, payload) where op is
+        # "remove" or "clear" and payload is a list of (asset_id, row)
+        # tuples recording where they came from.
+        self._undo: dict[str, deque] = {}
         self._build()
 
     def _build(self):
@@ -474,10 +479,16 @@ class WorkTray(QWidget):
                 self.asset_to_studio.emit(current_aid)
             return True
 
-        # Delete — remove all selected (or current)
+        # Delete — remove all selected (or current). Batch into one
+        # undo entry so Ctrl+Z restores the whole selection at once.
         if key == Qt.Key.Key_Delete and not ctrl and not shift:
-            for aid in list(targets):
-                self.remove_asset(aid)
+            if targets:
+                payload = [(aid, self._id_to_row.get(aid, 0))
+                            for aid in targets if aid in self._id_to_row]
+                if payload:
+                    self._push_undo("remove", payload)
+                for aid in list(targets):
+                    self.remove_asset(aid, _record_undo=False)
             return bool(targets)
 
         # 0-5 — set star rating on all selected (or current)
@@ -493,6 +504,11 @@ class WorkTray(QWidget):
         # Ctrl+D — deselect all
         if ctrl and not shift and key == Qt.Key.Key_D:
             self._list.clearSelection()
+            return True
+
+        # Ctrl+Z — undo last Remove / Clear on this tray
+        if ctrl and not shift and key == Qt.Key.Key_Z:
+            self._do_undo()
             return True
 
         return False
@@ -519,10 +535,14 @@ class WorkTray(QWidget):
         self._list.addItem(item)
         self._update_count()
 
-    def remove_asset(self, asset_id: str):
-        """Remove an asset from the tray."""
+    def remove_asset(self, asset_id: str, _record_undo: bool = True):
+        """Remove an asset from the tray. _record_undo=False skips the
+        undo stack so internal callers (undo itself, move-on-close) can
+        delete without filling the stack."""
         row = self._id_to_row.get(asset_id)
         if row is not None:
+            if _record_undo:
+                self._push_undo("remove", [(asset_id, row)])
             self._list.takeItem(row)
             self._asset_ids.remove(asset_id)
             del self._id_to_row[asset_id]
@@ -531,12 +551,62 @@ class WorkTray(QWidget):
         self._paths.pop(asset_id, None)
         self._update_count()
 
-    def clear(self):
+    def clear(self, _record_undo: bool = True):
+        if _record_undo and self._asset_ids:
+            self._push_undo(
+                "clear",
+                [(aid, i) for i, aid in enumerate(self._asset_ids)])
         self._list.clear()
         self._asset_ids.clear()
         self._id_to_row.clear()
         self._pixmaps.clear()
         self._update_count()
+
+    # --- Undo (T15) ------------------------------------------------------
+
+    def _push_undo(self, op: str, payload: list):
+        """Append an undo entry for the active tray, bounded to 10."""
+        stack = self._undo.setdefault(self._current_tray, deque(maxlen=10))
+        stack.append((op, payload))
+
+    def _remove_assets_bulk(self, asset_ids: list):
+        """Remove a batch of assets and record one undo entry for the
+        whole batch."""
+        payload = [(aid, self._id_to_row.get(aid, 0))
+                    for aid in asset_ids if aid in self._id_to_row]
+        if not payload:
+            return
+        self._push_undo("remove", payload)
+        for aid in list(asset_ids):
+            self.remove_asset(aid, _record_undo=False)
+
+    def _do_undo(self):
+        """Pop the most recent destructive op for the active tray and
+        re-add the affected assets. No-op if the stack is empty."""
+        stack = self._undo.get(self._current_tray)
+        if not stack:
+            return False
+        op, payload = stack.pop()
+        if not self._project:
+            return False
+        # Sort by original row so multi-item clears restore in order
+        payload_sorted = sorted(payload, key=lambda t: t[1])
+        restored = 0
+        for aid, row in payload_sorted:
+            if aid in self._asset_ids:
+                continue
+            asset = self._project.get_asset(aid)
+            if asset is None:
+                continue
+            # Re-add using add_asset (appends at end). Post-insert reorder
+            # could be done but is lossy vs manual drag; keep simple.
+            self.add_asset(
+                aid, Path(asset.source_path).name,
+                path=asset.source_path)
+            restored += 1
+        if restored:
+            self.pixmaps_needed.emit(list(self._asset_ids))
+        return restored > 0
 
     def get_asset_ids(self) -> list[str]:
         return list(self._asset_ids)
@@ -706,7 +776,9 @@ class WorkTray(QWidget):
 
         menu.addSeparator()
         if multi:
-            menu.addAction(f"Remove {n_sel} from Tray", lambda: [self.remove_asset(aid) for aid in list(selected)])
+            menu.addAction(f"Remove {n_sel} from Tray",
+                            lambda _c=False, ids=list(selected):
+                                self._remove_assets_bulk(ids))
         else:
             menu.addAction("Remove from Tray", lambda: self.remove_asset(asset_id))
         n = self._list.count()
