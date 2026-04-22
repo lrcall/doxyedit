@@ -669,6 +669,8 @@ class OverlayShapeItem(QGraphicsItem):
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
             elif self._tail_handle_under(event.scenePos()):
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
+            elif self._corner_radius_handle_under(event.scenePos()):
+                self.setCursor(Qt.CursorShape.SizeHorCursor)
             else:
                 h = self._handle_under(event.scenePos())
                 if h in ('tl', 'br'):
@@ -4639,6 +4641,20 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             form.addRow("Brightness", _mk_adjust("img_brightness", "Brightness"))
             form.addRow("Contrast", _mk_adjust("img_contrast", "Contrast"))
             form.addRow("Saturation", _mk_adjust("img_saturation", "Saturation"))
+
+            # Save-as-default row for watermark/image overlays.
+            img_save_btn = QPushButton("Save as default watermark style")
+            img_save_btn.setToolTip(
+                "Current scale / opacity / filter / blend / adjustments "
+                "become the defaults for newly-dropped watermarks.")
+            def _img_save_default(_it=item):
+                if hasattr(editor, "_save_watermark_style_as_default"):
+                    editor._save_watermark_style_as_default(_it.overlay)
+                elif hasattr(editor, "info_label"):
+                    editor.info_label.setText(
+                        "Watermark default save unavailable")
+            img_save_btn.clicked.connect(_img_save_default)
+            form.addRow("", img_save_btn)
 
         elif isinstance(item, OverlayArrowItem):
             # Arrow: color, width, arrowhead size / style, double-headed
