@@ -1555,26 +1555,29 @@ class MainWindow(SaveLoadMixin, QMainWindow):
     def eventFilter(self, obj, event):
         """App-wide Tab / Shift+Tab cycling through top tabs. Skips when
         focus is on an editable widget (QLineEdit, QTextEdit,
-        QGraphicsTextItem in text-edit mode, QComboBox in edit mode) so
-        Tab keeps its natural focus/text-navigation behavior there."""
+        QGraphicsTextItem in text-edit mode, QComboBox in edit mode) or
+        inside any QDialog so Tab keeps its natural focus/text-
+        navigation behavior there."""
         from PySide6.QtCore import QEvent
         from PySide6.QtWidgets import (
-            QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QComboBox)
+            QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QComboBox,
+            QDialog)
         if event.type() == QEvent.Type.KeyPress:
             key = event.key()
             mods = event.modifiers()
             if key in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab):
-                # Skip if focus is in an editable widget.
                 fw = QApplication.focusWidget()
+                # Skip if focus is in an editable widget.
                 if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit,
                                     QSpinBox, QComboBox)):
                     return super().eventFilter(obj, event)
-                # Also skip when a QGraphicsView focus target is a
-                # text item in edit mode (catching Studio's text-edit
-                # experience).
-                if fw is not None and fw.__class__.__name__ in (
-                        "QTextEdit", "QLineEdit"):
-                    return super().eventFilter(obj, event)
+                # Skip if focus is anywhere inside a dialog - Tab should
+                # still focus-cycle between dialog controls.
+                w = fw
+                while w is not None:
+                    if isinstance(w, QDialog):
+                        return super().eventFilter(obj, event)
+                    w = w.parentWidget()
                 if not hasattr(self, "tabs"):
                     return super().eventFilter(obj, event)
                 n = self.tabs.count()
