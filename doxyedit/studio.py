@@ -3922,6 +3922,10 @@ class StudioView(QGraphicsView):
         # Update the Studio status bar cursor-position label in scene coords
         if self._studio_editor is not None:
             sp = self.mapToScene(event.position().toPoint())
+            # Remember the last hovered scene position so paste-from-
+            # clipboard can drop the new overlay under the cursor instead
+            # of at a fixed offset.
+            self._studio_editor._last_cursor_scene_pos = sp
             if hasattr(self._studio_editor, "_cursor_label"):
                 editor = self._studio_editor
                 x_i, y_i = int(sp.x()), int(sp.y())
@@ -8531,6 +8535,15 @@ class StudioEditor(QWidget):
             cache_dir.mkdir(parents=True, exist_ok=True)
             fname = cache_dir / f"pasted_{uuid.uuid4().hex[:8]}.png"
             img.save(str(fname), "PNG")
+            # Drop at the last known cursor position, centered on the
+            # clipboard image's natural size (scaled). Falls back to 60,60
+            # if the user hasn't hovered the canvas yet.
+            last = getattr(self, "_last_cursor_scene_pos", None)
+            if last is not None:
+                drop_x = max(0, int(last.x() - img.width() * 0.15))
+                drop_y = max(0, int(last.y() - img.height() * 0.15))
+            else:
+                drop_x, drop_y = 60, 60
             ov = CanvasOverlay(
                 type="watermark",
                 label=fname.stem,
@@ -8538,7 +8551,7 @@ class StudioEditor(QWidget):
                 opacity=1.0,
                 scale=0.3,
                 position="custom",
-                x=60, y=60,
+                x=drop_x, y=drop_y,
             )
             for k, v in self._load_watermark_style_defaults().items():
                 setattr(ov, k, v)
