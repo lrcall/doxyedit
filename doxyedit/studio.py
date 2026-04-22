@@ -14192,7 +14192,15 @@ class StudioEditor(QWidget):
         tools, shortcuts) fits on a reasonable screen and gets grouped
         by intent. Single place to tune everything — no more hunting
         across ruler right-clicks / canvas right-clicks / toolbar
-        toggles for persistent preferences."""
+        toggles for persistent preferences.
+
+        Guards against reopening: if a settings dialog is already
+        visible, raise it instead of stacking a duplicate on top."""
+        existing = getattr(self, "_settings_dlg", None)
+        if existing is not None and existing.isVisible():
+            existing.raise_()
+            existing.activateWindow()
+            return
         from PySide6.QtWidgets import (
             QDialog, QFormLayout, QSpinBox, QDoubleSpinBox, QCheckBox,
             QComboBox, QDialogButtonBox, QLabel, QTabWidget, QWidget,
@@ -14200,6 +14208,7 @@ class StudioEditor(QWidget):
         from PySide6.QtCore import QSettings as _QS
         qs = _QS("DoxyEdit", "DoxyEdit")
         dlg = QDialog(self)
+        self._settings_dlg = dlg
         dlg.setWindowTitle("Studio Settings")
         dlg.setMinimumWidth(460)
         dlg.setMinimumHeight(540)
@@ -14595,9 +14604,19 @@ class StudioEditor(QWidget):
 
     def _show_shortcuts_cheat_sheet(self):
         """Modal popup listing the Studio keyboard shortcuts. Grouped by
-        task so users can scan it, not read it. Opened via Ctrl+/."""
+        task so users can scan it, not read it. Opened via Ctrl+/.
+
+        If a previous cheatsheet is still open, raise it instead of
+        spawning a duplicate - users would double-press Ctrl+/ and end
+        up with two stacked dialogs otherwise."""
+        existing = getattr(self, "_shortcuts_dlg", None)
+        if existing is not None and existing.isVisible():
+            existing.raise_()
+            existing.activateWindow()
+            return
         from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser
         dlg = QDialog(self)
+        self._shortcuts_dlg = dlg
         dlg.setWindowTitle("Studio Shortcuts")
         dlg.resize(640, 640)
         layout = QVBoxLayout(dlg)
@@ -14792,7 +14811,15 @@ class StudioEditor(QWidget):
         position + rotation + scale + skew' popup. Replaces the smaller
         numeric-only transform from Ctrl+Alt+T. Applies to the first
         selected overlay; shape / image / text all supported. Arrows
-        use endpoints — see the arrow-specific context menu instead."""
+        use endpoints — see the arrow-specific context menu instead.
+
+        Guards against reopening: Ctrl+T while an existing Transform
+        dialog is visible raises it instead of stacking a duplicate."""
+        existing = getattr(self, "_transform_dlg", None)
+        if existing is not None and existing.isVisible():
+            existing.raise_()
+            existing.activateWindow()
+            return
         sel = [it for it in self._scene.selectedItems()
                if isinstance(it, (OverlayImageItem, OverlayTextItem,
                                    OverlayShapeItem))]
@@ -14803,6 +14830,7 @@ class StudioEditor(QWidget):
                                          QDoubleSpinBox, QDialogButtonBox,
                                          QLabel, QHBoxLayout, QCheckBox)
         dlg = QDialog(self)
+        self._transform_dlg = dlg
         dlg.setWindowTitle("Transform")
         dlg.setMinimumWidth(320)
         form = QFormLayout(dlg)
