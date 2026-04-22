@@ -11952,6 +11952,14 @@ class StudioEditor(QWidget):
             "on LCD monitors, worse on rotated / non-native-DPI screens.")
         rend_form.addRow("", lossless_cb)
 
+        gl_cb = QCheckBox("GPU viewport (OpenGL)")
+        gl_cb.setChecked(qs.value("studio_use_gl_viewport", True, type=bool))
+        gl_cb.setToolTip(
+            "Render Studio canvas through OpenGL instead of CPU raster. "
+            "Typically 3-5x faster. Requires app restart after toggle. "
+            "Turn off if you see rendering glitches on your GPU.")
+        rend_form.addRow("", gl_cb)
+
         canvas_bg_combo = QComboBox()
         canvas_bg_combo.addItem("Theme default", "theme")
         canvas_bg_combo.addItem("Black", "#000000")
@@ -12141,6 +12149,7 @@ class StudioEditor(QWidget):
         qs.setValue("studio_render_text_aa", text_aa_cb.isChecked())
         qs.setValue("studio_render_hq", hq_cb.isChecked())
         qs.setValue("studio_render_lossless_text", lossless_cb.isChecked())
+        qs.setValue("studio_use_gl_viewport", gl_cb.isChecked())
         qs.setValue("studio_bg_color", canvas_bg_combo.currentData())
         qs.setValue("studio_bubble_autofit", autofit_cb.isChecked())
         qs.setValue("studio_bubble_default_tail_curve", tail_curve_spin.value())
