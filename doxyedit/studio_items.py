@@ -2094,14 +2094,19 @@ class OverlayArrowItem(QGraphicsItem):
                 _head(x1, y1, -1)
         # Selection highlight + endpoint handles
         if self.isSelected():
-            painter.setPen(QPen(QColor(255, 200, 0), 1, Qt.PenStyle.DashLine))
+            _dt = THEMES[DEFAULT_THEME]
+            ENDPOINT_RADIUS = 5
+            sel_color = QColor(_dt.studio_selection_outline)
+            painter.setPen(QPen(sel_color, _dt.studio_overlay_handle_pen_width,
+                                Qt.PenStyle.DashLine))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(self.boundingRect())
-            _r = 5
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(255, 200, 0)))
-            painter.drawEllipse(QRectF(x1 - _r, y1 - _r, 2 * _r, 2 * _r))
-            painter.drawEllipse(QRectF(x2 - _r, y2 - _r, 2 * _r, 2 * _r))
+            painter.setBrush(QBrush(QColor(_dt.studio_selection_handle_fill)))
+            painter.drawEllipse(QRectF(x1 - ENDPOINT_RADIUS, y1 - ENDPOINT_RADIUS,
+                                        2 * ENDPOINT_RADIUS, 2 * ENDPOINT_RADIUS))
+            painter.drawEllipse(QRectF(x2 - ENDPOINT_RADIUS, y2 - ENDPOINT_RADIUS,
+                                        2 * ENDPOINT_RADIUS, 2 * ENDPOINT_RADIUS))
 
     def _endpoint_under(self, scene_pos: QPointF):
         """Return 'start' / 'end' / None if pos is near an endpoint."""
