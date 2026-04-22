@@ -4535,6 +4535,35 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 cr_spin.valueChanged.connect(_cr_changed)
                 form.addRow("Corner radius", cr_spin)
 
+            # Make square (rect / ellipse) -> force w == h, centered on
+            # current midpoint so the shape doesn't jump. Handy for
+            # turning a freehand ellipse into a perfect circle.
+            if ov.shape_kind in ("rect", "ellipse"):
+                square_btn = QPushButton("Make perfect square / circle")
+                square_btn.setToolTip(
+                    "Equalize width and height (using the larger of the "
+                    "two), keeping the shape centered in place.")
+                def _make_square(_it=item):
+                    ov_s = _it.overlay
+                    side = max(int(ov_s.shape_w), int(ov_s.shape_h))
+                    cx = ov_s.x + ov_s.shape_w / 2
+                    cy = ov_s.y + ov_s.shape_h / 2
+                    ov_s.shape_w = side
+                    ov_s.shape_h = side
+                    ov_s.x = int(round(cx - side / 2))
+                    ov_s.y = int(round(cy - side / 2))
+                    _it.prepareGeometryChange()
+                    _it.setPos(ov_s.x, ov_s.y)
+                    _it.update()
+                    editor._sync_overlays_to_asset()
+                    if hasattr(editor, "info_label"):
+                        kind = ("circle" if ov_s.shape_kind == "ellipse"
+                                else "square")
+                        editor.info_label.setText(
+                            f"Snapped to {side}x{side} {kind}")
+                square_btn.clicked.connect(_make_square)
+                form.addRow("", square_btn)
+
             # Gradient presets — only when the shape is a gradient.
             if ov.shape_kind in ("gradient_linear", "gradient_radial"):
                 self._root_layout.addWidget(QLabel("<b>Gradient</b>"))
