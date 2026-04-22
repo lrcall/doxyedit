@@ -260,6 +260,16 @@ class CanvasOverlay:
     # respective _apply_flip / _apply_flip_text transform composition.
     skew_x: float = 0.0
     skew_y: float = 0.0
+    # Bubble deformers — applied on top of the speech/thought paint
+    # path. bubble_roundness 0.0 = default rounded-rect, 1.0 = fully
+    # elliptical. bubble_oval_stretch expands the horizontal axis of
+    # the body relative to the vertical (0.0 = square body, positive
+    # = wider, negative = taller). bubble_wobble adds a sinusoidal
+    # perturbation to the body outline (0.0 = smooth, 1.0 = very
+    # wobbly). All three stack on top of each other.
+    bubble_roundness: float = 0.0
+    bubble_oval_stretch: float = 0.0
+    bubble_wobble: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)

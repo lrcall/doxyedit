@@ -704,8 +704,12 @@ class OverlayShapeItem(QGraphicsItem):
         edge to tail_tip. Base points are pushed INTO the body by a small
         overlap so path.united merges the tail and body into a single
         seamless outline (no visible seam where the triangle meets the
-        rounded-rect edge)."""
+        rounded-rect edge). Deformers: bubble_roundness (0-1 lerps to
+        a full ellipse), bubble_oval_stretch (±1 squashes the aspect),
+        bubble_wobble (0-1 adds sinusoidal perturbation along the
+        outline)."""
         from PySide6.QtGui import QPainterPath
+        import math as _m
         pad = min(r.width(), r.height()) * 0.18
         tip = self._tail_tip(r)
         # Tail base: pick two points on the body edge closest to the tip
@@ -717,6 +721,15 @@ class OverlayShapeItem(QGraphicsItem):
         # the seam. ~8% of body short-side, clamped to a minimum so small
         # bubbles still merge cleanly.
         overlap = max(4.0, min(r.width(), r.height()) * 0.08)
+        # Apply bubble_oval_stretch: >0 widens, <0 taller. Normalize
+        # against a central pivot so the overall footprint stays similar.
+        stretch = max(-0.6, min(0.6, getattr(self.overlay, "bubble_oval_stretch", 0.0)))
+        if stretch != 0:
+            sx = 1.0 + stretch
+            sy = 1.0 - stretch * 0.5
+            new_w = r.width() * sx
+            new_h = r.height() * sy
+            r = QRectF(cx - new_w / 2, cy - new_h / 2, new_w, new_h)
         if horiz:
             if dx > 0:
                 edge_x = r.right() - overlap
@@ -735,15 +748,47 @@ class OverlayShapeItem(QGraphicsItem):
                          min(r.right() - pad, tip.x() * 0.5 + cx * 0.5))
             b1 = QPointF(mid_x - base_len / 2, edge_y)
             b2 = QPointF(mid_x + base_len / 2, edge_y)
-        # Build path: rounded body, add tail triangle
+        # Build path: roundness blends between pad-rounded rect (0.0)
+        # and a pure ellipse (1.0).
+        roundness = max(0.0, min(1.0,
+            getattr(self.overlay, "bubble_roundness", 0.0)))
         path = QPainterPath()
-        path.addRoundedRect(r, pad, pad)
+        if roundness >= 0.99:
+            path.addEllipse(r)
+        else:
+            effective_pad = pad + (min(r.width(), r.height()) / 2 - pad) * roundness
+            path.addRoundedRect(r, effective_pad, effective_pad)
         tail = QPainterPath()
         tail.moveTo(b1)
         tail.lineTo(tip)
         tail.lineTo(b2)
         tail.closeSubpath()
         path = path.united(tail)
+        # Wobble: walk the path at many points and push each one a small
+        # amount along its normal using a sin function of its arc-length
+        # parameter. Produces a hand-drawn look.
+        wobble = max(0.0, min(1.0,
+            getattr(self.overlay, "bubble_wobble", 0.0)))
+        if wobble > 0.01:
+            amp = wobble * min(r.width(), r.height()) * 0.04
+            wobbled = QPainterPath()
+            n = 72
+            length = path.length() or 1.0
+            for i in range(n + 1):
+                t = (i / n) * length
+                pct = t / length
+                pt = path.pointAtPercent(pct)
+                ang = path.angleAtPercent(pct)
+                normal = _m.radians(ang + 90)
+                push = _m.sin(pct * _m.pi * 8) * amp
+                nx = pt.x() + _m.cos(normal) * push
+                ny = pt.y() - _m.sin(normal) * push
+                if i == 0:
+                    wobbled.moveTo(nx, ny)
+                else:
+                    wobbled.lineTo(nx, ny)
+            wobbled.closeSubpath()
+            path = wobbled
         painter.drawPath(path)
 
     def _paint_thought_bubble(self, painter, r: QRectF):
