@@ -7821,21 +7821,27 @@ class StudioEditor(QWidget):
         self._qp_outline.on_color_picked = self._apply_stroke_to_selection
         quickbar.addWidget(self._qp_outline)
 
+        # Rotation slider (matches Opc - drag for coarse, double-click
+        # to reset to 0°, value label shows current degrees).
         quickbar.addWidget(QLabel("Rot"))
-        from PySide6.QtWidgets import QSpinBox as _QSB
-        self._qp_rot = _QSB()
+        self._qp_rot = QSlider(Qt.Orientation.Horizontal)
         self._qp_rot.setObjectName("studio_qp_rot")
         self._qp_rot.setRange(-360, 360)
-        self._qp_rot.setSuffix("°")
+        self._qp_rot.setValue(0)
         self._qp_rot.setFixedWidth(int(_dt.font_size * 5))
         self._qp_rot.setToolTip(
-            "Rotation of selection (degrees). Double-click to reset to 0°.")
+            "Rotation of selection (degrees). "
+            "Double-click to reset to 0°.")
         self._qp_rot.valueChanged.connect(self._qp_apply_rotation)
-        # Double-click to reset to 0°
         def _rot_dclick(ev):
             self._qp_rot.setValue(0)
         self._qp_rot.mouseDoubleClickEvent = _rot_dclick
         quickbar.addWidget(self._qp_rot)
+        self._qp_rot_lbl = QLabel("0°")
+        self._qp_rot_lbl.setFixedWidth(int(_dt.font_size * 2.8))
+        self._qp_rot.valueChanged.connect(
+            lambda v: self._qp_rot_lbl.setText(f"{v}°"))
+        quickbar.addWidget(self._qp_rot_lbl)
 
         quickbar.addWidget(QLabel("Opc"))
         self._qp_opacity = QSlider(Qt.Orientation.Horizontal)
@@ -7856,20 +7862,28 @@ class StudioEditor(QWidget):
         self._qp_opacity_lbl.setFixedWidth(int(_dt.font_size * 2.2))
         quickbar.addWidget(self._qp_opacity_lbl)
 
+        # Scale slider (5..1000 %). Coarse drag, double-click -> 100%.
+        # Log-ish scale would be nicer but the linear range matches the
+        # previous spinbox for undo-history compatibility.
         quickbar.addWidget(QLabel("Scale"))
-        self._qp_scale = _QSB()
+        self._qp_scale = QSlider(Qt.Orientation.Horizontal)
         self._qp_scale.setObjectName("studio_qp_scale")
         self._qp_scale.setRange(5, 1000)
         self._qp_scale.setValue(100)
-        self._qp_scale.setSuffix("%")
         self._qp_scale.setFixedWidth(int(_dt.font_size * 5.2))
         self._qp_scale.setToolTip(
-            "Scale selected shape / image (%). Double-click to reset to 100%.")
+            "Scale selected shape / image (%). "
+            "Double-click to reset to 100%.")
         self._qp_scale.valueChanged.connect(self._qp_apply_scale)
         def _scale_dclick(ev):
             self._qp_scale.setValue(100)
         self._qp_scale.mouseDoubleClickEvent = _scale_dclick
         quickbar.addWidget(self._qp_scale)
+        self._qp_scale_lbl = QLabel("100%")
+        self._qp_scale_lbl.setFixedWidth(int(_dt.font_size * 3.0))
+        self._qp_scale.valueChanged.connect(
+            lambda v: self._qp_scale_lbl.setText(f"{v}%"))
+        quickbar.addWidget(self._qp_scale_lbl)
 
         # Quick lock / visibility / align-to-pixel buttons. Photoshop-
         # style 'edit' buttons that act on the current selection without
