@@ -881,6 +881,15 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         self._progress_timer.timeout.connect(self._update_progress)
         self._progress_timer.start(2000)
 
+        # --- Dirty-state title watcher ---
+        # Single poll timer updates the window title + active tab label
+        # with a leading '*' whenever _dirty is set. Avoids threading a
+        # setter through the ~15 existing `self._dirty = True` sites.
+        self._dirty_watcher = QTimer(self)
+        self._dirty_watcher.timeout.connect(self._refresh_dirty_marker)
+        self._dirty_watcher.start(500)
+        self._last_dirty_rendered = None
+
         # --- Restore saved state ---
         saved_gen = int(self._settings.value("thumb_gen_size", 512))
         from doxyedit import browser
@@ -1536,6 +1545,28 @@ class MainWindow(SaveLoadMixin, QMainWindow):
             self._refresh_project_info()
         # Match Windows title bar to theme
         self._update_title_bar_color()
+
+    def _refresh_dirty_marker(self):
+        """Prepend '*' to the window title + current project-tab label
+        whenever there are unsaved changes. Driven by a timer because
+        too many call sites set self._dirty = True to wire each one to
+        a setter."""
+        dirty = bool(getattr(self, "_dirty", False))
+        if dirty == self._last_dirty_rendered:
+            return
+        self._last_dirty_rendered = dirty
+        title = self.windowTitle()
+        base = title.lstrip("* ").rstrip()
+        self.setWindowTitle(f"* {base}" if dirty else base)
+        if hasattr(self, "_proj_tab_bar") and hasattr(self, "_current_slot"):
+            try:
+                current_text = self._proj_tab_bar.tabText(self._current_slot)
+                clean = current_text.lstrip("* ").rstrip()
+                self._proj_tab_bar.setTabText(
+                    self._current_slot,
+                    f"* {clean}" if dirty else clean)
+            except Exception:
+                pass
 
     def _update_title_bar_color(self):
         proj_accent = getattr(getattr(self, 'project', None), 'accent_color', '')
