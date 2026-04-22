@@ -110,24 +110,42 @@ class WorkTray(QWidget):
         self._view_btn = QPushButton("\u2630")  # ☰ hamburger
         self._view_btn.setObjectName("tray_small_btn")
         self._view_btn.setFixedSize(_cb, _cb)
-        self._view_btn.setToolTip("Cycle view: list / 2-col / 3-col")
+        self._view_btn.setToolTip("Cycle view: list / compact / 2-col / 3-col")
         self._view_btn.clicked.connect(self._cycle_view_mode)
-        self._view_mode = 0  # 0=list, 1=2col, 2=3col
+        # View mode: 0=list (thumb+name), 1=compact (dense row),
+        # 2=2-col grid, 3=3-col grid. Persisted in QSettings so the
+        # preference survives restarts.
+        self._view_mode = int(QSettings(
+            "DoxyEdit", "DoxyEdit").value("tray_view_mode", 0, type=int))
         header.addWidget(self._view_btn)
 
-        # T12 zoom slider — direct control of thumbnail size; persists in
-        # QSettings. Double-click the slider to reset to the default.
+        # Zoom row: [-] [slider] [+]. All three also respond to
+        # Ctrl+Wheel on the list widget (tray_items.DragOutListWidget).
+        self._zoom_out_btn = QPushButton("−")  # minus sign
+        self._zoom_out_btn.setObjectName("tray_small_btn")
+        self._zoom_out_btn.setFixedSize(_cb, _cb)
+        self._zoom_out_btn.setToolTip("Zoom out (Ctrl+Wheel on list)")
+        self._zoom_out_btn.clicked.connect(lambda: self._nudge_zoom(-20))
+        header.addWidget(self._zoom_out_btn)
+
         self._zoom_slider = QSlider(Qt.Orientation.Horizontal)
         self._zoom_slider.setObjectName("tray_zoom_slider")
         self._zoom_slider.setRange(40, 200)
         self._zoom_slider.setValue(self._icon_size)
         self._zoom_slider.setFixedWidth(max(60, _f * 5))
         self._zoom_slider.setToolTip(
-            "Thumbnail size (double-click to reset)")
+            "Thumbnail size (double-click to reset; Ctrl+Wheel on list)")
         self._zoom_slider.valueChanged.connect(self._on_zoom_changed)
         self._zoom_slider.mouseDoubleClickEvent = (
             lambda _e: self._zoom_slider.setValue(TRAY_ICON_SIZE))
         header.addWidget(self._zoom_slider)
+
+        self._zoom_in_btn = QPushButton("+")
+        self._zoom_in_btn.setObjectName("tray_small_btn")
+        self._zoom_in_btn.setFixedSize(_cb, _cb)
+        self._zoom_in_btn.setToolTip("Zoom in (Ctrl+Wheel on list)")
+        self._zoom_in_btn.clicked.connect(lambda: self._nudge_zoom(20))
+        header.addWidget(self._zoom_in_btn)
 
         self._clear_btn = QPushButton("Clear")
         self._clear_btn.setObjectName("tray_action_btn")
@@ -246,6 +264,12 @@ class WorkTray(QWidget):
         self._empty_label.setWordWrap(True)
         self._empty_label.hide()
         layout.addWidget(self._list)
+
+        # Apply the saved view mode now that every widget exists. The
+        # initial _view_mode was read from QSettings in __init__ but
+        # _set_view_mode couldn't run until _list + _view_btn existed.
+        if self._view_mode != 0:
+            self._set_view_mode(self._view_mode)
 
     def _rebuild_index(self):
         """Rebuild the id→row mapping from _asset_ids."""
@@ -763,9 +787,10 @@ class WorkTray(QWidget):
             menu.addSeparator()
         if include_view:
             view_menu = menu.addMenu("View")
-            labels = [("List (with names)", 0),
-                       ("2 Columns", 1),
-                       ("3 Columns", 2)]
+            labels = [("List (thumb + name)", 0),
+                       ("Compact rows", 1),
+                       ("2-column grid", 2),
+                       ("3-column grid", 3)]
             for label, mode in labels:
                 act = view_menu.addAction(label)
                 act.setCheckable(True)
@@ -1124,14 +1149,22 @@ class WorkTray(QWidget):
                 item.setIcon(QIcon(scaled))
 
     def _cycle_view_mode(self):
-        self._set_view_mode((self._view_mode + 1) % 3)
+        # 4 modes now: 0 list, 1 compact, 2 2-col grid, 3 3-col grid
+        self._set_view_mode((self._view_mode + 1) % 4)
 
     def _set_view_mode(self, mode: int):
-        """Jump directly to a view mode (0=list, 1=2col, 2=3col) without
-        cycling. Header right-click uses this."""
+        """Jump directly to a view mode. Modes:
+            0 = list        (name + thumb at full _icon_size)
+            1 = compact     (dense single line: small thumb + name)
+            2 = 2-col grid  (icon only)
+            3 = 3-col grid  (icon only)
+        """
+        from PySide6.QtWidgets import QListWidget
         _f = ui_font_size()
         _pad = max(4, _f // 3)
-        self._view_mode = mode % 3
+        self._view_mode = mode % 4
+        QSettings("DoxyEdit", "DoxyEdit").setValue(
+            "tray_view_mode", self._view_mode)
         if self._view_mode == 0:
             # List mode — full filename + icon
             self._view_btn.setText("\u2630")
@@ -1143,11 +1176,24 @@ class WorkTray(QWidget):
                 item = self._list.item(i)
                 if item and item.data(NAME_ROLE):
                     item.setText(item.data(NAME_ROLE))
+        elif self._view_mode == 1:
+            # Compact — dense single-line rows with a small fixed thumb.
+            compact = max(24, min(40, _f * 2))
+            self._view_btn.setText("▤")  # small square-ish
+            self._list.setViewMode(QListWidget.ViewMode.ListMode)
+            self._list.setIconSize(QSize(compact, compact))
+            self._list.setGridSize(QSize())
+            self._list.setSpacing(1)
+            for i in range(self._list.count()):
+                item = self._list.item(i)
+                if item and item.data(NAME_ROLE):
+                    item.setText(item.data(NAME_ROLE))
         else:
-            # Grid modes — icon only, no text
-            cell = 120 if self._view_mode == 1 else 80
+            # Grid modes (2 = 2-col, 3 = 3-col) — icon only, no text
+            cell = 120 if self._view_mode == 2 else 80
             icon = cell - 10
-            self._view_btn.setText(f"{self._view_mode + 1}col")
+            self._view_btn.setText(
+                "▦" if self._view_mode == 2 else "3col")
             self._list.setViewMode(QListWidget.ViewMode.IconMode)
             self._list.setIconSize(QSize(icon, icon))
             self._list.setGridSize(QSize(cell, cell))
@@ -1159,6 +1205,12 @@ class WorkTray(QWidget):
                     if not item.data(NAME_ROLE):
                         item.setData(NAME_ROLE, item.text())
                     item.setText("")
+
+    def _nudge_zoom(self, delta: int):
+        """Incremental zoom for +/- buttons — routes through the slider
+        so clamping, persistence, and viewport repaint all run."""
+        new_val = max(40, min(200, self._icon_size + delta))
+        self._zoom_slider.setValue(new_val)
 
     def _toggle_tray_tag(self, asset_id: str, tag_id: str):
         if not hasattr(self, '_project') or not self._project:

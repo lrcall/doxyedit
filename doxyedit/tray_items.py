@@ -114,6 +114,24 @@ class DragOutListWidget(QListWidget):
                     return
         super().mousePressEvent(event)
 
+    def wheelEvent(self, event):
+        """Ctrl+Wheel zooms the thumbnail size on the parent tray.
+        Plain wheel scrolls as usual."""
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            # Find the parent tray and delegate the zoom step
+            tray = self.parent()
+            while tray is not None and not hasattr(tray, "_icon_size"):
+                tray = tray.parent()
+            if tray is not None:
+                delta = event.angleDelta().y()
+                step = 8 if delta > 0 else -8
+                new_size = max(40, min(200, tray._icon_size + step))
+                if hasattr(tray, "_zoom_slider"):
+                    tray._zoom_slider.setValue(new_size)
+                event.accept()
+                return
+        super().wheelEvent(event)
+
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.MiddleButton:
             HoverPreview.instance().hide_preview()
