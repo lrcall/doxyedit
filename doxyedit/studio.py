@@ -6120,7 +6120,10 @@ class StudioEditor(QWidget):
         self._qp_fill.setFixedWidth(int(_dt.font_size * 2.8))
         self._qp_fill.setToolTip(
             "Fill / text color (right-click for recent)")
-        self._qp_fill.clicked.connect(self._on_color_pick)
+        # Click the swatch itself to open the QColorDialog — previously
+        # this routed through _on_color_pick which only handled text
+        # overlays, so clicking on a shape's swatch no-op'd.
+        self._qp_fill.clicked.connect(self._qp_pick_fill_color)
         self._qp_fill.on_color_picked = self._apply_color_to_selection
         quickbar.addWidget(self._qp_fill)
 
@@ -6129,7 +6132,7 @@ class StudioEditor(QWidget):
         self._qp_outline.setFixedWidth(int(_dt.font_size * 2.8))
         self._qp_outline.setToolTip(
             "Outline / stroke color (right-click for recent)")
-        self._qp_outline.clicked.connect(self._on_outline_color_pick)
+        self._qp_outline.clicked.connect(self._qp_pick_stroke_color)
         self._qp_outline.on_color_picked = self._apply_stroke_to_selection
         quickbar.addWidget(self._qp_outline)
 
@@ -8461,9 +8464,29 @@ class StudioEditor(QWidget):
             return
         active_tool = getattr(self._scene, "current_tool", None)
         has_text_tool = active_tool == StudioTool.TEXT_OVERLAY
+        sel = self._scene.selectedItems()
         has_text_selected = any(
-            isinstance(it, OverlayTextItem)
-            for it in self._scene.selectedItems())
+            isinstance(it, OverlayTextItem) for it in sel)
+        # A bubble with a linked text counts too - the user wants to
+        # tweak the text's font / color without first clicking inside.
+        has_bubble_with_text = any(
+            (isinstance(it, OverlayShapeItem)
+             and getattr(it.overlay, "linked_text_id", ""))
+            for it in sel)
+        if has_bubble_with_text and not has_text_selected:
+            # Auto-select the paired text so the popup operates on it.
+            for it in sel:
+                if (isinstance(it, OverlayShapeItem)
+                        and it.overlay.linked_text_id):
+                    for other in self._overlay_items:
+                        if (isinstance(other, OverlayTextItem)
+                                and other.overlay.label
+                                    == it.overlay.linked_text_id
+                                and not other.isSelected()):
+                            other.setSelected(True)
+                            has_text_selected = True
+                            break
+                    break
         dlg = self._text_controls_dlg
         if has_text_tool or has_text_selected:
             # Inherit the app-wide stylesheet + Windows 11 caption tint
@@ -8816,6 +8839,71 @@ class StudioEditor(QWidget):
         color = QColorDialog.getColor(current, self, "Overlay Color")
         if color.isValid():
             self._apply_text_color(color.name())
+
+    def _qp_pick_fill_color(self):
+        """Quickbar fill-swatch click -> open QColorDialog and apply to
+        EVERY selected overlay (text color / shape fill / arrow color).
+        Previously routed through the text-only path so shape swatches
+        silently no-op'd."""
+        sel = self._scene.selectedItems()
+        overlay_sel = [it for it in sel if hasattr(it, "overlay")]
+        if not overlay_sel:
+            return
+        first = overlay_sel[0].overlay
+        if isinstance(overlay_sel[0], OverlayShapeItem):
+            cur_hex = first.fill_color or first.color or "#ffffff"
+        else:
+            cur_hex = first.color or "#000000"
+        col = QColorDialog.getColor(
+            QColor(cur_hex), self, "Fill / text color",
+            QColorDialog.ColorDialogOption.ShowAlphaChannel)
+        if not col.isValid():
+            return
+        # Dispatch per type so the 'fill' concept maps correctly.
+        for it in overlay_sel:
+            ov = it.overlay
+            if isinstance(it, OverlayShapeItem):
+                ov.fill_color = col.name()
+                it.update()
+            elif isinstance(it, OverlayTextItem):
+                ov.color = col.name()
+                if hasattr(it, "_apply_font"):
+                    it._apply_font()
+            elif isinstance(it, OverlayArrowItem):
+                ov.color = col.name()
+                it.update()
+            elif isinstance(it, OverlayImageItem):
+                ov.color = col.name()
+                it.update()
+        self._qp_fill.setSwatchColor(col)
+        self._add_recent_color(col.name())
+        self._sync_overlays_to_asset()
+
+    def _qp_pick_stroke_color(self):
+        """Quickbar outline-swatch click -> dialog -> stroke_color on
+        every selected overlay that supports it."""
+        sel = self._scene.selectedItems()
+        overlay_sel = [it for it in sel if hasattr(it, "overlay")]
+        if not overlay_sel:
+            return
+        cur_hex = overlay_sel[0].overlay.stroke_color or "#000000"
+        col = QColorDialog.getColor(
+            QColor(cur_hex), self, "Stroke / outline color",
+            QColorDialog.ColorDialogOption.ShowAlphaChannel)
+        if not col.isValid():
+            return
+        for it in overlay_sel:
+            ov = it.overlay
+            ov.stroke_color = col.name()
+            if isinstance(it, OverlayTextItem):
+                if ov.stroke_width == 0:
+                    ov.stroke_width = 2
+                if hasattr(it, "_apply_font"):
+                    it._apply_font()
+            it.update()
+        self._qp_outline.setSwatchColor(col)
+        self._add_recent_color(col.name())
+        self._sync_overlays_to_asset()
 
     def _sync_quickbar(self):
         """Reflect the first selected overlay's state on the quickbar.
