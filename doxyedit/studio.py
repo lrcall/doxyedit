@@ -5441,6 +5441,12 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_Y:
             self._undo_stack.redo()
             return
+        if ctrl and alt and not shift and key == Qt.Key.Key_D:
+            # Ctrl+Alt+D duplicates in place (no offset). Parallel to
+            # Ctrl+Shift+V = paste in place. Useful for stamping a
+            # symbol and then translating the duplicate precisely.
+            self._duplicate_selected(offset=0)
+            return
         if ctrl and key == Qt.Key.Key_D:
             self._duplicate_selected()
             return
@@ -8166,8 +8172,8 @@ class StudioEditor(QWidget):
         self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self._update_info()
 
-    def _duplicate_shape_item(self, item):
-        """Clone a shape overlay with 20px offset."""
+    def _duplicate_shape_item(self, item, offset: int = 20):
+        """Clone a shape overlay with optional x/y offset (default 20 px)."""
         ov = item.overlay
         new_ov = CanvasOverlay(
             type="shape",
@@ -8178,7 +8184,7 @@ class StudioEditor(QWidget):
             stroke_width=ov.stroke_width,
             fill_color=ov.fill_color,
             opacity=ov.opacity,
-            x=ov.x + 20, y=ov.y + 20,
+            x=ov.x + offset, y=ov.y + offset,
             shape_w=ov.shape_w, shape_h=ov.shape_h,
             platforms=list(ov.platforms),
         )
@@ -8189,8 +8195,8 @@ class StudioEditor(QWidget):
         self._scene.addItem(new_item)
         self._overlay_items.append(new_item)
 
-    def _duplicate_arrow_item(self, item):
-        """Clone an arrow overlay with 20px offset."""
+    def _duplicate_arrow_item(self, item, offset: int = 20):
+        """Clone an arrow overlay with optional x/y offset (default 20 px)."""
         ov = item.overlay
         new_ov = CanvasOverlay(
             type="arrow",
@@ -8198,8 +8204,8 @@ class StudioEditor(QWidget):
             color=ov.color,
             opacity=ov.opacity,
             stroke_width=ov.stroke_width,
-            x=ov.x + 20, y=ov.y + 20,
-            end_x=ov.end_x + 20, end_y=ov.end_y + 20,
+            x=ov.x + offset, y=ov.y + offset,
+            end_x=ov.end_x + offset, end_y=ov.end_y + offset,
             arrowhead_size=ov.arrowhead_size,
             platforms=list(ov.platforms),
         )
@@ -11140,13 +11146,14 @@ class StudioEditor(QWidget):
         self._rebuild_layer_panel()
         self._update_info()
 
-    def _duplicate_overlay_item(self, item):
-        """Duplicate an overlay item with 20px offset (for context menu / Ctrl+D)."""
+    def _duplicate_overlay_item(self, item, offset: int = 20):
+        """Duplicate an overlay item with an optional x/y offset (default
+        20 px for Ctrl+D; 0 for stamp-in-place via Ctrl+Alt+D)."""
         if not self._asset:
             return
         ov_copy = copy.copy(item.overlay)
-        ov_copy.x += 20
-        ov_copy.y += 20
+        ov_copy.x += offset
+        ov_copy.y += offset
         self._asset.overlays.append(ov_copy)
         new_item = self._create_overlay_item(ov_copy)
         if new_item:
@@ -11593,27 +11600,30 @@ class StudioEditor(QWidget):
         new.setSelected(True)
         self._view.centerOn(new)
 
-    def _duplicate_selected(self):
-        """Duplicate selected overlays, censors, arrows, shapes, and crops."""
+    def _duplicate_selected(self, offset: int = 20):
+        """Duplicate selected overlays, censors, arrows, shapes, and crops.
+        `offset` (px) is applied to the duplicate's x/y so consecutive
+        Ctrl+D strokes walk away from the original. Ctrl+Alt+D sets
+        offset=0 for a stamp-in-place."""
         for item in list(self._scene.selectedItems()):
             if isinstance(item, (OverlayImageItem, OverlayTextItem)):
-                self._duplicate_overlay_item(item)
+                self._duplicate_overlay_item(item, offset=offset)
             elif isinstance(item, OverlayArrowItem):
-                self._duplicate_arrow_item(item)
+                self._duplicate_arrow_item(item, offset=offset)
             elif isinstance(item, OverlayShapeItem):
-                self._duplicate_shape_item(item)
+                self._duplicate_shape_item(item, offset=offset)
             elif isinstance(item, CensorRectItem):
-                self._duplicate_censor_item(item)
+                self._duplicate_censor_item(item, offset=offset)
             elif isinstance(item, ResizableCropItem):
                 self._scene._duplicate_crop(self, item)
 
-    def _duplicate_censor_item(self, item):
-        """Clone a censor with 20px offset — used by Ctrl+D."""
+    def _duplicate_censor_item(self, item, offset: int = 20):
+        """Clone a censor with optional x/y offset (default 20 px)."""
         cr_src = getattr(item, "_censor_region", None)
         if cr_src is None or not self._asset:
             return
         new_cr = CensorRegion(
-            x=cr_src.x + 20, y=cr_src.y + 20,
+            x=cr_src.x + offset, y=cr_src.y + offset,
             w=cr_src.w, h=cr_src.h,
             style=cr_src.style,
             blur_radius=cr_src.blur_radius,
