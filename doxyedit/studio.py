@@ -7592,6 +7592,26 @@ class StudioEditor(QWidget):
                 dlg.hide()
 
     def _on_selection_changed(self):
+        # Group-aware selection propagation: when a user clicks any
+        # grouped overlay, auto-select every sibling in the same group.
+        # Guard against re-entry by tracking a sentinel so our own
+        # setSelected calls don't re-trigger this handler.
+        if not getattr(self, "_propagating_group_sel", False):
+            try:
+                self._propagating_group_sel = True
+                sel = self._scene.selectedItems()
+                sel_gids = {
+                    it.overlay.group_id for it in sel
+                    if hasattr(it, "overlay") and it.overlay.group_id
+                }
+                if sel_gids:
+                    for it in self._overlay_items:
+                        if (hasattr(it, "overlay")
+                                and it.overlay.group_id in sel_gids
+                                and not it.isSelected()):
+                            it.setSelected(True)
+            finally:
+                self._propagating_group_sel = False
         # Text-controls popup follows selection
         self._sync_text_controls_visibility()
         # Total selected (overlays + censors + crops + notes) for status bar
