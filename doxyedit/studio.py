@@ -6404,6 +6404,31 @@ class StudioEditor(QWidget):
         self.btn_italic.clicked.connect(self._on_italic_changed)
         props.addWidget(self.btn_italic)
 
+        # Underline / strikethrough — CanvasOverlay already has the
+        # fields, just needs surfaced buttons so users don't have to
+        # right-click every time.
+        self.btn_underline = QPushButton("U")
+        self.btn_underline.setObjectName("studio_underline_btn")
+        self.btn_underline.setCheckable(True)
+        self.btn_underline.setFixedWidth(_icon_btn_w)
+        _u_font = QFont(self.btn_underline.font())
+        _u_font.setUnderline(True)
+        self.btn_underline.setFont(_u_font)
+        self.btn_underline.setToolTip("Underline (U)")
+        self.btn_underline.clicked.connect(self._on_underline_changed)
+        props.addWidget(self.btn_underline)
+
+        self.btn_strikethrough = QPushButton("S")
+        self.btn_strikethrough.setObjectName("studio_strike_btn")
+        self.btn_strikethrough.setCheckable(True)
+        self.btn_strikethrough.setFixedWidth(_icon_btn_w)
+        _s_font = QFont(self.btn_strikethrough.font())
+        _s_font.setStrikeOut(True)
+        self.btn_strikethrough.setFont(_s_font)
+        self.btn_strikethrough.setToolTip("Strikethrough")
+        self.btn_strikethrough.clicked.connect(self._on_strikethrough_changed)
+        props.addWidget(self.btn_strikethrough)
+
         self.btn_color = _ColorSwatchButton(is_outline=False)
         self.btn_color.setObjectName("studio_color_btn")
         self.btn_color.setFixedWidth(_icon_btn_w)
@@ -6503,6 +6528,7 @@ class StudioEditor(QWidget):
         _dlg = self._text_controls_dlg
         for _w in (self.combo_position, self.font_combo, self.slider_font_size,
                    self.btn_bold, self.btn_italic,
+                   self.btn_underline, self.btn_strikethrough,
                    self.btn_color, self.btn_outline_color,
                    self.slider_outline, self.slider_kerning,
                    self.slider_line_height, self.slider_rotation,
@@ -6559,6 +6585,8 @@ class StudioEditor(QWidget):
         _bi_row.setContentsMargins(0, 0, 0, 0)
         _bi_row.addWidget(self.btn_bold)
         _bi_row.addWidget(self.btn_italic)
+        _bi_row.addWidget(self.btn_underline)
+        _bi_row.addWidget(self.btn_strikethrough)
         _bi_row.addStretch()
         _dlg_layout.addRow("Weight", _bi_widget)
         _col_widget = QWidget(_dlg)
@@ -8896,10 +8924,15 @@ class StudioEditor(QWidget):
         self._props_row.setEnabled(True)
 
         # Block signals during bulk update
-        for w in (self.slider_opacity, self.slider_scale, self.combo_position,
+        _bulk = [self.slider_opacity, self.slider_scale, self.combo_position,
                   self.font_combo, self.slider_font_size, self.btn_bold,
                   self.btn_italic, self.slider_kerning, self.slider_line_height,
-                  self.slider_rotation, self.slider_text_width, self.slider_outline):
+                  self.slider_rotation, self.slider_text_width, self.slider_outline]
+        if hasattr(self, "btn_underline"):
+            _bulk.append(self.btn_underline)
+        if hasattr(self, "btn_strikethrough"):
+            _bulk.append(self.btn_strikethrough)
+        for w in _bulk:
             w.blockSignals(True)
 
         # Push the selected text overlay's content into the mini editor
@@ -8921,6 +8954,20 @@ class StudioEditor(QWidget):
         self.slider_font_size.setValue(ov.font_size)
         self.btn_bold.setChecked(ov.bold)
         self.btn_italic.setChecked(ov.italic)
+        if hasattr(self, "btn_underline"):
+            self.btn_underline.setChecked(bool(getattr(ov, "underline", False)))
+        if hasattr(self, "btn_strikethrough"):
+            self.btn_strikethrough.setChecked(
+                bool(getattr(ov, "strikethrough", False)))
+        # Drop-shadow toggle + offset slider sync
+        if hasattr(self, "btn_shadow_toggle"):
+            self.btn_shadow_toggle.blockSignals(True)
+            self.btn_shadow_toggle.setChecked(bool(ov.shadow_color))
+            self.btn_shadow_toggle.blockSignals(False)
+        if hasattr(self, "slider_shadow_offset"):
+            self.slider_shadow_offset.blockSignals(True)
+            self.slider_shadow_offset.setValue(int(ov.shadow_offset or 0))
+            self.slider_shadow_offset.blockSignals(False)
         self.slider_kerning.setValue(int(ov.letter_spacing))
         self.slider_line_height.setValue(int(getattr(ov, 'line_height', 1.2) * 100))
         self.slider_rotation.setValue(int(ov.rotation))
@@ -8933,10 +8980,7 @@ class StudioEditor(QWidget):
         if hasattr(self.btn_outline_color, "setSwatchColor"):
             self.btn_outline_color.setSwatchColor(ov.stroke_color or "#000000")
 
-        for w in (self.slider_opacity, self.slider_scale, self.combo_position,
-                  self.font_combo, self.slider_font_size, self.btn_bold,
-                  self.btn_italic, self.slider_kerning, self.slider_line_height,
-                  self.slider_rotation, self.slider_text_width, self.slider_outline):
+        for w in _bulk:
             w.blockSignals(False)
 
     # ---- drag-drop from tray ----
@@ -9141,6 +9185,28 @@ class StudioEditor(QWidget):
                     item, "italic", checked,
                     apply_cb=lambda it, _v: it._apply_font(),
                     description=("Italic on" if checked else "Italic off"),
+                )
+        self._sync_overlays_to_asset()
+
+    def _on_underline_changed(self):
+        checked = self.btn_underline.isChecked()
+        for item in self._selected_overlay_items():
+            if isinstance(item, OverlayTextItem):
+                self._push_overlay_attr(
+                    item, "underline", checked,
+                    apply_cb=lambda it, _v: it._apply_font(),
+                    description=("Underline on" if checked else "Underline off"),
+                )
+        self._sync_overlays_to_asset()
+
+    def _on_strikethrough_changed(self):
+        checked = self.btn_strikethrough.isChecked()
+        for item in self._selected_overlay_items():
+            if isinstance(item, OverlayTextItem):
+                self._push_overlay_attr(
+                    item, "strikethrough", checked,
+                    apply_cb=lambda it, _v: it._apply_font(),
+                    description=("Strike on" if checked else "Strike off"),
                 )
         self._sync_overlays_to_asset()
 
