@@ -305,6 +305,41 @@ def _composite_bubble_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Imag
                 p1 = points[i]
                 p2 = points[(i + 1) % len(points)]
                 draw.line([p1, p2], fill=stroke_rgba, width=width)
+        elif kind == "star":
+            cx, cy = x + w / 2, y + h / 2
+            rx, ry = w / 2, h / 2
+            n_points = max(3, int(getattr(ov, "star_points", 5) or 5))
+            inner_scale = max(0.1, min(0.95,
+                float(getattr(ov, "inner_ratio", 0.4) or 0.4)))
+            points = []
+            for i in range(n_points * 2):
+                frac = (2 * math.pi * i) / (n_points * 2)
+                s = 1.0 if i % 2 == 0 else inner_scale
+                px = cx + math.cos(frac - math.pi / 2) * rx * s
+                py = cy + math.sin(frac - math.pi / 2) * ry * s
+                points.append((int(px), int(py)))
+            if fill_rgba is not None:
+                draw.polygon(points, fill=fill_rgba)
+            for i in range(len(points)):
+                p1 = points[i]
+                p2 = points[(i + 1) % len(points)]
+                draw.line([p1, p2], fill=stroke_rgba, width=width)
+        elif kind == "polygon":
+            cx, cy = x + w / 2, y + h / 2
+            rx, ry = w / 2, h / 2
+            n = max(3, int(getattr(ov, "star_points", 6) or 6))
+            points = []
+            for i in range(n):
+                frac = (2 * math.pi * i) / n - math.pi / 2
+                px = cx + math.cos(frac) * rx
+                py = cy + math.sin(frac) * ry
+                points.append((int(px), int(py)))
+            if fill_rgba is not None:
+                draw.polygon(points, fill=fill_rgba)
+            for i in range(len(points)):
+                p1 = points[i]
+                p2 = points[(i + 1) % len(points)]
+                draw.line([p1, p2], fill=stroke_rgba, width=width)
         return Image.alpha_composite(img, layer)
     except Exception:
         return img
