@@ -4,11 +4,11 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QAbstractItemView, QMenu, QApplication,
-    QTabBar, QInputDialog,
+    QTabBar, QInputDialog, QStyledItemDelegate,
 )
-from PySide6.QtCore import Qt, Signal, QSize, QUrl, QMimeData, QSettings, QEvent
-from PySide6.QtGui import QPixmap, QIcon, QDrag, QCursor
-from doxyedit.themes import ui_font_size
+from PySide6.QtCore import Qt, Signal, QSize, QUrl, QMimeData, QSettings, QEvent, QRect
+from PySide6.QtGui import QPixmap, QIcon, QDrag, QCursor, QColor, QBrush, QPen
+from doxyedit.themes import ui_font_size, THEMES, DEFAULT_THEME
 from doxyedit.preview import HoverPreview
 from doxyedit.models import toggle_tags
 
@@ -110,6 +110,98 @@ class DragOutListWidget(QListWidget):
             event.acceptProposedAction()
         else:
             super().dropEvent(event)
+
+
+class TrayItemDelegate(QStyledItemDelegate):
+    """Paint star, tag dots, and platform-assignment badge on top of the
+    standard icon+text cell. Reads live Asset state from the tray's
+    project reference so toggles apply without a rebuild."""
+
+    STAR_CHAR = "★"  # BLACK STAR
+    TAG_DOT_RADIUS = 4
+    TAG_DOT_MAX = 5
+    BADGE_PAD = 4
+
+    def __init__(self, tray, parent=None):
+        super().__init__(parent)
+        self._tray = tray
+
+    def paint(self, painter, option, index):
+        super().paint(painter, option, index)
+        aid = index.data(Qt.ItemDataRole.UserRole)
+        project = getattr(self._tray, "_project", None)
+        if not aid or project is None:
+            return
+        asset = project.get_asset(aid)
+        if asset is None:
+            return
+        theme = THEMES[DEFAULT_THEME]
+        rect = option.rect
+        painter.save()
+        painter.setRenderHint(painter.RenderHint.Antialiasing)
+
+        # Star overlay top-left
+        if getattr(asset, "starred", 0) > 0:
+            size = max(12, option.decorationSize.width() // 6)
+            f = painter.font()
+            f.setPixelSize(size)
+            f.setBold(True)
+            painter.setFont(f)
+            painter.setPen(QPen(QColor(theme.star)))
+            painter.drawText(
+                QRect(rect.left() + 4, rect.top() + 2, size * 2, size + 2),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
+                self.STAR_CHAR)
+
+        # Tag dots bottom-left
+        tag_defs = project.tag_definitions or {}
+        if asset.tags:
+            dot_r = self.TAG_DOT_RADIUS
+            dy = rect.bottom() - dot_r - 3
+            dx = rect.left() + 6
+            shown = asset.tags[:self.TAG_DOT_MAX]
+            for tid in shown:
+                hex_color = tag_defs.get(tid, {}).get("color", theme.accent)
+                painter.setPen(QPen(QColor(theme.border), 1))
+                painter.setBrush(QBrush(QColor(hex_color)))
+                painter.drawEllipse(dx, dy - dot_r, dot_r * 2, dot_r * 2)
+                dx += dot_r * 2 + 2
+            if len(asset.tags) > self.TAG_DOT_MAX:
+                # "+N" indicator
+                painter.setPen(QPen(QColor(theme.text_muted)))
+                f = painter.font()
+                f.setPixelSize(9)
+                f.setBold(True)
+                painter.setFont(f)
+                painter.drawText(dx, dy + 4,
+                                  f"+{len(asset.tags) - self.TAG_DOT_MAX}")
+
+        # Platform badge bottom-right
+        assignments = getattr(asset, "assignments", None) or []
+        if assignments:
+            count = len(assignments)
+            text = f"{count}P"
+            pad = self.BADGE_PAD
+            f = painter.font()
+            f.setPixelSize(10)
+            f.setBold(True)
+            painter.setFont(f)
+            metrics = painter.fontMetrics()
+            bw = metrics.horizontalAdvance(text) + pad * 2
+            bh = metrics.height() + 2
+            br_x = rect.right() - bw - 4
+            br_y = rect.bottom() - bh - 4
+            badge_bg = QColor(theme.accent)
+            badge_bg.setAlpha(220)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(badge_bg))
+            painter.drawRoundedRect(br_x, br_y, bw, bh, 4, 4)
+            painter.setPen(QPen(QColor(theme.text_on_accent)))
+            painter.drawText(
+                QRect(br_x, br_y, bw, bh),
+                Qt.AlignmentFlag.AlignCenter, text)
+
+        painter.restore()
 
 
 class TrayTabBar(QTabBar):
@@ -307,6 +399,9 @@ class WorkTray(QWidget):
         # previews, Enter sends to Studio, Delete removes, 0-5 set stars,
         # Ctrl+D deselects. Ctrl+A (select-all) is native.
         self._list.installEventFilter(self)
+        # Item delegate paints star / tag dots / platform badge on top
+        # of the standard icon + name cell.
+        self._list.setItemDelegate(TrayItemDelegate(self, self._list))
         layout.addWidget(self._list)
 
     def _rebuild_index(self):
@@ -886,6 +981,7 @@ class WorkTray(QWidget):
         if asset:
             toggle_tags([asset], tag_id)
             self.tags_modified.emit()
+            self._list.viewport().update()
 
     def _remove_tray_tag(self, asset_id: str, tag_id: str):
         """Remove a specific tag from an asset."""
@@ -895,6 +991,7 @@ class WorkTray(QWidget):
         if asset and tag_id in asset.tags:
             asset.tags.remove(tag_id)
             self.tags_modified.emit()
+            self._list.viewport().update()
 
     def _set_star(self, asset_id: str, value: int):
         """Set star rating for an asset."""
@@ -904,6 +1001,7 @@ class WorkTray(QWidget):
         if asset:
             asset.starred = value
             self.star_modified.emit()
+            self._list.viewport().update()
 
     def _on_drop_received(self, paths: list):
         """Handle files dropped onto the tray — resolve to project assets and add."""
