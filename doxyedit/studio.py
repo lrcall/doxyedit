@@ -5362,6 +5362,79 @@ class StudioEditor(QWidget):
         _toolbar_wrap.setLayout(toolbar)
         root.addWidget(_toolbar_wrap)
 
+        # ── Quick-props bar ─────────────────────────────────────────────
+        # Photoshop "options bar" pattern: the Text Controls popup is too
+        # easy to miss, so the most common cross-type knobs (fill color,
+        # outline color, rotation, opacity, scale) are duplicated here
+        # on the Studio toolbar, always visible, always keyed to the
+        # current selection. The popup keeps the text-specific long tail
+        # (font, kerning, line height, outline width, named styles).
+        quickbar = _FlowLayout(hSpacing=4, vSpacing=3)
+        quickbar.addStretch = _noop_stretch
+
+        self._qp_fill = _ColorSwatchButton(is_outline=False)
+        self._qp_fill.setObjectName("studio_qp_fill")
+        self._qp_fill.setFixedWidth(int(_dt.font_size * 2.8))
+        self._qp_fill.setToolTip(
+            "Fill / text color (right-click for recent)")
+        self._qp_fill.clicked.connect(self._on_color_pick)
+        self._qp_fill.on_color_picked = self._apply_color_to_selection
+        quickbar.addWidget(self._qp_fill)
+
+        self._qp_outline = _ColorSwatchButton(is_outline=True)
+        self._qp_outline.setObjectName("studio_qp_outline")
+        self._qp_outline.setFixedWidth(int(_dt.font_size * 2.8))
+        self._qp_outline.setToolTip(
+            "Outline / stroke color (right-click for recent)")
+        self._qp_outline.clicked.connect(self._on_outline_color_pick)
+        self._qp_outline.on_color_picked = self._apply_stroke_to_selection
+        quickbar.addWidget(self._qp_outline)
+
+        quickbar.addWidget(QLabel("Rot"))
+        from PySide6.QtWidgets import QSpinBox as _QSB
+        self._qp_rot = _QSB()
+        self._qp_rot.setObjectName("studio_qp_rot")
+        self._qp_rot.setRange(-360, 360)
+        self._qp_rot.setSuffix("°")
+        self._qp_rot.setFixedWidth(int(_dt.font_size * 5))
+        self._qp_rot.setToolTip("Rotation of selection (degrees)")
+        self._qp_rot.valueChanged.connect(self._qp_apply_rotation)
+        quickbar.addWidget(self._qp_rot)
+
+        quickbar.addWidget(QLabel("Opc"))
+        self._qp_opacity = QSlider(Qt.Orientation.Horizontal)
+        self._qp_opacity.setObjectName("studio_qp_opacity")
+        self._qp_opacity.setRange(0, 100)
+        self._qp_opacity.setValue(100)
+        self._qp_opacity.setFixedWidth(int(_dt.font_size * 5))
+        self._qp_opacity.setToolTip("Opacity of selection (%)")
+        self._qp_opacity.valueChanged.connect(self._qp_apply_opacity)
+        quickbar.addWidget(self._qp_opacity)
+        self._qp_opacity_lbl = QLabel("100")
+        self._qp_opacity_lbl.setFixedWidth(int(_dt.font_size * 2.2))
+        quickbar.addWidget(self._qp_opacity_lbl)
+
+        quickbar.addWidget(QLabel("Scale"))
+        self._qp_scale = _QSB()
+        self._qp_scale.setObjectName("studio_qp_scale")
+        self._qp_scale.setRange(5, 1000)
+        self._qp_scale.setValue(100)
+        self._qp_scale.setSuffix("%")
+        self._qp_scale.setFixedWidth(int(_dt.font_size * 5.2))
+        self._qp_scale.setToolTip("Scale selected shape / image (%)")
+        self._qp_scale.valueChanged.connect(self._qp_apply_scale)
+        quickbar.addWidget(self._qp_scale)
+
+        self._qp_label = QLabel("(no selection)")
+        self._qp_label.setObjectName("studio_qp_label")
+        quickbar.addWidget(self._qp_label)
+
+        quickbar.addStretch()
+        _quickbar_wrap = QWidget()
+        _quickbar_wrap.setObjectName("studio_quickbar_wrap")
+        _quickbar_wrap.setLayout(quickbar)
+        root.addWidget(_quickbar_wrap)
+
         # Row 2: Overlay properties (visible when text/watermark selected)
         self._props_row = QWidget()
         self._props_row.setObjectName("studio_props_row")
@@ -7669,6 +7742,10 @@ class StudioEditor(QWidget):
                 self._propagating_group_sel = False
         # Text-controls popup follows selection
         self._sync_text_controls_visibility()
+        # Quickbar mirrors the first selected overlay's state so the
+        # duplicated toolbar controls actually reflect what's about to
+        # be modified.
+        self._sync_quickbar()
         # Total selected (overlays + censors + crops + notes) for status bar
         all_sel = self._scene.selectedItems()
         total = len(all_sel)
@@ -7947,6 +8024,204 @@ class StudioEditor(QWidget):
         color = QColorDialog.getColor(current, self, "Overlay Color")
         if color.isValid():
             self._apply_text_color(color.name())
+
+    def _sync_quickbar(self):
+        """Reflect the first selected overlay's state on the quickbar.
+        Captures each selected item's current size as the scale-baseline
+        so the scale spinbox 100% == 'leave as-is' after a selection
+        change (spinbox is delta-based, not absolute)."""
+        if not hasattr(self, "_qp_fill"):
+            return
+        sel = self._scene.selectedItems()
+        overlay_sel = [it for it in sel if hasattr(it, "overlay")]
+        # Capture baselines for scale
+        self._qp_scale_base_map = {}
+        for it in overlay_sel:
+            ov = it.overlay
+            if isinstance(it, OverlayShapeItem):
+                self._qp_scale_base_map[id(it)] = {
+                    "w": ov.shape_w, "h": ov.shape_h,
+                    "cx": ov.x + ov.shape_w / 2,
+                    "cy": ov.y + ov.shape_h / 2,
+                }
+            elif isinstance(it, OverlayImageItem):
+                self._qp_scale_base_map[id(it)] = {"scale": ov.scale}
+            elif isinstance(it, OverlayTextItem):
+                self._qp_scale_base_map[id(it)] = {"font_size": ov.font_size}
+        self._qp_syncing = True
+        try:
+            if overlay_sel:
+                ov = overlay_sel[0].overlay
+                self._qp_fill.setSwatchColor(ov.color or "#000000")
+                self._qp_outline.setSwatchColor(ov.stroke_color or "#000000")
+                self._qp_rot.setValue(int(ov.rotation) % 360)
+                self._qp_opacity.setValue(int(ov.opacity * 100))
+                self._qp_opacity_lbl.setText(str(int(ov.opacity * 100)))
+                self._qp_scale.setValue(100)
+                self._qp_label.setText(
+                    f"{ov.type} / {ov.label or '(no label)'}"
+                    if len(overlay_sel) == 1
+                    else f"{len(overlay_sel)} selected")
+                self._qp_rot.setEnabled(True)
+                self._qp_opacity.setEnabled(True)
+                self._qp_scale.setEnabled(True)
+                self._qp_fill.setEnabled(True)
+                self._qp_outline.setEnabled(True)
+            else:
+                self._qp_label.setText("(no selection)")
+                self._qp_rot.setEnabled(False)
+                self._qp_opacity.setEnabled(False)
+                self._qp_scale.setEnabled(False)
+                self._qp_fill.setEnabled(False)
+                self._qp_outline.setEnabled(False)
+        finally:
+            self._qp_syncing = False
+
+    def _apply_color_to_selection(self, hex_color):
+        """Quickbar fill-color action. Applies to every selected overlay
+        regardless of type: text overlays get color + font refresh;
+        shapes get stroke_color; images get tint via color (Image overlays
+        treat `color` as a tint, so this is broad). Recent-color rotation
+        too."""
+        color = QColor(hex_color)
+        if not color.isValid():
+            return
+        sel = self._scene.selectedItems()
+        if not sel:
+            return
+        for it in sel:
+            ov = getattr(it, "overlay", None)
+            if ov is None:
+                continue
+            if isinstance(it, OverlayTextItem):
+                ov.color = color.name()
+                if hasattr(it, "_apply_font"):
+                    it._apply_font()
+            elif isinstance(it, OverlayShapeItem):
+                ov.stroke_color = color.name()
+                ov.color = color.name()
+                it.update()
+            elif isinstance(it, OverlayArrowItem):
+                ov.color = color.name()
+                it.update()
+        self._qp_fill.setSwatchColor(color)
+        self._add_recent_color(color.name())
+        self._sync_overlays_to_asset()
+
+    def _apply_stroke_to_selection(self, hex_color):
+        """Quickbar stroke-color action."""
+        color = QColor(hex_color)
+        if not color.isValid():
+            return
+        sel = self._scene.selectedItems()
+        if not sel:
+            return
+        for it in sel:
+            ov = getattr(it, "overlay", None)
+            if ov is None:
+                continue
+            ov.stroke_color = color.name()
+            if ov.stroke_width == 0 and isinstance(it, OverlayTextItem):
+                ov.stroke_width = 2
+            if hasattr(it, "_apply_font"):
+                it._apply_font()
+            it.update()
+        self._qp_outline.setSwatchColor(color)
+        self._add_recent_color(color.name())
+        self._sync_overlays_to_asset()
+
+    def _qp_apply_rotation(self, value: int):
+        """Quickbar rotation spinbox -> rotate every selected overlay."""
+        if getattr(self, "_qp_syncing", False):
+            return
+        sel = self._scene.selectedItems()
+        if not sel:
+            return
+        touched = False
+        for it in sel:
+            ov = getattr(it, "overlay", None)
+            if ov is None:
+                continue
+            ov.rotation = value % 360
+            if isinstance(it, OverlayShapeItem):
+                it.setTransformOriginPoint(
+                    ov.x + ov.shape_w / 2, ov.y + ov.shape_h / 2)
+                it.setRotation(ov.rotation)
+                it.update()
+            elif hasattr(it, "_apply_flip"):
+                it._apply_flip()
+            elif hasattr(it, "_apply_flip_text"):
+                it._apply_flip_text()
+            else:
+                it.update()
+            touched = True
+        if touched:
+            self._sync_overlays_to_asset()
+
+    def _qp_apply_opacity(self, value: int):
+        """Quickbar opacity slider -> apply to every selected overlay."""
+        if getattr(self, "_qp_syncing", False):
+            return
+        self._qp_opacity_lbl.setText(str(value))
+        opacity = value / 100.0
+        sel = self._scene.selectedItems()
+        if not sel:
+            return
+        for it in sel:
+            ov = getattr(it, "overlay", None)
+            if ov is None:
+                continue
+            ov.opacity = opacity
+            if hasattr(it, "setOpacity"):
+                it.setOpacity(opacity)
+            else:
+                it.update()
+        self._sync_overlays_to_asset()
+
+    def _qp_apply_scale(self, value: int):
+        """Quickbar scale -> resize shapes / rescale image overlays.
+        Text overlays scale their font_size. 100% is baseline relative to
+        each item's current size at the moment of last sync, so the spin
+        is additive via delta: we store _qp_scale_base_map on selection
+        change and apply new_value / base."""
+        if getattr(self, "_qp_syncing", False):
+            return
+        sel = self._scene.selectedItems()
+        if not sel:
+            return
+        base_map = getattr(self, "_qp_scale_base_map", {})
+        factor = value / 100.0
+        touched = False
+        for it in sel:
+            ov = getattr(it, "overlay", None)
+            if ov is None:
+                continue
+            base = base_map.get(id(it))
+            if base is None:
+                continue
+            if isinstance(it, OverlayShapeItem):
+                cx = base["cx"]
+                cy = base["cy"]
+                ov.shape_w = max(4, int(base["w"] * factor))
+                ov.shape_h = max(4, int(base["h"] * factor))
+                ov.x = int(cx - ov.shape_w / 2)
+                ov.y = int(cy - ov.shape_h / 2)
+                it.prepareGeometryChange()
+                it.update()
+                touched = True
+            elif isinstance(it, OverlayImageItem):
+                ov.scale = max(0.05, base["scale"] * factor)
+                if hasattr(it, "_apply_flip"):
+                    it._apply_flip()
+                it.update()
+                touched = True
+            elif isinstance(it, OverlayTextItem):
+                ov.font_size = max(4, int(base["font_size"] * factor))
+                if hasattr(it, "_apply_font"):
+                    it._apply_font()
+                touched = True
+        if touched:
+            self._sync_overlays_to_asset()
 
     def _apply_text_color(self, hex_color):
         """Push a color onto every selected text overlay + sync. Shared
