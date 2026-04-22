@@ -3582,10 +3582,19 @@ class _StudioMinimap(QWidget):
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No image")
             return
         ir = self._image_rect_in_minimap()
-        scaled = pm.scaled(int(ir.width()), int(ir.height()),
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation)
-        p.drawPixmap(int(ir.x()), int(ir.y()), scaled)
+        # Cache the downsampled thumbnail. Scaling a 2000x3000 pixmap to
+        # ~140px via SmoothTransformation is ~20-30ms, and this paints
+        # on every scroll/zoom — was a per-frame perf killer. Cache key
+        # includes the pixmap cacheKey + target size so invalidation
+        # happens when either changes.
+        key = (pm.cacheKey(), int(ir.width()), int(ir.height()))
+        if getattr(self, "_scaled_key", None) != key:
+            self._scaled_pm = pm.scaled(
+                int(ir.width()), int(ir.height()),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            self._scaled_key = key
+        p.drawPixmap(int(ir.x()), int(ir.y()), self._scaled_pm)
         # Draw viewport rect in image coordinates, projected to minimap
         vp = self._view.viewport().rect()
         tl = self._view.mapToScene(vp.topLeft())
