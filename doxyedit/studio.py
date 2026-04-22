@@ -2917,6 +2917,13 @@ class StudioScene(QGraphicsScene):
                     editor._overlay_items[-1].setSelected(True)
                 elif editor._censor_items and isinstance(top, CensorRectItem):
                     editor._censor_items[-1].setSelected(True)
+                # User feedback: announce that a copy was made so the
+                # user isn't confused why the original 'jumped'.
+                if hasattr(editor, "info_label"):
+                    _kind = type(top).__name__.replace(
+                        "Overlay", "").replace("Item", "")
+                    editor.info_label.setText(
+                        f"Alt-dragged duplicate: {_kind}")
                 return
             return super().mousePressEvent(event)
 
