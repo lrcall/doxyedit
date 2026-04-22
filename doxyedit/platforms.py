@@ -6,8 +6,9 @@ from PySide6.QtWidgets import (
     QScrollArea, QFrame, QSizePolicy, QSplitter,
     QProgressBar, QComboBox, QDialog, QLineEdit,
     QDateEdit, QCheckBox, QDialogButtonBox, QInputDialog,
+    QMessageBox, QMenu,
 )
-from PySide6.QtCore import Qt, Signal, QSize, QSettings, QDate
+from PySide6.QtCore import Qt, Signal, QSize, QSettings, QDate, QTimer
 from doxyedit.themes import ui_font_size
 from doxyedit.browser import FlowLayout
 
@@ -142,7 +143,6 @@ class CampaignBar(QWidget):
     def _build(self):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        from PySide6.QtCore import QSettings
         _f = ui_font_size()
         _pad = max(4, _f // 3)
         outer.setSpacing(_pad)
@@ -304,7 +304,6 @@ class CampaignBar(QWidget):
         cam = self.project.get_campaign(cid)
         if not cam:
             return
-        from PySide6.QtWidgets import QInputDialog
         # Edit name
         new_name, ok = QInputDialog.getText(self, "Edit Campaign", "Name:", text=cam.name)
         if ok and new_name.strip():
@@ -334,7 +333,6 @@ class CampaignBar(QWidget):
         cam = self.project.get_campaign(cid)
         if not cam:
             return
-        from PySide6.QtWidgets import QMessageBox
         reply = QMessageBox.question(
             self, "Delete Campaign",
             f"Delete campaign '{cam.name}'?\n\nThis removes the campaign but not its asset assignments.",
@@ -642,7 +640,6 @@ class PlatformPanel(LazyRefreshMixin, QWidget):
             preview.setText("…")
             h.insertWidget(1, preview)
             # Lazy load thumbnail
-            from PySide6.QtCore import QTimer
             _aid = asset.id
             _tw, _th = thumb_w, thumb_h
             _preview = preview
@@ -737,7 +734,6 @@ class PlatformPanel(LazyRefreshMixin, QWidget):
                 return
 
     def _slot_context_menu(self, row, pos, pid: str, slot, entries: list):
-        from PySide6.QtWidgets import QMenu
         menu = QMenu(row)
         menu.addAction("Add image to slot", lambda: self.request_asset_pick.emit(pid, slot.name))
         if entries:
