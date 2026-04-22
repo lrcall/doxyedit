@@ -7516,47 +7516,6 @@ class StudioEditor(QWidget):
             label = tmpl.get("label", tmpl.get("type", f"Overlay {i + 1}"))
             self.combo_template.addItem(label)
 
-    def _render_shadow_pixmap(self, rect, blur: int, offset: int,
-                               color: QColor) -> QPixmap:
-        """Pre-render a Gaussian-blurred drop shadow as a pixmap. Called
-        once per asset load so the blur cost doesn't hit every frame.
-
-        Returns a QPixmap sized (rect.w + 2*blur, rect.h + 2*blur). Draw
-        positioned at (-blur, -blur + offset) in scene coords to align
-        with the base image.
-        """
-        W = rect.width() + blur * 2
-        H = rect.height() + blur * 2
-        # Paint an opaque silhouette onto a temp pixmap, then use
-        # QGraphicsBlurEffect via a scene-less helper path.
-        silhouette = QPixmap(W, H)
-        silhouette.fill(Qt.GlobalColor.transparent)
-        p = QPainter(silhouette)
-        p.setBrush(color)
-        p.setPen(Qt.PenStyle.NoPen)
-        # Draw the image's footprint as a solid rounded rect and let
-        # the blur stage soften the edges.
-        p.drawRoundedRect(blur, blur, rect.width(), rect.height(), 6, 6)
-        p.end()
-        # Blur via the same effect used for overlays, but applied to a
-        # scene-less QGraphicsScene so we render once into a QImage.
-        from PySide6.QtWidgets import QGraphicsScene as _S
-        tmp_scene = _S()
-        it = QGraphicsPixmapItem(silhouette)
-        fx = QGraphicsDropShadowEffect()
-        fx.setBlurRadius(blur)
-        fx.setOffset(0, 0)
-        fx.setColor(color)
-        it.setGraphicsEffect(fx)
-        tmp_scene.addItem(it)
-        tmp_scene.setSceneRect(0, 0, W, H)
-        out = QPixmap(W, H)
-        out.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(out)
-        tmp_scene.render(painter, QRectF(0, 0, W, H), QRectF(0, 0, W, H))
-        painter.end()
-        return out
-
     def load_asset(self, asset: Asset):
         """Load image, restore censors, overlays, crops, and notes."""
         self._asset = asset
@@ -7606,34 +7565,17 @@ class StudioEditor(QWidget):
         self._pixmap_item.setZValue(0)
         # Cache the base image so zoom/pan doesn't re-rasterize it every
         # frame. DeviceCoordinateCache keeps a cached copy at the current
-        # zoom level — ideal for a static background pixmap that redraws
-        # every time any overlay moves.
+        # zoom level.
         self._pixmap_item.setCacheMode(
             QGraphicsPixmapItem.CacheMode.DeviceCoordinateCache)
         checker.setCacheMode(
             QGraphicsPixmapItem.CacheMode.DeviceCoordinateCache)
-        # Drop shadow, done properly: QGraphicsDropShadowEffect re-blurs
-        # the whole backing rect every frame (CPU Gaussian blur). Instead,
-        # pre-render the blurred shadow ONCE as a pixmap at load time, then
-        # place it as a regular cached pixmap item. Same visual look, but
-        # the blur cost is paid exactly once per load, not per paint.
+        # Drop shadow intentionally removed - even a pre-rendered shadow
+        # pixmap at full-canvas size (2000x3000+ = ~25MB) was tanking
+        # FPS to single digits during drag. A 2px flat border provides
+        # the "document sits on workspace" affordance at zero per-frame
+        # cost. Restore shadow behind a setting if needed later.
         self._drop_shadow_item = None
-        try:
-            _shadow_c = QColor(self._theme.studio_overlay_handle_border)
-            _shadow_c.setAlpha(self._theme.studio_drop_shadow_alpha)
-            shadow_pm = self._render_shadow_pixmap(
-                pm.rect(), blur=30, offset=8, color=_shadow_c)
-            shadow_item = QGraphicsPixmapItem(shadow_pm)
-            # Offset so the blurred shadow sits under + below the pixmap
-            # (matches the prior QGraphicsDropShadowEffect offset).
-            shadow_item.setPos(-30, -30 + 8)
-            shadow_item.setZValue(-11)  # behind checker
-            shadow_item.setCacheMode(
-                QGraphicsPixmapItem.CacheMode.DeviceCoordinateCache)
-            self._scene.addItem(shadow_item)
-            self._drop_shadow_item = shadow_item
-        except Exception:
-            pass
         self._scene.addItem(self._pixmap_item)
         # Give the scene extra rect around the image so there's margin for
         # the shadow + workspace feel
