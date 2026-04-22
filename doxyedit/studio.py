@@ -6615,6 +6615,11 @@ class StudioEditor(QWidget):
         if ctrl and shift and key == Qt.Key.Key_A:
             self._scene.clearSelection()
             return
+        # Ctrl+Shift+D — Illustrator / Photoshop 'deselect' alias.
+        if ctrl and shift and key == Qt.Key.Key_D:
+            self._scene.clearSelection()
+            self.info_label.setText("Deselected")
+            return
         # Ctrl+Shift+B — copy geometry of selected item as text to clipboard
         if ctrl and shift and key == Qt.Key.Key_B:
             sel = self._scene.selectedItems()
