@@ -5878,6 +5878,16 @@ class StudioEditor(QWidget):
         if key == Qt.Key.Key_F1 and not ctrl and not shift:
             self._show_shortcuts_cheat_sheet()
             return
+        # Shift+Ctrl+I invert selection among selectable items.
+        if ctrl and shift and key == Qt.Key.Key_I:
+            for it in self._scene.items():
+                if isinstance(it, (OverlayImageItem, OverlayTextItem,
+                                    OverlayArrowItem, OverlayShapeItem,
+                                    CensorRectItem, ResizableCropItem,
+                                    NoteRectItem)) and it.parentItem() is None:
+                    it.setSelected(not it.isSelected())
+            self.info_label.setText("Selection inverted")
+            return
         # Ctrl+, opens Studio Settings (conventional app-settings shortcut).
         if ctrl and key == Qt.Key.Key_Comma:
             self._show_studio_settings()
