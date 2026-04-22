@@ -81,6 +81,21 @@ TAG_COLOR_ORDER = {tid: o for tid, _, _, o in TAG_COLORS}
 # Context menu theming helper
 # ---------------------------------------------------------------------------
 
+def _attach_ctx_menu(label, populate_fn):
+    """Wire a themed right-click context menu to a QLabel (status-bar idiom).
+
+    populate_fn(menu) adds QActions and wires each action's .triggered
+    signal. This helper handles the boilerplate: setContextMenuPolicy,
+    QMenu construction, mapToGlobal, and exec.
+    """
+    label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    def _ctx(pos):
+        m = _themed_menu(label)
+        populate_fn(m)
+        m.exec(label.mapToGlobal(pos))
+    label.customContextMenuRequested.connect(_ctx)
+
+
 def _themed_menu(parent=None) -> QMenu:
     """Create a QMenu styled from the current theme (same pattern as window.py)."""
     t = THEMES[DEFAULT_THEME]
@@ -9564,10 +9579,7 @@ class StudioEditor(QWidget):
         self._zoom_label.mousePressEvent = self._prompt_zoom_level
         # Right-click the zoom label for a preset grid — 25 / 50 /
         # 75 / 100 / 150 / 200 / 400 / 800, plus 'Fit' and 'Fit Width'.
-        self._zoom_label.setContextMenuPolicy(
-            Qt.ContextMenuPolicy.CustomContextMenu)
-        def _zoom_ctx(pos):
-            m = _themed_menu(self._zoom_label)
+        def _zoom_menu(m):
             act_fit = m.addAction("Fit View")
             act_fw = m.addAction("Fit Width")
             m.addSeparator()
@@ -9588,8 +9600,7 @@ class StudioEditor(QWidget):
                     self._view.scale(f, f)
                     self._zoom_label.setText(f"{int(f * 100)}%")
             act_fw.triggered.connect(_fw)
-            m.exec(self._zoom_label.mapToGlobal(pos))
-        self._zoom_label.customContextMenuRequested.connect(_zoom_ctx)
+        _attach_ctx_menu(self._zoom_label, _zoom_menu)
         status_bar.addWidget(self._zoom_label)
 
         status_bar.addWidget(QLabel("|"))
@@ -9603,10 +9614,7 @@ class StudioEditor(QWidget):
         self._tool_label.setCursor(Qt.CursorShape.PointingHandCursor)
         # Right-click the tool name in the status bar to switch tools
         # without reaching for the toolbar or remembering the shortcut.
-        self._tool_label.setContextMenuPolicy(
-            Qt.ContextMenuPolicy.CustomContextMenu)
-        def _tool_ctx(pos):
-            m = _themed_menu(self._tool_label)
+        def _tool_menu(m):
             tools_list = [
                 ("Select (Q / V)", StudioTool.SELECT),
                 ("Text (T)", StudioTool.TEXT_OVERLAY),
@@ -9623,8 +9631,7 @@ class StudioEditor(QWidget):
                 act = m.addAction(label_s)
                 act.triggered.connect(
                     lambda _c=False, t=tool: self._set_tool(t))
-            m.exec(self._tool_label.mapToGlobal(pos))
-        self._tool_label.customContextMenuRequested.connect(_tool_ctx)
+        _attach_ctx_menu(self._tool_label, _tool_menu)
         status_bar.addWidget(self._tool_label)
 
         self._cursor_label = QLabel("0, 0")
@@ -9642,20 +9649,15 @@ class StudioEditor(QWidget):
             if ev.button() == Qt.MouseButton.LeftButton:
                 self._prompt_goto_coord()
         self._cursor_label.mousePressEvent = _cursor_press
-        self._cursor_label.setContextMenuPolicy(
-            Qt.ContextMenuPolicy.CustomContextMenu)
-        def _cursor_ctx(pos):
-            m = _themed_menu(self._cursor_label)
-            act_copy = m.addAction("Copy coordinate to clipboard")
-            act_goto = m.addAction("Go to coordinate...")
-            chosen = m.exec(self._cursor_label.mapToGlobal(pos))
-            if chosen is act_copy:
+        def _cursor_menu(m):
+            def _copy():
                 txt = self._cursor_label.text()
                 QApplication.clipboard().setText(txt)
                 self.info_label.setText(f"Copied: {txt}")
-            elif chosen is act_goto:
-                self._prompt_goto_coord()
-        self._cursor_label.customContextMenuRequested.connect(_cursor_ctx)
+            m.addAction("Copy coordinate to clipboard").triggered.connect(_copy)
+            m.addAction("Go to coordinate...").triggered.connect(
+                self._prompt_goto_coord)
+        _attach_ctx_menu(self._cursor_label, _cursor_menu)
         status_bar.addWidget(self._cursor_label)
 
         self._selection_label = QLabel("0 selected")
@@ -9665,25 +9667,20 @@ class StudioEditor(QWidget):
             "actions)")
         self._selection_label.setCursor(Qt.CursorShape.PointingHandCursor)
         # Right-click for quick selection actions.
-        self._selection_label.setContextMenuPolicy(
-            Qt.ContextMenuPolicy.CustomContextMenu)
-        def _sel_ctx(pos):
-            m = _themed_menu(self._selection_label)
-            act_all = m.addAction("Select All  (Ctrl+A)")
-            act_none = m.addAction("Deselect All  (Ctrl+Shift+A)")
-            act_inv = m.addAction("Invert Selection  (Ctrl+Shift+I)")
-            chosen = m.exec(self._selection_label.mapToGlobal(pos))
-            if chosen is act_all:
+        def _sel_menu(m):
+            def _all():
                 for it in self._scene.items():
                     if isinstance(it, _SELECTABLE_ITEM_TYPES):
                         it.setSelected(True)
-            elif chosen is act_none:
-                self._scene.clearSelection()
-            elif chosen is act_inv:
+            def _inv():
                 for it in self._scene.items():
                     if isinstance(it, _SELECTABLE_ITEM_TYPES):
                         it.setSelected(not it.isSelected())
-        self._selection_label.customContextMenuRequested.connect(_sel_ctx)
+            m.addAction("Select All  (Ctrl+A)").triggered.connect(_all)
+            m.addAction("Deselect All  (Ctrl+Shift+A)").triggered.connect(
+                self._scene.clearSelection)
+            m.addAction("Invert Selection  (Ctrl+Shift+I)").triggered.connect(_inv)
+        _attach_ctx_menu(self._selection_label, _sel_menu)
         status_bar.addWidget(self._selection_label)
 
         self._geom_label = QLabel("")
