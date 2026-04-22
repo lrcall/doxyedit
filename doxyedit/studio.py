@@ -4386,6 +4386,22 @@ class StudioEditor(QWidget):
         if key == Qt.Key.Key_Backslash and not event.isAutoRepeat():
             self._set_overlays_preview_hidden(True)
             return
+        # F2 - rename the currently-selected overlay (layer-panel row)
+        # without having to go through the right-click context menu.
+        # Mirrors the global app F2-to-rename convention.
+        if key == Qt.Key.Key_F2 and not ctrl and not shift:
+            sel = self._scene.selectedItems()
+            sel_overlays = [it for it in sel if hasattr(it, "overlay")]
+            if sel_overlays:
+                ov = sel_overlays[0].overlay
+                new_label, ok = QInputDialog.getText(
+                    self, "Rename layer", "Label:", text=ov.label or "")
+                if ok and new_label.strip():
+                    ov.label = new_label.strip()
+                    self._rebuild_layer_panel()
+                    self._sync_overlays_to_asset()
+                    self.info_label.setText(f"Renamed to '{ov.label}'")
+            return
         # Shift+F - fit view to the union bounding rect of the current
         # selection. Zoom-to-selection. If nothing's selected, no-op.
         if shift and not ctrl and key == Qt.Key.Key_F:
