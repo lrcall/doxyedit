@@ -594,6 +594,64 @@ class WorkTray(QWidget):
         stack = self._undo.setdefault(self._current_tray, deque(maxlen=10))
         stack.append((op, payload))
 
+    def _bulk_send_to_studio(self, asset_ids: list):
+        """Emit asset_to_studio for each selected id. The window owns the
+        actual tab-switching and dispatch."""
+        for aid in asset_ids:
+            self.asset_to_studio.emit(aid)
+
+    def _bulk_set_star(self, asset_ids: list, value: int):
+        """Set star rating on every selected asset (0 unstars, 1-5 colors).
+        Uses _set_star so the viewport repaint fires once per asset; then
+        a final viewport update covers the batch."""
+        if not self._project:
+            return
+        for aid in asset_ids:
+            asset = self._project.get_asset(aid)
+            if asset is not None:
+                asset.starred = value
+        if asset_ids:
+            self.star_modified.emit()
+            self._list.viewport().update()
+
+    def _export_selection_zip(self, asset_ids: list):
+        """Same zip writer as the full-tray export but scoped to the
+        given asset id list."""
+        if not asset_ids:
+            return
+        from PySide6.QtWidgets import QFileDialog
+        import zipfile
+        default_name = f"{self._current_tray.replace(' ', '_')}_sel.zip"
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, "Export selection as ZIP", default_name, "ZIP (*.zip)")
+        if not out_path:
+            return
+        written = 0
+        seen_names: dict[str, int] = {}
+        try:
+            with zipfile.ZipFile(out_path, "w",
+                                 compression=zipfile.ZIP_DEFLATED) as zf:
+                for aid in asset_ids:
+                    src = self._paths.get(aid)
+                    if not src or not Path(src).exists():
+                        continue
+                    arc = Path(src).name
+                    seen_names[arc] = seen_names.get(arc, 0) + 1
+                    if seen_names[arc] > 1:
+                        stem = Path(src).stem
+                        ext = Path(src).suffix
+                        arc = f"{stem}_{seen_names[arc]}{ext}"
+                    zf.write(src, arc)
+                    written += 1
+        except Exception as e:
+            import logging
+            logging.error(f"Selection export failed: {e}")
+            return
+        if written:
+            import subprocess
+            win_path = out_path.replace("/", "\\")
+            subprocess.Popen(f'explorer /select,"{win_path}"')
+
     def _remove_assets_bulk(self, asset_ids: list):
         """Remove a batch of assets and record one undo entry for the
         whole batch."""
@@ -727,6 +785,25 @@ class WorkTray(QWidget):
         asset = self._project.get_asset(asset_id) if self._project else None
 
         menu = QMenu(self)
+
+        # Bulk section (only when more than one is selected) — placed
+        # first so the power-user path is one scroll-free click away.
+        if multi:
+            menu.addAction(f"Send {n_sel} to Studio",
+                           lambda _c=False, ids=list(selected):
+                               self._bulk_send_to_studio(ids))
+            bulk_star = menu.addMenu(f"Bulk Star ({n_sel})")
+            bulk_star.addAction("Unstar all",
+                                 lambda _c=False, ids=list(selected):
+                                     self._bulk_set_star(ids, 0))
+            for s in range(1, 6):
+                bulk_star.addAction(f"Star {s}",
+                                     lambda _c=False, ids=list(selected), v=s:
+                                         self._bulk_set_star(ids, v))
+            menu.addAction(f"Export Selection as ZIP... ({n_sel})",
+                           lambda _c=False, ids=list(selected):
+                               self._export_selection_zip(ids))
+            menu.addSeparator()
 
         menu.addAction("Preview", lambda: self.asset_preview.emit(asset_id))
         menu.addAction("Open in Studio", lambda: self.asset_to_studio.emit(asset_id))
