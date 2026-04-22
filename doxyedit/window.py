@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QApplication, QLabel, QProgressBar, QPushButton,
     QSizePolicy, QMenu, QDialog, QDialogButtonBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QProgressDialog,
+    QLineEdit, QSpinBox, QComboBox, QCheckBox, QGroupBox,
+    QAbstractItemView, QListWidget, QListWidgetItem,
 )
 from PySide6.QtCore import Qt, QTimer, QSettings, QSize, QUrl, QMimeData, QAbstractNativeEventFilter, QThread, Signal
 from PySide6.QtGui import (
@@ -1612,9 +1614,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         inside any QDialog so Tab keeps its natural focus/text-
         navigation behavior there."""
         from PySide6.QtCore import QEvent
-        from PySide6.QtWidgets import (
-            QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QComboBox,
-            QDialog)
         if event.type() == QEvent.Type.KeyPress:
             key = event.key()
             mods = event.modifiers()
@@ -3064,10 +3063,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _manage_bookmarks(self):
         """Dialog to remove/reorder bookmarks and add dividers."""
-        from PySide6.QtWidgets import (
-            QDialog, QListWidget, QListWidgetItem, QDialogButtonBox,
-            QVBoxLayout, QAbstractItemView,
-        )
         _DIV = "__divider__"
 
         dlg = QDialog(self)
@@ -5044,11 +5039,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _transport_project(self):
         """Package all project assets into _assets/ — with options dialog + progress."""
-        from PySide6.QtWidgets import (
-            QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-            QCheckBox, QPushButton, QProgressBar, QGroupBox,
-        )
-        from PySide6.QtCore import QThread, Signal as _Signal
 
         if not self._project_path:
             self.status.showMessage("No project file open — save first", 4000)
@@ -5106,9 +5096,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
             # Run in thread to keep UI responsive
             class _Worker(QThread):
-                finished = _Signal(str)
-                error = _Signal(str)
-                step = _Signal(int, str)
+                finished = Signal(str)
+                error = Signal(str)
+                step = Signal(int, str)
 
                 def run(self_w):
                     import io, contextlib
@@ -5479,10 +5469,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _merge_project(self):
         """Merge another project's assets and notes into the current one."""
-        from PySide6.QtWidgets import (
-            QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-            QCheckBox, QPushButton, QFileDialog, QGroupBox, QTextEdit,
-        )
         from doxyedit.models import Project
 
         if not self._project_path:
@@ -5665,9 +5651,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _show_dupe_results(self, hashes):
         """Build the duplicate-groups dialog from a {md5: [assets]} map."""
-        from PySide6.QtWidgets import (
-            QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel,
-        )
 
         dupe_groups = [(h, assets) for h, assets in hashes.items() if len(assets) > 1]
         total_dupes = sum(len(assets) - 1 for _, assets in dupe_groups)
@@ -5823,9 +5806,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _show_similar_results(self, hashmap, parent, missing, threshold):
         """Build the similar-groups dialog from union-find output."""
-        from PySide6.QtWidgets import (
-            QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel,
-        )
 
         def find(x):
             while parent[x] != x:
@@ -6011,8 +5991,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _mass_tag_editor(self):
         """Bulk edit tags on selected (or all) assets as comma-separated strings."""
-        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTableWidget,
-            QTableWidgetItem, QDialogButtonBox, QLabel, QPushButton, QCheckBox)
         assets = self.browser.get_selected_assets() or self.project.assets
         if not assets:
             self.status.showMessage("No assets to edit", 2000)
@@ -6889,8 +6867,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _configure_editors(self):
         """Tools > Configure Editors — map file extensions to custom executables."""
-        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTableWidget,
-            QTableWidgetItem, QDialogButtonBox, QLabel, QPushButton, QHeaderView)
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Configure Editors")
