@@ -785,8 +785,14 @@ class MainWindow(SaveLoadMixin, QMainWindow):
             self.browser._files_btn.blockSignals(False)
             self._file_browser.setVisible(files_vis)
 
-        # Tab key — toggle all side panels (hide/restore)
-        QShortcut(QKeySequence(Qt.Key.Key_Tab), self).activated.connect(self._toggle_all_panels)
+        # Tab / Shift+Tab cycle top tabs forward / backward. Installed
+        # as an event filter on the QApplication so they work even when
+        # focus is inside a non-editable widget (the Qt default uses
+        # Tab for focus nav which would otherwise swallow the shortcut).
+        # _toggle_all_panels moved to Ctrl+Shift+P to free Tab up.
+        QShortcut(QKeySequence("Ctrl+Shift+P"), self).activated.connect(
+            self._toggle_all_panels)
+        QApplication.instance().installEventFilter(self)
 
         # Escape to deselect, Ctrl+F to focus search
         QShortcut(QKeySequence("Escape"), self).activated.connect(self._select_none)
@@ -1545,6 +1551,44 @@ class MainWindow(SaveLoadMixin, QMainWindow):
             self._refresh_project_info()
         # Match Windows title bar to theme
         self._update_title_bar_color()
+
+    def eventFilter(self, obj, event):
+        """App-wide Tab / Shift+Tab cycling through top tabs. Skips when
+        focus is on an editable widget (QLineEdit, QTextEdit,
+        QGraphicsTextItem in text-edit mode, QComboBox in edit mode) so
+        Tab keeps its natural focus/text-navigation behavior there."""
+        from PySide6.QtCore import QEvent
+        from PySide6.QtWidgets import (
+            QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QComboBox)
+        if event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            mods = event.modifiers()
+            if key in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab):
+                # Skip if focus is in an editable widget.
+                fw = QApplication.focusWidget()
+                if isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit,
+                                    QSpinBox, QComboBox)):
+                    return super().eventFilter(obj, event)
+                # Also skip when a QGraphicsView focus target is a
+                # text item in edit mode (catching Studio's text-edit
+                # experience).
+                if fw is not None and fw.__class__.__name__ in (
+                        "QTextEdit", "QLineEdit"):
+                    return super().eventFilter(obj, event)
+                if not hasattr(self, "tabs"):
+                    return super().eventFilter(obj, event)
+                n = self.tabs.count()
+                if n <= 1:
+                    return True
+                cur = self.tabs.currentIndex()
+                # Shift+Tab fires Key_Backtab on most keyboard layouts.
+                backward = (
+                    key == Qt.Key.Key_Backtab
+                    or bool(mods & Qt.KeyboardModifier.ShiftModifier))
+                nxt = (cur - 1) % n if backward else (cur + 1) % n
+                self.tabs.setCurrentIndex(nxt)
+                return True
+        return super().eventFilter(obj, event)
 
     def _refresh_dirty_marker(self):
         """Prepend '*' to the window title + current project-tab label
