@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QFrame, QProgressBar, QSizePolicy,
 )
 from PySide6.QtCore import Qt, QThread, Signal
-from doxyedit.themes import ui_font_size
+from doxyedit.themes import ui_font_size, THEMES, DEFAULT_THEME
 
 from doxyedit.models import Project, PLATFORMS
 from doxyedit.panel_mixin import LazyRefreshMixin
@@ -38,7 +38,6 @@ class StatsPanel(LazyRefreshMixin, QWidget):
         super().__init__(parent)
         self.setObjectName("stats_panel")
         self.project = project
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         self.folder_bar_color = THEMES[DEFAULT_THEME].accent_bright
         self._size_cache: dict[int, int] = {}  # asset count -> total bytes
         self._size_card: QLabel | None = None

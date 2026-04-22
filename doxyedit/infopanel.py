@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, Signal, QStringListModel, QSettings
 from doxyedit.themes import ui_font_size
 
 from doxyedit.browser import FlowLayout
+from doxyedit.models import VINIK_COLORS
 
 
 MIN_NOTE_HEIGHT = 40
@@ -327,7 +328,6 @@ class InfoPanel(QWidget):
         Tags with a placeholder color (empty / #888 / #888888) get assigned a
         cycle color so they appear distinct instead of all-grey.
         """
-        from doxyedit.models import VINIK_COLORS
         PLACEHOLDER = {"", "#888", "#888888"}
         normalized: dict[str, str] = {}
         idx = 0
