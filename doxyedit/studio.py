@@ -927,9 +927,25 @@ class OverlayShapeItem(QGraphicsItem):
         max_y = max(r.bottom(), rh.y() + rh_pad)
         return QRectF(min_x, min_y, max_x - min_x, max_y - min_y)
 
+    _BLEND_MODE_MAP = {
+        "normal": QPainter.CompositionMode.CompositionMode_SourceOver,
+        "multiply": QPainter.CompositionMode.CompositionMode_Multiply,
+        "screen": QPainter.CompositionMode.CompositionMode_Screen,
+        "overlay": QPainter.CompositionMode.CompositionMode_Overlay,
+        "darken": QPainter.CompositionMode.CompositionMode_Darken,
+        "lighten": QPainter.CompositionMode.CompositionMode_Lighten,
+    }
+
     def paint(self, painter, option, widget=None):
         r = QRectF(self.overlay.x, self.overlay.y,
                     self.overlay.shape_w, self.overlay.shape_h)
+        # Apply the overlay's blend mode so shapes / bubbles can layer
+        # on top of the base art like image overlays already do.
+        mode = self._BLEND_MODE_MAP.get(
+            getattr(self.overlay, "blend_mode", "normal"),
+            QPainter.CompositionMode.CompositionMode_SourceOver)
+        if mode != QPainter.CompositionMode.CompositionMode_SourceOver:
+            painter.setCompositionMode(mode)
         stroke = QColor(self.overlay.stroke_color or self.overlay.color)
         stroke.setAlphaF(self.overlay.opacity)
         pen = QPen(stroke, max(1, self.overlay.stroke_width or 2))
@@ -3968,6 +3984,19 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 editor._sync_overlays_to_asset()
             style_combo.currentTextChanged.connect(_style_changed)
             form.addRow("Line style", style_combo)
+
+            # Blend mode — Photoshop-style layer effect
+            blend_combo = QComboBox()
+            blend_combo.addItems([
+                "normal", "multiply", "screen", "overlay",
+                "darken", "lighten"])
+            blend_combo.setCurrentText(getattr(ov, "blend_mode", "normal"))
+            def _blend_changed(m, _it=item):
+                _it.overlay.blend_mode = m
+                _it.update()
+                editor._sync_overlays_to_asset()
+            blend_combo.currentTextChanged.connect(_blend_changed)
+            form.addRow("Blend mode", blend_combo)
 
             # Corner radius (only for non-bubble rects)
             if ov.shape_kind == "rect":
