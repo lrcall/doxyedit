@@ -140,7 +140,7 @@ class WorkTray(QWidget):
         self._handle.setObjectName("tray_handle")
         self._handle.setFixedWidth(max(MIN_HANDLE_WIDTH, int(_f * 1.33)))
         self._handle.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._handle.setToolTip("Close tray (Ctrl+T)")
+        self._handle.setToolTip("Close tray (Ctrl+Shift+W)")
         self._handle.clicked.connect(lambda: self.toggle_requested.emit())
         outer.addWidget(self._handle)
 
@@ -175,7 +175,7 @@ class WorkTray(QWidget):
         self._close_btn = QPushButton("\u2715")  # ✕
         self._close_btn.setObjectName("tray_small_btn")
         self._close_btn.setFixedSize(_cb, _cb)
-        self._close_btn.setToolTip("Close tray (Ctrl+T)")
+        self._close_btn.setToolTip("Close tray (Ctrl+Shift+W)")
         self._close_btn.clicked.connect(lambda: self.toggle_requested.emit())
         header.addWidget(self._close_btn)
         layout.addLayout(header)
@@ -224,11 +224,28 @@ class WorkTray(QWidget):
         self._list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._list.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._list.verticalScrollBar().setSingleStep(20)
+        # Persist reorder after internal DnD. QListWidget.model().rowsMoved
+        # fires after the drop settles; rebuild _asset_ids from the list
+        # widget's current row order so save_state writes the new order.
+        self._list.model().rowsMoved.connect(
+            lambda *_a: self._sync_order_from_list())
         layout.addWidget(self._list)
 
     def _rebuild_index(self):
         """Rebuild the id→row mapping from _asset_ids."""
         self._id_to_row = {aid: i for i, aid in enumerate(self._asset_ids)}
+
+    def _sync_order_from_list(self):
+        """Read current row order out of the QListWidget and rewrite
+        _asset_ids to match. Called after internal drag-reorder so the
+        new order survives save_state."""
+        new_order = []
+        for i in range(self._list.count()):
+            aid = self._list.item(i).data(Qt.ItemDataRole.UserRole)
+            if aid:
+                new_order.append(aid)
+        self._asset_ids = new_order
+        self._rebuild_index()
 
     def add_asset(self, asset_id: str, name: str, pixmap: QPixmap = None, path: str = ""):
         """Add an asset to the tray."""
@@ -575,13 +592,25 @@ class WorkTray(QWidget):
     # --- Save/Load ---
 
     def save_state(self):
-        """Return tray data. Dict of tray_name → asset_ids for named trays."""
+        """Return tray data. Dict of tray_name → asset_ids for named trays.
+
+        Iterates the QTabBar in display order so user-reordered tabs
+        round-trip correctly (Python dicts preserve insertion order).
+        """
         # Save current tray before serializing
         self._trays[self._current_tray] = list(self._asset_ids)
         if len(self._trays) == 1 and "Tray 1" in self._trays:
             # Single default tray — save as plain list for backward compat
             return self._trays["Tray 1"]
-        return dict(self._trays)
+        ordered = {}
+        for i in range(self._tab_bar.count()):
+            name = self._tab_bar.tabText(i)
+            ordered[name] = self._trays.get(name, [])
+        # Include any trays that somehow aren't on the tab bar (shouldn't happen)
+        for name, items in self._trays.items():
+            if name not in ordered:
+                ordered[name] = items
+        return ordered
 
     def load_state(self, data, project):
         """Restore tray from saved data (list for compat, or dict for named trays)."""
