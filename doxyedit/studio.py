@@ -4094,6 +4094,33 @@ class StudioView(QGraphicsView):
         self.on_file_dropped = None  # callback(path, scene_pos)
 
     def wheelEvent(self, event: QWheelEvent):
+        # Alt+Shift+wheel adjusts opacity of selected overlays by 5%
+        # per tick. Useful for dialing in watermark visibility without
+        # reaching for the opacity slider.
+        editor = self._studio_editor
+        if (event.modifiers() & Qt.KeyboardModifier.AltModifier
+                and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+                and editor is not None):
+            sel = editor._scene.selectedItems()
+            if sel:
+                step = 0.05 if event.angleDelta().y() > 0 else -0.05
+                touched = False
+                for it in sel:
+                    ov = getattr(it, "overlay", None)
+                    if ov is None:
+                        continue
+                    new_op = max(0.0, min(1.0, ov.opacity + step))
+                    ov.opacity = new_op
+                    if hasattr(it, "setOpacity"):
+                        it.setOpacity(new_op)
+                    else:
+                        it.update()
+                    touched = True
+                if touched:
+                    editor._sync_overlays_to_asset()
+                    editor.info_label.setText(
+                        f"Opacity: {int(sel[0].overlay.opacity * 100)}%")
+                return
         # Shift+wheel pans horizontally instead of zooming. Common
         # accessibility affordance for trackpads / vertical-only mice.
         if (event.modifiers() & Qt.KeyboardModifier.ShiftModifier
