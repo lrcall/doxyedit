@@ -2933,11 +2933,22 @@ class StudioScene(QGraphicsScene):
             # Sticky tool: Text / Shape / Censor / Crop / Note / Arrow stay
             # active after a drawn item so comic / layout workflows don't
             # keep re-selecting the tool. User pref opt-out via QSettings.
+            # Text is an exception — creating a text usually means the
+            # user wants to tweak it immediately (which needs Select),
+            # so revert regardless of the sticky flag. Illustrator
+            # behavior.
             from PySide6.QtCore import QSettings as _QS
             sticky = _QS("DoxyEdit", "DoxyEdit").value(
                 "studio_sticky_tools", True, type=bool)
-            if not sticky:
+            prev_tool = self.current_tool
+            if not sticky or prev_tool == StudioTool.TEXT_OVERLAY:
                 self.current_tool = StudioTool.SELECT
+                # Notify the editor so the toolbar button highlight
+                # updates too
+                if self.views():
+                    ed = getattr(self.views()[0], "_studio_editor", None)
+                    if ed is not None and hasattr(ed, "_sync_tool_buttons"):
+                        ed._sync_tool_buttons(StudioTool.SELECT)
             return
         super().mouseReleaseEvent(event)
 
