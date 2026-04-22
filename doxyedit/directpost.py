@@ -8,6 +8,7 @@ import json
 import mimetypes
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.error import HTTPError
@@ -308,7 +309,6 @@ class BlueskyClient:
             )
 
         # Build the post record
-        from datetime import datetime, timezone
         record: dict = {
             "$type": "app.bsky.feed.post",
             "text": text,
