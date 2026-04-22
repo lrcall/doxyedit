@@ -13051,17 +13051,53 @@ class StudioEditor(QWidget):
         self._sync_overlays_to_asset()
 
     def _z_shift_selected(self, direction: int):
-        """Bring forward (+1) or send backward (-1) all selected overlays."""
+        """Shift Z of all selected overlays.
+
+        direction = +1 / -1: step by one.
+        direction = +999 / -999: promote to topmost / bottommost among
+        siblings (true 'Bring to Front' / 'Send to Back' semantics).
+        """
+        z_classes = (
+            OverlayImageItem, OverlayTextItem,
+            OverlayShapeItem, OverlayArrowItem, CensorRectItem,
+        )
+        if not any(
+            isinstance(it, z_classes)
+            for it in self._scene.selectedItems()
+        ):
+            return
+        # Precompute the max / min z across all z-enabled scene items so
+        # Front / Back jumps over everything, not just siblings of the
+        # selection.
+        all_items = [
+            it for it in self._scene.items() if isinstance(it, z_classes)
+        ]
+        max_z = max((it.zValue() for it in all_items), default=0.0)
+        min_z = min((it.zValue() for it in all_items), default=0.0)
+        floor_z = 100  # matches the existing SetZValueCmd min for censors
+        big = abs(direction) >= 900
+        label = (
+            "Bring to front" if direction > 0 and big else
+            "Send to back" if direction < 0 and big else
+            "Bring forward" if direction > 0 else
+            "Send backward"
+        )
         for item in list(self._scene.selectedItems()):
-            if isinstance(item, (OverlayImageItem, OverlayTextItem)):
-                new_z = item.zValue() + direction
+            if not isinstance(item, z_classes):
+                continue
+            cur = item.zValue()
+            if big and direction > 0:
+                new_z = max_z + 1
+            elif big and direction < 0:
+                new_z = max(floor_z, min_z - 1)
+            else:
+                new_z = cur + direction
                 if direction < 0:
-                    new_z = max(200, new_z)
-                cmd = SetZValueCmd(
-                    item, item.zValue(), new_z,
-                    "Bring forward" if direction > 0 else "Send backward",
-                )
-                self._undo_stack.push(cmd)
+                    new_z = max(floor_z, new_z)
+            if new_z == cur:
+                continue
+            cmd = SetZValueCmd(item, cur, new_z, label)
+            self._undo_stack.push(cmd)
 
     # ---- alignment + distribute ----
 
