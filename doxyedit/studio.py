@@ -6610,6 +6610,30 @@ class StudioEditor(QWidget):
                 QApplication.clipboard().setText(txt)
                 self.info_label.setText(f"Copied geometry: {txt}")
             return
+        # Ctrl+Alt+H — un-hide every overlay + censor (reverse of
+        # accidentally hitting Alt+H on everything). Complement of
+        # Alt+I 'isolate' which hides everything else.
+        if ctrl and alt and not shift and key == Qt.Key.Key_H:
+            touched = 0
+            for it in self._overlay_items:
+                ov = getattr(it, "overlay", None)
+                if ov is not None and not ov.enabled:
+                    ov.enabled = True
+                    it.setVisible(True)
+                    touched += 1
+            for it in self._censor_items:
+                if not it.isVisible():
+                    it.setVisible(True)
+                    touched += 1
+            if touched:
+                self._sync_overlays_to_asset()
+                self._rebuild_layer_panel()
+                self.info_label.setText(
+                    f"Un-hid {touched} layer"
+                    f"{'s' if touched != 1 else ''}")
+            else:
+                self.info_label.setText("Nothing was hidden")
+            return
         # Alt+H — toggle visibility (hide / show) on every selected
         # overlay. Faster than Shift+click in the layer panel when
         # you want to flip several layers at once. Censors and crops
