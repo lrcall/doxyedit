@@ -6783,7 +6783,6 @@ class StudioEditor(QWidget):
                     touched += 1
             if touched:
                 self._sync_overlays_to_asset()
-                self._rebuild_layer_panel()
                 self.info_label.setText(
                     f"Un-hid {touched} layer"
                     f"{'s' if touched != 1 else ''}")
@@ -6812,7 +6811,6 @@ class StudioEditor(QWidget):
                     touched += 1
             if touched:
                 self._sync_overlays_to_asset()
-                self._rebuild_layer_panel()
                 self.info_label.setText(
                     f"Toggled visibility on {touched} layer"
                     f"{'s' if touched != 1 else ''}")
@@ -7433,7 +7431,6 @@ class StudioEditor(QWidget):
                 changed = True
             if changed:
                 self._sync_overlays_to_asset()
-                self._rebuild_layer_panel()
             return
         # Ctrl+Alt+L — lock / unlock ALL overlays (toggle based on
         # current first overlay state). Mirror of the canvas context
@@ -7453,7 +7450,6 @@ class StudioEditor(QWidget):
                     it.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable,
                                 not lock)
             self._sync_overlays_to_asset()
-            self._rebuild_layer_panel()
             self.info_label.setText(
                 "All overlays locked" if lock else "All overlays unlocked")
             return
@@ -11037,7 +11033,6 @@ class StudioEditor(QWidget):
                 target_w, Qt.TransformationMode.SmoothTransformation)
         item.setPixmap(pm)
         self._sync_overlays_to_asset()
-        self._rebuild_layer_panel()
         self.info_label.setText(f"Replaced with {Path(path).name}")
 
     # Copy/Paste Style between overlays — session-only, separate slot per type.
@@ -12275,7 +12270,6 @@ class StudioEditor(QWidget):
             it.setFlag(it.GraphicsItemFlag.ItemIsMovable, not locked)
             it.setFlag(it.GraphicsItemFlag.ItemIsSelectable, not locked)
         self._sync_overlays_to_asset()
-        self._rebuild_layer_panel()
         self.info_label.setText(
             "Locked" if locked else "Unlocked")
 
@@ -12289,7 +12283,6 @@ class StudioEditor(QWidget):
             it.overlay.enabled = not hidden
             it.setVisible(not hidden)
         self._sync_overlays_to_asset()
-        self._rebuild_layer_panel()
         self.info_label.setText("Hidden" if hidden else "Visible")
 
     def _qp_fit_selection(self):
@@ -13418,7 +13411,6 @@ class StudioEditor(QWidget):
             if tag_acts and chosen in tag_acts:
                 ov.tag_color = tag_acts[chosen]
                 self._sync_overlays_to_asset()
-                self._rebuild_layer_panel()
                 return
             if chosen is act_opacity:
                 v, ok = QInputDialog.getInt(
@@ -13431,7 +13423,6 @@ class StudioEditor(QWidget):
                     else:
                         scene_item.update()
                     self._sync_overlays_to_asset()
-                    self._rebuild_layer_panel()
                 return
             if chosen is act_zoom_to:
                 # Fit-in-view on this single layer's bounding rect so
@@ -13524,7 +13515,6 @@ class StudioEditor(QWidget):
                                 new_item.overlay.y)
                         made += 1
                 self._sync_overlays_to_asset()
-                self._rebuild_layer_panel()
                 self.info_label.setText(
                     f"Made {made} grid copies ({cols}x{rows})")
                 return
@@ -13936,7 +13926,6 @@ class StudioEditor(QWidget):
             if other in self._overlay_items:
                 self._overlay_items.remove(other)
         self._sync_overlays_to_asset()
-        self._rebuild_layer_panel()
         self._update_info()
 
     def _duplicate_overlay_item(self, item, offset: int = 20):
