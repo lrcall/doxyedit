@@ -2,9 +2,9 @@
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea,
-    QFrame, QProgressBar, QSizePolicy, QPushButton,
+    QFrame, QProgressBar, QSizePolicy,
 )
-from PySide6.QtCore import Qt, QSettings, QThread, Signal
+from PySide6.QtCore import Qt, QThread, Signal
 from doxyedit.themes import ui_font_size
 
 from doxyedit.models import Project, PLATFORMS

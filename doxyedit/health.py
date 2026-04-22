@@ -4,9 +4,9 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QScrollArea, QFrame, QSizePolicy, QMessageBox, QFileDialog,
 )
-from PySide6.QtCore import Qt, Signal, QSettings
+from PySide6.QtCore import Qt, Signal
 from doxyedit.themes import ui_font_size
-from doxyedit.models import Project, PLATFORMS
+from doxyedit.models import Project
 from doxyedit.panel_mixin import LazyRefreshMixin
 
 ISSUE_DEFS = [

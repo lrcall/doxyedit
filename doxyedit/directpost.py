@@ -6,8 +6,6 @@ Uses stdlib only (no requests library).
 from __future__ import annotations
 import json
 import mimetypes
-import os
-import tempfile
 import uuid
 from dataclasses import dataclass
 from pathlib import Path

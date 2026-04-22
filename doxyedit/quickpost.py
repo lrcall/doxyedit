@@ -179,7 +179,7 @@ def post_everywhere(project, post, project_dir=".", auto_submit=False):
     OneUp platforms are handled separately by _push_post_to_oneup.
     Returns dict[platform_id, QuickPostResult] with status per platform.
     """
-    from doxyedit.models import SUB_PLATFORMS, DIRECT_POST_PLATFORMS
+    from doxyedit.models import SUB_PLATFORMS
     from doxyedit.export_cache import ExportCache
     results = {}
     export_cache = ExportCache()  # one decode, many variants, thrown away at function exit

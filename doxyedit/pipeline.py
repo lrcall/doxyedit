@@ -10,8 +10,8 @@ from typing import Optional
 from PIL import Image
 
 from doxyedit.models import (
-    Asset, CropRegion, CensorRegion, CanvasOverlay,
-    Platform, PlatformSlot, PLATFORMS, Project,
+    Asset, CensorRegion, CanvasOverlay,
+    PlatformSlot, PLATFORMS, Project,
 )
 from doxyedit.imaging import load_image_for_export
 from doxyedit.exporter import apply_censors, apply_overlays
