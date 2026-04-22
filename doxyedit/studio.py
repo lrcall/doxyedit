@@ -11817,8 +11817,18 @@ class StudioEditor(QWidget):
             elif ov.type == "arrow":
                 label = f"→  {ov.label or 'Arrow'}"
             elif ov.type == "shape":
-                icon = "◯" if ov.shape_kind == "ellipse" else "▭"
-                label = f"{icon}  {ov.label or ov.shape_kind.title()}"
+                icon = {
+                    "ellipse": "◯",
+                    "rect": "▭",
+                    "star": "★",
+                    "polygon": "⬡",
+                    "gradient_linear": "▦",
+                    "gradient_radial": "◎",
+                    "speech_bubble": "💬",
+                    "thought_bubble": "☁",
+                    "burst_bubble": "💥",
+                }.get(ov.shape_kind, "▭")
+                label = f"{icon}  {ov.label or ov.shape_kind.replace('_', ' ').title()}"
             else:
                 label = f"O  {ov.label or ov.type}"
             # Prepend visibility / lock indicators so layer state is
