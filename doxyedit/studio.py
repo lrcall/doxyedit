@@ -4432,6 +4432,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
         self._qs = _QS("DoxyEdit", "DoxyEdit")
         self._editor = parent
         self._current_kind = None  # last rebuilt kind
+        self._pin_on_top = False
         self.setWindowTitle("Shape Controls")
         self.setObjectName("studio_shape_controls_dlg")
         self.setWindowFlags(
@@ -4447,6 +4448,50 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
         # trailing buttons getting cropped to 'lea' / empty squares.
         self.setMinimumWidth(400)
         self.setMinimumHeight(440)
+        # Ctrl+P pin-on-top toggle + Ctrl+Shift+L / R snap-to-edge
+        # park positions. Mirror of _TextControlsDialog so both popups
+        # respond to the same 'dock-ish' gestures.
+        from PySide6.QtGui import QShortcut, QKeySequence
+        _pin_sc = QShortcut(QKeySequence("Ctrl+P"), self)
+        _pin_sc.setContext(Qt.ShortcutContext.WindowShortcut)
+        _pin_sc.activated.connect(self._toggle_pin_on_top)
+        _dl_sc = QShortcut(QKeySequence("Ctrl+Shift+L"), self)
+        _dl_sc.setContext(Qt.ShortcutContext.WindowShortcut)
+        _dl_sc.activated.connect(lambda: self._snap_to_edge("left"))
+        _dr_sc = QShortcut(QKeySequence("Ctrl+Shift+R"), self)
+        _dr_sc.setContext(Qt.ShortcutContext.WindowShortcut)
+        _dr_sc.activated.connect(lambda: self._snap_to_edge("right"))
+
+    def _toggle_pin_on_top(self):
+        self._pin_on_top = not self._pin_on_top
+        flags = self.windowFlags()
+        if self._pin_on_top:
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+        else:
+            flags &= ~Qt.WindowType.WindowStaysOnTopHint
+        was_visible = self.isVisible()
+        self.setWindowFlags(flags)
+        if was_visible:
+            self.show()
+        self.setWindowTitle(
+            "Shape Controls (pinned)" if self._pin_on_top
+            else "Shape Controls")
+
+    def _snap_to_edge(self, side: str):
+        from PySide6.QtWidgets import QApplication
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            return
+        avail = screen.availableGeometry()
+        w = max(self.width(), 420)
+        h = max(self.height(), avail.height() - 40)
+        y = avail.top() + 20
+        if side == "right":
+            x = avail.right() - w - 10
+        else:
+            x = avail.left() + 10
+        self.setGeometry(x, y, w, h)
+        self._positioned_once = True
 
     def _save_geom(self):
         try:
@@ -5467,7 +5512,12 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
 class _TextControlsDialog(QtWidgets.QDialog):
     """QDialog subclass that persists its geometry to QSettings across
     close / hide cycles. Instance-level closeEvent assignment doesn't
-    work for Qt virtual methods, so this is the proper subclass."""
+    work for Qt virtual methods, so this is the proper subclass.
+
+    Provides Ctrl+P = pin on top toggle and Ctrl+Shift+L / Ctrl+Shift+R
+    = snap to the left / right edge of the primary screen. Previous
+    'can't dock' complaint: these give three predictable park spots
+    without building a real QDockWidget subsystem."""
 
     _GEOM_KEY = "studio_text_controls_geom"
 
@@ -5475,6 +5525,51 @@ class _TextControlsDialog(QtWidgets.QDialog):
         super().__init__(parent)
         from PySide6.QtCore import QSettings as _QS
         self._qs = _QS("DoxyEdit", "DoxyEdit")
+        self._pin_on_top = False
+        # Install shortcuts: pin + snap-left / snap-right.
+        from PySide6.QtGui import QShortcut, QKeySequence
+        from PySide6.QtCore import Qt as _QtC
+        _pin_sc = QShortcut(QKeySequence("Ctrl+P"), self)
+        _pin_sc.setContext(_QtC.ShortcutContext.WindowShortcut)
+        _pin_sc.activated.connect(self._toggle_pin_on_top)
+        _dl_sc = QShortcut(QKeySequence("Ctrl+Shift+L"), self)
+        _dl_sc.setContext(_QtC.ShortcutContext.WindowShortcut)
+        _dl_sc.activated.connect(lambda: self._snap_to_edge("left"))
+        _dr_sc = QShortcut(QKeySequence("Ctrl+Shift+R"), self)
+        _dr_sc.setContext(_QtC.ShortcutContext.WindowShortcut)
+        _dr_sc.activated.connect(lambda: self._snap_to_edge("right"))
+
+    def _toggle_pin_on_top(self):
+        from PySide6.QtCore import Qt as _QtC
+        self._pin_on_top = not self._pin_on_top
+        flags = self.windowFlags()
+        if self._pin_on_top:
+            flags |= _QtC.WindowType.WindowStaysOnTopHint
+        else:
+            flags &= ~_QtC.WindowType.WindowStaysOnTopHint
+        was_visible = self.isVisible()
+        self.setWindowFlags(flags)
+        if was_visible:
+            self.show()
+        self.setWindowTitle(
+            "Text Controls (pinned)" if self._pin_on_top
+            else "Text Controls")
+
+    def _snap_to_edge(self, side: str):
+        from PySide6.QtWidgets import QApplication
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            return
+        avail = screen.availableGeometry()
+        w = max(self.width(), 380)
+        h = max(self.height(), avail.height() - 40)
+        y = avail.top() + 20
+        if side == "right":
+            x = avail.right() - w - 10
+        else:
+            x = avail.left() + 10
+        self.setGeometry(x, y, w, h)
+        self._positioned_once = True
 
     def _save_geom(self):
         try:
