@@ -88,7 +88,6 @@ def _add_platform_submenu(menu: QMenu, current_platforms: list[str], editor) -> 
     """Add a 'Platforms...' submenu with checkable entries. Returns the submenu."""
     if not editor or not editor._project:
         return menu
-    from doxyedit.models import PLATFORMS
     sub = _themed_menu()
     sub.setTitle("Platforms...")
     menu.addMenu(sub)
@@ -15563,7 +15562,6 @@ class StudioEditor(QWidget):
         self._sync_censors_to_asset()
         self._sync_overlays_to_asset()
 
-        from doxyedit.models import PLATFORMS
         from doxyedit.pipeline import prepare_for_platform
         from doxyedit.imaging import get_export_dir
         from PySide6.QtCore import QCoreApplication
