@@ -285,6 +285,7 @@ class CensorRectItem(QGraphicsRectItem):
             pixelate_ratio_act = menu.addAction("Pixelate Ratio...")
         menu.addSeparator()
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
+        save_default_act = menu.addAction("Save as Default Censor Style")
         menu.addSeparator()
         fwd_act = menu.addAction("Bring Forward  (Ctrl+])")
         bwd_act = menu.addAction("Send Backward  (Ctrl+[)")
@@ -347,6 +348,17 @@ class CensorRectItem(QGraphicsRectItem):
                 self._editor._scene.addItem(new_item)
                 self._editor._censor_items.append(new_item)
                 self._editor._refresh_layer_panel()
+        elif chosen is save_default_act and self._editor:
+            from PySide6.QtCore import QSettings as _QS
+            cr = getattr(self, "_censor_region", None)
+            qs = _QS("DoxyEdit", "DoxyEdit")
+            qs.setValue("studio_censor_default_style", self.style)
+            if cr is not None:
+                qs.setValue("studio_censor_default_blur", int(cr.blur_radius or 20))
+                qs.setValue("studio_censor_default_pixel",
+                            int(cr.pixelate_ratio or 10))
+            self._editor.info_label.setText(
+                f"Saved default censor style: {self.style}")
         elif chosen is fwd_act and self._editor:
             cmd = SetZValueCmd(self, self.zValue(), self.zValue() + 1, "Bring forward")
             self._editor._undo_stack.push(cmd)
