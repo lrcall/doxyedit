@@ -7148,10 +7148,16 @@ class StudioEditor(QWidget):
                 self.chk_thirds.setChecked(not self.chk_thirds.isChecked())
             return
         # F9 = toggle minimap. Fn row gives each overlay-helper its
-        # own key: F3 grid, F4 thirds, F9 minimap, F12 snap.
+        # own key: F3 grid, F4 thirds, F9 minimap, F11 focus, F12 snap.
         if key == Qt.Key.Key_F9 and not ctrl and not shift:
             if hasattr(self, "chk_minimap"):
                 self.chk_minimap.setChecked(not self.chk_minimap.isChecked())
+            return
+        # F11 = toggle focus mode (alias of plain '.'; F11 is the
+        # universal fullscreen key in every major graphics app).
+        if key == Qt.Key.Key_F11 and not ctrl and not shift:
+            if hasattr(self, "btn_focus"):
+                self.btn_focus.setChecked(not self.btn_focus.isChecked())
             return
         # F5..F8 = recall view bookmark slots 1..4.
         # Shift+F5..F8 = save the CURRENT zoom + scroll position into
