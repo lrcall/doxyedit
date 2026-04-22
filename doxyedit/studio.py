@@ -1367,6 +1367,8 @@ class OverlayShapeItem(QGraphicsItem):
         conv_speech_act = convert_menu.addAction("Speech Bubble")
         conv_thought_act = convert_menu.addAction("Thought Bubble")
         conv_burst_act = convert_menu.addAction("Burst / Shout")
+        conv_star_act = convert_menu.addAction("Star")
+        conv_poly_act = convert_menu.addAction("Polygon")
         conv_lingrad_act = convert_menu.addAction("Linear Gradient")
         conv_radgrad_act = convert_menu.addAction("Radial Gradient")
         for a, k in ((conv_rect_act, "rect"),
@@ -1374,6 +1376,8 @@ class OverlayShapeItem(QGraphicsItem):
                        (conv_speech_act, "speech_bubble"),
                        (conv_thought_act, "thought_bubble"),
                        (conv_burst_act, "burst"),
+                       (conv_star_act, "star"),
+                       (conv_poly_act, "polygon"),
                        (conv_lingrad_act, "gradient_linear"),
                        (conv_radgrad_act, "gradient_radial")):
             a.setCheckable(True)
@@ -1513,11 +1517,14 @@ class OverlayShapeItem(QGraphicsItem):
                 self.overlay.corner_radius = value
                 self.update()
                 self._editor._sync_overlays_to_asset()
-        elif chosen in (conv_rect_act, conv_ellipse_act,
-                         conv_lingrad_act, conv_radgrad_act) and self._editor:
+        elif chosen in (conv_rect_act, conv_ellipse_act, conv_star_act,
+                         conv_poly_act, conv_lingrad_act, conv_radgrad_act
+                         ) and self._editor:
             target = (
                 "rect" if chosen is conv_rect_act else
                 "ellipse" if chosen is conv_ellipse_act else
+                "star" if chosen is conv_star_act else
+                "polygon" if chosen is conv_poly_act else
                 "gradient_linear" if chosen is conv_lingrad_act else
                 "gradient_radial")
             self.overlay.shape_kind = target
@@ -1525,6 +1532,13 @@ class OverlayShapeItem(QGraphicsItem):
             if target.startswith("gradient") and not self.overlay.gradient_start_color:
                 self.overlay.gradient_start_color = "#000000ff"
                 self.overlay.gradient_end_color = "#00000000"
+            # Seed star / polygon vertex count if missing
+            if target in ("star", "polygon"):
+                if not getattr(self.overlay, "star_points", 0):
+                    self.overlay.star_points = 5 if target == "star" else 6
+                if target == "star" and not getattr(self.overlay, "inner_ratio", 0.0):
+                    self.overlay.inner_ratio = 0.4
+            self.prepareGeometryChange()
             self.update()
             self._editor._sync_overlays_to_asset()
             self._editor._rebuild_layer_panel()
