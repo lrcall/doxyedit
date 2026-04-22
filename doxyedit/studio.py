@@ -683,6 +683,8 @@ class OverlayShapeItem(QGraphicsItem):
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
             elif self._corner_radius_handle_under(event.scenePos()):
                 self.setCursor(Qt.CursorShape.SizeHorCursor)
+            elif self._star_inner_handle_under(event.scenePos()):
+                self.setCursor(Qt.CursorShape.SizeVerCursor)
             else:
                 h = self._handle_under(event.scenePos())
                 if h in ('tl', 'br'):
@@ -7312,6 +7314,12 @@ class StudioEditor(QWidget):
         qp_ungroup_btn.clicked.connect(self._qp_ungroup_selection)
         quickbar.addWidget(qp_ungroup_btn)
 
+        qp_fit_btn = QPushButton("Fit Sel")
+        qp_fit_btn.setObjectName("studio_qp_fit")
+        qp_fit_btn.setToolTip("Fit view to current selection (Shift+F)")
+        qp_fit_btn.clicked.connect(self._qp_fit_selection)
+        quickbar.addWidget(qp_fit_btn)
+
         self._qp_label = QLabel("(no selection)")
         self._qp_label.setObjectName("studio_qp_label")
         quickbar.addWidget(self._qp_label)
@@ -10669,6 +10677,25 @@ class StudioEditor(QWidget):
         self._sync_overlays_to_asset()
         self._rebuild_layer_panel()
         self.info_label.setText("Hidden" if hidden else "Visible")
+
+    def _qp_fit_selection(self):
+        """Quickbar Fit-Sel button -> fitInView on the union bounding
+        rect of the selection. Mirror of Shift+F. No-op when nothing
+        is selected."""
+        sel = self._scene.selectedItems()
+        if not sel:
+            self.info_label.setText("Nothing selected")
+            return
+        bounds = sel[0].sceneBoundingRect()
+        for it in sel[1:]:
+            bounds = bounds.united(it.sceneBoundingRect())
+        bounds.adjust(-40, -40, 40, 40)
+        self._view.fitInView(bounds, Qt.AspectRatioMode.KeepAspectRatio)
+        if hasattr(self, "_zoom_label"):
+            self._zoom_label.setText(
+                f"{int(self._view.transform().m11() * 100)}%")
+        if hasattr(self, "_canvas_wrap"):
+            self._canvas_wrap.refresh()
 
     def _qp_group_selection(self):
         """Quickbar Group button - assigns a fresh group_id to every
