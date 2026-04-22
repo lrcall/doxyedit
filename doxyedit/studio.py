@@ -685,6 +685,8 @@ class OverlayShapeItem(QGraphicsItem):
                 self.setCursor(Qt.CursorShape.SizeHorCursor)
             elif self._star_inner_handle_under(event.scenePos()):
                 self.setCursor(Qt.CursorShape.SizeVerCursor)
+            elif self._polygon_vertex_handle_under(event.scenePos()):
+                self.setCursor(Qt.CursorShape.SizeHorCursor)
             else:
                 h = self._handle_under(event.scenePos())
                 if h in ('tl', 'br'):
@@ -950,6 +952,28 @@ class OverlayShapeItem(QGraphicsItem):
         return (abs(scene_pos.x() - tip.x()) <= r
                 and abs(scene_pos.y() - tip.y()) <= r)
 
+    def _polygon_vertex_handle_pos(self) -> QPointF:
+        """Scene-space position of the polygon vertex-count handle.
+        Sits on the east spoke of a polygon shape. Dragging horizontally
+        adjusts star_points: further right / closer to center (relative
+        to shape_w / 2) changes the vertex count. We'll map this to a
+        simple interpretation: handle offset from center = n / 12 of
+        shape_w."""
+        ov = self.overlay
+        cx = ov.x + ov.shape_w / 2
+        cy = ov.y + ov.shape_h / 2
+        # Anchor the handle at 80% of the east spoke so it's visibly
+        # outside any polygon drawing.
+        return QPointF(cx + ov.shape_w * 0.42, cy)
+
+    def _polygon_vertex_handle_under(self, scene_pos: QPointF) -> bool:
+        if self.overlay.shape_kind != "polygon":
+            return False
+        hp = self._polygon_vertex_handle_pos()
+        r = self._zoom_adaptive_radius(14)
+        return (abs(scene_pos.x() - hp.x()) <= r
+                and abs(scene_pos.y() - hp.y()) <= r)
+
     def _star_inner_handle_pos(self) -> QPointF:
         """Scene-space position of the star inner-radius handle. A point
         on the line from shape center to 12 o'clock, at distance
@@ -1183,6 +1207,21 @@ class OverlayShapeItem(QGraphicsItem):
                 painter.setPen(QPen(QColor(0, 0, 0), 1))
                 painter.setBrush(QBrush(QColor(80, 200, 180)))
                 painter.drawEllipse(sh, 5, 5)
+            # Polygon vertex-count handle: orange circle with the
+            # current vertex count written inside.
+            if self.overlay.shape_kind == "polygon":
+                ph = self._polygon_vertex_handle_pos()
+                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                painter.setBrush(QBrush(QColor(230, 160, 60)))
+                painter.drawEllipse(ph, 10, 10)
+                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                font = painter.font()
+                font.setPixelSize(10)
+                painter.setFont(font)
+                txt = str(max(3, int(self.overlay.star_points or 6)))
+                painter.drawText(
+                    QRectF(ph.x() - 10, ph.y() - 8, 20, 16),
+                    Qt.AlignmentFlag.AlignCenter, txt)
             # For linear gradients, also show a direction line + two circles
             # representing the gradient start / end.
             if self.overlay.shape_kind == "gradient_linear":
@@ -1231,6 +1270,12 @@ class OverlayShapeItem(QGraphicsItem):
             # Star inner-radius handle.
             if self._star_inner_handle_under(event.scenePos()):
                 self._dragging_handle = 'star_inner'
+                self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                event.accept()
+                return
+            # Polygon vertex-count handle.
+            if self._polygon_vertex_handle_under(event.scenePos()):
+                self._dragging_handle = 'polygon_verts'
                 self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
                 event.accept()
                 return
@@ -1318,6 +1363,26 @@ class OverlayShapeItem(QGraphicsItem):
             if self._editor:
                 self._editor.info_label.setText(
                     f"Star inner radius: {frac * 100:.0f}%")
+            event.accept()
+            return
+        if self._dragging_handle == 'polygon_verts':
+            # Cursor X offset from center -> vertex count via a
+            # quantized ramp (-2x .. +2x shape_w/2 maps to 3..20).
+            sp = event.scenePos()
+            cx = self.overlay.x + self.overlay.shape_w / 2
+            dx = sp.x() - cx
+            # Normalize so ~half-width reaches 20 verts, negative half
+            # drops toward 3.
+            frac = max(-1.0, min(1.0, dx / max(1.0, self.overlay.shape_w / 2)))
+            verts = int(round(3 + (frac + 1) * 8.5))  # 3 .. 20
+            verts = max(3, min(50, verts))
+            if verts != int(self.overlay.star_points or 0):
+                self.overlay.star_points = verts
+                self.prepareGeometryChange()
+                self.update()
+                if self._editor:
+                    self._editor.info_label.setText(
+                        f"Polygon vertices: {verts}")
             event.accept()
             return
         if self._dragging_handle == 'tail':
