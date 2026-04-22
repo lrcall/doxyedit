@@ -6499,6 +6499,36 @@ class StudioEditor(QWidget):
         self.btn_strikethrough.clicked.connect(self._on_strikethrough_changed)
         props.addWidget(self.btn_strikethrough)
 
+        # Text alignment: left / center / right buttons as exclusive
+        # radio-like toggles. Keyboard shortcuts Ctrl+Shift+L/E/R
+        # already work; these buttons make the feature discoverable.
+        self.btn_align_left = QPushButton("≡")
+        self.btn_align_left.setObjectName("studio_align_left_btn")
+        self.btn_align_left.setToolTip("Align text left (Ctrl+Shift+L)")
+        self.btn_align_left.setCheckable(True)
+        self.btn_align_left.setFixedWidth(_icon_btn_w)
+        self.btn_align_left.clicked.connect(
+            lambda: self._on_text_align_changed("left"))
+        props.addWidget(self.btn_align_left)
+
+        self.btn_align_center = QPushButton("≣")
+        self.btn_align_center.setObjectName("studio_align_center_btn")
+        self.btn_align_center.setToolTip("Align text center (Ctrl+Shift+E)")
+        self.btn_align_center.setCheckable(True)
+        self.btn_align_center.setFixedWidth(_icon_btn_w)
+        self.btn_align_center.clicked.connect(
+            lambda: self._on_text_align_changed("center"))
+        props.addWidget(self.btn_align_center)
+
+        self.btn_align_right = QPushButton("≡")
+        self.btn_align_right.setObjectName("studio_align_right_btn")
+        self.btn_align_right.setToolTip("Align text right (Ctrl+Shift+R)")
+        self.btn_align_right.setCheckable(True)
+        self.btn_align_right.setFixedWidth(_icon_btn_w)
+        self.btn_align_right.clicked.connect(
+            lambda: self._on_text_align_changed("right"))
+        props.addWidget(self.btn_align_right)
+
         self.btn_color = _ColorSwatchButton(is_outline=False)
         self.btn_color.setObjectName("studio_color_btn")
         self.btn_color.setFixedWidth(_icon_btn_w)
@@ -6599,6 +6629,7 @@ class StudioEditor(QWidget):
         for _w in (self.combo_position, self.font_combo, self.slider_font_size,
                    self.btn_bold, self.btn_italic,
                    self.btn_underline, self.btn_strikethrough,
+                   self.btn_align_left, self.btn_align_center, self.btn_align_right,
                    self.btn_color, self.btn_outline_color,
                    self.slider_outline, self.slider_kerning,
                    self.slider_line_height, self.slider_rotation,
@@ -6659,6 +6690,15 @@ class StudioEditor(QWidget):
         _bi_row.addWidget(self.btn_strikethrough)
         _bi_row.addStretch()
         _dlg_layout.addRow("Weight", _bi_widget)
+
+        _al_widget = QWidget(_dlg)
+        _al_row = QHBoxLayout(_al_widget)
+        _al_row.setContentsMargins(0, 0, 0, 0)
+        _al_row.addWidget(self.btn_align_left)
+        _al_row.addWidget(self.btn_align_center)
+        _al_row.addWidget(self.btn_align_right)
+        _al_row.addStretch()
+        _dlg_layout.addRow("Align", _al_widget)
         _col_widget = QWidget(_dlg)
         _col_row = QHBoxLayout(_col_widget)
         _col_row.setContentsMargins(0, 0, 0, 0)
@@ -9002,6 +9042,9 @@ class StudioEditor(QWidget):
             _bulk.append(self.btn_underline)
         if hasattr(self, "btn_strikethrough"):
             _bulk.append(self.btn_strikethrough)
+        for _bname in ("btn_align_left", "btn_align_center", "btn_align_right"):
+            if hasattr(self, _bname):
+                _bulk.append(getattr(self, _bname))
         for w in _bulk:
             w.blockSignals(True)
 
@@ -9029,6 +9072,11 @@ class StudioEditor(QWidget):
         if hasattr(self, "btn_strikethrough"):
             self.btn_strikethrough.setChecked(
                 bool(getattr(ov, "strikethrough", False)))
+        if hasattr(self, "btn_align_left"):
+            ta = getattr(ov, "text_align", "left")
+            self.btn_align_left.setChecked(ta == "left")
+            self.btn_align_center.setChecked(ta == "center")
+            self.btn_align_right.setChecked(ta == "right")
         # Drop-shadow toggle + offset slider sync
         if hasattr(self, "btn_shadow_toggle"):
             self.btn_shadow_toggle.blockSignals(True)
@@ -9278,6 +9326,27 @@ class StudioEditor(QWidget):
                     apply_cb=lambda it, _v: it._apply_font(),
                     description=("Strike on" if checked else "Strike off"),
                 )
+        self._sync_overlays_to_asset()
+
+    def _on_text_align_changed(self, align: str):
+        """Exclusive text alignment (left / center / right). Updates
+        every selected text overlay and keeps the three buttons in a
+        radio-like state."""
+        for item in self._selected_overlay_items():
+            if isinstance(item, OverlayTextItem):
+                self._push_overlay_attr(
+                    item, "text_align", align,
+                    apply_cb=lambda it, _v: it._apply_font(),
+                    description=f"Align text {align}",
+                )
+        # Enforce radio exclusivity
+        for btn, ali in (
+                (self.btn_align_left, "left"),
+                (self.btn_align_center, "center"),
+                (self.btn_align_right, "right")):
+            btn.blockSignals(True)
+            btn.setChecked(ali == align)
+            btn.blockSignals(False)
         self._sync_overlays_to_asset()
 
     def _on_color_pick(self):
