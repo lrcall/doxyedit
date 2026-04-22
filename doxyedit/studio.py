@@ -8039,34 +8039,44 @@ class StudioEditor(QWidget):
             "studio_layer_thumb_size", 28, type=int)
         _thumb_sz = max(12, min(64, _thumb_sz))
         self._layer_panel.setIconSize(QSize(_thumb_sz, _thumb_sz))
-        # Click-on-thumbnail toggles visibility (like Photoshop's eye column)
+        # Click-on-thumbnail toggles visibility (like Photoshop's eye column).
+        # Middle-click anywhere on a row ALSO toggles visibility for users
+        # who prefer a mouse-button shortcut over the pixel-precise icon
+        # column.
         _orig_layer_press = self._layer_panel.mousePressEvent
         def _layer_mouse_press(event, _orig=_orig_layer_press):
+            def _toggle_vis_for(data):
+                if not data:
+                    return False
+                kind, idx = data
+                if kind == "overlay" and 0 <= idx < len(self._asset.overlays):
+                    ov = self._asset.overlays[idx]
+                    ov.enabled = not ov.enabled
+                    for scene_it in self._scene.items():
+                        if (hasattr(scene_it, "overlay")
+                                and scene_it.overlay is ov):
+                            scene_it.setVisible(ov.enabled)
+                            break
+                    self._rebuild_layer_panel()
+                    return True
+                if kind == "censor" and 0 <= idx < len(self._censor_items):
+                    item = self._censor_items[idx]
+                    item.setVisible(not item.isVisible())
+                    return True
+                return False
+            if event.button() == Qt.MouseButton.MiddleButton:
+                it = self._layer_panel.itemAt(event.pos())
+                if it is not None and _toggle_vis_for(
+                        it.data(Qt.ItemDataRole.UserRole)):
+                    return
             if event.button() == Qt.MouseButton.LeftButton:
                 it = self._layer_panel.itemAt(event.pos())
                 if it is not None:
                     # Row rect to locate the icon zone (first 28+padding px)
                     rect = self._layer_panel.visualItemRect(it)
                     if event.pos().x() - rect.x() <= 34:  # icon area
-                        data = it.data(Qt.ItemDataRole.UserRole)
-                        if data and data[0] == "overlay":
-                            kind, idx = data
-                            if 0 <= idx < len(self._asset.overlays):
-                                ov = self._asset.overlays[idx]
-                                ov.enabled = not ov.enabled
-                                for scene_it in self._scene.items():
-                                    if (hasattr(scene_it, "overlay")
-                                            and scene_it.overlay is ov):
-                                        scene_it.setVisible(ov.enabled)
-                                        break
-                                self._rebuild_layer_panel()
-                                return
-                        elif data and data[0] == "censor":
-                            kind, idx = data
-                            if 0 <= idx < len(self._censor_items):
-                                item = self._censor_items[idx]
-                                item.setVisible(not item.isVisible())
-                                return
+                        if _toggle_vis_for(it.data(Qt.ItemDataRole.UserRole)):
+                            return
             _orig(event)
         self._layer_panel.mousePressEvent = _layer_mouse_press
         self._layer_panel.itemClicked.connect(self._on_layer_clicked)
