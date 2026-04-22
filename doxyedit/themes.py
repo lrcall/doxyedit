@@ -172,6 +172,12 @@ class Theme:
     studio_star_inner_handle: str = "#50c8b4"        # teal dot for star inner-radius
     studio_polygon_vertex_handle: str = "#e6a03c"    # orange circle for polygon vertex count
     studio_linked_text_marker: str = "#64c8ff"       # cyan marker on shape linked to text
+    studio_thirds_guide: str = "#ffffff"             # rule-of-thirds line color
+    studio_thirds_guide_alpha: int = 140             # rule-of-thirds line opacity
+    studio_thirds_guide_pen_width: float = 1.0       # rule-of-thirds pen width
+    studio_scene_align_guide_pen_width: float = 1.0  # smart snap guide pen width
+    studio_ruler_minor_alpha: int = 90               # ruler minor tick opacity
+    studio_ruler_tick_pen_width: int = 1             # ruler tick pen width
     # Browser extras
     grid_folder_tag_alpha: int = 60        # folder label tag bg opacity
     tag_bar_active_alpha: int = 255        # active tag button opacity

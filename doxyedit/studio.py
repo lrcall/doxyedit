@@ -81,8 +81,8 @@ class StudioScene(QGraphicsScene):
         super().__init__(parent)
         self._grid_visible = False
         self._grid_spacing = STUDIO_GRID_SPACING
-        _dt = THEMES[DEFAULT_THEME]
-        self.setBackgroundBrush(QBrush(QColor(_dt.bg_deep)))
+        self._theme = THEMES[DEFAULT_THEME]
+        self.setBackgroundBrush(QBrush(QColor(self._theme.bg_deep)))
 
         self.current_tool = StudioTool.SELECT
         self._draw_start: QPointF | None = None
@@ -141,14 +141,11 @@ class StudioScene(QGraphicsScene):
     def drawForeground(self, painter, rect):
         """Draw snap grid, rule-of-thirds, and smart-guide overlay."""
         super().drawForeground(painter, rect)
+        _t = self._theme
         if self._grid_visible:
-            # Prefer the active theme's accent_dim for grid lines so grid
-            # colors harmonize with the palette; fall back to neutral gray.
-            theme_ref = getattr(self, "_theme", None)
-            if theme_ref is not None:
-                grid_color = QColor(theme_ref.accent_dim)
-            else:
-                grid_color = QColor(128, 128, 128)
+            # Use the active theme's accent_dim for grid lines so grid
+            # colors harmonize with the palette.
+            grid_color = QColor(_t.accent_dim)
             grid_color.setAlpha(STUDIO_GRID_PEN_ALPHA)
             pen = QPen(grid_color, STUDIO_GRID_PEN_WIDTH)
             painter.setPen(pen)
@@ -172,7 +169,10 @@ class StudioScene(QGraphicsScene):
                     img_rect = it.sceneBoundingRect()
                     break
             if img_rect is not None:
-                pen = QPen(QColor(255, 255, 255, 140), 1, Qt.PenStyle.DashLine)
+                thirds_color = QColor(_t.studio_thirds_guide)
+                thirds_color.setAlpha(_t.studio_thirds_guide_alpha)
+                pen = QPen(thirds_color, _t.studio_thirds_guide_pen_width,
+                           Qt.PenStyle.DashLine)
                 painter.setPen(pen)
                 x1 = img_rect.left() + img_rect.width() / 3
                 x2 = img_rect.left() + 2 * img_rect.width() / 3
@@ -189,7 +189,10 @@ class StudioScene(QGraphicsScene):
 
         # Smart snap guides: dashed magenta lines drawn during drag
         if self._snap_guides:
-            guide_pen = QPen(QColor(255, 0, 200, 200), 1, Qt.PenStyle.DashLine)
+            guide_color = QColor(_t.studio_scene_align_guide)
+            guide_color.setAlpha(_t.studio_scene_align_guide_alpha)
+            guide_pen = QPen(guide_color, _t.studio_scene_align_guide_pen_width,
+                             Qt.PenStyle.DashLine)
             painter.setPen(guide_pen)
             for x1, y1, x2, y2 in self._snap_guides:
                 painter.drawLine(int(x1), int(y1), int(x2), int(y2))
@@ -1760,11 +1763,11 @@ class _StudioRuler(QWidget):
         minor_step = major_step / 5.0 if _unit != "px" else max(1, int(major_step // 5))
         # Set up pens + font — minor ticks are dimmer
         _minor_color = QColor(self._theme.text_muted)
-        _minor_color.setAlpha(90)
+        _minor_color.setAlpha(self._theme.studio_ruler_minor_alpha)
         pen_minor = QPen(_minor_color)
-        pen_minor.setWidth(1)
+        pen_minor.setWidth(self._theme.studio_ruler_tick_pen_width)
         pen_major = QPen(QColor(self._theme.text_muted))
-        pen_major.setWidth(1)
+        pen_major.setWidth(self._theme.studio_ruler_tick_pen_width)
         font = p.font()
         font.setPointSizeF(max(7.0, font.pointSizeF() * 0.80))
         p.setFont(font)
