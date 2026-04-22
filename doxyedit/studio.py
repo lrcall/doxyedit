@@ -4317,6 +4317,12 @@ class StudioEditor(QWidget):
         if ctrl and not shift and key == Qt.Key.Key_Semicolon:
             self._toggle_guides_visibility()
             return
+        # Backslash (\) — hold to preview base art with overlays hidden.
+        # Release restores visibility. Like Photoshop's 'quick mask off'
+        # peek. Ignores auto-repeat so it fires exactly once per press.
+        if key == Qt.Key.Key_Backslash and not event.isAutoRepeat():
+            self._set_overlays_preview_hidden(True)
+            return
         # Shift+H / Shift+V drops a horizontal / vertical guide at the
         # current cursor position. Saves the ruler-drag gesture for a
         # single click-and-go workflow when the user knows where they
@@ -4579,6 +4585,11 @@ class StudioEditor(QWidget):
             return
 
     def keyReleaseEvent(self, event: QKeyEvent):
+        # Release backslash — restore overlay visibility after preview peek
+        if (event.key() == Qt.Key.Key_Backslash
+                and not event.isAutoRepeat()):
+            self._set_overlays_preview_hidden(False)
+            return
         # Release spacebar pan — restore previous drag mode
         if (event.key() == Qt.Key.Key_Space
                 and not event.isAutoRepeat()
@@ -5904,6 +5915,29 @@ class StudioEditor(QWidget):
             self._asset.guides = []
         if hasattr(self, "_canvas_wrap"):
             self._canvas_wrap.refresh()
+
+    def _set_overlays_preview_hidden(self, hidden: bool):
+        """While `\\` is held, temporarily hide every overlay / censor /
+        note so the user sees the base art alone. Release restores each
+        item to whatever its persistent `enabled` flag says. Avoids
+        mutating the persistent state so there's no risk of losing
+        visibility on accidental bugs."""
+        for it in self._scene.items():
+            ov = getattr(it, "overlay", None)
+            cr = getattr(it, "_censor_region", None)
+            note = getattr(it, "_note_rect", None)
+            if ov is not None:
+                if hidden:
+                    it.setVisible(False)
+                else:
+                    it.setVisible(bool(ov.enabled))
+            elif cr is not None:
+                it.setVisible(not hidden)
+            elif note is not None:
+                it.setVisible(not hidden)
+        if hasattr(self, "info_label"):
+            self.info_label.setText(
+                "Previewing base art" if hidden else "Overlays restored")
 
     def _toggle_guides_visibility(self):
         """Hide / show existing guides without deleting them. Ctrl+; keymap.
