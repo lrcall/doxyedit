@@ -4306,6 +4306,17 @@ class StudioEditor(QWidget):
         if ctrl and not shift and key == Qt.Key.Key_Semicolon:
             self._toggle_guides_visibility()
             return
+        # Shift+H / Shift+V drops a horizontal / vertical guide at the
+        # current cursor position. Saves the ruler-drag gesture for a
+        # single click-and-go workflow when the user knows where they
+        # want the guide. Ctrl+Shift+G was reserved, so Shift+letter
+        # stays clear of the app's global shortcuts.
+        if shift and not ctrl and key == Qt.Key.Key_H:
+            self._add_guide_at_cursor('h')
+            return
+        if shift and not ctrl and key == Qt.Key.Key_V:
+            self._add_guide_at_cursor('v')
+            return
         # Ctrl+/ opens the Studio keyboard cheat sheet.
         if ctrl and key == Qt.Key.Key_Slash:
             self._show_shortcuts_cheat_sheet()
@@ -5725,6 +5736,44 @@ class StudioEditor(QWidget):
         else:
             line.setLine(pos, pixmap_rect.top(), pos, pixmap_rect.bottom())
             self.info_label.setText(f"Guide X = {int(pos)}")
+
+    def _add_guide_at_cursor(self, orientation: str):
+        """Drop a new guide of the given orientation at the current scene-
+        space cursor position. Bound to Shift+H (horizontal) and Shift+V
+        (vertical) for rapid guide placement without dragging the ruler."""
+        if not self._pixmap_item:
+            return
+        last = getattr(self, "_last_cursor_scene_pos", None)
+        if last is None:
+            pm = self._pixmap_item.pixmap()
+            pos = pm.height() / 2 if orientation == 'h' else pm.width() / 2
+        else:
+            pos = last.y() if orientation == 'h' else last.x()
+        rect = self._pixmap_item.boundingRect()
+        line = _GuideLineItem()
+        line._guide_orientation = orientation
+        line._editor = self
+        line.setCursor(Qt.CursorShape.SizeVerCursor if orientation == 'h'
+                       else Qt.CursorShape.SizeHorCursor)
+        from PySide6.QtGui import QPen as _QPen, QColor as _QColor
+        line.setPen(_QPen(_QColor(self._theme.accent), 1, Qt.PenStyle.DashLine))
+        line.setZValue(400)
+        if orientation == 'h':
+            line.setLine(rect.left(), pos, rect.right(), pos)
+        else:
+            line.setLine(pos, rect.top(), pos, rect.bottom())
+        line.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
+        line.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        line.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
+        self._scene.addItem(line)
+        if not hasattr(self, "_guide_items"):
+            self._guide_items = []
+        self._guide_items.append(line)
+        self._save_guides_to_asset()
+        if hasattr(self, "_canvas_wrap"):
+            self._canvas_wrap.refresh()
+        self.info_label.setText(
+            f"Added {'horizontal' if orientation == 'h' else 'vertical'} guide")
 
     def _commit_preview_guide(self):
         """Drop the pending guide onto the scene permanently (or remove it if
