@@ -4600,9 +4600,11 @@ class StudioEditor(QWidget):
                 self._sync_overlays_to_asset()
                 self.info_label.setText("Swapped fill and stroke colors")
             return
-        # Ctrl+Alt+T - numeric transform dialog for the selected overlay.
-        # Gives the user pixel-precise control for print layouts without
-        # eyeballing the spinners in the prop panel.
+        # Ctrl+T opens the full Transform dialog (position + size + rot +
+        # skew + flip). Ctrl+Alt+T kept as an alias for muscle memory.
+        if ctrl and not shift and key == Qt.Key.Key_T:
+            self._open_transform_dialog()
+            return
         if ctrl and alt and not shift and key == Qt.Key.Key_T:
             self._open_transform_dialog()
             return
@@ -9467,10 +9469,11 @@ class StudioEditor(QWidget):
         dlg.exec()
 
     def _open_transform_dialog(self):
-        """Modal dialog with X / Y / W / H / Rotation for the first
-        selected overlay. Lets the user dial in exact pixel coordinates
-        without spinning sliders. Ignores selections without a meaningful
-        x/y/w/h (arrows use endpoints; skip them here)."""
+        """Ctrl+T Transform dialog — the universal 'everything about
+        position + rotation + scale + skew' popup. Replaces the smaller
+        numeric-only transform from Ctrl+Alt+T. Applies to the first
+        selected overlay; shape / image / text all supported. Arrows
+        use endpoints — see the arrow-specific context menu instead."""
         sel = [it for it in self._scene.selectedItems()
                if isinstance(it, (OverlayImageItem, OverlayTextItem,
                                    OverlayShapeItem))]
@@ -9478,44 +9481,97 @@ class StudioEditor(QWidget):
             self.info_label.setText("Nothing to transform")
             return
         from PySide6.QtWidgets import (QDialog, QFormLayout, QSpinBox,
-                                         QDialogButtonBox, QHBoxLayout)
+                                         QDoubleSpinBox, QDialogButtonBox,
+                                         QLabel, QHBoxLayout, QCheckBox)
         dlg = QDialog(self)
-        dlg.setWindowTitle("Transform Overlay")
+        dlg.setWindowTitle("Transform")
+        dlg.setMinimumWidth(320)
         form = QFormLayout(dlg)
         item = sel[0]
         ov = item.overlay
         rect = item.sceneBoundingRect()
-        # X / Y spin boxes in scene pixels
-        sx = QSpinBox(); sx.setRange(-99999, 99999); sx.setValue(int(ov.x))
-        sy = QSpinBox(); sy.setRange(-99999, 99999); sy.setValue(int(ov.y))
-        sw = QSpinBox(); sw.setRange(1, 99999)
-        sh = QSpinBox(); sh.setRange(1, 99999)
-        sr = QSpinBox(); sr.setRange(-360, 360)
-        sr.setValue(int(getattr(ov, "rotation", 0)))
+
+        form.addRow(QLabel("<b>Position</b>"))
+        sx = QSpinBox(); sx.setRange(-99999, 99999); sx.setSuffix(" px")
+        sx.setValue(int(ov.x))
+        sy = QSpinBox(); sy.setRange(-99999, 99999); sy.setSuffix(" px")
+        sy.setValue(int(ov.y))
+        form.addRow("X", sx)
+        form.addRow("Y", sy)
+
+        form.addRow(QLabel("<b>Size</b>"))
+        sw = QSpinBox(); sw.setRange(1, 99999); sw.setSuffix(" px")
+        sh = QSpinBox(); sh.setRange(1, 99999); sh.setSuffix(" px")
         if isinstance(item, OverlayShapeItem):
             sw.setValue(int(ov.shape_w))
             sh.setValue(int(ov.shape_h))
         else:
             sw.setValue(max(1, int(rect.width())))
             sh.setValue(max(1, int(rect.height())))
-            # For image overlays the width is driven by scale; edit via
-            # spin box prompts a scale recompute only on OK. Mark disabled
-            # for text until they adopt a width spinner of their own.
             if isinstance(item, OverlayTextItem):
                 sw.setEnabled(False)
                 sh.setEnabled(False)
-        form.addRow("X", sx)
-        form.addRow("Y", sy)
         form.addRow("Width", sw)
         form.addRow("Height", sh)
+        # Aspect-lock toggle. When on, editing W drives H proportionally.
+        aspect_cb = QCheckBox("Lock aspect ratio")
+        form.addRow("", aspect_cb)
+        _ar = [sw.value() / max(1, sh.value())]
+        def _w_changed(v):
+            if aspect_cb.isChecked() and sh.isEnabled():
+                sh.blockSignals(True)
+                sh.setValue(max(1, int(v / _ar[0])))
+                sh.blockSignals(False)
+        def _h_changed(v):
+            if aspect_cb.isChecked() and sw.isEnabled():
+                sw.blockSignals(True)
+                sw.setValue(max(1, int(v * _ar[0])))
+                sw.blockSignals(False)
+        sw.valueChanged.connect(_w_changed)
+        sh.valueChanged.connect(_h_changed)
+
+        form.addRow(QLabel("<b>Rotation / Skew</b>"))
+        sr = QSpinBox(); sr.setRange(-360, 360); sr.setSuffix("°")
+        sr.setValue(int(getattr(ov, "rotation", 0)))
         form.addRow("Rotation", sr)
+        skew_x = QDoubleSpinBox()
+        skew_x.setRange(-85.0, 85.0); skew_x.setSuffix("°")
+        skew_x.setValue(float(getattr(ov, "skew_x", 0.0)))
+        skew_x.setToolTip("Horizontal skew in degrees (-85 to 85)")
+        form.addRow("Skew X", skew_x)
+        skew_y = QDoubleSpinBox()
+        skew_y.setRange(-85.0, 85.0); skew_y.setSuffix("°")
+        skew_y.setValue(float(getattr(ov, "skew_y", 0.0)))
+        skew_y.setToolTip("Vertical skew in degrees (-85 to 85)")
+        form.addRow("Skew Y", skew_y)
+
+        form.addRow(QLabel("<b>Flip</b>"))
+        flip_row = QHBoxLayout()
+        flip_h = QCheckBox("Horizontal")
+        flip_h.setChecked(bool(getattr(ov, "flip_h", False)))
+        flip_v = QCheckBox("Vertical")
+        flip_v.setChecked(bool(getattr(ov, "flip_v", False)))
+        flip_row.addWidget(flip_h); flip_row.addWidget(flip_v); flip_row.addStretch()
+        _fw = QWidget()
+        _fw.setLayout(flip_row)
+        form.addRow("", _fw)
+
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel)
+            | QDialogButtonBox.StandardButton.Cancel
+            | QDialogButtonBox.StandardButton.Reset)
         form.addRow(buttons)
         buttons.accepted.connect(dlg.accept)
         buttons.rejected.connect(dlg.reject)
-        # Inherit the app stylesheet so the dialog themes correctly
+        def _reset():
+            sr.setValue(0)
+            skew_x.setValue(0.0)
+            skew_y.setValue(0.0)
+            flip_h.setChecked(False)
+            flip_v.setChecked(False)
+        buttons.button(QDialogButtonBox.StandardButton.Reset).clicked.connect(
+            _reset)
+
         win = self.window()
         if win is not None:
             dlg.setStyleSheet(win.styleSheet())
@@ -9528,23 +9584,43 @@ class StudioEditor(QWidget):
         ov.x = sx.value()
         ov.y = sy.value()
         ov.rotation = sr.value() % 360
+        ov.skew_x = skew_x.value()
+        ov.skew_y = skew_y.value()
+        ov.flip_h = flip_h.isChecked()
+        ov.flip_v = flip_v.isChecked()
         if isinstance(item, OverlayShapeItem):
             ov.shape_w = sw.value()
             ov.shape_h = sh.value()
-            item.setTransformOriginPoint(
-                ov.x + ov.shape_w / 2, ov.y + ov.shape_h / 2)
-            item.setRotation(ov.rotation)
-            item.prepareGeometryChange()
-            item.update()
-        else:
+            self._apply_transform_to_shape(item)
+        elif isinstance(item, OverlayImageItem):
             item.setPos(ov.x, ov.y)
             if hasattr(item, "_apply_flip"):
                 item._apply_flip()
-            elif hasattr(item, "_apply_flip_text"):
+        elif isinstance(item, OverlayTextItem):
+            item.setPos(ov.x, ov.y)
+            if hasattr(item, "_apply_flip_text"):
                 item._apply_flip_text()
         self._sync_overlays_to_asset()
         self.info_label.setText(
-            f"Transformed to {sx.value()}, {sy.value()}")
+            f"Transformed: {sx.value()}, {sy.value()}  rot {sr.value()}°")
+
+    def _apply_transform_to_shape(self, item):
+        """Combine rotation + skew_x + skew_y into the shape's QTransform.
+        Pivots on the body center so rotation / skew feel natural."""
+        from PySide6.QtGui import QTransform
+        import math as _m
+        ov = item.overlay
+        cx = ov.x + ov.shape_w / 2
+        cy = ov.y + ov.shape_h / 2
+        item.setTransformOriginPoint(cx, cy)
+        t = QTransform()
+        if getattr(ov, "skew_x", 0.0) or getattr(ov, "skew_y", 0.0):
+            t.shear(_m.tan(_m.radians(ov.skew_x)),
+                    _m.tan(_m.radians(ov.skew_y)))
+        item.setTransform(t)
+        item.setRotation(ov.rotation)
+        item.prepareGeometryChange()
+        item.update()
 
     def _rotate_selected(self, step: int):
         """Add step degrees to the rotation of every selected overlay."""

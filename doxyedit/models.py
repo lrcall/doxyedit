@@ -255,6 +255,11 @@ class CanvasOverlay:
     # one selects the whole group. Set via Studio's Ctrl+G; cleared by
     # Ctrl+Shift+G. Empty string means 'not grouped'.
     group_id: str = ""
+    # Skew angles in degrees (Ctrl+T Transform dialog). Shape overlays
+    # apply via QTransform.shear; images / text honor them through their
+    # respective _apply_flip / _apply_flip_text transform composition.
+    skew_x: float = 0.0
+    skew_y: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)
