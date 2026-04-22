@@ -3477,6 +3477,8 @@ class StudioScene(QGraphicsScene):
         add_poly_act = add_menu.addAction("Polygon (hexagon)")
         add_lingrad_act = add_menu.addAction("Linear Gradient (dark top)")
         add_radgrad_act = add_menu.addAction("Radial Gradient (vignette)")
+        add_menu.addSeparator()
+        add_callout_act = add_menu.addAction("Numbered Callout")
         fit_act = menu.addAction("Fit View  (Ctrl+0)")
         z100_act = menu.addAction("Zoom 100%  (Ctrl+1)")
         fit_w_act = menu.addAction("Fit Width")
@@ -3667,6 +3669,63 @@ class StudioScene(QGraphicsScene):
                     cursor.select(cursor.SelectionType.Document)
                     text_item.setTextCursor(cursor)
             editor._rebuild_layer_panel()
+        elif chosen is add_callout_act:
+            # Numbered callout: auto-increments based on how many
+            # text overlays already carry a callout marker in their
+            # label (so sequential clicks create 1, 2, 3, ...). Uses
+            # a circle shape + a text overlay for the number. The
+            # circle's label is 'callout_<N>' so future scans can
+            # identify and renumber the set.
+            next_n = 1
+            for _ov in editor._asset.overlays:
+                _lbl = getattr(_ov, "label", "") or ""
+                if _lbl.startswith("callout_"):
+                    try:
+                        _n = int(_lbl.split("_")[1])
+                        next_n = max(next_n, _n + 1)
+                    except (ValueError, IndexError):
+                        continue
+            cx = int(pos.x())
+            cy = int(pos.y())
+            diameter = 48
+            # The backing circle
+            circle = CanvasOverlay(
+                type="shape",
+                label=f"callout_{next_n}",
+                shape_kind="ellipse",
+                color="#ffffff",
+                stroke_color="#000000", stroke_width=3,
+                fill_color="#ffffff", opacity=1.0,
+                x=cx - diameter // 2, y=cy - diameter // 2,
+                shape_w=diameter, shape_h=diameter,
+            )
+            editor._asset.overlays.append(circle)
+            c_item = editor._create_overlay_item(circle)
+            if c_item:
+                c_item.setZValue(200 + len(editor._overlay_items))
+                editor._overlay_items.append(c_item)
+            # The number itself
+            num_ov = CanvasOverlay(
+                type="text",
+                label=f"callout_{next_n}_text",
+                text=str(next_n),
+                opacity=1.0,
+                position="custom",
+                x=cx - diameter // 2,
+                y=cy - diameter // 2 + 4,
+                text_width=diameter,
+                font_size=28,
+                bold=True,
+                text_align="center",
+                color="#000000",
+            )
+            editor._asset.overlays.append(num_ov)
+            n_item = editor._create_overlay_item(num_ov)
+            if n_item:
+                n_item.setZValue(200 + len(editor._overlay_items))
+                editor._overlay_items.append(n_item)
+            editor._rebuild_layer_panel()
+            editor.info_label.setText(f"Added callout {next_n}")
         elif chosen in (add_lingrad_act, add_radgrad_act):
             is_radial = chosen is add_radgrad_act
             if is_radial and editor._pixmap_item:
