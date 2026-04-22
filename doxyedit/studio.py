@@ -6224,6 +6224,38 @@ class StudioEditor(QWidget):
                 QApplication.clipboard().setText(txt)
                 self.info_label.setText(f"Copied geometry: {txt}")
             return
+        # Alt+B / Alt+Shift+B - cycle blend mode forward / backward on
+        # all selected non-censor overlays. Photoshop has Shift++ /
+        # Shift+- but those conflict with zoom; Alt+B keeps bindings
+        # isolated. Cycle wraps at both ends.
+        if alt and not ctrl and key == Qt.Key.Key_B:
+            _modes = ("normal", "multiply", "screen", "overlay",
+                       "darken", "lighten")
+            direction = -1 if shift else +1
+            touched = 0
+            for it in self._scene.selectedItems():
+                ov = getattr(it, "overlay", None)
+                if ov is None:
+                    continue
+                cur_mode = getattr(ov, "blend_mode", "normal")
+                idx = _modes.index(cur_mode) if cur_mode in _modes else 0
+                new_mode = _modes[(idx + direction) % len(_modes)]
+                ov.blend_mode = new_mode
+                if hasattr(it, "update"):
+                    it.update()
+                touched += 1
+            if touched:
+                self._sync_overlays_to_asset()
+                # Pick the first selection to report the new mode
+                first = next((it for it in self._scene.selectedItems()
+                               if getattr(it, "overlay", None)), None)
+                mode_name = (
+                    first.overlay.blend_mode.title()
+                    if first and hasattr(first, "overlay") else "normal")
+                self.info_label.setText(
+                    f"Blend mode: {mode_name} ({touched} layer"
+                    f"{'s' if touched != 1 else ''})")
+            return
         # Alt+I - toggle isolation mode. When off, solos the first
         # selected overlay (hides every other layer temporarily). When
         # on, restores all layers to their stored enabled state. Matches
