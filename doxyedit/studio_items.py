@@ -786,12 +786,12 @@ class OverlayShapeItem(QGraphicsItem):
             | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         self.setAcceptHoverEvents(True)
-        # Device-coordinate cache: the rasterized bubble is kept at the
-        # viewport's device scale and re-blitted on drag. Combined with
-        # the path cache below, this means bubble drag is a pure memcpy
-        # per frame (plus the handle overlay which is outside the cache).
-        self.setCacheMode(
-            QGraphicsItem.CacheMode.DeviceCoordinateCache)
+        # No item-level cache: OverlayShapeItem calls prepareGeometryChange
+        # on every drag frame (because paint reads overlay.x/y directly
+        # and boundingRect depends on them), which invalidates any device
+        # cache every frame. The cache would be pure allocation overhead
+        # during drag. Path is cached separately (_cached_path, local
+        # coords) so paint is fast without an item-level cache.
         self._editor = None
         self._dragging_handle = None  # 'tl', 'tr', 'bl', 'br', or None
         self.setZValue(200)
