@@ -7726,6 +7726,56 @@ class StudioEditor(QWidget):
             self.info_label.setText("Text spacing reset")
         _reset_spacing_btn.clicked.connect(_reset_spacing)
         _rk_row.addWidget(_reset_spacing_btn)
+
+        _reset_all_btn = QPushButton("Reset All Style")
+        _reset_all_btn.setToolTip(
+            "Clears shadow + outline + spacing + rotation + bold / "
+            "italic / underline / strike on selected text overlays.")
+        def _reset_all_style():
+            sel = [it for it in self._scene.selectedItems()
+                   if isinstance(it, OverlayTextItem)]
+            if not sel:
+                return
+            for it in sel:
+                ov_r = it.overlay
+                ov_r.bold = False
+                ov_r.italic = False
+                ov_r.underline = False
+                ov_r.strikethrough = False
+                ov_r.letter_spacing = 0.0
+                ov_r.line_height = 1.2
+                ov_r.stroke_color = ""
+                ov_r.stroke_width = 0
+                ov_r.shadow_color = ""
+                ov_r.shadow_offset = 0
+                ov_r.shadow_blur = 0
+                ov_r.rotation = 0.0
+                if hasattr(it, "_apply_font"):
+                    it._apply_font()
+                it.update()
+            # Re-sync every relevant control back to zero / defaults
+            for name, val in (
+                    ("btn_bold", False), ("btn_italic", False),
+                    ("btn_underline", False), ("btn_strikethrough", False),
+                    ("btn_shadow_toggle", False)):
+                if hasattr(self, name):
+                    w = getattr(self, name)
+                    w.blockSignals(True)
+                    w.setChecked(val)
+                    w.blockSignals(False)
+            for name, val in (
+                    ("slider_outline", 0), ("slider_kerning", 0),
+                    ("slider_line_height", 120), ("slider_rotation", 0),
+                    ("slider_shadow_offset", 0), ("slider_shadow_blur", 0)):
+                if hasattr(self, name):
+                    w = getattr(self, name)
+                    w.blockSignals(True)
+                    w.setValue(val)
+                    w.blockSignals(False)
+            self._sync_overlays_to_asset()
+            self.info_label.setText(f"Reset style on {len(sel)} text(s)")
+        _reset_all_btn.clicked.connect(_reset_all_style)
+        _rk_row.addWidget(_reset_all_btn)
         _rk_row.addStretch()
         _rk_w = QWidget(_dlg)
         _rk_w.setLayout(_rk_row)
