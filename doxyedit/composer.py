@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QSettings, Signal, QDateTime
 from doxyedit.themes import ui_font_size
 
-from doxyedit.models import Project, SocialPost, SocialPostStatus, ReleaseStep
+from doxyedit.models import Project, SocialPost, SocialPostStatus, ReleaseStep, PLATFORMS
 from doxyedit.composer_left import ImagePreviewPanel
 from doxyedit.composer_right import ContentPanel
 
@@ -418,7 +418,6 @@ class PostComposerWidget(QWidget):
         # Advisory readiness check
         if status == SocialPostStatus.QUEUED and asset_ids:
             from doxyedit.pipeline import check_readiness
-            from doxyedit.models import PLATFORMS
             issues = []
             for aid in asset_ids[:1]:
                 asset = self._project.get_asset(aid)
