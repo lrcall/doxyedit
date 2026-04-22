@@ -789,6 +789,12 @@ class OverlayShapeItem(QGraphicsItem):
         self._editor = None
         self._dragging_handle = None  # 'tl', 'tr', 'bl', 'br', or None
         self.setZValue(200)
+        # Path cache — (params_tuple, QPainterPath). Bubble paths go
+        # through path.united() + a 72-sample wobble loop on every paint,
+        # so rebuilding per frame murders perf during drag. Cache is
+        # invalidated by the _shape_params_tuple() check inside paint.
+        self._cached_path_key = None
+        self._cached_path = None
         # Apply persisted rotation. Transform origin is the rect center so
         # rotation pivots on the item.
         if getattr(overlay, "rotation", 0):
@@ -796,6 +802,26 @@ class OverlayShapeItem(QGraphicsItem):
                 overlay.x + overlay.shape_w / 2,
                 overlay.y + overlay.shape_h / 2)
             self.setRotation(overlay.rotation)
+
+    def _shape_params_tuple(self) -> tuple:
+        """Tuple of every parameter that affects the shape's painter path.
+        Used as a cache key — if it's unchanged since the last paint, we
+        can re-use the cached QPainterPath instead of rebuilding."""
+        ov = self.overlay
+        return (
+            ov.shape_kind,
+            int(ov.x), int(ov.y),
+            int(ov.shape_w), int(ov.shape_h),
+            getattr(ov, "corner_radius", 0),
+            getattr(ov, "bubble_roundness", 0.0),
+            getattr(ov, "bubble_oval_stretch", 0.0),
+            getattr(ov, "bubble_wobble", 0.0),
+            getattr(ov, "tail_curve", 0.0),
+            getattr(ov, "tail_x", 0), getattr(ov, "tail_y", 0),
+            getattr(ov, "star_points", 0),
+            getattr(ov, "inner_ratio", 0.0),
+            getattr(ov, "polygon_vertices", 0),
+        )
 
     def hoverMoveEvent(self, event):
         # Swap cursor when hovering a handle so users know they can resize
@@ -842,13 +868,14 @@ class OverlayShapeItem(QGraphicsItem):
 
     def _paint_speech_bubble(self, painter, r: QRectF):
         """Rounded-rect body with a triangular tail anchored on the closest
-        edge to tail_tip. Base points are pushed INTO the body by a small
-        overlap so path.united merges the tail and body into a single
-        seamless outline (no visible seam where the triangle meets the
-        rounded-rect edge). Deformers: bubble_roundness (0-1 lerps to
-        a full ellipse), bubble_oval_stretch (±1 squashes the aspect),
-        bubble_wobble (0-1 adds sinusoidal perturbation along the
-        outline)."""
+        edge to tail_tip. Path is cached per parameter-tuple so drag
+        events (which don't change bubble shape) just re-blit the cached
+        path instead of rebuilding (which involves path.united() + up to
+        72 wobble samples — very expensive per frame)."""
+        key = ("speech", self._shape_params_tuple())
+        if self._cached_path_key == key and self._cached_path is not None:
+            painter.drawPath(self._cached_path)
+            return
         pad = min(r.width(), r.height()) * 0.18
         tip = self._tail_tip(r)
         # Tail base: pick two points on the body edge closest to the tip
@@ -950,10 +977,34 @@ class OverlayShapeItem(QGraphicsItem):
                     wobbled.lineTo(nx, ny)
             wobbled.closeSubpath()
             path = wobbled
+        self._cached_path_key = key
+        self._cached_path = path
         painter.drawPath(path)
 
     def _paint_thought_bubble(self, painter, r: QRectF):
-        """Scalloped-cloud body + 2-3 trailing puff circles toward tail."""
+        """Scalloped-cloud body + 2-3 trailing puff circles toward tail.
+        Path cached per parameter-tuple — cloud puffs use path.united()
+        in a loop which is the single most expensive path op in Qt."""
+        key = ("thought", self._shape_params_tuple())
+        if self._cached_path_key == key and self._cached_path is not None:
+            painter.drawPath(self._cached_path)
+            # Trailing small circles can still be drawn per-frame (cheap)
+            tip = self._tail_tip(r)
+            cx, cy = r.center().x(), r.center().y()
+            dx, dy = tip.x() - cx, tip.y() - cy
+            length = math.hypot(dx, dy)
+            if length > 4:
+                rx, ry = r.width() / 2, r.height() / 2
+                puff_r = min(rx, ry) * 0.28
+                ux, uy = dx / length, dy / length
+                start_offset = min(rx, ry) * 0.85
+                for i, frac in enumerate((0.25, 0.55, 0.85)):
+                    pr = puff_r * (0.55 - i * 0.15)
+                    ppos = QPointF(
+                        cx + ux * (start_offset + length * frac * 0.6),
+                        cy + uy * (start_offset + length * frac * 0.6))
+                    painter.drawEllipse(ppos, pr, pr)
+            return
         path = QPainterPath()
         # Build the cloud by unioning a central ellipse with 8 edge puffs.
         cx, cy = r.center().x(), r.center().y()
@@ -968,6 +1019,8 @@ class OverlayShapeItem(QGraphicsItem):
             sub = QPainterPath()
             sub.addEllipse(QPointF(px, py), puff_r, puff_r)
             path = path.united(sub)
+        self._cached_path_key = key
+        self._cached_path = path
         painter.drawPath(path)
         # Trailing small circles toward the tail
         tip = self._tail_tip(r)
