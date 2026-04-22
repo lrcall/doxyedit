@@ -4932,9 +4932,8 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     ov_x.flip_h = False
                     ov_x.flip_v = False
                     ov_x.blend_mode = "normal"
-                    from PySide6.QtGui import QTransform as _QT
                     x.setRotation(0)
-                    x.setTransform(_QT())
+                    x.setTransform(QTransform())
                     x.update()
                 editor._sync_overlays_to_asset()
                 if hasattr(editor, "info_label"):
@@ -7218,8 +7217,7 @@ class StudioEditor(QWidget):
                     ov.skew_y = 0.0
                 if isinstance(it, OverlayShapeItem):
                     it.setRotation(0)
-                    from PySide6.QtGui import QTransform as _QT
-                    it.setTransform(_QT())
+                    it.setTransform(QTransform())
                 elif hasattr(it, "_apply_flip"):
                     it._apply_flip()
                 elif hasattr(it, "_apply_flip_text"):
@@ -9832,8 +9830,7 @@ class StudioEditor(QWidget):
         line._editor = self
         line.setCursor(Qt.CursorShape.SizeVerCursor if orientation == 'h'
                        else Qt.CursorShape.SizeHorCursor)
-        from PySide6.QtGui import QPen as _QPen, QColor as _QColor
-        line.setPen(_QPen(_QColor(self._theme.accent), 1, Qt.PenStyle.DashLine))
+        line.setPen(QPen(QColor(self._theme.accent), 1, Qt.PenStyle.DashLine))
         line.setZValue(400)
         if orientation == 'h':
             line.setLine(rect.left(), pos, rect.right(), pos)
@@ -9945,15 +9942,14 @@ class StudioEditor(QWidget):
         rect = self._pixmap_item.boundingRect()
         w = rect.width()
         h = rect.height()
-        from PySide6.QtGui import QPen as _QPen, QColor as _QColor
         def _place(orient, pos):
             line = _GuideLineItem()
             line._guide_orientation = orient
             line._editor = self
             line.setCursor(Qt.CursorShape.SizeVerCursor if orient == 'h'
                            else Qt.CursorShape.SizeHorCursor)
-            line.setPen(_QPen(_QColor(self._theme.accent), 1,
-                               Qt.PenStyle.DashLine))
+            line.setPen(QPen(QColor(self._theme.accent), 1,
+                              Qt.PenStyle.DashLine))
             line.setZValue(400)
             if orient == 'h':
                 line.setLine(rect.left(), pos, rect.right(), pos)
