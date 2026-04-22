@@ -3637,17 +3637,66 @@ class _ColorSwatchButton(QPushButton):
     """QPushButton that paints a filled square showing the current color
     and an outline ring. Used for the fill / outline color pickers in
     the Text Controls dialog so a theme QSS can never make the swatch
-    invisible (the glyph fallback went white-on-white in some themes)."""
+    invisible (the glyph fallback went white-on-white in some themes).
+    Right-click opens a recent-color popup so users can reapply a
+    recently-chosen color without reopening QColorDialog."""
 
     def __init__(self, is_outline: bool = False, parent=None):
         super().__init__("", parent)
         self._is_outline = is_outline
         self._color = QColor("#000000")
         self.setMinimumSize(32, 26)
+        # on_color_picked: (hex) -> None, called when user picks a
+        # recent color from the right-click popup. Owner sets this.
+        self.on_color_picked = None
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_recent_popup)
 
-    def setSwatchColor(self, color: QColor | str):
+    def setSwatchColor(self, color):
         self._color = QColor(color) if not isinstance(color, QColor) else color
         self.update()
+
+    def _show_recent_popup(self, pos):
+        """Popup a small palette grid of recent colors; clicking one
+        triggers on_color_picked so the overlay / default updates."""
+        from PySide6.QtWidgets import QMenu, QWidgetAction, QGridLayout
+        # Walk up to find the editor with _get_recent_colors
+        editor = self.window()
+        if not (editor and hasattr(editor, "_get_recent_colors")):
+            # Window() might be the app wrapper; scan for a Studio
+            # ancestor by attribute duck-typing.
+            p = self.parent()
+            while p is not None and not hasattr(p, "_get_recent_colors"):
+                p = p.parent()
+            editor = p
+        if editor is None or not hasattr(editor, "_get_recent_colors"):
+            return
+        colors = editor._get_recent_colors()
+        if not colors:
+            return
+        menu = QMenu(self)
+        menu.setStyleSheet(self.window().styleSheet() if self.window() else "")
+        grid_widget = QWidget(menu)
+        grid = QGridLayout(grid_widget)
+        grid.setContentsMargins(6, 6, 6, 6)
+        grid.setSpacing(3)
+        for i, hex_c in enumerate(colors):
+            btn = QPushButton(grid_widget)
+            btn.setFixedSize(24, 24)
+            btn.setStyleSheet(
+                f"background: {hex_c}; border: 1px solid #333;")
+            btn.setToolTip(hex_c)
+            def _pick(_c=hex_c):
+                if callable(self.on_color_picked):
+                    self.on_color_picked(_c)
+                self.setSwatchColor(_c)
+                menu.close()
+            btn.clicked.connect(_pick)
+            grid.addWidget(btn, i // 4, i % 4)
+        act = QWidgetAction(menu)
+        act.setDefaultWidget(grid_widget)
+        menu.addAction(act)
+        menu.exec(self.mapToGlobal(pos))
 
     def paintEvent(self, ev):
         # Let the theme draw the button frame, then paint the swatch on top.
@@ -5097,15 +5146,18 @@ class StudioEditor(QWidget):
         self.btn_color = _ColorSwatchButton(is_outline=False)
         self.btn_color.setObjectName("studio_color_btn")
         self.btn_color.setFixedWidth(_icon_btn_w)
-        self.btn_color.setToolTip("Fill color")
+        self.btn_color.setToolTip("Fill color (right-click for recent)")
         self.btn_color.clicked.connect(self._on_color_pick)
+        self.btn_color.on_color_picked = self._apply_text_color
         props.addWidget(self.btn_color)
 
         self.btn_outline_color = _ColorSwatchButton(is_outline=True)
         self.btn_outline_color.setObjectName("studio_outline_btn")
         self.btn_outline_color.setFixedWidth(_icon_btn_w)
-        self.btn_outline_color.setToolTip("Outline color")
+        self.btn_outline_color.setToolTip(
+            "Outline color (right-click for recent)")
         self.btn_outline_color.clicked.connect(self._on_outline_color_pick)
+        self.btn_outline_color.on_color_picked = self._apply_outline_color
         props.addWidget(self.btn_outline_color)
 
         props.addWidget(QLabel("OL:"))
@@ -7541,16 +7593,28 @@ class StudioEditor(QWidget):
         current = QColor(items[0].overlay.color)
         color = QColorDialog.getColor(current, self, "Overlay Color")
         if color.isValid():
-            for item in items:
-                if isinstance(item, OverlayTextItem):
-                    self._push_overlay_attr(
-                        item, "color", color.name(),
-                        apply_cb=lambda it, _v: it._apply_font(),
-                        description="Change text color",
-                    )
-            if hasattr(self.btn_color, "setSwatchColor"):
-                self.btn_color.setSwatchColor(color)
-            self._sync_overlays_to_asset()
+            self._apply_text_color(color.name())
+
+    def _apply_text_color(self, hex_color):
+        """Push a color onto every selected text overlay + sync. Shared
+        path for QColorDialog pick and the recent-color popup."""
+        items = self._selected_overlay_items()
+        if not items:
+            return
+        color = QColor(hex_color)
+        if not color.isValid():
+            return
+        for item in items:
+            if isinstance(item, OverlayTextItem):
+                self._push_overlay_attr(
+                    item, "color", color.name(),
+                    apply_cb=lambda it, _v: it._apply_font(),
+                    description="Change text color",
+                )
+        if hasattr(self.btn_color, "setSwatchColor"):
+            self.btn_color.setSwatchColor(color)
+        self._add_recent_color(color.name())
+        self._sync_overlays_to_asset()
 
     def _on_outline_color_pick(self):
         items = self._selected_overlay_items()
@@ -7559,26 +7623,38 @@ class StudioEditor(QWidget):
         current = QColor(items[0].overlay.stroke_color or "#000000")
         color = QColorDialog.getColor(current, self, "Outline Color")
         if color.isValid():
-            if hasattr(self.btn_outline_color, "setSwatchColor"):
-                self.btn_outline_color.setSwatchColor(color)
-            for item in items:
-                if isinstance(item, OverlayTextItem):
+            self._apply_outline_color(color.name())
+
+    def _apply_outline_color(self, hex_color):
+        """Shared path for outline color updates from the dialog or the
+        swatch button's recent-color popup."""
+        items = self._selected_overlay_items()
+        if not items:
+            return
+        color = QColor(hex_color)
+        if not color.isValid():
+            return
+        if hasattr(self.btn_outline_color, "setSwatchColor"):
+            self.btn_outline_color.setSwatchColor(color)
+        for item in items:
+            if isinstance(item, OverlayTextItem):
+                self._push_overlay_attr(
+                    item, "stroke_color", color.name(),
+                    apply_cb=lambda it, _v: it.update(),
+                    description="Change outline color",
+                )
+                if item.overlay.stroke_width == 0:
+                    # Also bump width to 2 so the color change is visible
                     self._push_overlay_attr(
-                        item, "stroke_color", color.name(),
+                        item, "stroke_width", 2,
                         apply_cb=lambda it, _v: it.update(),
-                        description="Change outline color",
+                        description="Set outline width",
                     )
-                    if item.overlay.stroke_width == 0:
-                        # Also bump width to 2 so the color change is visible
-                        self._push_overlay_attr(
-                            item, "stroke_width", 2,
-                            apply_cb=lambda it, _v: it.update(),
-                            description="Set outline width",
-                        )
-                        self.slider_outline.blockSignals(True)
-                        self.slider_outline.setValue(2)
-                        self.slider_outline.blockSignals(False)
-            self._sync_overlays_to_asset()
+                    self.slider_outline.blockSignals(True)
+                    self.slider_outline.setValue(2)
+                    self.slider_outline.blockSignals(False)
+        self._add_recent_color(color.name())
+        self._sync_overlays_to_asset()
 
     def _on_outline_changed(self, value: int):
         # Text: outline stroke_width; Arrow: line stroke_width.
