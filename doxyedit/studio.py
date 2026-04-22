@@ -9735,8 +9735,34 @@ class StudioEditor(QWidget):
         self._cursor_label = QLabel("0, 0")
         self._cursor_label.setObjectName("studio_cursor_label")
         self._cursor_label.setToolTip(
-            "Cursor position in image pixels + color under cursor")
+            "Cursor position in image pixels + color under cursor. "
+            "Left-click to center view on a coordinate; right-click "
+            "to copy the current position to clipboard.")
         self._cursor_label.setFixedWidth(int(_dt.font_size * 14))
+        self._cursor_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Left-click opens a Go-To dialog so the user can center on a
+        # specific scene coordinate. Right-click copies the current
+        # cursor coord (whatever's shown) to clipboard.
+        def _cursor_press(ev):
+            from PySide6.QtCore import Qt as _QtC
+            if ev.button() == _QtC.MouseButton.LeftButton:
+                self._prompt_goto_coord()
+        self._cursor_label.mousePressEvent = _cursor_press
+        self._cursor_label.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        def _cursor_ctx(pos):
+            from PySide6.QtWidgets import QApplication
+            m = _themed_menu(self._cursor_label)
+            act_copy = m.addAction("Copy coordinate to clipboard")
+            act_goto = m.addAction("Go to coordinate...")
+            chosen = m.exec(self._cursor_label.mapToGlobal(pos))
+            if chosen is act_copy:
+                txt = self._cursor_label.text()
+                QApplication.clipboard().setText(txt)
+                self.info_label.setText(f"Copied: {txt}")
+            elif chosen is act_goto:
+                self._prompt_goto_coord()
+        self._cursor_label.customContextMenuRequested.connect(_cursor_ctx)
         status_bar.addWidget(self._cursor_label)
 
         self._selection_label = QLabel("0 selected")
@@ -10423,6 +10449,33 @@ class StudioEditor(QWidget):
             self, "Zoom", "Zoom (%):", value=current, minValue=5, maxValue=4000)
         if ok:
             self._set_zoom(pct / 100.0)
+
+    def _prompt_goto_coord(self):
+        """Go-to dialog: prompt for X then Y and center the viewport
+        on that scene coord. Parses the current cursor label value
+        as the default for both axes, so a user can click 'Go to' and
+        hit Enter to recenter on the cursor position."""
+        cur_txt = self._cursor_label.text()
+        try:
+            cur_x = int(cur_txt.split(",")[0].strip())
+            cur_y = int(cur_txt.split(",")[1].split()[0].strip())
+        except (IndexError, ValueError):
+            cur_x, cur_y = 0, 0
+        x, ok = QInputDialog.getInt(
+            self, "Go to coordinate",
+            "X (scene px):", value=cur_x,
+            minValue=-99999, maxValue=99999)
+        if not ok:
+            return
+        y, ok = QInputDialog.getInt(
+            self, "Go to coordinate",
+            "Y (scene px):", value=cur_y,
+            minValue=-99999, maxValue=99999)
+        if not ok:
+            return
+        from PySide6.QtCore import QPointF
+        self._view.centerOn(QPointF(x, y))
+        self.info_label.setText(f"Centered on ({x}, {y})")
 
     def _nuclear_clear(self):
         """F10 — clear text selection + crop mask. The two that work."""
