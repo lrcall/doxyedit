@@ -25,6 +25,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
     QKeyEvent, QTransform, QUndoCommand, QUndoStack, QIcon,
+    QPolygonF, QPainterPath,
 )
 import copy
 from PIL import Image
@@ -436,7 +437,6 @@ class OverlayImageItem(QGraphicsPixmapItem):
         # Apply flip via QTransform (scale -1 on affected axis). setRotation
         # still works after setTransform in Qt.
         if getattr(overlay, "flip_h", False) or getattr(overlay, "flip_v", False):
-            from PySide6.QtGui import QTransform
             t = QTransform()
             t.scale(-1.0 if overlay.flip_h else 1.0,
                     -1.0 if overlay.flip_v else 1.0)
@@ -589,7 +589,6 @@ class OverlayImageItem(QGraphicsPixmapItem):
                 self._editor._sync_overlays_to_asset()
         elif chosen is reset_xform_act:
             # Reset rotation + flip_h + flip_v. Keep position + scale.
-            from PySide6.QtGui import QTransform
             self.overlay.rotation = 0.0
             self.overlay.flip_h = False
             self.overlay.flip_v = False
@@ -655,7 +654,6 @@ class OverlayImageItem(QGraphicsPixmapItem):
 
     def _apply_flip(self):
         """Apply flip_h / flip_v via negative scale around item center."""
-        from PySide6.QtGui import QTransform
         self.setTransformOriginPoint(self.boundingRect().center())
         sx = -1.0 if getattr(self.overlay, "flip_h", False) else 1.0
         sy = -1.0 if getattr(self.overlay, "flip_v", False) else 1.0
@@ -755,7 +753,6 @@ class OverlayShapeItem(QGraphicsItem):
         a full ellipse), bubble_oval_stretch (±1 squashes the aspect),
         bubble_wobble (0-1 adds sinusoidal perturbation along the
         outline)."""
-        from PySide6.QtGui import QPainterPath
         import math as _m
         pad = min(r.width(), r.height()) * 0.18
         tip = self._tail_tip(r)
@@ -863,7 +860,6 @@ class OverlayShapeItem(QGraphicsItem):
 
     def _paint_thought_bubble(self, painter, r: QRectF):
         """Scalloped-cloud body + 2-3 trailing puff circles toward tail."""
-        from PySide6.QtGui import QPainterPath
         path = QPainterPath()
         # Build the cloud by unioning a central ellipse with 8 edge puffs.
         cx, cy = r.center().x(), r.center().y()
@@ -895,7 +891,6 @@ class OverlayShapeItem(QGraphicsItem):
 
     def _paint_burst(self, painter, r: QRectF):
         """Jagged star/burst polygon with alternating outer/inner radii."""
-        from PySide6.QtGui import QPolygonF
         import math
         cx, cy = r.center().x(), r.center().y()
         rx, ry = r.width() / 2, r.height() / 2
@@ -914,7 +909,6 @@ class OverlayShapeItem(QGraphicsItem):
         """Regular n-pointed star. Controlled by overlay.star_points
         (number of outer points, default 5) and overlay.inner_ratio
         (inner/outer radius fraction, default 0.4)."""
-        from PySide6.QtGui import QPolygonF
         import math
         cx, cy = r.center().x(), r.center().y()
         rx, ry = r.width() / 2, r.height() / 2
@@ -934,7 +928,6 @@ class OverlayShapeItem(QGraphicsItem):
         """Regular n-sided polygon. Controlled by overlay.star_points
         (vertex count, default 6 = hexagon). Rotated so a flat edge
         sits at the bottom for n=4,6,8 (a pointy top for n=3,5,7)."""
-        from PySide6.QtGui import QPolygonF
         import math
         cx, cy = r.center().x(), r.center().y()
         rx, ry = r.width() / 2, r.height() / 2
@@ -1956,7 +1949,6 @@ class OverlayArrowItem(QGraphicsItem):
         return r.adjusted(-hs, -hs, hs, hs)
 
     def paint(self, painter, option, widget=None):
-        from PySide6.QtGui import QPainterPath
         x1, y1 = self.overlay.x, self.overlay.y
         x2, y2 = self.overlay.end_x, self.overlay.end_y
         color = QColor(self.overlay.color)
@@ -2364,7 +2356,6 @@ class OverlayTextItem(QGraphicsTextItem):
 
     def _apply_flip_text(self):
         """Apply flip_h/flip_v to a text item via negative QTransform scale."""
-        from PySide6.QtGui import QTransform
         self.setTransformOriginPoint(self.boundingRect().center())
         sx = -1.0 if getattr(self.overlay, "flip_h", False) else 1.0
         sy = -1.0 if getattr(self.overlay, "flip_v", False) else 1.0
@@ -2596,7 +2587,6 @@ class OverlayTextItem(QGraphicsTextItem):
             if self._editor:
                 self._editor._sync_overlays_to_asset()
         elif chosen is reset_xform_act:
-            from PySide6.QtGui import QTransform
             self.overlay.rotation = 0.0
             self.overlay.flip_h = False
             self.overlay.flip_v = False
@@ -4579,7 +4569,6 @@ class _StudioRuler(QWidget):
         # Vertical guide (spans image height at an X) -> marker on H ruler.
         editor = getattr(self._view, "_studio_editor", None)
         if editor is not None:
-            from PySide6.QtGui import QPolygonF
             guides = getattr(editor, "_guide_items", [])
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(QBrush(QColor(self._theme.accent)))
@@ -10858,7 +10847,6 @@ class StudioEditor(QWidget):
             self._crop_mask_item = None
         if not self._pixmap_item:
             return
-        from PySide6.QtGui import QPainterPath
         from PySide6.QtWidgets import QGraphicsPathItem
         img_rect = self._pixmap_item.boundingRect()
         path = QPainterPath()
@@ -13236,7 +13224,6 @@ class StudioEditor(QWidget):
                 painter.setPen(QPen(QColor(ov.color or "#ff3b30"), 3))
                 painter.drawLine(4, size - 4, size - 6, 6)
                 # Small arrowhead
-                from PySide6.QtGui import QPolygonF
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.setBrush(QBrush(QColor(ov.color or "#ff3b30")))
                 painter.drawPolygon(QPolygonF([
@@ -14879,7 +14866,6 @@ class StudioEditor(QWidget):
     def _apply_transform_to_shape(self, item):
         """Combine rotation + skew_x + skew_y into the shape's QTransform.
         Pivots on the body center so rotation / skew feel natural."""
-        from PySide6.QtGui import QTransform
         import math as _m
         ov = item.overlay
         cx = ov.x + ov.shape_w / 2
