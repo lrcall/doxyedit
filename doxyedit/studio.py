@@ -7348,7 +7348,9 @@ class StudioEditor(QWidget):
             shadow = QGraphicsDropShadowEffect()
             shadow.setBlurRadius(30)
             shadow.setOffset(0, 8)
-            shadow.setColor(QColor(0, 0, 0, 160))
+            _shadow_c = QColor(self._theme.studio_overlay_handle_border)
+            _shadow_c.setAlpha(self._theme.studio_drop_shadow_alpha)
+            shadow.setColor(_shadow_c)
             checker.setGraphicsEffect(shadow)
         except Exception:
             pass
@@ -10337,9 +10339,10 @@ class StudioEditor(QWidget):
 
     def _build_overlay_thumb(self, ov) -> "QPixmap | None":
         """Render a 28x28 thumbnail for a layer-panel row."""
+        _t = self._theme
         size = 28
         pm = QPixmap(size, size)
-        pm.fill(QColor(0, 0, 0, 0))
+        pm.fill(QColor(0, 0, 0, 0))  # transparent pixmap init
         painter = QPainter(pm)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         try:
@@ -10355,7 +10358,7 @@ class StudioEditor(QWidget):
                     return pm
                 # Fall through to placeholder
             if ov.type == "text":
-                painter.setPen(QPen(QColor(ov.color or "#ffffff"), 1))
+                painter.setPen(QPen(QColor(ov.color or _t.studio_icon_fg), 1))
                 font = painter.font()
                 font.setBold(bool(getattr(ov, "bold", False)))
                 font.setItalic(bool(getattr(ov, "italic", False)))
@@ -10364,11 +10367,11 @@ class StudioEditor(QWidget):
                 painter.drawText(pm.rect(), Qt.AlignmentFlag.AlignCenter, "T")
                 return pm
             if ov.type == "arrow":
-                painter.setPen(QPen(QColor(ov.color or "#ff3b30"), 3))
+                painter.setPen(QPen(QColor(ov.color or _t.studio_temp_arrow), 3))
                 painter.drawLine(4, size - 4, size - 6, 6)
                 # Small arrowhead
                 painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(QBrush(QColor(ov.color or "#ff3b30")))
+                painter.setBrush(QBrush(QColor(ov.color or _t.studio_temp_arrow)))
                 painter.drawPolygon(QPolygonF([
                     QPointF(size - 6, 6),
                     QPointF(size - 12, 10),
@@ -10376,9 +10379,9 @@ class StudioEditor(QWidget):
                 ]))
                 return pm
             if ov.type == "shape":
-                stroke = QColor(ov.stroke_color or ov.color or "#ffd700")
+                stroke = QColor(ov.stroke_color or ov.color or _t.studio_temp_shape)
                 fill = QColor(ov.fill_color) if ov.fill_color else None
-                painter.setPen(QPen(stroke, 2))
+                painter.setPen(QPen(stroke, _t.studio_temp_shape_pen_width))
                 painter.setBrush(QBrush(fill) if fill else Qt.BrushStyle.NoBrush)
                 r = QRectF(4, 4, size - 8, size - 8)
                 if ov.shape_kind == "ellipse":
@@ -10392,16 +10395,18 @@ class StudioEditor(QWidget):
 
     def _build_censor_thumb(self, cr) -> "QPixmap | None":
         """Render a 28x28 thumbnail matching the censor style."""
+        _t = self._theme
         size = 28
         pm = QPixmap(size, size)
-        pm.fill(QColor(0, 0, 0, 0))
+        pm.fill(QColor(0, 0, 0, 0))  # transparent pixmap init
         painter = QPainter(pm)
         try:
             if cr.style == "black":
-                painter.fillRect(4, 4, size - 8, size - 8, QColor(0, 0, 0))
+                painter.fillRect(4, 4, size - 8, size - 8,
+                                 QColor(_t.studio_censor_blackout_fill))
             elif cr.style == "blur":
                 # Hash-pattern for blur
-                painter.setPen(QPen(QColor(120, 180, 220), 1))
+                painter.setPen(QPen(QColor(_t.studio_censor_blur_fill), 1))
                 for y in range(4, size - 4, 3):
                     painter.drawLine(4, y, size - 4, y)
             else:  # pixelate
@@ -10409,7 +10414,9 @@ class StudioEditor(QWidget):
                     for xx in range(4, size - 4, 4):
                         v = 40 + ((xx + yy) * 7 % 60)
                         painter.fillRect(xx, yy, 4, 4, QColor(v, v, v))
-            painter.setPen(QPen(QColor(255, 0, 0, 200), 1))
+            err_c = QColor(_t.studio_error_dot)
+            err_c.setAlpha(_t.studio_error_dot_alpha)
+            painter.setPen(QPen(err_c, 1))
             painter.drawRect(3, 3, size - 6, size - 6)
             return pm
         finally:
