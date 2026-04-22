@@ -7475,6 +7475,31 @@ class StudioEditor(QWidget):
             lambda: self._scene.clearSelection())
         quickbar.addWidget(qp_deselect_btn)
 
+        # Copy / Paste Style buttons mirror Ctrl+Alt+C / Ctrl+Alt+V.
+        qp_copy_style = QPushButton("Copy Style")
+        qp_copy_style.setObjectName("studio_qp_copy_style")
+        qp_copy_style.setToolTip("Copy overlay style (Ctrl+Alt+C)")
+        def _qp_copy_style():
+            sel = self._scene.selectedItems()
+            if sel and hasattr(sel[0], "overlay"):
+                self._copy_style(sel[0].overlay)
+        qp_copy_style.clicked.connect(_qp_copy_style)
+        quickbar.addWidget(qp_copy_style)
+
+        qp_paste_style = QPushButton("Paste Style")
+        qp_paste_style.setObjectName("studio_qp_paste_style")
+        qp_paste_style.setToolTip("Paste overlay style (Ctrl+Alt+V)")
+        def _qp_paste_style():
+            touched = False
+            for it in self._scene.selectedItems():
+                if hasattr(it, "overlay"):
+                    self._paste_style(it.overlay, it)
+                    touched = True
+            if touched:
+                self._sync_overlays_to_asset()
+        qp_paste_style.clicked.connect(_qp_paste_style)
+        quickbar.addWidget(qp_paste_style)
+
         # Arrange dropdown - quick z-order jumps without reaching
         # for the Ctrl+[ / Ctrl+] bindings.
         qp_arrange_btn = QPushButton("Arrange ▾")
