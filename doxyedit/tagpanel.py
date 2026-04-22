@@ -23,6 +23,29 @@ FITNESS_COLORS = {
 }
 
 
+def _apply_menu_theme(menu: QMenu) -> None:
+    """Force a themed inline stylesheet onto a QMenu.
+
+    Top-level popup menus don't inherit the app QSS on Windows, so we
+    explicitly style every context menu against the active theme.
+    """
+    t = THEMES[DEFAULT_THEME]
+    rad = max(3, t.font_size // 4)
+    pad = max(4, t.font_size // 3)
+    pad_lg = max(6, t.font_size // 2)
+    menu.setStyleSheet(f"""
+        QMenu {{
+            background: {t.bg_raised}; color: {t.text_primary};
+            border: 1px solid {t.border}; border-radius: {rad}px;
+            padding: {pad}px 0;
+        }}
+        QMenu::item {{ padding: {pad}px {pad_lg * 3}px; color: {t.text_primary}; }}
+        QMenu::item:selected {{ background: {t.accent_dim}; color: {t.text_on_accent}; }}
+        QMenu::item:disabled {{ color: {t.text_muted}; }}
+        QMenu::separator {{ background: {t.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
+    """)
+
+
 class _TagContainer(QWidget):
     """Inner scroll widget that handles drag-to-select and drag-to-reorder tag rows."""
 
@@ -340,6 +363,7 @@ class TagRow(QFrame):
 
     def contextMenuEvent(self, event):
         menu = QMenu(self)
+        _apply_menu_theme(menu)
         pin_label = "Unpin from top" if getattr(self, '_pinned', False) else "Pin to top"
         menu.addAction(pin_label, lambda: self.pin_requested.emit(self.tag.id))
         menu.addAction("Set Shortcut Key", lambda: self.shortcut_requested.emit(self.tag.id))
@@ -431,27 +455,39 @@ class TagPanel(QWidget):
         self.dim_label.setObjectName("tagpanel_dim")
         root.addWidget(self.dim_label)
 
-        # Batch buttons
+        # Batch buttons - short labels so the whole panel can collapse narrow
+        from PySide6.QtWidgets import QSizePolicy
         batch_row = QHBoxLayout()
-        btn_ignore = QPushButton("Mark Ignore")
+        btn_ignore = QPushButton("Ignore")
         btn_ignore.setObjectName("tagpanel_action_btn")
+        btn_ignore.setToolTip("Mark Ignore")
+        btn_ignore.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        btn_ignore.setMinimumWidth(0)
         btn_ignore.clicked.connect(lambda: self._batch_tag("ignore", True))
         batch_row.addWidget(btn_ignore)
 
-        btn_clear = QPushButton("Clear All")
+        btn_clear = QPushButton("Clear")
         btn_clear.setObjectName("tagpanel_action_btn")
+        btn_clear.setToolTip("Clear All")
+        btn_clear.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        btn_clear.setMinimumWidth(0)
         btn_clear.clicked.connect(self._clear_all_tags)
         batch_row.addWidget(btn_clear)
 
-        self._btn_show_all = QPushButton("Show All")
+        self._btn_show_all = QPushButton("Show")
         self._btn_show_all.setObjectName("tagpanel_action_btn")
+        self._btn_show_all.setToolTip("Show All")
+        self._btn_show_all.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self._btn_show_all.setMinimumWidth(0)
         self._btn_show_all.clicked.connect(self._show_all_tags)
         self._btn_show_all.setVisible(False)
         batch_row.addWidget(self._btn_show_all)
 
-        self._collapse_all_btn = QPushButton("Collapse All")
+        self._collapse_all_btn = QPushButton("Collapse")
         self._collapse_all_btn.setObjectName("tagpanel_action_btn")
         self._collapse_all_btn.setToolTip("Collapse / expand all tag sections")
+        self._collapse_all_btn.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self._collapse_all_btn.setMinimumWidth(0)
         self._collapse_all_btn.clicked.connect(self._toggle_all_sections)
         batch_row.addWidget(self._collapse_all_btn)
 
@@ -672,7 +708,7 @@ class TagPanel(QWidget):
         for tag_id, row in self._rows.items():
             sid = self._tag_sections.get(tag_id)
             row.setVisible(sid not in self._collapsed_sections and tag_id not in self._hidden_tags)
-        self._collapse_all_btn.setText("Expand All" if any_expanded else "Collapse All")
+        self._collapse_all_btn.setText("Expand" if any_expanded else "Collapse")
 
     def _btn_style(self):
         return "QPushButton { padding: 3px 8px; }"
@@ -839,6 +875,7 @@ class TagPanel(QWidget):
         """Batch context menu when multiple tag rows are selected."""
         if len(self._selected_tag_rows) > 1:
             menu = QMenu(self)
+            _apply_menu_theme(menu)
             n = len(self._selected_tag_rows)
             menu.addAction(f"Apply Selected Tags to Assets", self._batch_apply_to_assets)
             menu.addSeparator()
