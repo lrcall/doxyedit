@@ -446,7 +446,6 @@ class ImagePreviewPanel(QWidget):
             # Draw note markers
             _nc = QColor(_dt.note_border); _nc.setAlpha(_dt.composer_status_hover_alpha)
             note_pen = QPen(_nc, max(1, _dt.crop_border_width - 1))
-            import re
             pattern = re.compile(r'\[(\d+),(\d+)\s+(\d+)x(\d+)\]\s*(.*)')
             for line in (asset.notes or "").split("\n"):
                 m = pattern.match(line.strip())

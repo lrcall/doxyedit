@@ -1,5 +1,7 @@
 """Batch export — exports all assigned assets with proper naming and sizing."""
+import json
 import math
+import os
 from pathlib import Path
 from PIL import Image, ImageFilter
 from doxyedit.models import (
@@ -590,7 +592,6 @@ def _composite_text_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
     from PIL import ImageDraw, ImageFont
 
     try:
-        import os
         _winfonts = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
         font = None
         _family = ov.font_family
@@ -826,7 +827,6 @@ def export_project(project: Project, output_dir: str) -> dict:
                 })
 
     # Write manifest
-    import json
     manifest_path = out / "export_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 

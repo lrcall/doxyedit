@@ -725,7 +725,6 @@ class PlatformPanel(LazyRefreshMixin, QWidget):
 
     def _on_file_dropped(self, path: str, platform_id: str, slot):
         """Handle drag-drop of asset file onto a slot."""
-        import os
         norm = os.path.normpath(path).lower()
         for asset in self.project.assets:
             if os.path.normpath(asset.source_path).lower() == norm:

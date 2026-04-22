@@ -332,7 +332,6 @@ class WorkTray(QWidget):
         menu.addAction("Open in Explorer", lambda: self._open_explorer(asset_id))
 
         if asset and asset.source_path:
-            import os
             menu.addAction("Open in Native Editor", lambda: os.startfile(asset.source_path))
 
         menu.addSeparator()

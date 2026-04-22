@@ -433,7 +433,6 @@ _LRU_MAX = 2000  # max pixmaps kept in memory — prioritize speed over footprin
 
 def _safe_name(project_name: str) -> str:
     """Sanitize a project name for use as a directory name."""
-    import re
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', project_name).strip('. ')
     return name or "default"
 

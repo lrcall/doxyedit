@@ -556,7 +556,6 @@ class ImagePreviewDialog(QDialog):
         """Parse annotation notes from asset.notes and display them."""
         if not self._asset or not self._asset.notes:
             return
-        import re
         pattern = re.compile(r'\[(\d+),(\d+)\s+(\d+)x(\d+)\]\s*(.*)')
         for line in self._asset.notes.split("\n"):
             m = pattern.match(line.strip())

@@ -629,7 +629,6 @@ def _clean_ai_output(text: str) -> str:
 def _generate_ai_strategy_cli(prompt: str, fallback: str) -> str:
     """Pipe prompt to claude CLI — uses the same auth/subscription as Claude Code.
     No extra API key or billing needed."""
-    import sys
     print("[AI Strategy] Starting claude CLI subprocess...", file=sys.stderr, flush=True)
     print(f"[AI Strategy] Prompt length: {len(prompt)} chars", file=sys.stderr, flush=True)
     try:
