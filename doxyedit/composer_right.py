@@ -24,7 +24,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QDateTime, Signal, QSettings, QThread, QTimer
 from doxyedit.browser import FlowLayout
-from doxyedit.models import Project, SocialPost
+from doxyedit.models import Project, SocialPost, SUB_PLATFORMS
+from doxyedit.themes import THEMES, DEFAULT_THEME
 
 
 # ─── Chrome profile utilities ─────────────────────────────────────
@@ -208,7 +209,6 @@ class ContentPanel(QWidget):
         self._rebuild_account_checkboxes()
 
         # --- Subscription platforms (Patreon, Fanbox, etc.) ---
-        from doxyedit.models import SUB_PLATFORMS
         self._sub_platform_checks: dict[str, QCheckBox] = {}
         sub_flow = FlowLayout(hspacing=8, vspacing=4)
         sub_container = QWidget()
@@ -799,7 +799,6 @@ class ContentPanel(QWidget):
 
     def _wrap_html(self, body: str) -> str:
         """Wrap rendered markdown with theme-aware CSS for compact display."""
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         theme_id = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
         theme = THEMES.get(theme_id)
         if not theme:
@@ -856,7 +855,6 @@ a {{ color: {theme.accent}; }}
             Additional actions appended after the standard items but before
             Claude actions (e.g. strategy-specific buttons).
         """
-        from doxyedit.themes import THEMES, DEFAULT_THEME
 
         menu = editor.createStandardContextMenu()
 
@@ -1478,7 +1476,6 @@ RULES:
                 aname = acct.get("name", aid)
                 if aid:
                     account_entries.append((str(aid), aname))
-        from doxyedit.models import SUB_PLATFORMS
         for sub_id, sub in SUB_PLATFORMS.items():
             account_entries.append((sub_id, sub.name))
 
@@ -1749,7 +1746,6 @@ RULES:
                     break
 
         # Add subscription platforms
-        from doxyedit.models import SUB_PLATFORMS
         result = list(accounts)
         for sub_id, cb in self._sub_platform_checks.items():
             sub = SUB_PLATFORMS.get(sub_id)
