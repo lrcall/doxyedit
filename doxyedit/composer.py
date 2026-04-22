@@ -16,9 +16,10 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel,
-    QPushButton, QSplitter, QWidget, QDateTimeEdit,
+    QPushButton, QSplitter, QWidget, QDateTimeEdit, QMessageBox,
+    QGroupBox,
 )
-from PySide6.QtCore import Qt, QSettings, Signal
+from PySide6.QtCore import Qt, QSettings, Signal, QDateTime
 from doxyedit.themes import ui_font_size
 
 from doxyedit.models import Project, SocialPost, SocialPostStatus, ReleaseStep
@@ -135,8 +136,6 @@ class PostComposerWidget(QWidget):
         left_layout.setSpacing(_pad)
 
         # Schedule picker (top of left panel for visibility)
-        from PySide6.QtWidgets import QDateTimeEdit, QGroupBox
-        from PySide6.QtCore import QDateTime
         from datetime import datetime as _dt, timedelta as _td
 
         sched_box = QGroupBox("Schedule")
@@ -327,7 +326,6 @@ class PostComposerWidget(QWidget):
         if post.scheduled_time:
             try:
                 from datetime import datetime as _dtm
-                from PySide6.QtCore import QDateTime
                 dt = _dtm.fromisoformat(post.scheduled_time)
                 self._left_schedule.setDateTime(
                     QDateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute, 0))
@@ -436,7 +434,6 @@ class PostComposerWidget(QWidget):
                     if r["status"] == "red":
                         issues.extend(r["issues"])
             if issues:
-                from PySide6.QtWidgets import QMessageBox
                 msg = "Some platforms need prep:\n\n" + "\n".join(f"• {i}" for i in issues[:5])
                 msg += "\n\nPost anyway?"
                 reply = QMessageBox.question(
