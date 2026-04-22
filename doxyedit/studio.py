@@ -2835,6 +2835,29 @@ class StudioScene(QGraphicsScene):
         unlock_all_act = menu.addAction("Unlock All Layers")
         show_all_act = menu.addAction("Show All Layers")
         toggle_censors_act = menu.addAction("Toggle All Censors")
+        # Align submenu - shown iff there are selected moveable overlays.
+        # With 1 item selected it aligns to the canvas; 2+ aligns to their
+        # union rect; 3+ distributes evenly.
+        moveable_sel = editor._all_selected_moveable()
+        align_left_act = align_right_act = align_hcenter_act = None
+        align_top_act = align_bottom_act = align_vcenter_act = None
+        dist_h_act = dist_v_act = None
+        if moveable_sel:
+            align_menu = menu.addMenu(
+                f"Align ({len(moveable_sel)} selected)")
+            align_left_act = align_menu.addAction("Left  (Alt+Shift+L)")
+            align_hcenter_act = align_menu.addAction("Center H  (Alt+Shift+C)")
+            align_right_act = align_menu.addAction("Right  (Alt+Shift+R)")
+            align_menu.addSeparator()
+            align_top_act = align_menu.addAction("Top  (Alt+Shift+T)")
+            align_vcenter_act = align_menu.addAction("Center V  (Alt+Shift+M)")
+            align_bottom_act = align_menu.addAction("Bottom  (Alt+Shift+B)")
+            if len(moveable_sel) >= 3:
+                align_menu.addSeparator()
+                dist_h_act = align_menu.addAction(
+                    "Distribute Horizontally  (Alt+Shift+H)")
+                dist_v_act = align_menu.addAction(
+                    "Distribute Vertically  (Alt+Shift+V)")
         menu.addSeparator()
         copy_canvas_act = menu.addAction("Copy Canvas Image to Clipboard")
         export_overlay_act = menu.addAction("Export Overlays as Transparent PNG...")
@@ -3042,6 +3065,22 @@ class StudioScene(QGraphicsScene):
             if ok:
                 qs.setValue("studio_snap_threshold_px", value)
                 editor.info_label.setText(f"Snap proximity: {value}px")
+        elif chosen is align_left_act:
+            editor._align_selected("left")
+        elif chosen is align_right_act:
+            editor._align_selected("right")
+        elif chosen is align_hcenter_act:
+            editor._align_selected("hcenter")
+        elif chosen is align_top_act:
+            editor._align_selected("top")
+        elif chosen is align_bottom_act:
+            editor._align_selected("bottom")
+        elif chosen is align_vcenter_act:
+            editor._align_selected("vcenter")
+        elif chosen is dist_h_act:
+            editor._align_selected("dist_h")
+        elif chosen is dist_v_act:
+            editor._align_selected("dist_v")
         elif chosen in (lock_all_act, unlock_all_act):
             lock = chosen is lock_all_act
             for it in editor._overlay_items:
