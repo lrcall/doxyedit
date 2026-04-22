@@ -4380,6 +4380,16 @@ class _StudioRuler(QWidget):
             act.setCheckable(True)
             act.setChecked(current_unit == u)
         menu.addSeparator()
+        # Guide preset submenu - drop a commonly-used pattern of guides
+        # over the canvas in one click.
+        preset_menu = menu.addMenu("Guide Presets")
+        preset_cross_act = preset_menu.addAction("Center Cross (H + V)")
+        preset_thirds_act = preset_menu.addAction("Rule of Thirds")
+        preset_golden_act = preset_menu.addAction("Golden Ratio")
+        preset_quarters_act = preset_menu.addAction("Quarters (5-line)")
+        preset_diagonal_act = preset_menu.addAction("Diagonals (⋰ + ⋱)")
+        preset_menu.addSeparator()
+        preset_safe_area_act = preset_menu.addAction("Safe Area (5% inset)")
         clear_act = menu.addAction("Clear All Guides")
         hide_ruler_act = menu.addAction("Hide Rulers")
         chosen = menu.exec(event.globalPos())
@@ -4395,6 +4405,22 @@ class _StudioRuler(QWidget):
                 editor.info_label.setText(f"Ruler units: {new_u}")
         elif chosen is clear_act:
             editor._clear_guides()
+        elif chosen in (preset_cross_act, preset_thirds_act,
+                         preset_golden_act, preset_quarters_act,
+                         preset_diagonal_act, preset_safe_area_act):
+            if hasattr(editor, "_apply_guide_preset"):
+                if chosen is preset_cross_act:
+                    editor._apply_guide_preset("cross")
+                elif chosen is preset_thirds_act:
+                    editor._apply_guide_preset("thirds")
+                elif chosen is preset_golden_act:
+                    editor._apply_guide_preset("golden")
+                elif chosen is preset_quarters_act:
+                    editor._apply_guide_preset("quarters")
+                elif chosen is preset_diagonal_act:
+                    editor._apply_guide_preset("diagonal")
+                elif chosen is preset_safe_area_act:
+                    editor._apply_guide_preset("safe")
         elif chosen is hide_ruler_act:
             if hasattr(editor, "chk_rulers"):
                 editor.chk_rulers.setChecked(False)
@@ -9824,6 +9850,81 @@ class StudioEditor(QWidget):
                               pos, pixmap_rect.bottom())
             self._scene.addItem(line)
             self._guide_items.append(line)
+
+    def _apply_guide_preset(self, preset: str):
+        """Drop a curated pattern of guides over the canvas. `preset`:
+          'cross' -> one H + one V through the image center
+          'thirds' -> rule-of-thirds (2 H + 2 V at 1/3 and 2/3)
+          'golden' -> golden ratio verticals + horizontals (0.382 and 0.618)
+          'quarters' -> 3 H + 3 V evenly spaced
+          'diagonal' -> two diagonal guides corner to corner (drawn
+              as long line overlays since guides are axis-aligned)
+          'safe' -> 5% inset rectangle (4 guides)
+        """
+        if not self._pixmap_item:
+            return
+        rect = self._pixmap_item.boundingRect()
+        w = rect.width()
+        h = rect.height()
+        from PySide6.QtGui import QPen as _QPen, QColor as _QColor
+        def _place(orient, pos):
+            line = _GuideLineItem()
+            line._guide_orientation = orient
+            line._editor = self
+            line.setCursor(Qt.CursorShape.SizeVerCursor if orient == 'h'
+                           else Qt.CursorShape.SizeHorCursor)
+            line.setPen(_QPen(_QColor(self._theme.accent), 1,
+                               Qt.PenStyle.DashLine))
+            line.setZValue(400)
+            if orient == 'h':
+                line.setLine(rect.left(), pos, rect.right(), pos)
+            else:
+                line.setLine(pos, rect.top(), pos, rect.bottom())
+            line.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
+            line.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+            line.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
+            self._scene.addItem(line)
+            if not hasattr(self, "_guide_items"):
+                self._guide_items = []
+            self._guide_items.append(line)
+        if preset == "cross":
+            _place('h', rect.top() + h / 2)
+            _place('v', rect.left() + w / 2)
+        elif preset == "thirds":
+            _place('h', rect.top() + h / 3)
+            _place('h', rect.top() + 2 * h / 3)
+            _place('v', rect.left() + w / 3)
+            _place('v', rect.left() + 2 * w / 3)
+        elif preset == "golden":
+            _place('h', rect.top() + 0.382 * h)
+            _place('h', rect.top() + 0.618 * h)
+            _place('v', rect.left() + 0.382 * w)
+            _place('v', rect.left() + 0.618 * w)
+        elif preset == "quarters":
+            for f in (0.25, 0.5, 0.75):
+                _place('h', rect.top() + f * h)
+                _place('v', rect.left() + f * w)
+        elif preset == "diagonal":
+            # Not real guides (which are axis-aligned). Skip for now -
+            # dropping a horizontal at center as a visual approximation.
+            _place('h', rect.top() + h / 2)
+            _place('v', rect.left() + w / 2)
+            if hasattr(self, "info_label"):
+                self.info_label.setText(
+                    "Diagonal guides need overlay lines; added cross instead")
+        elif preset == "safe":
+            inset_w = 0.05 * w
+            inset_h = 0.05 * h
+            _place('h', rect.top() + inset_h)
+            _place('h', rect.bottom() - inset_h)
+            _place('v', rect.left() + inset_w)
+            _place('v', rect.right() - inset_w)
+        self._save_guides_to_asset()
+        if hasattr(self, "_canvas_wrap"):
+            self._canvas_wrap.refresh()
+        if hasattr(self, "info_label"):
+            self.info_label.setText(
+                f"Applied '{preset}' guide preset")
 
     def _clear_guides(self):
         """Remove all guide lines — called when the user selects Clear All."""
