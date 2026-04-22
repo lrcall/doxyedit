@@ -5713,6 +5713,49 @@ class StudioEditor(QWidget):
                 self.btn_underline.setChecked(not self.btn_underline.isChecked())
                 self._on_underline_changed()
             return
+        # Ctrl+Shift+> / Ctrl+Shift+< - bump / shrink font size of selected
+        # text overlays by 2pt. Google Docs convention. > uses Period /
+        # Greater, < uses Comma / Less depending on layout.
+        if ctrl and shift and key in (
+                Qt.Key.Key_Period, Qt.Key.Key_Greater):
+            touched = False
+            for it in self._scene.selectedItems():
+                if isinstance(it, OverlayTextItem):
+                    it.overlay.font_size = min(500, it.overlay.font_size + 2)
+                    if hasattr(it, "_apply_font"):
+                        it._apply_font()
+                    touched = True
+            if touched:
+                self._sync_overlays_to_asset()
+                if hasattr(self, "slider_font_size"):
+                    sel_text = next(
+                        (it for it in self._scene.selectedItems()
+                         if isinstance(it, OverlayTextItem)), None)
+                    if sel_text is not None:
+                        self.slider_font_size.blockSignals(True)
+                        self.slider_font_size.setValue(sel_text.overlay.font_size)
+                        self.slider_font_size.blockSignals(False)
+            return
+        if ctrl and shift and key in (
+                Qt.Key.Key_Comma, Qt.Key.Key_Less):
+            touched = False
+            for it in self._scene.selectedItems():
+                if isinstance(it, OverlayTextItem):
+                    it.overlay.font_size = max(4, it.overlay.font_size - 2)
+                    if hasattr(it, "_apply_font"):
+                        it._apply_font()
+                    touched = True
+            if touched:
+                self._sync_overlays_to_asset()
+                if hasattr(self, "slider_font_size"):
+                    sel_text = next(
+                        (it for it in self._scene.selectedItems()
+                         if isinstance(it, OverlayTextItem)), None)
+                    if sel_text is not None:
+                        self.slider_font_size.blockSignals(True)
+                        self.slider_font_size.setValue(sel_text.overlay.font_size)
+                        self.slider_font_size.blockSignals(False)
+            return
         # Ctrl+Alt+X swaps fill and stroke colors on selected shapes.
         # Classic graphics shortcut; saves round-tripping two color
         # picker dialogs when the user wants to invert a bubble.
