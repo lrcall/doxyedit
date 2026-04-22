@@ -3733,6 +3733,44 @@ class _StudioRuler(QWidget):
                 p.drawLine(0, int(cursor_px), self.width(), int(cursor_px))
 
 
+class _TextControlsDialog(QtWidgets.QDialog):
+    """QDialog subclass that persists its geometry to QSettings across
+    close / hide cycles. Instance-level closeEvent assignment doesn't
+    work for Qt virtual methods, so this is the proper subclass."""
+
+    _GEOM_KEY = "studio_text_controls_geom"
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from PySide6.QtCore import QSettings as _QS
+        self._qs = _QS("DoxyEdit", "DoxyEdit")
+
+    def _save_geom(self):
+        try:
+            self._qs.setValue(self._GEOM_KEY, self.saveGeometry())
+        except Exception:
+            pass
+
+    def closeEvent(self, ev):
+        self._save_geom()
+        super().closeEvent(ev)
+
+    def hideEvent(self, ev):
+        # Catches not-just-close dismissals (e.g. when the Studio tab
+        # loses focus and the app hides us programmatically).
+        self._save_geom()
+        super().hideEvent(ev)
+
+    def moveEvent(self, ev):
+        # Save geometry on every move so crash-exit doesn't lose it.
+        super().moveEvent(ev)
+        self._save_geom()
+
+    def resizeEvent(self, ev):
+        super().resizeEvent(ev)
+        self._save_geom()
+
+
 class _ColorSwatchButton(QPushButton):
     """QPushButton that paints a filled square showing the current color
     and an outline ring. Used for the fill / outline color pickers in
@@ -5561,8 +5599,12 @@ class StudioEditor(QWidget):
         # Re-shape _props_row's QHBoxLayout into a tall QFormLayout inside
         # the dialog so it reads as a column of labeled rows, not a wide
         # ribbon.
-        from PySide6.QtWidgets import QDialog as _QDlg, QFormLayout
-        self._text_controls_dlg = _QDlg(self)
+        from PySide6.QtWidgets import QFormLayout
+        # Use the _TextControlsDialog subclass for proper closeEvent /
+        # hideEvent / moveEvent / resizeEvent handling — the previous
+        # instance-level `dlg.closeEvent = fn` pattern didn't actually
+        # override Qt's virtual method, so the geometry never persisted.
+        self._text_controls_dlg = _TextControlsDialog(self)
         self._text_controls_dlg.setWindowTitle("Text Controls")
         self._text_controls_dlg.setObjectName("studio_text_controls_dlg")
         self._text_controls_dlg.setWindowFlags(
@@ -5570,18 +5612,8 @@ class StudioEditor(QWidget):
             Qt.WindowType.CustomizeWindowHint |
             Qt.WindowType.WindowTitleHint |
             Qt.WindowType.WindowCloseButtonHint)
-        # Persist position / size across show-hide cycles. QSettings keeps
-        # the geometry per machine. closeEvent saves; show path restores
-        # iff a previous geometry was stored.
         from PySide6.QtCore import QSettings as _QS
         _qs_geom = _QS("DoxyEdit", "DoxyEdit")
-        self._text_controls_dlg._geom_settings = _qs_geom
-        def _save_geom(_ev):
-            _qs_geom.setValue(
-                "studio_text_controls_geom",
-                self._text_controls_dlg.saveGeometry())
-            _QDlg.closeEvent(self._text_controls_dlg, _ev)
-        self._text_controls_dlg.closeEvent = _save_geom
         # Explicit reparent each control to the dialog BEFORE adding it to
         # the QFormLayout. Without this, widgets inherit their original
         # _props_row parent's hidden state, leaving the dialog blank.
