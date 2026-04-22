@@ -7303,10 +7303,9 @@ class StudioEditor(QWidget):
                 self.info_label.setText("Select an image overlay first")
                 return
             import subprocess as _sp
-            from pathlib import Path as _P
             for it in sel[:3]:  # cap to avoid spawning dozens
                 path = getattr(it.overlay, "image_path", "")
-                p = _P(path) if path else None
+                p = Path(path) if path else None
                 if p is None or not p.exists():
                     continue
                 try:
