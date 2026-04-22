@@ -7200,10 +7200,14 @@ class StudioEditor(QWidget):
             self.info_label.setText(
                 "All overlays locked" if lock else "All overlays unlocked")
             return
-        # [ / ] with no modifier — adjust arrowhead_size on selected arrows
+        # [ / ] with no modifier — adjust arrowhead_size on arrows
+        # and stroke_width on shapes. One keystroke works across all
+        # selected overlays of either type, matching Illustrator's
+        # bracket convention for brush size.
         if not ctrl and not shift and key in (Qt.Key.Key_BracketLeft, Qt.Key.Key_BracketRight):
             delta = -2 if key == Qt.Key.Key_BracketLeft else 2
             touched = False
+            touched_arrow = False
             for item in self._scene.selectedItems():
                 if isinstance(item, OverlayArrowItem):
                     item.overlay.arrowhead_size = max(
@@ -7211,12 +7215,24 @@ class StudioEditor(QWidget):
                     item.prepareGeometryChange()
                     item.update()
                     touched = True
+                    touched_arrow = True
+                elif isinstance(item, OverlayShapeItem):
+                    cur = max(0, int(item.overlay.stroke_width or 0))
+                    item.overlay.stroke_width = max(0, min(50, cur + delta))
+                    item.prepareGeometryChange()
+                    item.update()
+                    touched = True
             if touched:
                 self._sync_overlays_to_asset()
-                from PySide6.QtCore import QSettings as _QS
-                _QS("DoxyEdit", "DoxyEdit").setValue(
-                    "studio_arrow_head",
-                    self._scene.selectedItems()[0].overlay.arrowhead_size)
+                if touched_arrow:
+                    from PySide6.QtCore import QSettings as _QS
+                    first_arrow = next(
+                        (it for it in self._scene.selectedItems()
+                         if isinstance(it, OverlayArrowItem)), None)
+                    if first_arrow is not None:
+                        _QS("DoxyEdit", "DoxyEdit").setValue(
+                            "studio_arrow_head",
+                            first_arrow.overlay.arrowhead_size)
                 return
         # Zoom shortcuts — standard in every graphics editor
         if ctrl and shift and key == Qt.Key.Key_0:
