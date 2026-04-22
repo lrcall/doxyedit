@@ -1,7 +1,9 @@
 """Asset browser — QListView with custom delegate for high-performance thumbnail grid."""
 import fnmatch
 import os
+import shutil
 import subprocess
+import uuid
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListView, QStyledItemDelegate,
@@ -1901,7 +1903,6 @@ class AssetBrowser(QWidget):
 
     def _link_selected_as_variants(self):
         """Link all selected assets as a variant set."""
-        import uuid
         assets = self.get_selected_assets()
         if len(assets) < 2:
             return
@@ -3350,7 +3351,6 @@ class AssetBrowser(QWidget):
             return
         # Delete file
         try:
-            import os
             if os.path.exists(path):
                 os.remove(path)
         except OSError as e:
@@ -3366,7 +3366,6 @@ class AssetBrowser(QWidget):
         folder = QFileDialog.getExistingDirectory(self.window(), "Export Selected Assets To...")
         if not folder:
             return
-        import shutil
         dest = Path(folder)
         ok, failed = 0, 0
         for a in assets:
@@ -3474,7 +3473,6 @@ class AssetBrowser(QWidget):
             QMessageBox.StandardButton.Cancel)
         if reply != QMessageBox.StandardButton.Yes:
             return
-        import os
         deleted = 0
         for asset in assets:
             try:
