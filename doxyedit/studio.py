@@ -4712,9 +4712,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
 
     def rebuild_for(self, item):
         """Build form controls tailored to the overlay's type."""
-        from PySide6.QtWidgets import (
-            QFormLayout, QLabel, QSpinBox, QDoubleSpinBox,
-            QComboBox, QPushButton, QHBoxLayout, QWidget as _QW, QSlider)
+        _QW = QWidget
         editor = self._editor
         ov = item.overlay
         kind = f"{type(item).__name__}:{getattr(ov, 'shape_kind', '')}"
@@ -13581,8 +13579,6 @@ class StudioEditor(QWidget):
                     self.info_label.setText(f"Made {n} copies")
                 return
             if chosen is act_dup_grid:
-                from PySide6.QtWidgets import (
-                    QDialog, QFormLayout, QSpinBox, QDialogButtonBox)
                 grid_dlg = QDialog(self)
                 grid_dlg.setWindowTitle("Duplicate as grid")
                 gform = QFormLayout(grid_dlg)
@@ -14103,10 +14099,6 @@ class StudioEditor(QWidget):
             existing.raise_()
             existing.activateWindow()
             return
-        from PySide6.QtWidgets import (
-            QDialog, QFormLayout, QSpinBox, QDoubleSpinBox, QCheckBox,
-            QComboBox, QDialogButtonBox, QLabel, QTabWidget, QWidget,
-            QVBoxLayout)
         qs = QSettings("DoxyEdit", "DoxyEdit")
         dlg = QDialog(self)
         self._settings_dlg = dlg
@@ -14726,9 +14718,6 @@ class StudioEditor(QWidget):
         if not sel:
             self.info_label.setText("Nothing to transform")
             return
-        from PySide6.QtWidgets import (QDialog, QFormLayout, QSpinBox,
-                                         QDoubleSpinBox, QDialogButtonBox,
-                                         QLabel, QHBoxLayout, QCheckBox)
         dlg = QDialog(self)
         self._transform_dlg = dlg
         dlg.setWindowTitle("Transform")
