@@ -57,6 +57,26 @@ STUDIO_ZOOM_LABEL_WIDTH_RATIO = 3.3  # zoom % label width × font_size
 STUDIO_LAYER_PANEL_WIDTH = 200    # layer panel max width
 
 
+# ── Layer tag colors ──────────────────────────────────────────────
+# Finder/macOS-style semantic labels for overlays. Hex literals are
+# intentional: users expect "Red" to render red regardless of theme,
+# so these bypass the theme token system (same spirit as crop handle
+# and censor accent exceptions documented in CLAUDE.md).
+TAG_COLORS = [
+    # (id,      label,    hex,        sort_order)
+    ("red",    "Red",    "#d93838", 0),
+    ("orange", "Orange", "#d98a38", 1),
+    ("yellow", "Yellow", "#d9c638", 2),
+    ("green",  "Green",  "#4cb85b", 3),
+    ("blue",   "Blue",   "#4c7fe0", 4),
+    ("purple", "Purple", "#9a56d9", 5),
+    ("pink",   "Pink",   "#e063b5", 6),
+    ("gray",   "Gray",   "#888888", 7),
+]
+TAG_COLOR_HEX = {tid: h for tid, _, h, _ in TAG_COLORS}
+TAG_COLOR_ORDER = {tid: o for tid, _, _, o in TAG_COLORS}
+
+
 # ---------------------------------------------------------------------------
 # Context menu theming helper
 # ---------------------------------------------------------------------------
@@ -3926,13 +3946,8 @@ class StudioScene(QGraphicsScene):
                 ovs.sort(key=_area)
             elif chosen is sort_tag_act:
                 # Ordered by the named color priority; untagged last.
-                _tag_order = {
-                    "red": 0, "orange": 1, "yellow": 2,
-                    "green": 3, "blue": 4, "purple": 5,
-                    "pink": 6, "gray": 7, "": 99,
-                }
                 ovs.sort(key=lambda o: (
-                    _tag_order.get(getattr(o, "tag_color", "") or "", 50),
+                    TAG_COLOR_ORDER.get(getattr(o, "tag_color", "") or "", 99),
                     o.label or ""))
             elif chosen is sort_opacity_act:
                 ovs.sort(key=lambda o: getattr(o, "opacity", 1.0) or 0.0)
@@ -13028,16 +13043,8 @@ class StudioEditor(QWidget):
             label += _scope_tag(ov.platforms)
             item = QListWidgetItem(label)
             if _tag:
-                # Map named tags to concrete hexes and color the row's
-                # text with it - the leading ● disc inherits the row
-                # color. User sees one colored circle per tagged layer.
-                _tag_map = {
-                    "red": "#d93838", "orange": "#d98a38",
-                    "yellow": "#d9c638", "green": "#4cb85b",
-                    "blue": "#4c7fe0", "purple": "#9a56d9",
-                    "pink": "#e063b5", "gray": "#888888",
-                }
-                item.setForeground(QColor(_tag_map.get(_tag, _tag)))
+                # Color the row text with the tag's hex. Leading ● inherits.
+                item.setForeground(QColor(TAG_COLOR_HEX.get(_tag, _tag)))
             item.setData(Qt.ItemDataRole.UserRole, ("overlay", len(self._asset.overlays) - 1 - i))
             if not ov.enabled:
                 item.setForeground(Qt.GlobalColor.gray)
@@ -13368,19 +13375,9 @@ class StudioEditor(QWidget):
             # (colored dots). Stored per-overlay so it persists across
             # sessions and survives rebuild_layer_panel.
             tag_sub = prefix.addMenu("Tag Color")
-            _tag_opts = [
-                ("None", ""),
-                ("Red", "red"),
-                ("Orange", "orange"),
-                ("Yellow", "yellow"),
-                ("Green", "green"),
-                ("Blue", "blue"),
-                ("Purple", "purple"),
-                ("Pink", "pink"),
-                ("Gray", "gray"),
-            ]
             tag_acts = {}
             _cur_tag = getattr(ov, "tag_color", "") or ""
+            _tag_opts = [("None", "")] + [(lbl, tid) for tid, lbl, _, _ in TAG_COLORS]
             for tag_label, tag_val in _tag_opts:
                 act = tag_sub.addAction(tag_label)
                 act.setCheckable(True)
