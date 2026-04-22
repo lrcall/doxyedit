@@ -1538,8 +1538,6 @@ class _CheckerboardItem(QGraphicsRectItem):
     pixels show through as the classic gray/white check pattern."""
 
     TILE = 12
-    C1 = QColor(60, 60, 60)
-    C2 = QColor(84, 84, 84)
 
     def __init__(self, rect: QRectF, parent=None):
         super().__init__(rect, parent)
@@ -1549,10 +1547,13 @@ class _CheckerboardItem(QGraphicsRectItem):
         self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable, False)
 
     def paint(self, painter, option, widget=None):
+        _t = THEMES[DEFAULT_THEME]
+        c1 = QColor(_t.studio_scene_checker_dark)
+        c2 = QColor(_t.studio_scene_checker_light)
         r = self.rect()
-        painter.fillRect(r, self.C1)
+        painter.fillRect(r, c1)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(self.C2)
+        painter.setBrush(c2)
         t = self.TILE
         # Only draw tiles inside the rect
         y0 = int(r.top())
