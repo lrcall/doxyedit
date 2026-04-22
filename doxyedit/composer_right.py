@@ -26,6 +26,7 @@ from PySide6.QtCore import Qt, QDateTime, Signal, QSettings, QThread, QTimer
 from doxyedit.browser import FlowLayout
 from doxyedit.models import Project, SocialPost, SUB_PLATFORMS
 from doxyedit.themes import THEMES, DEFAULT_THEME
+from doxyedit.claude_modal import show_claude_modal
 
 
 # ─── Chrome profile utilities ─────────────────────────────────────
@@ -940,7 +941,6 @@ INSTRUCTION: {mode_desc}
 
 Return ONLY the replacement text. No explanation, no markdown fences, no preamble. Just the improved text that will replace the selection."""
 
-        from doxyedit.claude_modal import show_claude_modal
         self._refine_progress, self._refine_worker = show_claude_modal(
             self, f"Claude: {mode}...", prompt,
             lambda result, _ed=editor, _sel=selected: self._on_refine_done(_ed, _sel, result),
@@ -1146,7 +1146,6 @@ RULES:
         self._apply_strategy_btn.setEnabled(False)
         self._apply_strategy_btn.setText("Applying...")
 
-        from doxyedit.claude_modal import show_claude_modal
         self._apply_progress, self._apply_worker = show_claude_modal(
             self, "Claude: extracting post data...", prompt, self._on_apply_done,
         )
