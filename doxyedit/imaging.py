@@ -1,4 +1,5 @@
 """Shared image loading utilities — PIL↔Qt conversion, PSD support."""
+import hashlib
 from pathlib import Path
 from PySide6.QtGui import QPixmap, QImage
 from PIL import Image as PILImage
@@ -97,7 +98,6 @@ def _prune_preview_cache(cache_dir: Path) -> None:
         pass
 
 def _preview_cache_key(path: str) -> str:
-    import hashlib
     mtime = int(Path(path).stat().st_mtime)
     return hashlib.md5(f"{path}|{mtime}".encode()).hexdigest()
 

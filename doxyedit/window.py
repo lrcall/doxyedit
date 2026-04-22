@@ -1,4 +1,5 @@
 """Main application window — tabbed layout with all panels."""
+import hashlib
 import html as _html
 import json
 import logging
@@ -101,7 +102,6 @@ class _DupeScanThread(QThread):
         self._cancel = True
 
     def run(self):
-        import hashlib
         hashes: dict[str, list] = {}
         total = len(self._assets)
         for i, asset in enumerate(self._assets):
