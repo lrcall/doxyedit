@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QAbstractItemView, QMenu, QApplication,
-    QTabBar, QInputDialog, QStyledItemDelegate,
+    QTabBar, QInputDialog, QStyledItemDelegate, QSplitter,
 )
 from PySide6.QtCore import (
     Qt, Signal, QSize, QUrl, QMimeData, QSettings, QEvent, QRect, QTimer,
@@ -1563,6 +1563,35 @@ class WorkTray(QWidget):
             if asset:
                 self.add_asset(aid, Path(asset.source_path).name, path=asset.source_path)
         self._refresh_tab_counts()
+
+    def attach_notes_widget(self, notes_widget: QWidget,
+                             sizes: tuple[int, int] = (400, 100)):
+        """Install a notes widget below the list inside a vertical
+        splitter. Replaces the layout-mutation hack that previously
+        lived in window.py.
+
+        Safe to call once. Idempotent for no-op re-adds of the same
+        widget (subsequent calls replace the widget)."""
+        if notes_widget is None:
+            return
+        # Already attached? Replace and rebalance sizes.
+        if getattr(self, "_notes_widget", None) is not None:
+            self._notes_widget.setParent(None)
+            self._notes_widget = None
+        tray_layout = self._content.layout()
+        # Remove the list from the plain layout; put list + notes in a
+        # vertical splitter, then put the splitter in the tray layout.
+        if not hasattr(self, "_list_notes_split"):
+            tray_layout.removeWidget(self._list)
+            split = QSplitter(Qt.Orientation.Vertical)
+            split.addWidget(self._list)
+            split.setStretchFactor(0, 3)
+            split.setStretchFactor(1, 0)
+            tray_layout.addWidget(split)
+            self._list_notes_split = split
+        self._list_notes_split.addWidget(notes_widget)
+        self._list_notes_split.setSizes(list(sizes))
+        self._notes_widget = notes_widget
 
     def update_pixmap(self, asset_id: str, pixmap: QPixmap):
         """Update thumbnail for an item already in the tray."""

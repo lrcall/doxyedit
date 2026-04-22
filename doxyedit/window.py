@@ -433,16 +433,9 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         # Move notes widget from tag panel to bottom of work tray (resizable via splitter)
         notes_w = self.tag_panel._tag_notes_split.widget(1)  # notes_widget
         if notes_w:
-            # Replace the list in the tray content layout with a splitter: list + notes
-            tray_layout = self.work_tray._content.layout()
-            tray_layout.removeWidget(self.work_tray._list)
-            _tray_list_notes = QSplitter(Qt.Orientation.Vertical)
-            _tray_list_notes.addWidget(self.work_tray._list)
-            _tray_list_notes.addWidget(notes_w)
-            _tray_list_notes.setSizes([400, 100])
-            _tray_list_notes.setStretchFactor(0, 3)
-            _tray_list_notes.setStretchFactor(1, 0)
-            tray_layout.addWidget(_tray_list_notes)
+            # Public API from tray.py (T20) — no more mutating the
+            # tray's internal layout from the outside.
+            self.work_tray.attach_notes_widget(notes_w, sizes=(400, 100))
         self.tag_panel._tag_notes_split.setSizes([300, 200])
         self._browse_split.setStretchFactor(0, 0)  # file browser
         self._browse_split.setStretchFactor(1, 0)  # tag panel
