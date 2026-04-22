@@ -4386,6 +4386,34 @@ class StudioEditor(QWidget):
         if key == Qt.Key.Key_Backslash and not event.isAutoRepeat():
             self._set_overlays_preview_hidden(True)
             return
+        # Ctrl+G / Ctrl+Shift+G — group / ungroup selected overlays.
+        # Groups are a simple string token on CanvasOverlay.group_id;
+        # selection logic propagates group membership so clicking one
+        # selects the whole group.
+        if ctrl and not shift and key == Qt.Key.Key_G:
+            sel = [it for it in self._scene.selectedItems()
+                   if hasattr(it, "overlay")]
+            if len(sel) >= 2:
+                import uuid as _uuid
+                gid = f"g_{_uuid.uuid4().hex[:8]}"
+                for it in sel:
+                    it.overlay.group_id = gid
+                self._sync_overlays_to_asset()
+                self.info_label.setText(
+                    f"Grouped {len(sel)} overlays")
+            return
+        if ctrl and shift and key == Qt.Key.Key_G:
+            sel = [it for it in self._scene.selectedItems()
+                   if hasattr(it, "overlay")]
+            cleared = 0
+            for it in sel:
+                if it.overlay.group_id:
+                    it.overlay.group_id = ""
+                    cleared += 1
+            if cleared:
+                self._sync_overlays_to_asset()
+                self.info_label.setText(f"Ungrouped {cleared} overlays")
+            return
         # F2 - rename the currently-selected overlay (layer-panel row)
         # without having to go through the right-click context menu.
         # Mirrors the global app F2-to-rename convention.

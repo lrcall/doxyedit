@@ -251,6 +251,10 @@ class CanvasOverlay:
     shape_h: int = 0
     fill_color: str = ""       # empty = hollow
     platforms: list[str] = field(default_factory=list)  # empty = all platforms
+    # Grouping: any non-empty value ties overlays together so selecting
+    # one selects the whole group. Set via Studio's Ctrl+G; cleared by
+    # Ctrl+Shift+G. Empty string means 'not grouped'.
+    group_id: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
