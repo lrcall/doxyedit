@@ -4263,6 +4263,32 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             # with an Apply-default button for round-trip.
             sd_row = QHBoxLayout()
             sd_row.setContentsMargins(0, 0, 0, 0)
+            reset_btn = QPushButton("Reset Transform")
+            reset_btn.setToolTip(
+                "Zero rotation / skew / flip + blend mode 'normal' on "
+                "the selected shape(s).")
+            def _reset_transform(_it=item):
+                sel_shapes = [x for x in editor._scene.selectedItems()
+                              if isinstance(x, OverlayShapeItem)] or [_it]
+                for x in sel_shapes:
+                    ov_x = x.overlay
+                    ov_x.rotation = 0.0
+                    ov_x.skew_x = 0.0
+                    ov_x.skew_y = 0.0
+                    ov_x.flip_h = False
+                    ov_x.flip_v = False
+                    ov_x.blend_mode = "normal"
+                    from PySide6.QtGui import QTransform as _QT
+                    x.setRotation(0)
+                    x.setTransform(_QT())
+                    x.update()
+                editor._sync_overlays_to_asset()
+                if hasattr(editor, "info_label"):
+                    editor.info_label.setText(
+                        f"Reset transform on {len(sel_shapes)} shape(s)")
+            reset_btn.clicked.connect(_reset_transform)
+            form.addRow("", reset_btn)
+
             save_default_btn = QPushButton("Save Default")
             save_default_btn.setToolTip(
                 "Current stroke / fill / width / line style become the "
