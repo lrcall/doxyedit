@@ -16,7 +16,8 @@ from PySide6.QtWidgets import (
     QColorDialog, QMessageBox, QSplitter, QInputDialog,
     QTextEdit, QTextBrowser, QPlainTextEdit,
     QWidget, QVBoxLayout, QHBoxLayout, QApplication, QLabel, QProgressBar, QPushButton,
-    QSizePolicy, QMenu,
+    QSizePolicy, QMenu, QDialog, QDialogButtonBox,
+    QTableWidget, QTableWidgetItem, QHeaderView, QProgressDialog,
 )
 from PySide6.QtCore import Qt, QTimer, QSettings, QSize, QUrl, QMimeData, QAbstractNativeEventFilter, QThread, Signal
 from PySide6.QtGui import (
@@ -4185,7 +4186,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         widget = self.tabs.widget(idx)
         # Deferred restore for Social tab splitters (Qt needs visible geometry)
         if widget is self._social_split and getattr(self, '_social_left_saved', None):
-            from PySide6.QtCore import QTimer
             saved = self._social_left_saved
             self._social_left_saved = None  # one-shot
             QTimer.singleShot(0, lambda: self._social_left_split.setSizes([int(s) for s in saved]))
@@ -4680,7 +4680,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _show_import_sources(self):
         """Show a dialog listing all recorded import sources."""
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QHeaderView
         sources = self.project.import_sources
         dlg = QDialog(self)
         dlg.setWindowTitle("Import Sources")
@@ -4804,7 +4803,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self.status.showMessage("Select a single asset to edit notes", 2000)
             return
         asset = assets[0]
-        from PySide6.QtWidgets import QDialog, QTextEdit, QDialogButtonBox
         dlg = QDialog(self)
         dlg.setWindowTitle(f"Notes — {asset.name}")
         dlg.resize(500, 300)
@@ -5434,7 +5432,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             return
 
         # Progress dialog with a working Cancel button.
-        from PySide6.QtWidgets import QProgressDialog
         progress = QProgressDialog(f"Posting to {tasks[0][5]}...", "Cancel", 0, len(tasks), self)
         progress.setWindowTitle("Auto-Post")
         progress.setWindowModality(Qt.WindowModality.WindowModal)
@@ -5637,7 +5634,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _find_duplicates(self):
         """Hash all project assets off-thread and show a dialog of duplicate groups."""
-        from PySide6.QtWidgets import QProgressDialog
 
         n_assets = len(self.project.assets)
         progress = QProgressDialog("Scanning for duplicates...", "Cancel", 0, n_assets, self)
@@ -5779,7 +5775,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _find_similar(self):
         """Find visually similar images using perceptual hash comparison (off-thread)."""
-        from PySide6.QtWidgets import QProgressDialog
 
         # Collect phash values (cheap, stays on UI thread)
         hashmap = []  # (asset, phash_int)
@@ -5945,7 +5940,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         """Group assets by shared filename stem and propose variant sets."""
         import re
         import uuid as _uuid
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton, QLabel
 
         STRIP_PATTERN = re.compile(
             r'[_\-\s]*(0*\d{1,3}|v\d+|final|draft|wip|nsfw|sfw|color|bw|'
@@ -6098,7 +6092,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self.checklist_panel.setFocus()
 
     def _show_tag_stats(self):
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem, QDialogButtonBox
         counts: dict[str, int] = {}
         for a in self.project.assets:
             for t in a.tags:
@@ -6235,7 +6228,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _show_whats_new(self):
         """Read docs/CHANGELOG.md and show the latest entries in a dialog."""
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
         from doxyedit import __version__
 
         # Find docs/CHANGELOG.md next to the installed package
@@ -6350,7 +6342,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _on_watched_folder_changed(self, folder_path: str):
         """A watched import folder changed — debounce then rescan."""
         if not hasattr(self, '_folder_change_timer'):
-            from PySide6.QtCore import QTimer
             self._folder_change_timer = QTimer(self)
             self._folder_change_timer.setSingleShot(True)
             self._folder_change_timer.setInterval(1000)
