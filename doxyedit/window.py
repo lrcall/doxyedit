@@ -13,19 +13,19 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QTabWidget, QTabBar, QToolBar, QFileDialog, QStatusBar,
     QGraphicsTextItem, QGraphicsRectItem, QGraphicsLineItem,
-    QGraphicsPixmapItem, QColorDialog, QMessageBox, QSplitter,
+    QColorDialog, QMessageBox, QSplitter,
     QWidget, QVBoxLayout, QHBoxLayout, QApplication, QLabel, QProgressBar, QPushButton,
     QSizePolicy, QMenu,
 )
 from PySide6.QtCore import Qt, QTimer, QSettings, QSize, QUrl, QMimeData, QAbstractNativeEventFilter, QThread, Signal
 from PySide6.QtGui import (
-    QAction, QKeySequence, QColor, QPen, QBrush, QShortcut, QImage,
+    QAction, QKeySequence, QColor, QBrush, QShortcut,
 )
 
-from doxyedit.models import Project, PLATFORMS, TAG_ALL, TAG_SHORTCUTS, TAG_SHORTCUTS_DEFAULT, toggle_tags
+from doxyedit.models import Project, PLATFORMS, TAG_ALL, TAG_SHORTCUTS, toggle_tags
 from doxyedit import windroptarget
 from doxyedit.browser import AssetBrowser, IMAGE_EXTS, THUMB_GEN_SIZE
-from doxyedit.themes import THEMES, DEFAULT_THEME, generate_stylesheet, Theme
+from doxyedit.themes import THEMES, DEFAULT_THEME, generate_stylesheet
 from doxyedit.platforms import PlatformPanel
 from doxyedit.timeline import TimelineStream
 from doxyedit.calendar_pane import CalendarPane
@@ -1921,7 +1921,7 @@ class MainWindow(SaveLoadMixin, QMainWindow):
 
     def _refine_with_claude(self, editor, tab_name: str, selected: str, mode: str):
         """Send selected text to Claude for refinement, replace in editor."""
-        import subprocess, sys
+        import subprocess
 
         full_text = editor.toPlainText()
 
