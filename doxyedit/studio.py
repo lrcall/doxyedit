@@ -1850,7 +1850,8 @@ class _StudioRuler(QWidget):
         # Cursor indicator line
         cursor_px = (self._cursor_scene - s_start) * scale
         if 0 <= cursor_px <= max(self.width(), self.height()):
-            p.setPen(QPen(QColor(self._theme.accent), 1))
+            p.setPen(QPen(QColor(self._theme.accent),
+                          self._theme.studio_ruler_tick_pen_width))
             if self._orientation == 'h':
                 p.drawLine(int(cursor_px), 0, int(cursor_px), self.height())
             else:
@@ -10358,7 +10359,8 @@ class StudioEditor(QWidget):
                     return pm
                 # Fall through to placeholder
             if ov.type == "text":
-                painter.setPen(QPen(QColor(ov.color or _t.studio_icon_fg), 1))
+                painter.setPen(QPen(QColor(ov.color or _t.studio_icon_fg),
+                                    _t.studio_thumb_pen_width))
                 font = painter.font()
                 font.setBold(bool(getattr(ov, "bold", False)))
                 font.setItalic(bool(getattr(ov, "italic", False)))
@@ -10367,7 +10369,8 @@ class StudioEditor(QWidget):
                 painter.drawText(pm.rect(), Qt.AlignmentFlag.AlignCenter, "T")
                 return pm
             if ov.type == "arrow":
-                painter.setPen(QPen(QColor(ov.color or _t.studio_temp_arrow), 3))
+                painter.setPen(QPen(QColor(ov.color or _t.studio_temp_arrow),
+                                    _t.studio_thumb_arrow_pen_width))
                 painter.drawLine(4, size - 4, size - 6, 6)
                 # Small arrowhead
                 painter.setPen(Qt.PenStyle.NoPen)
@@ -10406,7 +10409,8 @@ class StudioEditor(QWidget):
                                  QColor(_t.studio_censor_blackout_fill))
             elif cr.style == "blur":
                 # Hash-pattern for blur
-                painter.setPen(QPen(QColor(_t.studio_censor_blur_fill), 1))
+                painter.setPen(QPen(QColor(_t.studio_censor_blur_fill),
+                                    _t.studio_thumb_pen_width))
                 for y in range(4, size - 4, 3):
                     painter.drawLine(4, y, size - 4, y)
             else:  # pixelate
@@ -10416,7 +10420,7 @@ class StudioEditor(QWidget):
                         painter.fillRect(xx, yy, 4, 4, QColor(v, v, v))
             err_c = QColor(_t.studio_error_dot)
             err_c.setAlpha(_t.studio_error_dot_alpha)
-            painter.setPen(QPen(err_c, 1))
+            painter.setPen(QPen(err_c, _t.studio_thumb_pen_width))
             painter.drawRect(3, 3, size - 6, size - 6)
             return pm
         finally:

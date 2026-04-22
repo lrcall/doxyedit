@@ -185,6 +185,8 @@ class Theme:
     studio_swatch_ring_pen_width: int = 3             # color-swatch outline ring thickness
     studio_swatch_border_pen_width: int = 1           # color-swatch filled border thickness
     studio_minimap_pen_width: int = 1                 # minimap border + viewport-rect pen width
+    studio_thumb_pen_width: int = 1                   # 28px layer-panel thumb thin outlines
+    studio_thumb_arrow_pen_width: int = 3             # 28px layer-panel arrow thumb thickness
     # Browser extras
     grid_folder_tag_alpha: int = 60        # folder label tag bg opacity
     tag_bar_active_alpha: int = 255        # active tag button opacity
