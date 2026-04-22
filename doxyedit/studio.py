@@ -15682,7 +15682,6 @@ class StudioEditor(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
-        from doxyedit.models import PLATFORMS
         thumb_h = self._preview_thumb_h
         any_shown = False
         for r in results:
