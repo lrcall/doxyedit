@@ -942,9 +942,14 @@ class OverlayShapeItem(QGraphicsItem):
         painter.drawPolygon(QPolygonF(points))
 
     def _handle_under(self, scene_pos: QPointF):
+        # Map scene -> local so rotation / skew don't shift the hotspots
+        # away from the handles the user actually sees. _handle_positions
+        # returns local-space coords (overlay.x/y is local since item
+        # itself lives at pos() == 0,0).
+        local = self.mapFromScene(scene_pos)
         r = self.HANDLE_HIT_RADIUS
         for key, pt in self._handle_positions().items():
-            if abs(scene_pos.x() - pt.x()) <= r and abs(scene_pos.y() - pt.y()) <= r:
+            if abs(local.x() - pt.x()) <= r and abs(local.y() - pt.y()) <= r:
                 return key
         return None
 
@@ -965,15 +970,17 @@ class OverlayShapeItem(QGraphicsItem):
     def _tail_handle_under(self, scene_pos: QPointF) -> bool:
         """True if `scene_pos` is near the bubble tail tip handle.
         Uses a zoom-adaptive radius — the handle was notoriously finicky
-        to grab when the view was zoomed out."""
+        to grab when the view was zoomed out. scene_pos is mapped into
+        local coords so rotation + skew don't misalign the hotspot."""
         if not self._is_bubble():
             return False
+        local = self.mapFromScene(scene_pos)
         body = QRectF(self.overlay.x, self.overlay.y,
                       self.overlay.shape_w, self.overlay.shape_h)
         tip = self._tail_tip(body)
         r = self._zoom_adaptive_radius(18)
-        return (abs(scene_pos.x() - tip.x()) <= r
-                and abs(scene_pos.y() - tip.y()) <= r)
+        return (abs(local.x() - tip.x()) <= r
+                and abs(local.y() - tip.y()) <= r)
 
     def _polygon_vertex_handle_pos(self) -> QPointF:
         """Scene-space position of the polygon vertex-count handle.
@@ -992,10 +999,11 @@ class OverlayShapeItem(QGraphicsItem):
     def _polygon_vertex_handle_under(self, scene_pos: QPointF) -> bool:
         if self.overlay.shape_kind != "polygon":
             return False
+        local = self.mapFromScene(scene_pos)
         hp = self._polygon_vertex_handle_pos()
         r = self._zoom_adaptive_radius(14)
-        return (abs(scene_pos.x() - hp.x()) <= r
-                and abs(scene_pos.y() - hp.y()) <= r)
+        return (abs(local.x() - hp.x()) <= r
+                and abs(local.y() - hp.y()) <= r)
 
     def _star_inner_handle_pos(self) -> QPointF:
         """Scene-space position of the star inner-radius handle. A point
@@ -1014,10 +1022,11 @@ class OverlayShapeItem(QGraphicsItem):
     def _star_inner_handle_under(self, scene_pos: QPointF) -> bool:
         if self.overlay.shape_kind != "star":
             return False
+        local = self.mapFromScene(scene_pos)
         hp = self._star_inner_handle_pos()
         r = self._zoom_adaptive_radius(14)
-        return (abs(scene_pos.x() - hp.x()) <= r
-                and abs(scene_pos.y() - hp.y()) <= r)
+        return (abs(local.x() - hp.x()) <= r
+                and abs(local.y() - hp.y()) <= r)
 
     def _corner_radius_handle_pos(self) -> QPointF:
         """Scene-space position of the corner-radius handle. Appears
@@ -1034,10 +1043,11 @@ class OverlayShapeItem(QGraphicsItem):
     def _corner_radius_handle_under(self, scene_pos: QPointF) -> bool:
         if self.overlay.shape_kind != "rect":
             return False
+        local = self.mapFromScene(scene_pos)
         hp = self._corner_radius_handle_pos()
         r = self._zoom_adaptive_radius(14)
-        return (abs(scene_pos.x() - hp.x()) <= r
-                and abs(scene_pos.y() - hp.y()) <= r)
+        return (abs(local.x() - hp.x()) <= r
+                and abs(local.y() - hp.y()) <= r)
 
     def _rotate_handle_pos(self) -> QPointF:
         """Scene-space position of the rotate handle: above the top edge
@@ -1056,10 +1066,11 @@ class OverlayShapeItem(QGraphicsItem):
         return QPointF(x + w / 2, y - 22 / m)
 
     def _rotate_handle_under(self, scene_pos: QPointF) -> bool:
+        local = self.mapFromScene(scene_pos)
         rh = self._rotate_handle_pos()
         r = self._zoom_adaptive_radius(18)
-        return (abs(scene_pos.x() - rh.x()) <= r
-                and abs(scene_pos.y() - rh.y()) <= r)
+        return (abs(local.x() - rh.x()) <= r
+                and abs(local.y() - rh.y()) <= r)
 
     def _is_bubble(self) -> bool:
         return self.overlay.shape_kind in ("speech_bubble", "thought_bubble")
