@@ -3759,14 +3759,46 @@ class StudioView(QGraphicsView):
         # minimal region — the union of old + new sceneBoundingRect for
         # the moving item, which for most bubble drags is just a few
         # hundred pixels square.
-        self.setViewportUpdateMode(
-            QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate)
-        # Cache the entire scene background (base image + checker) into
-        # a viewport-sized pixmap. With many overlays, ALL the items
-        # under the moving one would otherwise repaint every frame; the
-        # cached background skips them entirely — only the moving item's
-        # dirty rect runs through the actual paint pipeline.
-        self.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
+        # GPU viewport — opt-in via studio_use_gl_viewport (default on).
+        # When on, Qt composites through OpenGL (hardware-accelerated
+        # textures), which on a 2000x3000 canvas is typically 3-5x
+        # faster per blit than the software raster path. Required
+        # caveat: GL viewport forces FullViewportUpdate (partial rect
+        # updates don't work on a GL surface — the whole framebuffer
+        # is redrawn per swap anyway). If the user hits a regression on
+        # their specific GPU/driver combo they can toggle the pref off
+        # and Studio falls back to the tuned raster path below.
+        _use_gl = _qs.value("studio_use_gl_viewport", True, type=bool)
+        gl_ok = False
+        if _use_gl:
+            try:
+                from PySide6.QtOpenGLWidgets import QOpenGLWidget
+                from PySide6.QtGui import QSurfaceFormat
+                gl = QOpenGLWidget()
+                fmt = QSurfaceFormat()
+                fmt.setSwapInterval(1)  # vsync
+                fmt.setSamples(0)        # no MSAA - cheap
+                gl.setFormat(fmt)
+                self.setViewport(gl)
+                gl_ok = True
+            except Exception:
+                gl_ok = False
+        if gl_ok:
+            # GL viewport requires FullViewportUpdate - partial rects
+            # don't work; the framebuffer swaps whole anyway.
+            self.setViewportUpdateMode(
+                QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+        else:
+            # Raster fallback: perf log showed SmartViewportUpdate was
+            # picking full-viewport anyway; MinimalViewportUpdate always
+            # calculates the actual minimal rect from the union of moving
+            # item's old+new sceneBoundingRect.
+            self.setViewportUpdateMode(
+                QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate)
+            # Cache the scene background pixmap only on the raster path —
+            # GL has its own texture cache and this fights it.
+            self.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
+        self._gl_viewport_active = gl_ok
         # Opt out of software-composed backing store; direct OpenGL-ish
         # path on Windows is a lot faster for the per-frame blit.
         self.setOptimizationFlag(
