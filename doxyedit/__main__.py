@@ -31,9 +31,10 @@ Commands:
     transport <project.json> [--dry-run] [--compact]  Package assets + enable local mode
     untransport <project.json>            Restore original paths from transport metadata
 """
-import sys
-import os
 import json
+import os
+import shutil
+import sys
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -1444,7 +1445,6 @@ def cmd_transport(project_path: str, args: list):
     Stores original paths in each asset's specs.original_path / specs.original_folder.
     Enables local_mode so the project becomes fully portable.
     """
-    import shutil
     from doxyedit.models import Project
 
     dry_run = "--dry-run" in args
