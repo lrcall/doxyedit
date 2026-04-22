@@ -7,8 +7,8 @@ from typing import Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QDateEdit, QSlider, QGraphicsScene, QGraphicsView,
-    QGraphicsRectItem, QGraphicsLineItem, QSplitter,
-    QScrollArea, QFrame, QSizePolicy, QGraphicsItem,
+    QGraphicsRectItem,
+    QScrollArea, QGraphicsItem,
 )
 from PySide6.QtCore import Signal, Qt, QDate
 from PySide6.QtGui import QPen, QColor, QBrush, QPainter
