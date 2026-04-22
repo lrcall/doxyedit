@@ -8784,6 +8784,9 @@ class StudioEditor(QWidget):
             return
         item.overlay.image_path = path
         item.overlay.label = Path(path).stem
+        # Invalidate the source-pixmap cache — next scale/refresh call
+        # will reload from disk at the new path.
+        item._source_pixmap = pm
         # Re-scale to current scale fraction against base image width
         if self._pixmap_item:
             base_w = self._pixmap_item.pixmap().width()
