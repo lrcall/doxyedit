@@ -1673,6 +1673,9 @@ class OverlayShapeItem(QGraphicsItem):
             preset_shout_act = preset_menu.addAction("Shout (thick)")
             preset_narrator_act = preset_menu.addAction("Narrator box (no tail)")
         menu.addSeparator()
+        select_same_fill_act = menu.addAction("Select All Same Fill")
+        select_same_stroke_act = menu.addAction("Select All Same Stroke")
+        menu.addSeparator()
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         del_act = menu.addAction("Delete")
         chosen = menu.exec(event.screenPos())
@@ -1854,6 +1857,32 @@ class OverlayShapeItem(QGraphicsItem):
                 self._editor._sync_overlays_to_asset()
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_shape_item(self)
+        elif chosen is select_same_fill_act and self._editor:
+            target = self.overlay.fill_color or ""
+            self._editor._scene.clearSelection()
+            count = 0
+            for it in self._editor._overlay_items:
+                if isinstance(it, OverlayShapeItem):
+                    if getattr(it.overlay, "fill_color", "") == target:
+                        it.setSelected(True)
+                        count += 1
+            self._editor.info_label.setText(
+                f"Selected {count} shape"
+                f"{'s' if count != 1 else ''} with fill "
+                f"{target or '(none)'}")
+        elif chosen is select_same_stroke_act and self._editor:
+            target = self.overlay.stroke_color or ""
+            self._editor._scene.clearSelection()
+            count = 0
+            for it in self._editor._overlay_items:
+                if isinstance(it, OverlayShapeItem):
+                    if getattr(it.overlay, "stroke_color", "") == target:
+                        it.setSelected(True)
+                        count += 1
+            self._editor.info_label.setText(
+                f"Selected {count} shape"
+                f"{'s' if count != 1 else ''} with stroke "
+                f"{target or '(none)'}")
         elif chosen is del_act and self._editor:
             self._editor._remove_overlay_item(self)
 
