@@ -6323,6 +6323,21 @@ class StudioEditor(QWidget):
             if hasattr(self, "_canvas_wrap"):
                 self._canvas_wrap.refresh()
             return
+        # Numpad + / - zoom too (no Ctrl). The main-keyboard +/- keys
+        # stay on Ctrl to avoid colliding with the arrowhead-size []
+        # bindings, but the numpad is free.
+        if key == Qt.Key.Key_Plus and not ctrl and not shift:
+            self._view.scale(1.2, 1.2)
+            self._zoom_label.setText(f"{int(self._view.transform().m11() * 100)}%")
+            if hasattr(self, "_canvas_wrap"):
+                self._canvas_wrap.refresh()
+            return
+        if key == Qt.Key.Key_Minus and not ctrl and not shift:
+            self._view.scale(1 / 1.2, 1 / 1.2)
+            self._zoom_label.setText(f"{int(self._view.transform().m11() * 100)}%")
+            if hasattr(self, "_canvas_wrap"):
+                self._canvas_wrap.refresh()
+            return
 
         # Delete
         if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
