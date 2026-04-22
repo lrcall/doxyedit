@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF, Signal, QEvent, QTimer
 from PySide6.QtGui import (
-    QPixmap, QPainter, QFont, QColor, QKeySequence, QShortcut,
+    QPainter, QFont, QColor, QKeySequence, QShortcut,
     QTransform, QPen, QBrush, QPainterPath,
 )
 

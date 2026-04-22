@@ -15,7 +15,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QPixmap, QFont, QColor, QCursor, QPainter, QPen, QFontMetrics, QPainterPath,
-    QKeySequence, QShortcut, QDrag, QMouseEvent,
+    QDrag, QMouseEvent,
 )
 
 from doxyedit.models import (

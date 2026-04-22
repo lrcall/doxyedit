@@ -1055,7 +1055,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._ai_strategy_btn.setText("Generating...")
 
         # Show themed modal
-        from doxyedit.claude_modal import ClaudeWorker
         from PySide6.QtWidgets import QProgressDialog
         self._ai_progress = QProgressDialog("Claude: generating strategy...", None, 0, 0, self)
         self._ai_progress.setObjectName("claude_progress")
