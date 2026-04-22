@@ -4501,6 +4501,27 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 editor._sync_overlays_to_asset()
             clear_btn.clicked.connect(_clear_fill)
             fill_row.addWidget(clear_btn)
+            # Random pleasing color (uses HSL with mid brightness +
+            # saturation so results don't go black / neon). Seeds the
+            # color into fill, recent colors, and the swatch preview.
+            rand_btn = QPushButton("🎲")
+            rand_btn.setFixedWidth(34)
+            rand_btn.setToolTip(
+                "Random pleasing color (HSL mid-brightness).")
+            def _rand_fill(_it=item):
+                import random as _rand
+                h = _rand.randint(0, 359)
+                s = _rand.randint(55, 95)
+                l = _rand.randint(42, 68)
+                c = QColor.fromHsl(h, int(s * 2.55), int(l * 2.55))
+                hex_c = c.name()
+                _it.overlay.fill_color = hex_c
+                _it.update()
+                fill_btn.setSwatchColor(hex_c)
+                editor._add_recent_color(hex_c)
+                editor._sync_overlays_to_asset()
+            rand_btn.clicked.connect(_rand_fill)
+            fill_row.addWidget(rand_btn)
             fill_row.addStretch()
             _frw = _QW(); _frw.setLayout(fill_row)
             form.addRow("Fill color", _frw)
