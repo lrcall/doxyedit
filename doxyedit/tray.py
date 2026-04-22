@@ -397,6 +397,7 @@ class WorkTray(QWidget):
     def _on_context_menu(self, pos):
         item = self._list.itemAt(pos)
         if not item:
+            self._empty_area_menu(pos)
             return
         asset_id = item.data(Qt.ItemDataRole.UserRole)
         selected = self._get_selected_ids()
@@ -488,6 +489,161 @@ class WorkTray(QWidget):
         if n > 1:
             menu.addAction(f"Clear All ({n})", self.clear)
         menu.exec(self._list.viewport().mapToGlobal(pos))
+
+    def _empty_area_menu(self, pos):
+        """Right-click on the empty list area — tray-wide actions."""
+        menu = QMenu(self)
+        n = self._list.count()
+        menu.addAction("Paste Path from Clipboard", self._paste_path_from_clipboard)
+        menu.addAction("Import Folder...", self._import_folder)
+        menu.addSeparator()
+        if n:
+            menu.addAction(f"Select All ({n})",
+                           lambda: self._list.selectAll())
+            sort_menu = menu.addMenu("Sort")
+            sort_menu.addAction("By Name (A-Z)",
+                                lambda: self._sort_items("name"))
+            sort_menu.addAction("By Name (Z-A)",
+                                lambda: self._sort_items("name_desc"))
+            sort_menu.addAction("By Date Added (newest first)",
+                                lambda: self._sort_items("recent"))
+            sort_menu.addAction("By Stars (high to low)",
+                                lambda: self._sort_items("stars"))
+            menu.addAction(f"Export Tray as ZIP... ({n})",
+                           self._export_tray_zip)
+            menu.addSeparator()
+            menu.addAction(f"Clear Tray ({n})", self.clear)
+        else:
+            # empty state — gentle hint
+            act = menu.addAction("(empty - drop files or paste a path above)")
+            act.setEnabled(False)
+        menu.exec(self._list.viewport().mapToGlobal(pos))
+
+    def _paste_path_from_clipboard(self):
+        """Take whatever is on the clipboard, treat each line as a path,
+        add any that resolve to a project asset."""
+        if not self._project:
+            return
+        text = QApplication.clipboard().text()
+        if not text:
+            return
+        candidates = [p.strip().strip('"').strip("'")
+                      for p in text.splitlines() if p.strip()]
+        if not candidates:
+            return
+        path_map = {a.source_path.replace("\\", "/"): a
+                    for a in self._project.assets}
+        added = 0
+        for path in candidates:
+            norm = path.replace("\\", "/")
+            asset = path_map.get(norm)
+            if asset and asset.id not in self._asset_ids:
+                self.add_asset(asset.id, Path(path).name, path=path)
+                added += 1
+        if added:
+            self.pixmaps_needed.emit(list(self._asset_ids))
+
+    def _import_folder(self):
+        """Pick a folder and add every project asset whose source lives
+        under that path. Non-project files are ignored."""
+        if not self._project:
+            return
+        from PySide6.QtWidgets import QFileDialog
+        folder = QFileDialog.getExistingDirectory(
+            self, "Import folder into tray")
+        if not folder:
+            return
+        folder_norm = folder.replace("\\", "/").rstrip("/") + "/"
+        added = 0
+        for asset in self._project.assets:
+            src = asset.source_path.replace("\\", "/")
+            if src.startswith(folder_norm) and asset.id not in self._asset_ids:
+                self.add_asset(asset.id,
+                               Path(asset.source_path).name,
+                               path=asset.source_path)
+                added += 1
+        if added:
+            self.pixmaps_needed.emit(list(self._asset_ids))
+
+    def _sort_items(self, mode: str):
+        """Sort the current tray's items in place. Rebuilds the list widget
+        from the new _asset_ids order; does NOT touch other trays."""
+        if not self._project:
+            return
+        def key_name(aid):
+            a = self._project.get_asset(aid)
+            return (Path(a.source_path).name.lower() if a else aid)
+        def key_stars(aid):
+            a = self._project.get_asset(aid)
+            return -(a.starred if a else 0)
+        def key_recent(aid):
+            # Most recently added == end of current _asset_ids
+            return -self._id_to_row.get(aid, 0)
+        keyfn = {
+            "name": key_name,
+            "name_desc": lambda a: tuple(-ord(c) for c in key_name(a)),
+            "stars": key_stars,
+            "recent": key_recent,
+        }.get(mode, key_name)
+        new_order = sorted(self._asset_ids, key=keyfn)
+        if new_order == self._asset_ids:
+            return
+        # Rebuild list widget in the new order without losing pixmaps
+        ids_before = list(self._asset_ids)
+        pixmaps_before = dict(self._pixmaps)
+        paths_before = dict(self._paths)
+        self._list.clear()
+        self._asset_ids.clear()
+        self._id_to_row.clear()
+        for aid in new_order:
+            asset = self._project.get_asset(aid)
+            if asset:
+                self.add_asset(aid, Path(asset.source_path).name,
+                               pixmaps_before.get(aid),
+                               paths_before.get(aid, asset.source_path))
+
+    def _export_tray_zip(self):
+        """Zip every file in the current tray to a user-chosen path."""
+        if not self._asset_ids:
+            return
+        from PySide6.QtWidgets import QFileDialog
+        import zipfile
+        default_name = f"{self._current_tray.replace(' ', '_')}.zip"
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, "Export tray as ZIP", default_name, "ZIP (*.zip)")
+        if not out_path:
+            return
+        written = 0
+        skipped = 0
+        seen_names: dict[str, int] = {}
+        try:
+            with zipfile.ZipFile(out_path, "w",
+                                 compression=zipfile.ZIP_DEFLATED) as zf:
+                for aid in self._asset_ids:
+                    src = self._paths.get(aid)
+                    if not src or not Path(src).exists():
+                        skipped += 1
+                        continue
+                    # De-dupe filenames across subfolders
+                    arc = Path(src).name
+                    seen_names[arc] = seen_names.get(arc, 0) + 1
+                    if seen_names[arc] > 1:
+                        stem = Path(src).stem
+                        ext = Path(src).suffix
+                        arc = f"{stem}_{seen_names[arc]}{ext}"
+                    zf.write(src, arc)
+                    written += 1
+        except Exception as e:
+            # Silent log-only; the user sees a button press and the file
+            # either appears or doesn't.
+            import logging
+            logging.error(f"Tray export failed: {e}")
+            return
+        # Reveal in explorer if anything landed
+        if written:
+            import subprocess
+            win_path = out_path.replace("/", "\\")
+            subprocess.Popen(f'explorer /select,"{win_path}"')
 
     def _send_to_other_tray(self, asset_id: str, tray_name: str):
         """Move an asset from current tray to another tray."""
