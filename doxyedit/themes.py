@@ -648,8 +648,8 @@ SLATE = Theme(
     accent_dim="#366088",
     accent_bright="#6cbaf4",
     text_primary="#e8eef6",
-    text_secondary="#b4bfcc",
-    text_muted="#8292a4",
+    text_secondary="#c8d4e2",
+    text_muted="#a0b0c4",
     text_on_accent="#ffffff",
     statusbar_bg="#38424e",
     statusbar_text="#e8eef6",
@@ -683,8 +683,8 @@ MOSS = Theme(
     accent_dim="#a08040",
     accent_bright="#e8b050",
     text_primary="#f8f4e8",
-    text_secondary="#d4cebc",
-    text_muted="#a8a690",
+    text_secondary="#e4dfc8",
+    text_muted="#c8c4a8",
     text_on_accent="#1c1810",
     statusbar_bg="#5c6450",
     statusbar_text="#f8f4e8",
@@ -718,8 +718,8 @@ OCEAN = Theme(
     accent_dim="#a85848",
     accent_bright="#f88c74",
     text_primary="#f0f6f8",
-    text_secondary="#bccfd6",
-    text_muted="#869ca8",
+    text_secondary="#d4e2e8",
+    text_muted="#a8bec8",
     text_on_accent="#2a1410",
     statusbar_bg="#405866",
     statusbar_text="#f0f6f8",
@@ -753,8 +753,8 @@ LAVENDER = Theme(
     accent_dim="#6848a0",
     accent_bright="#4a2088",
     text_primary="#f6eefa",
-    text_secondary="#e2d0ee",
-    text_muted="#c0a8d4",
+    text_secondary="#ecdcf8",
+    text_muted="#d4bce8",
     text_on_accent="#f6eefa",
     statusbar_bg="#3a1870",
     statusbar_text="#f6eefa",
@@ -897,8 +897,8 @@ WINE = Theme(
     accent_dim="#7c2848",
     accent_bright="#4c0c28",
     text_primary="#fceef4",
-    text_secondary="#eac4d2",
-    text_muted="#b48898",
+    text_secondary="#f4dce6",
+    text_muted="#dcb4c4",
     text_on_accent="#fceef4",
     statusbar_bg="#3a0418",
     statusbar_text="#fceef4",
@@ -1461,7 +1461,8 @@ def generate_stylesheet(theme: Theme) -> str:
             color: {theme.text_primary};
         }}
         QLabel#info_section_header {{
-            color: {theme.accent_bright};
+            color: {theme.text_primary};
+            font-weight: bold;
         }}
         QWidget#info_panel QPushButton {{
             background: {theme.bg_input};

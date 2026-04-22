@@ -340,7 +340,7 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         self._new_tab_btn = QPushButton("+")
         self._new_tab_btn.setObjectName("new_tab_btn")
         self._new_tab_btn.setFixedSize(self._control_size, self._control_size)
-        self._new_tab_btn.setToolTip("New tab — open project, folder, or new project (Ctrl+T)")
+        self._new_tab_btn.setToolTip("New tab — open project, folder, or new project")
         self._new_tab_btn.clicked.connect(self._add_folder_preset_dialog)
 
         _proj_bar_widget = QWidget()
@@ -2202,7 +2202,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         # Project Settings submenu
         ps_sub = file_menu.addMenu("Project Settings")
-        ps_sub.addAction("New Folder &Tab", self._add_folder_preset_dialog).setShortcut(QKeySequence("Ctrl+T"))
+        # Ctrl+T intentionally free — reserved for a future Free Transform
+        # binding. Click the '+' button on the tab bar instead.
+        ps_sub.addAction("New Folder &Tab", self._add_folder_preset_dialog)
         ps_sub.addAction("Set Project Accent Color...", self._set_project_color)
         ps_sub.addAction("Clear Project Accent Color", self._clear_project_color)
         self._local_mode_action = ps_sub.addAction("Local Mode (Repo-Relative Paths)")
