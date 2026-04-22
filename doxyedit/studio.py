@@ -5832,12 +5832,21 @@ class StudioEditor(QWidget):
         # Group 0: Undo / Redo — reliably-rendered glyphs (↶ is U+21B6
         # 'anticlockwise top semicircle arrow' which some Windows fonts
         # show as tofu; ↺ / ↻ are more common).
-        self.btn_undo = QPushButton("↺")
+        # QPainter-drawn icons via _StudioIcons so Windows font
+        # coverage doesn't turn these into tofu squares. Same size
+        # envelope as before so the FlowLayout layout is unchanged.
+        from PySide6.QtCore import QSize as _QS2
+        _ICO_SZ = _QS2(16, 16)
+        self.btn_undo = QPushButton("")
+        self.btn_undo.setIcon(_StudioIcons.undo())
+        self.btn_undo.setIconSize(_ICO_SZ)
         self.btn_undo.setObjectName("studio_btn_undo")
         self.btn_undo.setToolTip("Undo (Ctrl+Z)")
         self.btn_undo.setFixedWidth(_icon_btn_w)
         self.btn_undo.clicked.connect(self._undo_stack.undo)
-        self.btn_redo = QPushButton("↻")
+        self.btn_redo = QPushButton("")
+        self.btn_redo.setIcon(_StudioIcons.redo())
+        self.btn_redo.setIconSize(_ICO_SZ)
         self.btn_redo.setObjectName("studio_btn_redo")
         self.btn_redo.setToolTip("Redo (Ctrl+Y)")
         self.btn_redo.setFixedWidth(_icon_btn_w)
@@ -5855,10 +5864,12 @@ class StudioEditor(QWidget):
             lambda txt: self.btn_redo.setToolTip(
                 f"Redo {txt} (Ctrl+Y)" if txt else "Redo (Ctrl+Y)"))
 
-        self.btn_history = QPushButton("Hist")
+        self.btn_history = QPushButton("")
+        self.btn_history.setIcon(_StudioIcons.history())
+        self.btn_history.setIconSize(_ICO_SZ)
         self.btn_history.setObjectName("studio_btn_history")
         self.btn_history.setToolTip("Undo history panel")
-        self.btn_history.setFixedWidth(int(_dt.font_size * 3.2))
+        self.btn_history.setFixedWidth(_icon_btn_w)
         self.btn_history.clicked.connect(self._show_undo_history)
         toolbar.addWidget(self.btn_history)
         toolbar.addWidget(self.btn_undo)
@@ -5866,7 +5877,9 @@ class StudioEditor(QWidget):
         toolbar.addWidget(QLabel("|"))
 
         # Group 1: Selection
-        self.btn_select = QPushButton("Select")
+        self.btn_select = QPushButton(" Select")
+        self.btn_select.setIcon(_StudioIcons.select())
+        self.btn_select.setIconSize(_ICO_SZ)
         self.btn_select.setObjectName("studio_btn_select")
         self.btn_select.setToolTip("Select tool (Q)")
         self.btn_select.setCheckable(True)
@@ -5877,7 +5890,9 @@ class StudioEditor(QWidget):
         toolbar.addWidget(QLabel("|"))
 
         # Group 2: Censor tools
-        self.btn_censor = QPushButton("Censor")
+        self.btn_censor = QPushButton(" Censor")
+        self.btn_censor.setIcon(_StudioIcons.censor())
+        self.btn_censor.setIconSize(_ICO_SZ)
         self.btn_censor.setObjectName("studio_btn_censor")
         self.btn_censor.setToolTip("Censor tool (X)")
         self.btn_censor.setCheckable(True)
@@ -5896,7 +5911,9 @@ class StudioEditor(QWidget):
         self.combo_censor_style.currentTextChanged.connect(self._on_censor_style_changed)
         toolbar.addWidget(self.combo_censor_style)
 
-        self.btn_crop = QPushButton("Crop")
+        self.btn_crop = QPushButton(" Crop")
+        self.btn_crop.setIcon(_StudioIcons.crop())
+        self.btn_crop.setIconSize(_ICO_SZ)
         self.btn_crop.setObjectName("studio_btn_crop")
         self.btn_crop.setToolTip("Crop tool (C)")
         self.btn_crop.setCheckable(True)
@@ -5922,14 +5939,18 @@ class StudioEditor(QWidget):
                     (pid, slot.name, slot.width, slot.height))
         toolbar.addWidget(self._crop_combo)
 
-        self.btn_note = QPushButton("Note")
+        self.btn_note = QPushButton(" Note")
+        self.btn_note.setIcon(_StudioIcons.note())
+        self.btn_note.setIconSize(_ICO_SZ)
         self.btn_note.setObjectName("studio_btn_note")
         self.btn_note.setToolTip("Note tool (N)")
         self.btn_note.setCheckable(True)
         self.btn_note.clicked.connect(lambda: self._set_tool(StudioTool.NOTE))
         toolbar.addWidget(self.btn_note)
 
-        self.btn_eyedropper = QPushButton("Pick")
+        self.btn_eyedropper = QPushButton(" Pick")
+        self.btn_eyedropper.setIcon(_StudioIcons.eyedropper())
+        self.btn_eyedropper.setIconSize(_ICO_SZ)
         self.btn_eyedropper.setObjectName("studio_btn_eyedropper")
         self.btn_eyedropper.setToolTip(
             "Eyedropper (I): sample a pixel color - applies to selected text "
@@ -5938,14 +5959,18 @@ class StudioEditor(QWidget):
         self.btn_eyedropper.clicked.connect(lambda: self._set_tool(StudioTool.EYEDROPPER))
         toolbar.addWidget(self.btn_eyedropper)
 
-        self.btn_arrow = QPushButton("Arrow")
+        self.btn_arrow = QPushButton(" Arrow")
+        self.btn_arrow.setIcon(_StudioIcons.arrow())
+        self.btn_arrow.setIconSize(_ICO_SZ)
         self.btn_arrow.setObjectName("studio_btn_arrow")
         self.btn_arrow.setToolTip("Arrow annotation (A): click-drag to draw")
         self.btn_arrow.setCheckable(True)
         self.btn_arrow.clicked.connect(lambda: self._set_tool(StudioTool.ARROW))
         toolbar.addWidget(self.btn_arrow)
 
-        self.btn_shape = QPushButton("Shape")
+        self.btn_shape = QPushButton(" Shape")
+        self.btn_shape.setIcon(_StudioIcons.shape())
+        self.btn_shape.setIconSize(_ICO_SZ)
         self.btn_shape.setObjectName("studio_btn_shape")
         self.btn_shape.setToolTip("Shape (rectangle/ellipse) - click-drag to draw")
         self.btn_shape.setCheckable(True)
@@ -5970,14 +5995,18 @@ class StudioEditor(QWidget):
         toolbar.addWidget(QLabel("|"))
 
         # Group 3: Overlay tools
-        self.btn_watermark = QPushButton("Watermark")
+        self.btn_watermark = QPushButton(" Watermark")
+        self.btn_watermark.setIcon(_StudioIcons.watermark())
+        self.btn_watermark.setIconSize(_ICO_SZ)
         self.btn_watermark.setObjectName("studio_btn_watermark")
         self.btn_watermark.setToolTip("Watermark / logo tool (E)")
         self.btn_watermark.setCheckable(True)
         self.btn_watermark.clicked.connect(lambda: self._set_tool(StudioTool.WATERMARK))
         toolbar.addWidget(self.btn_watermark)
 
-        self.btn_text = QPushButton("Text")
+        self.btn_text = QPushButton(" Text")
+        self.btn_text.setIcon(_StudioIcons.text())
+        self.btn_text.setIconSize(_ICO_SZ)
         self.btn_text.setObjectName("studio_btn_text")
         self.btn_text.setToolTip("Text overlay tool (T)")
         self.btn_text.setCheckable(True)
