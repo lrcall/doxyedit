@@ -6329,6 +6329,16 @@ class StudioEditor(QWidget):
                     self._sync_overlays_to_asset()
                     self.info_label.setText(f"Scaled by {value}%")
             return
+        # F3 toggles the snap grid. F4 toggles rule-of-thirds. F5
+        # toggles minimap. Convention: Fn keys drive view overlays.
+        if key == Qt.Key.Key_F3 and not ctrl and not shift:
+            if hasattr(self, "chk_grid"):
+                self.chk_grid.setChecked(not self.chk_grid.isChecked())
+            return
+        if key == Qt.Key.Key_F4 and not ctrl and not shift:
+            if hasattr(self, "chk_thirds"):
+                self.chk_thirds.setChecked(not self.chk_thirds.isChecked())
+            return
         # F12 toggles snap on/off. Remembers the last non-zero threshold
         # so the user can flip between 'no snap' and 'my usual snap'
         # without re-entering the value each time.
