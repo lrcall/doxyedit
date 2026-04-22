@@ -7887,8 +7887,7 @@ class StudioEditor(QWidget):
         # QPainter-drawn icons via _StudioIcons so Windows font
         # coverage doesn't turn these into tofu squares. Same size
         # envelope as before so the FlowLayout layout is unchanged.
-        from PySide6.QtCore import QSize as _QS2
-        _ICO_SZ = _QS2(16, 16)
+        _ICO_SZ = QSize(16, 16)
         self.btn_undo = QPushButton("")
         self.btn_undo.setIcon(_StudioIcons.undo())
         self.btn_undo.setIconSize(_ICO_SZ)
@@ -9345,8 +9344,7 @@ class StudioEditor(QWidget):
         self._layer_panel.setDragDropMode(QListWidget.DragDropMode.InternalMove)
         # Show thumbnails alongside each layer name. Size is a user
         # pref (studio_layer_thumb_size: small=16, medium=28, large=48).
-        from PySide6.QtCore import QSize, QSettings as _QSS
-        _thumb_sz = _QSS("DoxyEdit", "DoxyEdit").value(
+        _thumb_sz = QSettings("DoxyEdit", "DoxyEdit").value(
             "studio_layer_thumb_size", 28, type=int)
         _thumb_sz = max(12, min(64, _thumb_sz))
         self._layer_panel.setIconSize(QSize(_thumb_sz, _thumb_sz))
