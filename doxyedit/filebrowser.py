@@ -6,10 +6,8 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate, QStyleOptionViewItem, QLineEdit,
 )
 from PySide6.QtCore import Qt, Signal, QDir, QSettings, QModelIndex, QRect, QSize
-from PySide6.QtGui import QFont, QPainter, QColor
+from PySide6.QtGui import QPainter, QColor
 from doxyedit.themes import ui_font_size
-
-from doxyedit.browser import IMAGE_EXTS
 
 
 class FolderDelegate(QStyledItemDelegate):

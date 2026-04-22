@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (
     QScrollArea, QFrame, QPushButton, QLineEdit, QCompleter,
 )
 from PySide6.QtCore import Qt, Signal, QStringListModel
-from PySide6.QtGui import QFont, QColor
 from doxyedit.themes import ui_font_size
 
 from doxyedit.browser import FlowLayout
@@ -58,7 +57,6 @@ class InfoPanel(QWidget):
         self._build()
 
     def _build(self):
-        from PySide6.QtCore import QSettings
         _f = ui_font_size()
         _cb = max(14, _f + 2)
         _pad = max(4, _f // 3)

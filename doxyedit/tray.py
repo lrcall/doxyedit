@@ -439,7 +439,6 @@ class WorkTray(QWidget):
             QApplication.clipboard().setText(path)
 
     def _cycle_view_mode(self):
-        from PySide6.QtCore import QSettings
         _f = ui_font_size()
         _pad = max(4, _f // 3)
         self._view_mode = (self._view_mode + 1) % 3

@@ -4,11 +4,10 @@ import uuid
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QScrollArea, QFrame, QSizePolicy, QSplitter,
-    QProgressBar, QGridLayout, QComboBox, QDialog, QLineEdit,
+    QProgressBar, QComboBox, QDialog, QLineEdit,
     QDateEdit, QCheckBox, QDialogButtonBox, QInputDialog,
 )
 from PySide6.QtCore import Qt, Signal, QSize, QSettings, QDate
-from PySide6.QtGui import QPixmap
 from doxyedit.themes import ui_font_size
 from doxyedit.browser import FlowLayout
 
