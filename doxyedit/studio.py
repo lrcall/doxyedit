@@ -3479,6 +3479,8 @@ class StudioScene(QGraphicsScene):
         export_selection_act.setEnabled(bool(editor._scene.selectedItems()))
         menu.addSeparator()
         snap_threshold_act = menu.addAction("Snap Proximity...")
+        snap_pixel_act = menu.addAction("Snap Selection to Pixel Grid")
+        snap_pixel_act.setEnabled(bool(editor._scene.selectedItems()))
         chosen = menu.exec(event.screenPos())
         pos = event.scenePos()
         if chosen is add_text_act:
@@ -3748,6 +3750,41 @@ class StudioScene(QGraphicsScene):
             if ok:
                 qs.setValue("studio_snap_threshold_px", value)
                 editor.info_label.setText(f"Snap proximity: {value}px")
+        elif chosen is snap_pixel_act:
+            # Round every selected overlay's position to whole pixels.
+            # Useful after nudging with fractional-pixel smart guides
+            # or when importing from a vector-precision workflow.
+            count = 0
+            for it in editor._scene.selectedItems():
+                ov = getattr(it, "overlay", None)
+                if ov is not None:
+                    ov.x = int(round(ov.x))
+                    ov.y = int(round(ov.y))
+                    if hasattr(ov, "shape_w"):
+                        ov.shape_w = int(round(ov.shape_w))
+                        ov.shape_h = int(round(ov.shape_h))
+                    if hasattr(ov, "end_x"):
+                        ov.end_x = int(round(ov.end_x))
+                        ov.end_y = int(round(ov.end_y))
+                    it.setPos(ov.x, ov.y)
+                    if hasattr(it, "prepareGeometryChange"):
+                        it.prepareGeometryChange()
+                    it.update()
+                    count += 1
+                else:
+                    cr = getattr(it, "_censor_region", None)
+                    if cr is not None:
+                        cr.x = int(round(cr.x))
+                        cr.y = int(round(cr.y))
+                        cr.w = int(round(cr.w))
+                        cr.h = int(round(cr.h))
+                        it.setRect(cr.x, cr.y, cr.w, cr.h)
+                        count += 1
+            if count:
+                editor._sync_overlays_to_asset()
+                editor.info_label.setText(
+                    f"Snapped {count} item{'s' if count != 1 else ''} "
+                    "to integer pixels")
         elif chosen is align_left_act:
             editor._align_selected("left")
         elif chosen is align_right_act:
