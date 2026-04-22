@@ -70,13 +70,7 @@ from doxyedit.themes import THEMES, DEFAULT_THEME
 class StudioScene(QGraphicsScene):
     """Scene with tool-aware mouse handling for censor/annotation drawing."""
 
-    # Smart-guide tuning
-    # Snap proximity. 0 = snap off. User pref, read per-use so toggles
-    # via the canvas menu "Snap Proximity..." apply without restart.
-    @property
-    def SNAP_THRESHOLD_PX(self):
-        return QSettings("DoxyEdit", "DoxyEdit").value(
-            "studio_snap_threshold_px", 0, type=int)
+    # Smart-guide tuning. Snap proximity; 0 = snap off.
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -87,6 +81,18 @@ class StudioScene(QGraphicsScene):
         # Studio docs do not support that scale today.
         self.setItemIndexMethod(
             QGraphicsScene.ItemIndexMethod.NoIndex)
+        # Snap threshold cached — previously a @property that hit
+        # QSettings (file I/O) on every drag frame via _compute_snap_guides.
+        # Refresh via reload_snap_threshold() when the Snap Proximity
+        # menu/dialog updates the setting.
+        self.SNAP_THRESHOLD_PX = QSettings(
+            "DoxyEdit", "DoxyEdit").value(
+                "studio_snap_threshold_px", 0, type=int)
+
+    def reload_snap_threshold(self):
+        self.SNAP_THRESHOLD_PX = QSettings(
+            "DoxyEdit", "DoxyEdit").value(
+                "studio_snap_threshold_px", 0, type=int)
         self._grid_visible = False
         self._grid_spacing = STUDIO_GRID_SPACING
         self._theme = THEMES[DEFAULT_THEME]
@@ -1294,6 +1300,7 @@ class StudioScene(QGraphicsScene):
                 value=cur, minValue=0, maxValue=50)
             if ok:
                 qs.setValue("studio_snap_threshold_px", value)
+                editor._scene.reload_snap_threshold()
                 editor.info_label.setText(f"Snap proximity: {value}px")
         elif chosen is snap_pixel_act:
             # Round every selected overlay's position to whole pixels.
@@ -5005,6 +5012,7 @@ class StudioEditor(QWidget):
                 prev = qs.value("studio_snap_threshold_px_prev", 5, type=int)
                 qs.setValue("studio_snap_threshold_px", max(1, prev))
                 self.info_label.setText(f"Snap: on ({max(1, prev)}px)")
+            self._scene.reload_snap_threshold()
             return
         # Alignment shortcuts: Alt+Shift + arrow-like keys. These don't
         # collide with text-align Ctrl combos (which use L/R/E with Ctrl
@@ -12153,6 +12161,8 @@ class StudioEditor(QWidget):
             return
         # Apply + persist
         qs.setValue("studio_snap_threshold_px", snap_spin.value())
+        if hasattr(self, "_scene"):
+            self._scene.reload_snap_threshold()
         qs.setValue("studio_snap_canvas_center", snap_center_cb.isChecked())
         qs.setValue("studio_snap_canvas_edge", snap_edge_cb.isChecked())
         qs.setValue("studio_snap_siblings", snap_sib_cb.isChecked())
