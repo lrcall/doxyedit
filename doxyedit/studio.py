@@ -6105,6 +6105,18 @@ class StudioEditor(QWidget):
         if key == Qt.Key.Key_Backslash and not event.isAutoRepeat():
             self._set_overlays_preview_hidden(True)
             return
+        # Ctrl+Alt+P = toggle sticky preview mode (opposite of the
+        # hold-to-peek backslash). Flips the flag and leaves overlays
+        # hidden / visible until the shortcut is pressed again.
+        if ctrl and alt and not shift and key == Qt.Key.Key_P:
+            cur = getattr(self, "_preview_sticky", False)
+            self._set_overlays_preview_hidden(not cur)
+            self._preview_sticky = not cur
+            if hasattr(self, "info_label"):
+                self.info_label.setText(
+                    "Preview mode ON (Ctrl+Alt+P to exit)"
+                    if self._preview_sticky else "Preview mode OFF")
+            return
         # Ctrl+G / Ctrl+Shift+G — group / ungroup selected overlays.
         # Groups are a simple string token on CanvasOverlay.group_id;
         # selection logic propagates group membership so clicking one
