@@ -6562,6 +6562,19 @@ class StudioEditor(QWidget):
                 QApplication.clipboard().setText(txt)
                 self.info_label.setText(f"Copied geometry: {txt}")
             return
+        # Ctrl+Shift+T — toggle the left tool palette (Main side bar)
+        # visibility. Useful for a cleaner canvas-only view when you're
+        # just nudging existing overlays.
+        if ctrl and shift and key == Qt.Key.Key_T:
+            win = self.window()
+            if win is not None and hasattr(win, "_left_toolbar"):
+                tb = win._left_toolbar
+                tb.setVisible(not tb.isVisible())
+                self.info_label.setText(
+                    "Tool palette hidden"
+                    if not tb.isVisible()
+                    else "Tool palette shown")
+            return
         # Ctrl+Shift+C — copy the hex color of the primary selected
         # overlay to clipboard. For shapes: fill_color (falls back to
         # stroke_color). For text: color. For arrows: color. Useful
