@@ -6394,6 +6394,30 @@ class StudioEditor(QWidget):
                     self._sync_overlays_to_asset()
                     self.info_label.setText(f"Scaled by {value}%")
             return
+        # Ctrl+Alt+F reveals the selected watermark/image overlay's
+        # source file in Windows Explorer. Watermark overlays store an
+        # absolute image_path; this shortcut is the fastest way to
+        # jump into the folder to replace / edit the source.
+        if ctrl and alt and not shift and key == Qt.Key.Key_F:
+            sel = [it for it in self._scene.selectedItems()
+                   if isinstance(it, OverlayImageItem)]
+            if not sel:
+                self.info_label.setText("Select an image overlay first")
+                return
+            import subprocess as _sp
+            from pathlib import Path as _P
+            for it in sel[:3]:  # cap to avoid spawning dozens
+                path = getattr(it.overlay, "image_path", "")
+                p = _P(path) if path else None
+                if p is None or not p.exists():
+                    continue
+                try:
+                    _sp.Popen(["explorer", "/select,", str(p)],
+                              creationflags=0x08000000)
+                except Exception:
+                    pass
+            self.info_label.setText("Revealed in Explorer")
+            return
         # F3 toggles the snap grid. F4 toggles rule-of-thirds. F5
         # toggles minimap. Convention: Fn keys drive view overlays.
         if key == Qt.Key.Key_F3 and not ctrl and not shift:
