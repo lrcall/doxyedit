@@ -276,6 +276,13 @@ class CanvasOverlay:
     # radius fraction (0.4 = classic five-point star).
     star_points: int = 5
     inner_ratio: float = 0.4
+    # Image adjustments (applied by OverlayImageItem.refresh via PIL
+    # ImageEnhance). 0.0 = no change. Range usually -1.0 to 1.0 for
+    # brightness/contrast (PIL factor = 1.0 + value); saturation uses
+    # the same shape (-1 = grayscale, 0 = normal, 1 = double).
+    img_brightness: float = 0.0
+    img_contrast: float = 0.0
+    img_saturation: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)

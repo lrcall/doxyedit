@@ -4556,6 +4556,34 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             bl_combo.currentTextChanged.connect(_img_blend)
             form.addRow("Blend mode", bl_combo)
 
+            # Brightness / Contrast / Saturation via PIL ImageEnhance.
+            # -100% to +100% on the slider maps to -1.0 .. 1.0 on the
+            # overlay field, and PIL factor = 1.0 + value.
+            def _mk_adjust(attr, label):
+                sl = QSlider(Qt.Orientation.Horizontal)
+                sl.setRange(-100, 100)
+                sl.setValue(int(
+                    float(getattr(ov, attr, 0.0) or 0.0) * 100))
+                sl.setMinimumWidth(150)
+                lbl = QLabel(f"{sl.value():+d}")
+                lbl.setFixedWidth(40)
+                def _on_change(v, _it=item, _attr=attr, _lbl=lbl):
+                    setattr(_it.overlay, _attr, v / 100.0)
+                    if hasattr(editor, "_refresh_overlay_image"):
+                        editor._refresh_overlay_image(_it)
+                    _lbl.setText(f"{v:+d}")
+                    editor._sync_overlays_to_asset()
+                sl.valueChanged.connect(_on_change)
+                row = QHBoxLayout()
+                row.setContentsMargins(0, 0, 0, 0)
+                row.addWidget(sl, 1)
+                row.addWidget(lbl)
+                w = _QW(); w.setLayout(row)
+                return w
+            form.addRow("Brightness", _mk_adjust("img_brightness", "Brightness"))
+            form.addRow("Contrast", _mk_adjust("img_contrast", "Contrast"))
+            form.addRow("Saturation", _mk_adjust("img_saturation", "Saturation"))
+
         elif isinstance(item, OverlayArrowItem):
             # Arrow: color, width, arrowhead size / style, double-headed
             color_btn = _ColorSwatchButton(is_outline=False)
@@ -8708,6 +8736,30 @@ class StudioEditor(QWidget):
             qimg2 = QImage()
             qimg2.loadFromData(out_buf.getvalue())
             src = QPixmap.fromImage(qimg2)
+        # Brightness / contrast / saturation via PIL ImageEnhance. Skip
+        # the round-trip entirely when all three are zero so simple
+        # overlays don't pay for the PNG-serialize cost.
+        _br = float(getattr(ov, "img_brightness", 0.0) or 0.0)
+        _ct = float(getattr(ov, "img_contrast", 0.0) or 0.0)
+        _st = float(getattr(ov, "img_saturation", 0.0) or 0.0)
+        if _br or _ct or _st:
+            from PySide6.QtGui import QImage
+            from PIL import Image as _PImg, ImageEnhance as _PE
+            import io as _io
+            buf = _io.BytesIO()
+            src.toImage().save(buf, "PNG")
+            pil_img = _PImg.open(_io.BytesIO(buf.getvalue())).convert("RGBA")
+            if _br:
+                pil_img = _PE.Brightness(pil_img).enhance(1.0 + _br)
+            if _ct:
+                pil_img = _PE.Contrast(pil_img).enhance(1.0 + _ct)
+            if _st:
+                pil_img = _PE.Color(pil_img).enhance(1.0 + _st)
+            out_buf = _io.BytesIO()
+            pil_img.save(out_buf, "PNG")
+            qimg3 = QImage()
+            qimg3.loadFromData(out_buf.getvalue())
+            src = QPixmap.fromImage(qimg3)
         item.setPixmap(src)
         item.update()
 
