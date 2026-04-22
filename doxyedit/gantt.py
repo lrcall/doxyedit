@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QGraphicsRectItem,
     QScrollArea, QGraphicsItem,
 )
-from PySide6.QtCore import Signal, Qt, QDate
+from PySide6.QtCore import Signal, Qt, QDate, QSettings
 from PySide6.QtGui import QPen, QColor, QBrush, QPainter
 
 from doxyedit.models import Project, SocialPost, SocialPostStatus
@@ -204,8 +204,7 @@ class GanttPanel(LazyRefreshMixin, QWidget):
     # -- UI construction ----------------------------------------------------
 
     def _build_ui(self) -> None:
-        from PySide6.QtCore import QSettings as _QS
-        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
 

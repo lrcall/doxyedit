@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
     QScrollArea, QFrame, QPushButton, QLineEdit, QCompleter,
 )
-from PySide6.QtCore import Qt, Signal, QStringListModel
+from PySide6.QtCore import Qt, Signal, QStringListModel, QSettings
 from doxyedit.themes import ui_font_size
 
 from doxyedit.browser import FlowLayout
@@ -25,7 +25,6 @@ class _TagPill(QPushButton):
         super().__init__(parent)
         self.tag_id = tag_id
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        from PySide6.QtCore import QSettings
         _f = ui_font_size()
         _cb = max(14, _f + 2)
         self.setFixedHeight(_cb)
@@ -193,8 +192,7 @@ class InfoPanel(QWidget):
 
         self._palette_header.show()
         self._palette_container.show()
-        from PySide6.QtCore import QSettings as _QS
-        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _sw = int(_f * 1.67)
         for hex_color in colors[:5]:
             swatch = QLabel()

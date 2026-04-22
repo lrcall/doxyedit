@@ -326,7 +326,6 @@ class ImagePreviewDialog(QDialog):
         py = settings.value("preview_y", -1, type=int)
         if px >= 0 and py >= 0:
             # Validate position is on a connected screen
-            from PySide6.QtCore import QPoint
             target = QPoint(px + self.width() // 2, py + 30)
             screen = QApplication.screenAt(target)
             if screen:

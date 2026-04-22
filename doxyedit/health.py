@@ -444,7 +444,6 @@ class HealthPanel(LazyRefreshMixin, QWidget):
         if len(candidates) == 1:
             new_path = candidates[0]
         else:
-            from PySide6.QtWidgets import QInputDialog
             names = [str(p) for p in candidates]
             chosen, ok = QInputDialog.getItem(
                 self, "Select Renamed File",

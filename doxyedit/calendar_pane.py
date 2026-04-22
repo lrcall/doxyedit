@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QPushButton, QFrame, QSizePolicy,
 )
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal, Qt, QTimer
 from doxyedit.themes import ui_font_size
 
 from doxyedit.models import Project
@@ -201,7 +201,6 @@ class CalendarPane(LazyRefreshMixin, QWidget):
         self._update_jst_clock()
 
         # Timer to update clock every minute
-        from PySide6.QtCore import QTimer
         self._clock_timer = QTimer(self)
         self._clock_timer.timeout.connect(self._update_jst_clock)
         self._clock_timer.start(60_000)  # every 60 seconds
