@@ -5,8 +5,8 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QAbstractItemView, QMenu, QApplication,
     QTabBar, QInputDialog,
 )
-from PySide6.QtCore import Qt, Signal, QSize, QUrl, QMimeData
-from PySide6.QtGui import QPixmap, QIcon, QDrag
+from PySide6.QtCore import Qt, Signal, QSize, QUrl, QMimeData, QSettings
+from PySide6.QtGui import QPixmap, QIcon, QDrag, QCursor
 from doxyedit.themes import ui_font_size
 
 
@@ -74,7 +74,6 @@ class DragOutListWidget(QListWidget):
                 path = item.data(PATH_ROLE)
                 if path:
                     from doxyedit.preview import HoverPreview
-                    from PySide6.QtGui import QCursor
                     HoverPreview.instance().show_for(path, QCursor.pos())
                     return
         super().mousePressEvent(event)
@@ -113,7 +112,6 @@ class WorkTray(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("doxyedit_tray")
-        from PySide6.QtCore import QSettings
         _f = ui_font_size()
         self.setMinimumWidth(0)  # main splitter handles collapsing
         self._asset_ids: list[str] = []
@@ -127,7 +125,6 @@ class WorkTray(QWidget):
         self._build()
 
     def _build(self):
-        from PySide6.QtCore import QSettings
         _f = ui_font_size()
         _cb = max(14, _f + 2)
         _pad = max(4, _f // 3)
@@ -401,13 +398,11 @@ class WorkTray(QWidget):
         self.remove_asset(asset_id)
 
     def _copy_filename(self, asset_id: str):
-        from PySide6.QtWidgets import QApplication
         path = self._paths.get(asset_id, "")
         if path:
             QApplication.clipboard().setText(Path(path).name)
 
     def _copy_stem(self, asset_id: str):
-        from PySide6.QtWidgets import QApplication
         path = self._paths.get(asset_id, "")
         if path:
             QApplication.clipboard().setText(Path(path).stem)
@@ -433,7 +428,6 @@ class WorkTray(QWidget):
         self._rebuild_index()
 
     def _copy_path(self, asset_id: str):
-        from PySide6.QtWidgets import QApplication
         path = self._paths.get(asset_id, "")
         if path:
             QApplication.clipboard().setText(path)
