@@ -8252,6 +8252,19 @@ class StudioEditor(QWidget):
         def _rot_dclick(ev):
             self._qp_rot.setValue(0)
         self._qp_rot.mouseDoubleClickEvent = _rot_dclick
+        # Right-click for angle presets (0 / ±15 / ±30 / ±45 / 90 /
+        # 180 / 270). Quicker than dragging to a common step.
+        self._qp_rot.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        def _rot_ctx(pos, _w=self._qp_rot):
+            from PySide6.QtWidgets import QMenu
+            m = _themed_menu(_w)
+            for angle in (0, 15, 30, 45, 90, 180, 270, -15, -30, -45):
+                act = m.addAction(f"{angle}°")
+                act.triggered.connect(
+                    lambda _c=False, a=angle: _w.setValue(a))
+            m.exec(_w.mapToGlobal(pos))
+        self._qp_rot.customContextMenuRequested.connect(_rot_ctx)
         quickbar.addWidget(self._qp_rot)
         self._qp_rot_lbl = QLabel("0°")
         self._qp_rot_lbl.setFixedWidth(int(_dt.font_size * 2.8))
@@ -8273,6 +8286,16 @@ class StudioEditor(QWidget):
         def _op_dclick(ev, _orig=_orig_op_mdc):
             self._qp_opacity.setValue(100)
         self._qp_opacity.mouseDoubleClickEvent = _op_dclick
+        self._qp_opacity.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        def _op_ctx(pos, _w=self._qp_opacity):
+            m = _themed_menu(_w)
+            for pct in (0, 10, 25, 50, 75, 90, 100):
+                act = m.addAction(f"{pct}%")
+                act.triggered.connect(
+                    lambda _c=False, p=pct: _w.setValue(p))
+            m.exec(_w.mapToGlobal(pos))
+        self._qp_opacity.customContextMenuRequested.connect(_op_ctx)
         quickbar.addWidget(self._qp_opacity)
         self._qp_opacity_lbl = QLabel("100")
         self._qp_opacity_lbl.setFixedWidth(int(_dt.font_size * 2.2))
@@ -8294,6 +8317,17 @@ class StudioEditor(QWidget):
         def _scale_dclick(ev):
             self._qp_scale.setValue(100)
         self._qp_scale.mouseDoubleClickEvent = _scale_dclick
+        # Right-click for scale presets.
+        self._qp_scale.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        def _scale_ctx(pos, _w=self._qp_scale):
+            m = _themed_menu(_w)
+            for pct in (25, 50, 75, 100, 125, 150, 200, 400, 800):
+                act = m.addAction(f"{pct}%")
+                act.triggered.connect(
+                    lambda _c=False, p=pct: _w.setValue(p))
+            m.exec(_w.mapToGlobal(pos))
+        self._qp_scale.customContextMenuRequested.connect(_scale_ctx)
         quickbar.addWidget(self._qp_scale)
         self._qp_scale_lbl = QLabel("100%")
         self._qp_scale_lbl.setFixedWidth(int(_dt.font_size * 3.0))
