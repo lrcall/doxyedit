@@ -15517,7 +15517,6 @@ class StudioEditor(QWidget):
             return
 
         from doxyedit.imaging import load_image_for_export
-        from doxyedit.exporter import apply_censors, apply_overlays
 
         src_path = Path(self._asset.source_path)
         stem = src_path.stem

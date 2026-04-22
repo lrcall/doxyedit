@@ -6,7 +6,9 @@ import logging
 import os
 import re
 import shutil
+import subprocess
 import tempfile
+import uuid
 try:
     import markdown as _markdown
 except ImportError:
@@ -3905,7 +3907,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _check_autopost(self):
         """Auto-push queued posts whose scheduled_time has passed."""
-        from datetime import datetime
         from doxyedit.models import SocialPostStatus
         now = datetime.now()
         pushed = 0
@@ -3970,7 +3971,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         or show dialogs stays on the UI thread.
         """
         from doxyedit.models import SocialPostStatus
-        from datetime import datetime as _dt
 
         acct_msg = f"{len(synced_accounts)} accounts" if synced_accounts else "accounts sync failed"
         logging.info(f"[OneUp Sync] {acct_msg}")
@@ -4051,7 +4051,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 if post.status not in (SocialPostStatus.QUEUED, "queued"):
                     continue
                 results = push_to_direct(post, self.project, project_dir)
-                now_str = _dt.now().isoformat()
+                now_str = datetime.now().isoformat()
                 for r in results:
                     if r.success:
                         post.sub_platform_status[r.platform] = {"status": "posted", "posted_at": now_str}
@@ -5439,8 +5439,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                         break
             if post is None:
                 return
-            from datetime import datetime as _dt
-            now = _dt.now().isoformat()
+            now = datetime.now().isoformat()
             if success:
                 post.sub_platform_status[plat_id] = {"status": "posted", "posted_at": now}
                 logging.info(f"[AutoPost] {plat_id}: OK")
@@ -5873,12 +5872,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         tag_btn.clicked.connect(do_tag)
         btn_row.addWidget(tag_btn)
 
-        import uuid as _uuid
         link_btn = QPushButton(f"Create Variant Sets ({len(similar_groups)} groups)")
         link_btn.setToolTip("Write variant_set IDs to asset specs for Link Mode highlighting")
         def do_link_variants():
             for group in similar_groups:
-                set_id = "vs_" + _uuid.uuid4().hex[:8]
+                set_id = "vs_" + uuid.uuid4().hex[:8]
                 for asset in group:
                     asset.specs["variant_set"] = set_id
             self._dirty = True
@@ -5912,8 +5910,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _auto_link_by_filename(self):
         """Group assets by shared filename stem and propose variant sets."""
-        import uuid as _uuid
-
         STRIP_PATTERN = re.compile(
             r'[_\-\s]*(0*\d{1,3}|v\d+|final|draft|wip|nsfw|sfw|color|bw|'
             r'sketch|lineart|flat|rendered|clean|raw|alt|crop|web|hd|hq|lq)$',
@@ -5966,7 +5962,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         link_btn = QPushButton(f"Create {len(proposable)} Variant Sets")
         def do_link():
             for assets in proposable.values():
-                set_id = "vs_" + _uuid.uuid4().hex[:8]
+                set_id = "vs_" + uuid.uuid4().hex[:8]
                 for a in assets:
                     a.specs["variant_set"] = set_id
             self._dirty = True
@@ -7032,7 +7028,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _launch_in(self, ext: str, exe: str):
         """Open selected assets matching ext in the specified exe (or system default)."""
-        import subprocess, os
         assets = self.browser.get_selected_assets()
         if not assets:
             self.status.showMessage("No assets selected", 2000)
