@@ -3,16 +3,16 @@ from __future__ import annotations
 
 import calendar
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QPushButton, QFrame, QSizePolicy,
 )
-from PySide6.QtCore import Signal, Qt, QSettings
+from PySide6.QtCore import Signal, Qt
 from doxyedit.themes import ui_font_size
 
-from doxyedit.models import Project, SocialPostStatus
+from doxyedit.models import Project
 from doxyedit.panel_mixin import LazyRefreshMixin
 
 

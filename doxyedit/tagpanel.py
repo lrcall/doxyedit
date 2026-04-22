@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox,
     QFrame, QScrollArea, QTextEdit, QPushButton, QSplitter, QColorDialog,
 )
-from PySide6.QtCore import Qt, Signal, QPoint, QRect, QSettings
+from PySide6.QtCore import Qt, Signal, QPoint, QRect
 from PySide6.QtGui import QColor, QPainter, QPen, QBrush
 from doxyedit.themes import ui_font_size
 
