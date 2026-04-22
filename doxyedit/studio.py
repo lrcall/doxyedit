@@ -7704,6 +7704,15 @@ class StudioEditor(QWidget):
                 "Exit Isolation" if getattr(self, "_isolation_active", False)
                 else "Isolate (solo)")
             rename_act = menu.addAction("Rename...")
+            opacity_act = menu.addAction("Opacity...")
+            menu.addSeparator()
+            duplicate_act = menu.addAction("Duplicate  (Ctrl+D)")
+            menu.addSeparator()
+            z_menu = menu.addMenu("Arrange")
+            to_front_act = z_menu.addAction("Bring to Front  (Ctrl+Shift+])")
+            forward_act = z_menu.addAction("Bring Forward  (Ctrl+])")
+            backward_act = z_menu.addAction("Send Backward  (Ctrl+[)")
+            to_back_act = z_menu.addAction("Send to Back  (Ctrl+Shift+[)")
             menu.addSeparator()
             delete_act = menu.addAction("Delete")
             chosen = menu.exec(self._layer_panel.mapToGlobal(pos))
@@ -7726,6 +7735,39 @@ class StudioEditor(QWidget):
                 self._rebuild_layer_panel()
             elif chosen is rename_act:
                 self._on_layer_double_clicked(item)
+            elif chosen is opacity_act:
+                value, ok = QInputDialog.getInt(
+                    self, "Opacity", "Opacity % (0-100):",
+                    value=int(ov.opacity * 100), minValue=0, maxValue=100)
+                if ok:
+                    ov.opacity = value / 100.0
+                    for it in self._scene.items():
+                        if hasattr(it, "overlay") and it.overlay is ov:
+                            if hasattr(it, "setOpacity"):
+                                it.setOpacity(ov.opacity)
+                            else:
+                                it.update()
+                            break
+                    self._sync_overlays_to_asset()
+                    self._rebuild_layer_panel()
+            elif chosen is duplicate_act:
+                for it in self._scene.items():
+                    if hasattr(it, "overlay") and it.overlay is ov:
+                        self._scene.clearSelection()
+                        it.setSelected(True)
+                        self._duplicate_selected()
+                        break
+            elif chosen in (to_front_act, forward_act, backward_act, to_back_act):
+                for it in self._scene.items():
+                    if hasattr(it, "overlay") and it.overlay is ov:
+                        self._scene.clearSelection()
+                        it.setSelected(True)
+                        delta = (+999 if chosen is to_front_act
+                                 else +1 if chosen is forward_act
+                                 else -1 if chosen is backward_act
+                                 else -999)
+                        self._z_shift_selected(delta)
+                        break
             elif chosen is isolate_act:
                 if getattr(self, "_isolation_active", False):
                     self._exit_isolation()
