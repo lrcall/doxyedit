@@ -9325,9 +9325,15 @@ class StudioEditor(QWidget):
                     if _self._pixmap_item:
                         base_w = _self._pixmap_item.pixmap().width()
                         target_w = max(10, int(base_w * v))
-                        pm = QPixmap(it.overlay.image_path)
-                        if not pm.isNull():
-                            pm = pm.scaledToWidth(
+                        # Cache the source pixmap on the item. The prior
+                        # code called QPixmap(path) every tick = disk read
+                        # + decode on every slider move (60+ per second).
+                        src = getattr(it, "_source_pixmap", None)
+                        if src is None or src.isNull():
+                            src = QPixmap(it.overlay.image_path)
+                            it._source_pixmap = src
+                        if not src.isNull():
+                            pm = src.scaledToWidth(
                                 target_w, Qt.TransformationMode.SmoothTransformation
                             )
                             it.setPixmap(pm)
