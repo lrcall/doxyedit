@@ -294,7 +294,8 @@ class StudioScene(QGraphicsScene):
         if self.current_tool == StudioTool.ARROW:
             self._draw_start = pos
             self._temp_item = QGraphicsLineItem(QLineF(pos, pos))
-            pen = QPen(QColor("#ff3b30"), 4)
+            pen = QPen(QColor(self._theme.studio_temp_arrow),
+                       self._theme.studio_temp_arrow_pen_width)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             self._temp_item.setPen(pen)
             self._temp_item.setZValue(300)
@@ -304,7 +305,8 @@ class StudioScene(QGraphicsScene):
         if self.current_tool in (StudioTool.SHAPE_RECT, StudioTool.SHAPE_ELLIPSE):
             self._draw_start = pos
             self._temp_item = QGraphicsRectItem(QRectF(pos, pos))
-            pen = QPen(QColor("#ffd700"), 2)
+            pen = QPen(QColor(self._theme.studio_temp_shape),
+                       self._theme.studio_temp_shape_pen_width)
             self._temp_item.setPen(pen)
             self._temp_item.setBrush(Qt.BrushStyle.NoBrush)
             self._temp_item.setZValue(300)

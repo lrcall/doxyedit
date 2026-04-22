@@ -178,6 +178,10 @@ class Theme:
     studio_scene_align_guide_pen_width: float = 1.0  # smart snap guide pen width
     studio_ruler_minor_alpha: int = 90               # ruler minor tick opacity
     studio_ruler_tick_pen_width: int = 1             # ruler tick pen width
+    studio_temp_arrow: str = "#ff3b30"                # draft arrow color while dragging
+    studio_temp_arrow_pen_width: int = 4              # draft arrow pen width
+    studio_temp_shape: str = "#ffd700"                # draft shape color while dragging
+    studio_temp_shape_pen_width: int = 2              # draft shape pen width
     # Browser extras
     grid_folder_tag_alpha: int = 60        # folder label tag bg opacity
     tag_bar_active_alpha: int = 255        # active tag button opacity
