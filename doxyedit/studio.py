@@ -5648,6 +5648,24 @@ class _ColorSwatchButton(QPushButton):
                 editor.info_label.setText(
                     f"Copied {self._color.name()} to clipboard")
         copy_hex_act.triggered.connect(_copy_hex)
+        # Paste from clipboard if the clipboard holds a valid hex.
+        # Accepts #rgb, #rrggbb, #rrggbbaa with or without leading #.
+        from PySide6.QtWidgets import QApplication
+        clip_txt = (QApplication.clipboard().text() or "").strip()
+        clip_hex_candidate = clip_txt.lstrip("#")
+        _is_valid_hex = (
+            len(clip_hex_candidate) in (3, 6, 8)
+            and all(c in "0123456789abcdefABCDEF" for c in clip_hex_candidate)
+        )
+        paste_hex_act = None
+        if _is_valid_hex:
+            paste_hex_act = menu.addAction(
+                f"Paste hex from clipboard ({clip_txt})")
+            def _paste_hex(_c="#" + clip_hex_candidate):
+                if callable(self.on_color_picked):
+                    self.on_color_picked(_c)
+                self.setSwatchColor(_c)
+            paste_hex_act.triggered.connect(_paste_hex)
         clear_act = menu.addAction("Clear recent colors")
         def _clear_recent():
             from PySide6.QtCore import QSettings as _QS
