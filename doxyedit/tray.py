@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QAbstractItemView, QMenu, QApplication,
     QTabBar, QInputDialog,
 )
-from PySide6.QtCore import Qt, Signal, QSize, QUrl, QMimeData, QSettings
+from PySide6.QtCore import Qt, Signal, QSize, QUrl, QMimeData, QSettings, QEvent
 from PySide6.QtGui import QPixmap, QIcon, QDrag, QCursor
 from doxyedit.themes import ui_font_size
 from doxyedit.preview import HoverPreview
@@ -229,6 +229,10 @@ class WorkTray(QWidget):
         # widget's current row order so save_state writes the new order.
         self._list.model().rowsMoved.connect(
             lambda *_a: self._sync_order_from_list())
+        # Keyboard layer: arrows navigate (QListWidget default), Space
+        # previews, Enter sends to Studio, Delete removes, 0-5 set stars,
+        # Ctrl+D deselects. Ctrl+A (select-all) is native.
+        self._list.installEventFilter(self)
         layout.addWidget(self._list)
 
     def _rebuild_index(self):
@@ -246,6 +250,66 @@ class WorkTray(QWidget):
                 new_order.append(aid)
         self._asset_ids = new_order
         self._rebuild_index()
+
+    # --- Keyboard layer ---------------------------------------------------
+
+    def eventFilter(self, obj, event):
+        if obj is self._list and event.type() == QEvent.Type.KeyPress:
+            if self._handle_list_key(event):
+                return True
+        return super().eventFilter(obj, event)
+
+    def _handle_list_key(self, event) -> bool:
+        """Return True if we consumed the key; False to fall through to the
+        list widget's default handling (arrow navigation, etc.)."""
+        key = event.key()
+        mods = event.modifiers()
+        ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+        shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
+        alt = bool(mods & Qt.KeyboardModifier.AltModifier)
+        if alt:
+            return False
+
+        selected = self._get_selected_ids()
+        current_item = self._list.currentItem()
+        current_aid = (current_item.data(Qt.ItemDataRole.UserRole)
+                       if current_item else None)
+        targets = selected or ([current_aid] if current_aid else [])
+
+        # Space — preview current item (hover preview)
+        if key == Qt.Key.Key_Space and not ctrl and not shift:
+            if current_aid:
+                self.asset_preview.emit(current_aid)
+            return True
+
+        # Enter / Return — send current item to Studio
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not ctrl and not shift:
+            if current_aid:
+                self.asset_to_studio.emit(current_aid)
+            return True
+
+        # Delete — remove all selected (or current)
+        if key == Qt.Key.Key_Delete and not ctrl and not shift:
+            for aid in list(targets):
+                self.remove_asset(aid)
+            return bool(targets)
+
+        # 0-5 — set star rating on all selected (or current)
+        if (not ctrl and not shift and
+                Qt.Key.Key_0 <= key <= Qt.Key.Key_5):
+            star = key - Qt.Key.Key_0  # 0 = unstar, 1-5 = colors
+            if targets:
+                for aid in targets:
+                    self._set_star(aid, star)
+                return True
+            return False
+
+        # Ctrl+D — deselect all
+        if ctrl and not shift and key == Qt.Key.Key_D:
+            self._list.clearSelection()
+            return True
+
+        return False
 
     def add_asset(self, asset_id: str, name: str, pixmap: QPixmap = None, path: str = ""):
         """Add an asset to the tray."""
