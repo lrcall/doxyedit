@@ -3561,6 +3561,8 @@ class StudioScene(QGraphicsScene):
         sort_name_act = sort_menu.addAction("By Label (A → Z)")
         sort_size_act = sort_menu.addAction("By Size (largest first)")
         sort_reverse_act = sort_menu.addAction("Reverse")
+        sort_menu.addSeparator()
+        normalize_z_act = sort_menu.addAction("Normalize Z-values")
         menu.addSeparator()
         copy_canvas_act = menu.addAction("Copy Canvas Image to Clipboard")
         export_overlay_act = menu.addAction("Export Overlays as Transparent PNG...")
@@ -3871,6 +3873,21 @@ class StudioScene(QGraphicsScene):
             if hasattr(editor, "info_label"):
                 editor.info_label.setText(
                     f"Sorted {len(ovs)} overlays")
+        elif chosen is normalize_z_act:
+            # Reset z-values to a contiguous 200.. range matching the
+            # overlay list order, plus 100.. for censors. Clears any
+            # drift from repeated Bring-Forward / Send-Back work that
+            # might have left big gaps between Z values.
+            for i, ov in enumerate(editor._asset.overlays):
+                for it in editor._overlay_items:
+                    if getattr(it, "overlay", None) is ov:
+                        it.setZValue(200 + i)
+                        break
+            for i, it in enumerate(editor._censor_items):
+                it.setZValue(100 + i)
+            if hasattr(editor, "info_label"):
+                editor.info_label.setText(
+                    "Normalized Z values")
         elif chosen is snap_threshold_act:
             from PySide6.QtCore import QSettings as _QS
             qs = _QS("DoxyEdit", "DoxyEdit")
