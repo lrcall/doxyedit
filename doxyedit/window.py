@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QSpinBox, QComboBox, QCheckBox, QGroupBox,
     QAbstractItemView, QListWidget, QListWidgetItem,
 )
-from PySide6.QtCore import Qt, QTimer, QSettings, QSize, QUrl, QMimeData, QAbstractNativeEventFilter, QThread, Signal
+from PySide6.QtCore import Qt, QTimer, QSettings, QSize, QUrl, QMimeData, QAbstractNativeEventFilter, QThread, Signal, QEvent
 from PySide6.QtGui import (
     QAction, QKeySequence, QColor, QBrush, QShortcut,
 )
@@ -1613,7 +1613,6 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         QGraphicsTextItem in text-edit mode, QComboBox in edit mode) or
         inside any QDialog so Tab keeps its natural focus/text-
         navigation behavior there."""
-        from PySide6.QtCore import QEvent
         if event.type() == QEvent.Type.KeyPress:
             key = event.key()
             mods = event.modifiers()
@@ -3148,7 +3147,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         coll_list.model().rowsMoved.connect(_save)
 
         # Delete key
-        from PySide6.QtGui import QKeySequence, QShortcut
         QShortcut(QKeySequence.StandardKey.Delete, dlg).activated.connect(_remove)
 
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
