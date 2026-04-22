@@ -2301,26 +2301,15 @@ class OverlayTextItem(QGraphicsTextItem):
             painter.translate(-off, -off)
             self.setDefaultTextColor(orig_color)
             painter.restore()
-        # Draw text outline if stroke is configured
+        # Draw text outline if stroke is configured. Approach: render
+        # the text twice — offset in 8 directions for the outline, then
+        # the main glyph on top. Faster + more reliable than building a
+        # QPainterPath from the document layout (attempted earlier and
+        # abandoned since QTextLine doesn't expose per-glyph geometry
+        # directly in PySide6).
         if self.overlay.stroke_width > 0 and self.overlay.stroke_color:
             painter.save()
-            doc = self.document()
-            ctx = doc.documentLayout()
-            # Build a path from all text in the document
-            path = QPainterPath()
-            block = doc.begin()
-            while block.isValid():
-                layout = block.layout()
-                if layout:
-                    for i in range(layout.lineCount()):
-                        line = layout.lineAt(i)
-                        for j in range(line.textStart(), line.textStart() + line.textLength()):
-                            pass  # We need a different approach
-                block = block.next()
-            # Simpler approach: draw the text twice — outline then fill
-            # Use QTextDocument rendering with a stroke pen
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            # Draw outline by rendering text offset in 8 directions
             stroke_w = self.overlay.stroke_width
             stroke_c = QColor(self.overlay.stroke_color)
             orig_color = self.defaultTextColor()
