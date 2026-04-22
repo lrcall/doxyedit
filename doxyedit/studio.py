@@ -3751,12 +3751,16 @@ class StudioView(QGraphicsView):
             QPainter.RenderHint.LosslessImageRendering, _hq)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-        # SmartViewportUpdate only repaints regions that actually changed.
-        # FullViewportUpdate was forcing a complete canvas redraw on every
-        # mousemove during a drag — the biggest cause of perceptible lag
-        # when nudging a speech bubble around.
+        # Perf log data showed that SmartViewportUpdate was consistently
+        # choosing full-viewport repaints (1628x1005 dirty rect on every
+        # drag frame) because it picks full mode when the union of many
+        # small dirty rects exceeds ~50% of the viewport. Switch to
+        # MinimalViewportUpdate which always calculates the actual
+        # minimal region — the union of old + new sceneBoundingRect for
+        # the moving item, which for most bubble drags is just a few
+        # hundred pixels square.
         self.setViewportUpdateMode(
-            QGraphicsView.ViewportUpdateMode.SmartViewportUpdate)
+            QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate)
         # Opt out of software-composed backing store; direct OpenGL-ish
         # path on Windows is a lot faster for the per-frame blit.
         self.setOptimizationFlag(
