@@ -5113,6 +5113,33 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             flip_dir_btn.clicked.connect(_flip_dir)
             form.addRow("", flip_dir_btn)
 
+            straighten_btn = QPushButton("Straighten (snap to 15°)")
+            straighten_btn.setToolTip(
+                "Rotate the arrow to the nearest 15° increment while "
+                "keeping the tail anchored. Useful for lining up "
+                "diagrams and callouts.")
+            def _straighten(_it=item):
+                import math as _math
+                ov_a = _it.overlay
+                dx = ov_a.end_x - ov_a.x
+                dy = ov_a.end_y - ov_a.y
+                length = _math.hypot(dx, dy)
+                if length < 1:
+                    return
+                angle = _math.degrees(_math.atan2(dy, dx))
+                snapped = round(angle / 15.0) * 15.0
+                rad = _math.radians(snapped)
+                ov_a.end_x = int(round(ov_a.x + length * _math.cos(rad)))
+                ov_a.end_y = int(round(ov_a.y + length * _math.sin(rad)))
+                _it.prepareGeometryChange()
+                _it.update()
+                editor._sync_overlays_to_asset()
+                if hasattr(editor, "info_label"):
+                    editor.info_label.setText(
+                        f"Arrow straightened to {int(snapped)}°")
+            straighten_btn.clicked.connect(_straighten)
+            form.addRow("", straighten_btn)
+
         self._root_layout.addStretch(1)
 
 
