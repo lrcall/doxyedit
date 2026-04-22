@@ -112,8 +112,7 @@ class TelegramBotClient:
         if len(image_paths) <= 1:
             return self.send_photo(caption, image_paths[0]) if image_paths else self.send_message(caption)
 
-        import uuid as _uuid
-        boundary = _uuid.uuid4().hex
+        boundary = uuid.uuid4().hex
         lines: list[bytes] = []
 
         media = []
