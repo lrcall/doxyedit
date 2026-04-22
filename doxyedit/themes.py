@@ -633,21 +633,321 @@ CANDY = Theme(
 )
 
 
-# All available themes
+# ---------------------------------------------------------------------------
+# Slate — cool blue-gray medium, electric blue accent. Neutral pro look.
+# ---------------------------------------------------------------------------
+
+SLATE = Theme(
+    name="Slate",
+    bg_deep="#404a55",
+    bg_main="#505a66",
+    bg_raised="#5c6672",
+    bg_input="#485262",
+    bg_hover="#6a7482",
+    accent="#4ba8ec",
+    accent_dim="#366088",
+    accent_bright="#6cbaf4",
+    text_primary="#e8eef6",
+    text_secondary="#b4bfcc",
+    text_muted="#8292a4",
+    text_on_accent="#ffffff",
+    statusbar_bg="#38424e",
+    statusbar_text="#e8eef6",
+    border="#626c7a",
+    border_light="#747e8a",
+    selection_bg="#366088",
+    selection_border="#4ba8ec",
+    thumb_bg="#485262",
+    success="#6ec06a",
+    warning="#e8a648",
+    error="#e86856",
+    post_draft="#8292a4",
+    post_queued="#e8a648",
+    post_posted="#6ec06a",
+    post_failed="#e86856",
+)
+
+
+# ---------------------------------------------------------------------------
+# Moss — earthy sage medium, gold accent. Natural / botanical.
+# ---------------------------------------------------------------------------
+
+MOSS = Theme(
+    name="Moss",
+    bg_deep="#707866",
+    bg_main="#808874",
+    bg_raised="#8c9480",
+    bg_input="#78806c",
+    bg_hover="#9aa288",
+    accent="#d8a038",
+    accent_dim="#a08040",
+    accent_bright="#e8b050",
+    text_primary="#f8f4e8",
+    text_secondary="#d4cebc",
+    text_muted="#a8a690",
+    text_on_accent="#1c1810",
+    statusbar_bg="#5c6450",
+    statusbar_text="#f8f4e8",
+    border="#98a084",
+    border_light="#a6ae92",
+    selection_bg="#a08040",
+    selection_border="#d8a038",
+    thumb_bg="#78806c",
+    success="#6a9848",
+    warning="#d8a038",
+    error="#c44838",
+    post_draft="#a8a690",
+    post_queued="#d8a038",
+    post_posted="#6a9848",
+    post_failed="#c44838",
+)
+
+
+# ---------------------------------------------------------------------------
+# Ocean — teal medium, coral accent. Fresh / aquatic.
+# ---------------------------------------------------------------------------
+
+OCEAN = Theme(
+    name="Ocean",
+    bg_deep="#507080",
+    bg_main="#608090",
+    bg_raised="#6c8c9c",
+    bg_input="#58788c",
+    bg_hover="#7a9aa8",
+    accent="#ec7860",
+    accent_dim="#a85848",
+    accent_bright="#f88c74",
+    text_primary="#f0f6f8",
+    text_secondary="#bccfd6",
+    text_muted="#869ca8",
+    text_on_accent="#2a1410",
+    statusbar_bg="#405866",
+    statusbar_text="#f0f6f8",
+    border="#7890a0",
+    border_light="#8ca0ae",
+    selection_bg="#a85848",
+    selection_border="#ec7860",
+    thumb_bg="#58788c",
+    success="#5cc88c",
+    warning="#f0b050",
+    error="#e05050",
+    post_draft="#869ca8",
+    post_queued="#f0b050",
+    post_posted="#5cc88c",
+    post_failed="#e05050",
+)
+
+
+# ---------------------------------------------------------------------------
+# Lavender — soft purple medium-bright, violet accent. Calm / creative.
+# ---------------------------------------------------------------------------
+
+LAVENDER = Theme(
+    name="Lavender",
+    bg_deep="#8a7ea0",
+    bg_main="#9c8eb4",
+    bg_raised="#a89ac0",
+    bg_input="#9086ac",
+    bg_hover="#ac9ec6",
+    accent="#3a1870",
+    accent_dim="#6848a0",
+    accent_bright="#4a2088",
+    text_primary="#f6eefa",
+    text_secondary="#e2d0ee",
+    text_muted="#c0a8d4",
+    text_on_accent="#f6eefa",
+    statusbar_bg="#3a1870",
+    statusbar_text="#f6eefa",
+    border="#8878a0",
+    border_light="#9c8eb4",
+    selection_bg="#6848a0",
+    selection_border="#3a1870",
+    thumb_bg="#9086ac",
+    success="#88d080",
+    warning="#f0c870",
+    error="#f07888",
+    star="#f8a840",
+    post_draft="#c0a8d4",
+    post_queued="#f0c870",
+    post_posted="#88d080",
+    post_failed="#f07888",
+)
+
+
+# ---------------------------------------------------------------------------
+# Sunset — warm peach bright, plum accent. Cozy / golden-hour.
+# ---------------------------------------------------------------------------
+
+SUNSET = Theme(
+    name="Sunset",
+    bg_deep="#d8b090",
+    bg_main="#eac5a4",
+    bg_raised="#f2d0b2",
+    bg_input="#f4d4b8",
+    bg_hover="#d8a888",
+    accent="#8a3058",
+    accent_dim="#c46878",
+    accent_bright="#a0386c",
+    text_primary="#2a1418",
+    text_secondary="#5c3438",
+    text_muted="#886058",
+    text_on_accent="#faeee4",
+    statusbar_bg="#8a3058",
+    statusbar_text="#faeee4",
+    border="#c8a088",
+    border_light="#d8b09a",
+    selection_bg="#c46878",
+    selection_border="#8a3058",
+    thumb_bg="#eac5a4",
+    success="#588c48",
+    warning="#c07028",
+    error="#a83040",
+    star="#c04828",
+    post_draft="#886058",
+    post_queued="#c07028",
+    post_posted="#588c48",
+    post_failed="#a83040",
+)
+
+
+# ---------------------------------------------------------------------------
+# Aurora — prismatic dark with magenta/blue/green accents (from focus aurora).
+# ---------------------------------------------------------------------------
+
+AURORA = Theme(
+    name="Aurora",
+    bg_deep="#1a1a38",
+    bg_main="#28284a",
+    bg_raised="#343458",
+    bg_input="#242442",
+    bg_hover="#40406a",
+    accent="#d860d8",
+    accent_dim="#5c3a7c",
+    accent_bright="#ec80ec",
+    text_primary="#e8e4fa",
+    text_secondary="#b4a8d0",
+    text_muted="#706890",
+    text_on_accent="#1a1a38",
+    statusbar_bg="#406890",
+    statusbar_text="#e8e4fa",
+    border="#484878",
+    border_light="#5c5c8c",
+    selection_bg="#5c3a7c",
+    selection_border="#d860d8",
+    thumb_bg="#242442",
+    success="#78e0a4",
+    warning="#f0c850",
+    error="#f06868",
+    star="#ffd94f",
+    post_draft="#706890",
+    post_queued="#f0c850",
+    post_posted="#78e0a4",
+    post_failed="#f06868",
+)
+
+
+# ---------------------------------------------------------------------------
+# Gold — bright warm gold and amber (from focus gold). Luxurious.
+# ---------------------------------------------------------------------------
+
+GOLD = Theme(
+    name="Gold",
+    bg_deep="#e0c060",
+    bg_main="#f2d880",
+    bg_raised="#f8e298",
+    bg_input="#fae8a4",
+    bg_hover="#e6c262",
+    accent="#8c5a00",
+    accent_dim="#c08838",
+    accent_bright="#a46800",
+    text_primary="#2c1a00",
+    text_secondary="#5c3e10",
+    text_muted="#887040",
+    text_on_accent="#f8e298",
+    statusbar_bg="#8c5a00",
+    statusbar_text="#f8e298",
+    border="#d4b050",
+    border_light="#dcb860",
+    selection_bg="#c08838",
+    selection_border="#8c5a00",
+    thumb_bg="#f2d880",
+    success="#587028",
+    warning="#8c5a00",
+    error="#8c2418",
+    star="#8c5a00",
+    post_draft="#887040",
+    post_queued="#8c5a00",
+    post_posted="#587028",
+    post_failed="#8c2418",
+)
+
+
+# ---------------------------------------------------------------------------
+# Wine — medium rosé burgundy, deep wine accent (from focus wine).
+# ---------------------------------------------------------------------------
+
+WINE = Theme(
+    name="Wine",
+    bg_deep="#8a3458",
+    bg_main="#a85478",
+    bg_raised="#b86488",
+    bg_input="#984868",
+    bg_hover="#c47090",
+    accent="#3a0418",
+    accent_dim="#7c2848",
+    accent_bright="#4c0c28",
+    text_primary="#fceef4",
+    text_secondary="#eac4d2",
+    text_muted="#b48898",
+    text_on_accent="#fceef4",
+    statusbar_bg="#3a0418",
+    statusbar_text="#fceef4",
+    border="#9a4868",
+    border_light="#a85478",
+    selection_bg="#7c2848",
+    selection_border="#3a0418",
+    thumb_bg="#984868",
+    success="#588830",
+    warning="#c8782c",
+    error="#a8202c",
+    star="#3a0418",
+    post_draft="#b48898",
+    post_queued="#c8782c",
+    post_posted="#588830",
+    post_failed="#a8202c",
+)
+
+
+# ---------------------------------------------------------------------------
+# Registry — grouped by brightness tier. Within each tier, roughly
+# ordered cool → warm for quick visual scanning in the theme menu.
+# ---------------------------------------------------------------------------
+
 THEMES: dict[str, Theme] = {
-    "vinik24": VINIK24,
-    "warm_charcoal": WARM_CHARCOAL,
-    "soot": SOOT,
-    "bone": BONE,
+    # ── Bright (light bg, dark text) ──────────────────────────────────
     "milk_glass": MILK_GLASS,
-    "forest": FOREST,
-    "dark": DARK,
-    "neon": NEON,
-    "ember": EMBER,
-    "midnight": MIDNIGHT,
+    "bone": BONE,
     "dawn": DAWN,
     "citrus": CITRUS,
+    "gold": GOLD,
     "candy": CANDY,
+    "sunset": SUNSET,
+    # ── Medium (mid-value bg, mixed contrast) ─────────────────────────
+    "slate": SLATE,
+    "ocean": OCEAN,
+    "moss": MOSS,
+    "lavender": LAVENDER,
+    "wine": WINE,
+    # ── Dark (deep bg, light text) ────────────────────────────────────
+    "vinik24": VINIK24,
+    "dark": DARK,
+    "forest": FOREST,
+    "warm_charcoal": WARM_CHARCOAL,
+    "ember": EMBER,
+    "aurora": AURORA,
+    "soot": SOOT,
+    "midnight": MIDNIGHT,
+    "neon": NEON,
 }
 
 DEFAULT_THEME = "soot"
