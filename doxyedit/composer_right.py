@@ -5,6 +5,11 @@ and platform checkboxes.
 """
 from __future__ import annotations
 
+import json
+import os
+import re
+import sys
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -30,12 +35,10 @@ _chrome_cache_time: float = 0
 def list_chrome_profiles() -> list[tuple[str, str]]:
     """Return (dir_name, display_name) for each Chrome profile. Cached for 30s."""
     global _chrome_profile_cache, _chrome_cache_time
-    import time
     now = time.time()
     if _chrome_profile_cache is not None and (now - _chrome_cache_time) < 30:
         return _chrome_profile_cache
 
-    import json, os
     user_data = os.path.expandvars(r"%LocalAppData%\Google\Chrome\User Data")
     profiles = []
     if os.path.isdir(user_data):
@@ -889,7 +892,6 @@ a {{ color: {theme.accent}; }}
             menu.addSeparator()
 
             # Bracketed instruction shortcut  [do something]
-            import re
             bracket_match = re.search(r'\[(.+?)\]', selected)
             if bracket_match:
                 instruction = bracket_match.group(1)
@@ -912,7 +914,6 @@ a {{ color: {theme.accent}; }}
 
     def _refine_with_claude(self, editor: QTextEdit, selected: str, mode: str) -> None:
         """Send selected text to Claude for refinement, replace in editor."""
-        import re
         full_text = editor.toPlainText()
 
         if mode == "instruct":
@@ -1154,7 +1155,6 @@ RULES:
 
     def _on_apply_done(self, raw: str) -> None:
         """Parse extracted JSON and fill post fields."""
-        import sys
         self._apply_strategy_btn.setEnabled(True)
         self._apply_strategy_btn.setText("Apply")
 
@@ -1171,7 +1171,6 @@ RULES:
         text = text.strip()
 
         try:
-            import json
             data = json.loads(text)
         except Exception as e:
             print(f"[Apply Strategy] JSON parse error: {e}", file=sys.stderr, flush=True)
@@ -1574,7 +1573,6 @@ RULES:
             path, _ = QFileDialog.getOpenFileName(dlg, "Import Identity", "", "JSON (*.json)")
             if not path:
                 return
-            import json
             with open(path, "r", encoding="utf-8") as fh:
                 imported = json.load(fh)
             # Fill fields from imported data
@@ -1601,7 +1599,6 @@ RULES:
             path, _ = QFileDialog.getSaveFileName(dlg, "Export Identity", f"{export_name}.json", "JSON (*.json)")
             if not path:
                 return
-            import json
             data = dict(identity)
             data["name"] = export_name
             for key, e in edits.items():
