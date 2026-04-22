@@ -34,7 +34,10 @@ from PySide6.QtGui import (
     QTextBlockFormat, QPainterPathStroker,
 )
 import copy
+import json
 import math
+import re
+import uuid
 from PIL import Image
 
 from doxyedit.models import Asset, Project, CensorRegion, CanvasOverlay, CropRegion, PLATFORMS
@@ -3646,8 +3649,7 @@ class StudioScene(QGraphicsScene):
                 tx = x0 + pad_x
                 ty = y0 + pad_y
                 tw = w - 2 * pad_x
-                import uuid as _uuid
-                link_id = f"bubble_text_{_uuid.uuid4().hex[:8]}"
+                link_id = f"bubble_text_{uuid.uuid4().hex[:8]}"
                 bubble.linked_text_id = link_id
                 text_ov = CanvasOverlay(
                     type="text",
@@ -6995,8 +6997,7 @@ class StudioEditor(QWidget):
             sel = [it for it in self._scene.selectedItems()
                    if hasattr(it, "overlay")]
             if len(sel) >= 2:
-                import uuid as _uuid
-                gid = f"g_{_uuid.uuid4().hex[:8]}"
+                gid = f"g_{uuid.uuid4().hex[:8]}"
                 for it in sel:
                     it.overlay.group_id = gid
                 self._sync_overlays_to_asset()
@@ -10646,8 +10647,7 @@ class StudioEditor(QWidget):
         if kind in ("speech_bubble", "thought_bubble"):
             ov.tail_x = int(rect.x() + rect.width() * 0.25)
             ov.tail_y = int(rect.y() + rect.height() * 1.35)
-            import uuid as _uuid
-            link_id = f"bubble_text_{_uuid.uuid4().hex[:8]}"
+            link_id = f"bubble_text_{uuid.uuid4().hex[:8]}"
             ov.linked_text_id = link_id
         self._asset.overlays.append(ov)
         item = OverlayShapeItem(ov)
@@ -10867,7 +10867,6 @@ class StudioEditor(QWidget):
         self._notes.clear()
         if not self._asset or not self._asset.notes:
             return
-        import re
         pattern = re.compile(r'\[(\d+),(\d+)\s+(\d+)x(\d+)\]\s*(.*)')
         for line in self._asset.notes.split("\n"):
             m = pattern.match(line.strip())
@@ -10953,23 +10952,21 @@ class StudioEditor(QWidget):
     )
 
     def _load_watermark_style_defaults(self) -> dict:
-        import json as _json
         raw = QSettings("DoxyEdit", "DoxyEdit").value(
             "studio_watermark_defaults", "", type=str)
         if not raw:
             return {}
         try:
-            d = _json.loads(raw)
+            d = json.loads(raw)
             return {k: v for k, v in d.items()
                     if k in self._WATERMARK_STYLE_FIELDS}
         except Exception:
             return {}
 
     def _save_watermark_style_as_default(self, ov: CanvasOverlay):
-        import json as _json
         payload = {k: getattr(ov, k) for k in self._WATERMARK_STYLE_FIELDS}
         QSettings("DoxyEdit", "DoxyEdit").setValue(
-            "studio_watermark_defaults", _json.dumps(payload, ensure_ascii=False))
+            "studio_watermark_defaults", json.dumps(payload, ensure_ascii=False))
         self.info_label.setText("Saved default watermark style")
 
     def _reset_watermark_style_defaults(self):
@@ -11137,22 +11134,20 @@ class StudioEditor(QWidget):
 
     def _load_text_style_defaults(self) -> dict:
         """Return the user's saved default text style (or {} if none)."""
-        import json as _json
         raw = QSettings("DoxyEdit", "DoxyEdit").value("studio_text_defaults", "", type=str)
         if not raw:
             return {}
         try:
-            d = _json.loads(raw)
+            d = json.loads(raw)
             return {k: v for k, v in d.items() if k in self._TEXT_STYLE_FIELDS}
         except Exception:
             return {}
 
     def _save_text_style_as_default(self, ov: CanvasOverlay):
         """Persist the overlay's style fields as the new default."""
-        import json as _json
         payload = {k: getattr(ov, k) for k in self._TEXT_STYLE_FIELDS}
         QSettings("DoxyEdit", "DoxyEdit").setValue(
-            "studio_text_defaults", _json.dumps(payload, ensure_ascii=False))
+            "studio_text_defaults", json.dumps(payload, ensure_ascii=False))
         self.info_label.setText("Saved default text style")
 
     def _reset_text_style_defaults(self):
@@ -11163,12 +11158,11 @@ class StudioEditor(QWidget):
 
     def _load_named_text_styles(self) -> dict:
         """Return {name: {field: value}} of user-saved named text styles."""
-        import json as _json
         raw = QSettings("DoxyEdit", "DoxyEdit").value("studio_text_named_styles", "", type=str)
         if not raw:
             return {}
         try:
-            d = _json.loads(raw)
+            d = json.loads(raw)
             return {name: {k: v for k, v in fields.items()
                            if k in self._TEXT_STYLE_FIELDS}
                     for name, fields in d.items()}
@@ -11176,10 +11170,9 @@ class StudioEditor(QWidget):
             return {}
 
     def _write_named_text_styles(self, styles: dict):
-        import json as _json
         QSettings("DoxyEdit", "DoxyEdit").setValue(
             "studio_text_named_styles",
-            _json.dumps(styles, ensure_ascii=False))
+            json.dumps(styles, ensure_ascii=False))
 
     def _populate_text_styles_combo(self):
         """Refill the text-style dropdown from QSettings. Remembers the
@@ -11264,10 +11257,9 @@ class StudioEditor(QWidget):
                 f"Applied '{name}' to {len(sel)} text overlay(s)")
         else:
             # Set as default for future text overlays
-            import json as _json
             QSettings("DoxyEdit", "DoxyEdit").setValue(
                 "studio_text_defaults",
-                _json.dumps(fields, ensure_ascii=False))
+                json.dumps(fields, ensure_ascii=False))
             self.info_label.setText(
                 f"'{name}' is now the default text style")
 
@@ -11459,8 +11451,7 @@ class StudioEditor(QWidget):
         w, h = (260, 160) if kind != "burst" else (220, 220)
         x0 = int(cx - w / 2)
         y0 = int(cy - h / 2)
-        import uuid as _uuid
-        link_id = f"bubble_text_{_uuid.uuid4().hex[:8]}"
+        link_id = f"bubble_text_{uuid.uuid4().hex[:8]}"
         bubble = CanvasOverlay(
             type="shape", label=kind.replace("_", " ").title(),
             shape_kind=kind,
@@ -12358,8 +12349,7 @@ class StudioEditor(QWidget):
         if len(sel) < 2:
             self.info_label.setText("Group needs 2+ overlays")
             return
-        import uuid as _uuid
-        gid = f"g_{_uuid.uuid4().hex[:8]}"
+        gid = f"g_{uuid.uuid4().hex[:8]}"
         for it in sel:
             it.overlay.group_id = gid
         self._sync_overlays_to_asset()
