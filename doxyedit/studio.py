@@ -4329,6 +4329,52 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                         f"{getattr(ov, 'shape_kind', '')}")
         self._root_layout.insertWidget(0, header)
 
+        # Shape kind converter dropdown - lets users flip an existing
+        # shape to a different type (rect <-> ellipse <-> star etc.)
+        # without losing the positional data. Mirrors the Convert to
+        # action in the right-click menu but more discoverable.
+        if isinstance(item, OverlayShapeItem):
+            _kind_row = QHBoxLayout()
+            _kind_row.setContentsMargins(0, 0, 0, 0)
+            _kind_row.addWidget(QLabel("Shape kind"))
+            kind_combo = QComboBox()
+            _kinds = [
+                "rect", "ellipse", "star", "polygon",
+                "gradient_linear", "gradient_radial",
+                "speech_bubble", "thought_bubble", "burst",
+            ]
+            for _k in _kinds:
+                kind_combo.addItem(_k.replace("_", " ").title(), _k)
+            cur_idx = next((i for i, _k in enumerate(_kinds)
+                             if _k == ov.shape_kind), 0)
+            kind_combo.setCurrentIndex(cur_idx)
+            def _convert_kind(_idx, _it=item, _c=kind_combo):
+                new_kind = _c.itemData(_idx)
+                if new_kind == _it.overlay.shape_kind:
+                    return
+                _it.overlay.shape_kind = new_kind
+                if new_kind.startswith("gradient") and \
+                        not _it.overlay.gradient_start_color:
+                    _it.overlay.gradient_start_color = "#000000ff"
+                    _it.overlay.gradient_end_color = "#00000000"
+                if new_kind in ("star", "polygon"):
+                    if not getattr(_it.overlay, "star_points", 0):
+                        _it.overlay.star_points = (
+                            5 if new_kind == "star" else 6)
+                _it.prepareGeometryChange()
+                _it.update()
+                editor._sync_overlays_to_asset()
+                editor._rebuild_layer_panel()
+                if hasattr(editor, "info_label"):
+                    editor.info_label.setText(
+                        f"Converted to {new_kind.replace('_', ' ')}")
+                if hasattr(editor, "_shape_controls_dlg"):
+                    editor._shape_controls_dlg.rebuild_for(_it)
+            kind_combo.currentIndexChanged.connect(_convert_kind)
+            _kind_row.addWidget(kind_combo, 1)
+            _kind_wrap = _QW(); _kind_wrap.setLayout(_kind_row)
+            self._root_layout.insertWidget(1, _kind_wrap)
+
         if isinstance(item, OverlayShapeItem):
             is_bubble = ov.shape_kind in ("speech_bubble", "thought_bubble")
             # Stroke color
