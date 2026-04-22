@@ -5,8 +5,8 @@ from PySide6.QtWidgets import (
     QMenu, QFileSystemModel, QAbstractItemView, QApplication,
     QStyledItemDelegate, QStyleOptionViewItem, QLineEdit,
 )
-from PySide6.QtCore import Qt, Signal, QDir, QSettings, QModelIndex, QRect, QSize
-from PySide6.QtGui import QPainter, QColor
+from PySide6.QtCore import Qt, Signal, QDir, QSettings, QModelIndex, QRect, QSize, QMimeData, QUrl
+from PySide6.QtGui import QPainter, QColor, QDrag
 from doxyedit.themes import ui_font_size
 
 
@@ -125,7 +125,6 @@ class FileBrowserPanel(QWidget):
         self._settings.setValue("pinned_folders", self._pinned)
 
     def _build(self):
-        from PySide6.QtCore import QSettings
         _f = ui_font_size()
         self._f = _f
         _cb = max(14, _f + 2)
@@ -362,8 +361,6 @@ class FileBrowserPanel(QWidget):
 
     def _start_drag(self, supported_actions):
         """Start a drag with the selected folder as a file URL."""
-        from PySide6.QtCore import QMimeData, QUrl
-        from PySide6.QtGui import QDrag
 
         index = self._tree.currentIndex()
         if not index.isValid():
