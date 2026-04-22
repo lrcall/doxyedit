@@ -5679,6 +5679,34 @@ class StudioEditor(QWidget):
         if ctrl and shift and key == Qt.Key.Key_E:
             self._export_preview()
             return
+        # Ctrl+B / Ctrl+I / Ctrl+U / Ctrl+Shift+5 - Bold / Italic /
+        # Underline / Strikethrough on the selected text overlay(s).
+        # Matches Word / Google Docs bindings; toggles the attr +
+        # refreshes the quickbar buttons so state reflects.
+        if ctrl and not shift and not alt and key == Qt.Key.Key_B \
+                and hasattr(self, "btn_bold"):
+            sel_texts = [it for it in self._scene.selectedItems()
+                          if isinstance(it, OverlayTextItem)]
+            if sel_texts:
+                self.btn_bold.setChecked(not self.btn_bold.isChecked())
+                self._on_bold_changed()
+            return
+        if ctrl and not shift and not alt and key == Qt.Key.Key_I \
+                and hasattr(self, "btn_italic"):
+            sel_texts = [it for it in self._scene.selectedItems()
+                          if isinstance(it, OverlayTextItem)]
+            if sel_texts:
+                self.btn_italic.setChecked(not self.btn_italic.isChecked())
+                self._on_italic_changed()
+            return
+        if ctrl and not shift and not alt and key == Qt.Key.Key_U \
+                and hasattr(self, "btn_underline"):
+            sel_texts = [it for it in self._scene.selectedItems()
+                          if isinstance(it, OverlayTextItem)]
+            if sel_texts:
+                self.btn_underline.setChecked(not self.btn_underline.isChecked())
+                self._on_underline_changed()
+            return
         # Ctrl+Alt+X swaps fill and stroke colors on selected shapes.
         # Classic graphics shortcut; saves round-tripping two color
         # picker dialogs when the user wants to invert a bubble.
