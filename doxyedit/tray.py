@@ -1,5 +1,6 @@
 """Work tray — a collapsible right panel for quick-access images."""
 import os
+import time
 from collections import deque
 from pathlib import Path
 from PySide6.QtWidgets import (
@@ -7,7 +8,9 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QAbstractItemView, QMenu, QApplication,
     QTabBar, QInputDialog, QStyledItemDelegate,
 )
-from PySide6.QtCore import Qt, Signal, QSize, QUrl, QMimeData, QSettings, QEvent, QRect
+from PySide6.QtCore import (
+    Qt, Signal, QSize, QUrl, QMimeData, QSettings, QEvent, QRect, QTimer,
+)
 from PySide6.QtGui import QPixmap, QIcon, QDrag, QCursor, QColor, QBrush, QPen
 from doxyedit.themes import ui_font_size, THEMES, DEFAULT_THEME
 from doxyedit.preview import HoverPreview
@@ -140,6 +143,21 @@ class TrayItemDelegate(QStyledItemDelegate):
         rect = option.rect
         painter.save()
         painter.setRenderHint(painter.RenderHint.Antialiasing)
+
+        # Pulse ring (T18) — drawn first so other overlays sit on top
+        pulse_until = self._tray._pulse_until.get(aid)
+        if pulse_until:
+            remaining = pulse_until - time.monotonic()
+            if remaining > 0:
+                # Fade alpha from 220 -> 0 over the remaining time
+                alpha = max(40, int(220 * min(1.0, remaining / 0.4)))
+                ring = QColor(theme.accent_bright or theme.accent)
+                ring.setAlpha(alpha)
+                pen = QPen(ring, 3)
+                painter.setPen(pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRoundedRect(
+                    rect.adjusted(2, 2, -2, -2), 4, 4)
 
         # Star overlay top-left
         if getattr(asset, "starred", 0) > 0:
@@ -280,6 +298,13 @@ class WorkTray(QWidget):
         # "remove" or "clear" and payload is a list of (asset_id, row)
         # tuples recording where they came from.
         self._undo: dict[str, deque] = {}
+        # T18 refresh pulse — asset_id -> monotonic() deadline in seconds.
+        # Delegate draws an accent ring while entry is active; a shared
+        # QTimer ticks the viewport until the dict empties.
+        self._pulse_until: dict[str, float] = {}
+        self._pulse_timer = QTimer(self)
+        self._pulse_timer.setInterval(60)
+        self._pulse_timer.timeout.connect(self._on_pulse_tick)
         self._build()
 
     def _build(self):
@@ -1407,3 +1432,20 @@ class WorkTray(QWidget):
                                    Qt.TransformationMode.SmoothTransformation)
             item.setIcon(QIcon(scaled))
             self._pixmaps[asset_id] = pixmap
+            self._mark_pulse(asset_id)
+
+    def _mark_pulse(self, asset_id: str, duration: float = 0.4):
+        """Flag asset_id for a brief accent-ring pulse in the delegate.
+        Starts the shared tick timer on first pulse."""
+        self._pulse_until[asset_id] = time.monotonic() + duration
+        if not self._pulse_timer.isActive():
+            self._pulse_timer.start()
+
+    def _on_pulse_tick(self):
+        now = time.monotonic()
+        expired = [aid for aid, end in self._pulse_until.items() if end <= now]
+        for aid in expired:
+            self._pulse_until.pop(aid, None)
+        if not self._pulse_until:
+            self._pulse_timer.stop()
+        self._list.viewport().update()
