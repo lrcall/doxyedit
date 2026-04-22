@@ -4350,6 +4350,12 @@ class StudioEditor(QWidget):
             if touched:
                 self._sync_overlays_to_asset()
             return
+        # Ctrl+Shift+E quick-exports the preview PNG (same action as the
+        # Export toolbar button). Global Ctrl+E is reserved for 'Export
+        # All Platforms' so Shift distinguishes the two.
+        if ctrl and shift and key == Qt.Key.Key_E:
+            self._export_preview()
+            return
         # Ctrl+Alt+X swaps fill and stroke colors on selected shapes.
         # Classic graphics shortcut; saves round-tripping two color
         # picker dialogs when the user wants to invert a bubble.
