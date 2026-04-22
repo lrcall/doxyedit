@@ -1266,14 +1266,19 @@ class OverlayShapeItem(QGraphicsItem):
             max_y = max(r.bottom(), tip.y() + tail_pad)
             r = QRectF(min_x, min_y, max_x - min_x, max_y - min_y)
         # Expand upward so the rotate-handle circle is inside the paint
-        # region when selected (otherwise dragging it leaves artifacts).
-        rh = self._rotate_handle_pos()
-        rh_pad = 10
-        min_x = min(r.left(), rh.x() - rh_pad)
-        min_y = min(r.top(), rh.y() - rh_pad)
-        max_x = max(r.right(), rh.x() + rh_pad)
-        max_y = max(r.bottom(), rh.y() + rh_pad)
-        return QRectF(min_x, min_y, max_x - min_x, max_y - min_y)
+        # region — but only when selected, since that's when the handle
+        # is actually drawn. Otherwise every shape pays for a rotate-
+        # handle-sized dirty-rect expansion whether or not the handle is
+        # visible, bloating repaint regions during multi-item scenes.
+        if self.isSelected():
+            rh = self._rotate_handle_pos()
+            rh_pad = 10
+            min_x = min(r.left(), rh.x() - rh_pad)
+            min_y = min(r.top(), rh.y() - rh_pad)
+            max_x = max(r.right(), rh.x() + rh_pad)
+            max_y = max(r.bottom(), rh.y() + rh_pad)
+            r = QRectF(min_x, min_y, max_x - min_x, max_y - min_y)
+        return r
 
     _BLEND_MODE_MAP = {
         "normal": QPainter.CompositionMode.CompositionMode_SourceOver,
@@ -1740,6 +1745,12 @@ class OverlayShapeItem(QGraphicsItem):
         super().mouseDoubleClickEvent(event)
 
     def itemChange(self, change, value):
+        # Selection toggle changes boundingRect (rotate-handle expansion
+        # only applies when selected) — notify Qt so it repaints both
+        # old and new rects cleanly.
+        if change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
+            self.prepareGeometryChange()
+            return super().itemChange(change, value)
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
             # Feedback-loop fix: keep the item anchored at (0,0) so
             # painting (which uses absolute overlay.x/y) never gets
