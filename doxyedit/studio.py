@@ -4854,7 +4854,7 @@ class StudioEditor(QWidget):
         # Float the text-property sliders in their own non-modal popup so
         # they only show up when a text overlay (or the text tool) is
         # active. Prevents the permanent second-row clutter. The popup is
-        # moveable (Qt.Tool window flag) and does not interrupt drag/drawing.
+        # moveable (Qt.WindowType.Tool window flag) and does not interrupt drag/drawing.
         # Re-shape _props_row's QHBoxLayout into a tall QFormLayout inside
         # the dialog so it reads as a column of labeled rows, not a wide
         # ribbon.

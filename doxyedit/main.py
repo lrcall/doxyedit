@@ -68,7 +68,10 @@ class _Splash(QWidget):
     """Themed startup splash with a status line and Cancel / Quit buttons."""
 
     def __init__(self, theme):
-        super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        super().__init__(None,
+                         Qt.WindowType.FramelessWindowHint
+                         | Qt.WindowType.WindowStaysOnTopHint
+                         | Qt.WindowType.Tool)
         self._theme = theme
         self._cancelled = False
         self._quit = False
@@ -96,19 +99,19 @@ class _Splash(QWidget):
 
         title = QLabel("DoxyEdit", card)
         title.setObjectName("splash_title")
-        title.setAlignment(Qt.AlignHCenter)
+        title.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(title)
 
         tag = QLabel("art asset management", card)
         tag.setObjectName("splash_tag")
-        tag.setAlignment(Qt.AlignHCenter)
+        tag.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(tag)
 
         layout.addStretch(1)
 
         self._status = QLabel("", card)
         self._status.setObjectName("splash_status")
-        self._status.setAlignment(Qt.AlignHCenter)
+        self._status.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(self._status)
 
         btn_row = QHBoxLayout()

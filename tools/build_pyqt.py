@@ -40,14 +40,13 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRATCH = ROOT / "build_pyqt_tmp"
 DIST = ROOT / "dist"
 
-# Top-level package renames are simple word-boundary substitutions.
+# Top-level package renames. A single `from PySide6` prefix match catches
+# both bare ``from PySide6 import QtCore, QtWidgets`` (main.py, studio.py)
+# and the dotted ``from PySide6.QtWidgets import QWidget`` forms (most
+# modules). `import PySide6` handles the bare top-level import.
 _PACKAGE_SUBS: list[tuple[str, str]] = [
-    (r"\bfrom PySide6\.QtWidgets\b", "from PyQt6.QtWidgets"),
-    (r"\bfrom PySide6\.QtCore\b",    "from PyQt6.QtCore"),
-    (r"\bfrom PySide6\.QtGui\b",     "from PyQt6.QtGui"),
-    (r"\bfrom PySide6\.QtSvg\b",     "from PyQt6.QtSvg"),
-    (r"\bfrom PySide6\.QtNetwork\b", "from PyQt6.QtNetwork"),
-    (r"\bimport PySide6\b",          "import PyQt6"),
+    (r"\bfrom PySide6",     "from PyQt6"),
+    (r"\bimport PySide6\b", "import PyQt6"),
 ]
 
 # After the package rename, QtCore imports need `Signal` / `Slot` re-aliased

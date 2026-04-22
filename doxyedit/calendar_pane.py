@@ -29,8 +29,8 @@ class _DayCell(QFrame):
         _f = ui_font_size()
         self._f = _f
         self.setObjectName("calendar_day_cell")
-        self.setCursor(Qt.PointingHandCursor)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumHeight(int(_f * 3.5))
 
         _pad = max(4, _f // 3)
@@ -40,18 +40,18 @@ class _DayCell(QFrame):
 
         self._day_label = QLabel()
         self._day_label.setObjectName("calendar_day_number")
-        self._day_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self._day_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         layout.addWidget(self._day_label)
 
         self._dot_row = QHBoxLayout()
         self._dot_row.setContentsMargins(0, 0, 0, 0)
         self._dot_row.setSpacing(max(2, _pad // 2))
-        self._dot_row.setAlignment(Qt.AlignLeft)
+        self._dot_row.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addLayout(self._dot_row)
 
         self._count_label = QLabel()
         self._count_label.setObjectName("calendar_day_count")
-        self._count_label.setAlignment(Qt.AlignLeft)
+        self._count_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self._count_label.hide()
         layout.addWidget(self._count_label)
 
@@ -114,7 +114,7 @@ class _DayCell(QFrame):
     # -- events --
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
-        if event.button() == Qt.LeftButton and self._iso:
+        if event.button() == Qt.MouseButton.LeftButton and self._iso:
             self.clicked.emit()
         super().mousePressEvent(event)
 
@@ -128,7 +128,7 @@ class CalendarPane(LazyRefreshMixin, QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("calendar_pane")
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self._project: Project | None = None
         self._current_month: date = date.today().replace(day=1)
@@ -177,7 +177,7 @@ class CalendarPane(LazyRefreshMixin, QWidget):
 
         self._month_label = QLabel()
         self._month_label.setObjectName("calendar_header")
-        self._month_label.setAlignment(Qt.AlignCenter)
+        self._month_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.addWidget(self._month_label, stretch=1)
 
         self._btn_next = QPushButton("\u25B6")
@@ -196,7 +196,7 @@ class CalendarPane(LazyRefreshMixin, QWidget):
         # -- JST clock --
         self._jst_label = QLabel()
         self._jst_label.setObjectName("calendar_jst_clock")
-        self._jst_label.setAlignment(Qt.AlignCenter)
+        self._jst_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._jst_label)
         self._update_jst_clock()
 
@@ -213,8 +213,8 @@ class CalendarPane(LazyRefreshMixin, QWidget):
         for name in _DAY_HEADERS:
             lbl = QLabel(name)
             lbl.setObjectName("calendar_dow_header")
-            lbl.setAlignment(Qt.AlignCenter)
-            lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             dow_row.addWidget(lbl)
         root.addLayout(dow_row)
 

@@ -73,7 +73,7 @@ class _GanttBar(QGraphicsRectItem):
         self._bar_hover_pen_width = _dt.gantt_bar_hover_pen_width
         self.setPen(QPen(color.darker(120), self._bar_pen_width))
         self.setAcceptHoverEvents(True)
-        self.setCursor(Qt.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFlag(QGraphicsItem.ItemIsSelectable, False)
 
         # Themed HTML tooltip with thumbnail
@@ -130,7 +130,7 @@ class _GanttBar(QGraphicsRectItem):
         self.setToolTip(tip)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             scene = self.scene()
             if scene and hasattr(scene, "bar_clicked"):
                 scene.bar_clicked.emit(self.post_id)
@@ -244,7 +244,7 @@ class GanttPanel(LazyRefreshMixin, QWidget):
         tb_lay.addStretch()
 
         tb_lay.addWidget(QLabel("Zoom:"))
-        self._zoom_slider = QSlider(Qt.Horizontal)
+        self._zoom_slider = QSlider(Qt.Orientation.Horizontal)
         self._zoom_slider.setObjectName("gantt_zoom")
         self._zoom_slider.setRange(20, 200)
         self._zoom_slider.setValue(self._px_per_day)
@@ -267,15 +267,15 @@ class GanttPanel(LazyRefreshMixin, QWidget):
         self._label_area = QScrollArea()
         self._label_area.setObjectName("gantt_label_area")
         self._label_area.setFixedWidth(_LABEL_WIDTH)
-        self._label_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._label_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._label_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._label_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._label_area.setWidgetResizable(True)
         self._label_container = QWidget()
         self._label_container.setObjectName("gantt_label_container")
         self._label_layout = QVBoxLayout(self._label_container)
         self._label_layout.setContentsMargins(_pad, _HEADER_HEIGHT, _pad, 0)
         self._label_layout.setSpacing(0)
-        self._label_layout.setAlignment(Qt.AlignTop)
+        self._label_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._label_area.setWidget(self._label_container)
         body_lay.addWidget(self._label_area)
 
@@ -284,11 +284,11 @@ class GanttPanel(LazyRefreshMixin, QWidget):
         self._scene.bar_clicked.connect(self.post_selected.emit)
         self._view = QGraphicsView(self._scene)
         self._view.setObjectName("gantt_view")
-        self._view.setRenderHint(QPainter.Antialiasing)
-        self._view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self._view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self._view.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        self._view.setDragMode(QGraphicsView.ScrollHandDrag)
+        self._view.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self._view.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self._view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         body_lay.addWidget(self._view, 1)
 
         root.addWidget(body, 1)
@@ -365,7 +365,7 @@ class GanttPanel(LazyRefreshMixin, QWidget):
             lbl = QLabel(plat.replace("_", " ").title())
             lbl.setObjectName("gantt_row_label")
             lbl.setFixedHeight(_ROW_HEIGHT)
-            lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self._label_layout.addWidget(lbl)
 
         # Draw grid

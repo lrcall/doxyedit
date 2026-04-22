@@ -2020,10 +2020,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         menu = self.menuBar()
 
         file_menu = menu.addMenu("&File")
-        file_menu.addAction("&New Project", self._new_project, QKeySequence("Ctrl+N"))
-        file_menu.addAction("&Open Project...", self._open_project, QKeySequence("Ctrl+O"))
-        file_menu.addAction("&Save Project", self._save_project, QKeySequence("Ctrl+S"))
-        file_menu.addAction("Save Project &As...", self._save_project_as, QKeySequence("Ctrl+Shift+S"))
+        file_menu.addAction("&New Project", self._new_project).setShortcut(QKeySequence("Ctrl+N"))
+        file_menu.addAction("&Open Project...", self._open_project).setShortcut(QKeySequence("Ctrl+O"))
+        file_menu.addAction("&Save Project", self._save_project).setShortcut(QKeySequence("Ctrl+S"))
+        file_menu.addAction("Save Project &As...", self._save_project_as).setShortcut(QKeySequence("Ctrl+Shift+S"))
         file_menu.addSeparator()
 
         # Recent projects submenu (right-click an entry to remove it)
@@ -2037,8 +2037,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # Import / Export submenu
         ie_sub = file_menu.addMenu("Import / Export")
         ie_sub.addAction("Import Project...", self._open_project_in_tab)
-        ie_sub.addAction("&Export All Platforms...", self._export_all, QKeySequence("Ctrl+E"))
-        ie_sub.addAction("Paste Image (Ctrl+V)", self._paste_from_clipboard, QKeySequence("Ctrl+V"))
+        ie_sub.addAction("&Export All Platforms...", self._export_all).setShortcut(QKeySequence("Ctrl+E"))
+        ie_sub.addAction("Paste Image (Ctrl+V)", self._paste_from_clipboard).setShortcut(QKeySequence("Ctrl+V"))
         ie_sub.addAction("Paste Folder", self._paste_folder_from_clipboard)
         ie_sub.addSeparator()
         ie_sub.addAction("Export Identity...", self._export_identity)
@@ -2054,7 +2054,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         # Project Settings submenu
         ps_sub = file_menu.addMenu("Project Settings")
-        ps_sub.addAction("New Folder &Tab", self._add_folder_preset_dialog, QKeySequence("Ctrl+T"))
+        ps_sub.addAction("New Folder &Tab", self._add_folder_preset_dialog).setShortcut(QKeySequence("Ctrl+T"))
         ps_sub.addAction("Set Project Accent Color...", self._set_project_color)
         ps_sub.addAction("Clear Project Accent Color", self._clear_project_color)
         self._local_mode_action = ps_sub.addAction("Local Mode (Repo-Relative Paths)")
@@ -2066,7 +2066,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         ps_sub.addAction("Reset All Tags (fresh start)", self._reset_all_tags)
 
         file_menu.addSeparator()
-        file_menu.addAction("E&xit", self.close, QKeySequence("Alt+F4"))
+        file_menu.addAction("E&xit", self.close).setShortcut(QKeySequence("Alt+F4"))
 
         # Bookmarks menu
         bm_menu = menu.addMenu("&Bookmarks")
@@ -2081,12 +2081,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         # Edit menu
         edit_menu = menu.addMenu("&Edit")
-        edit_menu.addAction("Select &All", self._select_all, QKeySequence("Ctrl+A"))
-        edit_menu.addAction("Select &None", self._select_none, QKeySequence("Ctrl+Shift+D"))
+        edit_menu.addAction("Select &All", self._select_all).setShortcut(QKeySequence("Ctrl+A"))
+        edit_menu.addAction("Select &None", self._select_none).setShortcut(QKeySequence("Ctrl+Shift+D"))
         edit_menu.addAction("&Invert Selection", self._invert_selection)
         edit_menu.addSeparator()
-        edit_menu.addAction("&Rename File on Disk", self._rename_selected, QKeySequence("Shift+F2"))
-        edit_menu.addAction("&Delete Selected (Ignore)", self._handle_delete, QKeySequence("Delete"))
+        edit_menu.addAction("&Rename File on Disk", self._rename_selected).setShortcut(QKeySequence("Shift+F2"))
+        edit_menu.addAction("&Delete Selected (Ignore)", self._handle_delete).setShortcut(QKeySequence("Delete"))
         edit_menu.addAction("&Remove from Project", self._remove_selected)
         edit_menu.addSeparator()
         edit_menu.addAction("Move to Another Project...", self._move_to_project)
@@ -2095,7 +2095,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         edit_menu.addAction("Star Selected", lambda: self._batch_star(1))
         edit_menu.addAction("Unstar Selected", lambda: self._batch_star(0))
         edit_menu.addAction("Clear Tags on Selected", self._clear_tags_selected)
-        edit_menu.addAction("Add Tag to Selected...", self._add_tag_to_selected, QKeySequence("Alt+A"))
+        edit_menu.addAction("Add Tag to Selected...", self._add_tag_to_selected).setShortcut(QKeySequence("Alt+A"))
         edit_menu.addSeparator()
         edit_menu.addAction("Save Filter as Smart Folder...", self._save_smart_folder)
 
@@ -2103,8 +2103,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         tools_menu = menu.addMenu("&Tools")
 
         # — Top-level most-used —
-        tools_menu.addAction("&Reload Project from Disk", self._reload_project, QKeySequence("F5"))
-        tools_menu.addAction("Refresh Thumbnails", self._refresh_thumbs, QKeySequence("Shift+F5"))
+        tools_menu.addAction("&Reload Project from Disk", self._reload_project).setShortcut(QKeySequence("F5"))
+        tools_menu.addAction("Refresh Thumbnails", self._refresh_thumbs).setShortcut(QKeySequence("Shift+F5"))
         # F8 drag fix — keep shortcut, hide from menu
         _drag_fix = QAction("", self)
         _drag_fix.setShortcut(QKeySequence("F8"))
@@ -2159,7 +2159,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         # — Import / Export submenu —
         importexport_menu = tools_menu.addMenu("Import / Export")
-        importexport_menu.addAction("Refresh Import Sources", self._refresh_import_sources, QKeySequence("Ctrl+R"))
+        importexport_menu.addAction("Refresh Import Sources", self._refresh_import_sources).setShortcut(QKeySequence("Ctrl+R"))
         importexport_menu.addAction("Show Import Sources...", self._show_import_sources)
         importexport_menu.addAction("Configure Editors...", self._configure_editors)
         self._launch_menu = importexport_menu.addMenu("Launch In")
@@ -2198,18 +2198,22 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # View menu
         view_menu = menu.addMenu("&View")
         self._toggle_tags_action = view_menu.addAction(
-            "Hide Tag Panel", self._toggle_tag_panel, QKeySequence("Ctrl+L"))
+            "Hide Tag Panel", self._toggle_tag_panel)
+        self._toggle_tags_action.setShortcut(QKeySequence("Ctrl+L"))
         self._toggle_tray_action = view_menu.addAction(
-            "Show Work Tray", self._toggle_work_tray, QKeySequence("Ctrl+Shift+W"))
+            "Show Work Tray", self._toggle_work_tray)
+        self._toggle_tray_action.setShortcut(QKeySequence("Ctrl+Shift+W"))
         self._toggle_dock_preview_action = view_menu.addAction(
-            "Docked Preview", self._toggle_dock_preview, QKeySequence("Ctrl+D"))
+            "Docked Preview", self._toggle_dock_preview)
+        self._toggle_dock_preview_action.setShortcut(QKeySequence("Ctrl+D"))
         self._toggle_dock_preview_action.setCheckable(True)
         self._toggle_dock_preview_action.setChecked(self._preview_pane.isVisible())
         self._toggle_file_browser_action = view_menu.addAction(
-            "File Browser", self._toggle_file_browser, QKeySequence("Ctrl+B"))
+            "File Browser", self._toggle_file_browser)
+        self._toggle_file_browser_action.setShortcut(QKeySequence("Ctrl+B"))
         self._toggle_file_browser_action.setCheckable(True)
         self._toggle_file_browser_action.setChecked(self._file_browser.isVisible())
-        view_menu.addAction("Info Panel", self._toggle_info_panel, QKeySequence("Ctrl+I"))
+        view_menu.addAction("Info Panel", self._toggle_info_panel).setShortcut(QKeySequence("Ctrl+I"))
         self._toggle_project_notes_action = view_menu.addAction("Project Notes Panel")
         self._toggle_project_notes_action.setCheckable(True)
         self._toggle_project_notes_action.setChecked(False)
@@ -2248,9 +2252,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         # Font & Size submenu
         fontsize_sub = view_menu.addMenu("Font && Size")
-        fontsize_sub.addAction("Increase Font Size", self._font_increase, QKeySequence("Ctrl+="))
-        fontsize_sub.addAction("Decrease Font Size", self._font_decrease, QKeySequence("Ctrl+-"))
-        fontsize_sub.addAction("Reset Font Size", self._font_reset, QKeySequence("Ctrl+0"))
+        fontsize_sub.addAction("Increase Font Size", self._font_increase).setShortcut(QKeySequence("Ctrl+="))
+        fontsize_sub.addAction("Decrease Font Size", self._font_decrease).setShortcut(QKeySequence("Ctrl+-"))
+        fontsize_sub.addAction("Reset Font Size", self._font_reset).setShortcut(QKeySequence("Ctrl+0"))
         gen_menu = fontsize_sub.addMenu("Thumbnail Quality")
         for n in [64, 128, 256, 512, 768, 1024]:
             gen_menu.addAction(f"{n}px", lambda size=n: self._set_thumb_gen_size(size))

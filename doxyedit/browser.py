@@ -1270,7 +1270,7 @@ class AssetBrowser(QWidget):
 
         # Row 1: import + filters (FlowLayout so buttons wrap on narrow windows)
         self._toolbar_widget = FlowWidget()
-        self._toolbar_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self._toolbar_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         toolbar = FlowLayout(self._toolbar_widget, spacing=4)
         toolbar.setContentsMargins(0, 0, 0, 0)  # nested inside padded root
 
@@ -1374,7 +1374,7 @@ class AssetBrowser(QWidget):
 
         # Row 2: search + sort (FlowLayout so it wraps at narrow widths)
         self._row2_widget = FlowWidget()
-        self._row2_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self._row2_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         row2 = FlowLayout(self._row2_widget, spacing=4)
         row2.setContentsMargins(0, 0, 0, 0)
         self.search_box = QLineEdit()
@@ -1442,7 +1442,7 @@ class AssetBrowser(QWidget):
         # Row 3: Quick-tag bar
         self._tag_bar_frame = FlowWidget()
         self._tag_bar_frame.setObjectName("tag_bar_frame")
-        self._tag_bar_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self._tag_bar_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         self._tag_flow = FlowLayout(self._tag_bar_frame, spacing=4)
         self._tag_flow.setContentsMargins(0, max(2, _pad // 2), 0, max(2, _pad // 2))
         self._tag_buttons: list[tuple[QPushButton, str]] = []
