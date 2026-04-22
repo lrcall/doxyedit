@@ -30,7 +30,8 @@ from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
     QKeyEvent, QTransform, QUndoCommand, QUndoStack, QIcon,
     QPolygonF, QPainterPath, QImage, QShortcut, QKeySequence,
-    QTextCursor,
+    QTextCursor, QLinearGradient, QRadialGradient, QTextOption,
+    QTextBlockFormat, QPainterPathStroker,
 )
 import copy
 from PIL import Image
@@ -1167,7 +1168,6 @@ class OverlayShapeItem(QGraphicsItem):
         elif kind == "ellipse":
             painter.drawEllipse(r)
         elif kind in ("gradient_linear", "gradient_radial"):
-            from PySide6.QtGui import QLinearGradient, QRadialGradient
             def _parse_hex(s, default):
                 """Accept #RRGGBB or #RRGGBBAA hex strings."""
                 s = s or default
@@ -2239,7 +2239,6 @@ class OverlayTextItem(QGraphicsTextItem):
             font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, self.overlay.letter_spacing)
         self.setFont(font)
         # Horizontal alignment via document option
-        from PySide6.QtGui import QTextOption
         align_map = {
             "left": Qt.AlignmentFlag.AlignLeft,
             "center": Qt.AlignmentFlag.AlignHCenter,
@@ -2256,7 +2255,6 @@ class OverlayTextItem(QGraphicsTextItem):
             self.setTextWidth(-1)
         # Line height via block format
         lh = self.overlay.line_height or 1.2
-        from PySide6.QtGui import QTextBlockFormat, QTextCursor
         fmt = QTextBlockFormat()
         fmt.setLineHeight(lh * 100, 1)  # 1 = ProportionalHeight (percentage)
         # Add bottom margin to prevent last line from being clipped
@@ -2317,7 +2315,6 @@ class OverlayTextItem(QGraphicsTextItem):
             painter.restore()
         # Draw text outline if stroke is configured
         if self.overlay.stroke_width > 0 and self.overlay.stroke_color:
-            from PySide6.QtGui import QPainterPath, QPainterPathStroker
             painter.save()
             doc = self.document()
             ctx = doc.documentLayout()
@@ -5893,8 +5890,8 @@ class _StudioIcons:
     def undo():
         def d(p, s):
             # Curved arrow left
-            from PySide6.QtGui import QPainterPath as _QPP, QPolygonF as _Poly
-            path = _QPP()
+            _Poly = QPolygonF
+            path = QPainterPath()
             path.moveTo(s - 3, s // 2)
             path.arcTo(QRectF(3, 3, s - 6, s - 6), 0, 210)
             p.drawPath(path)
@@ -5907,8 +5904,8 @@ class _StudioIcons:
     @staticmethod
     def redo():
         def d(p, s):
-            from PySide6.QtGui import QPainterPath as _QPP, QPolygonF as _Poly
-            path = _QPP()
+            _Poly = QPolygonF
+            path = QPainterPath()
             path.moveTo(3, s // 2)
             path.arcTo(QRectF(3, 3, s - 6, s - 6), 180, 210)
             p.drawPath(path)
@@ -12425,14 +12422,13 @@ class StudioEditor(QWidget):
             elif hasattr(it, "_apply_flip_text"):
                 it._apply_flip_text()
             elif isinstance(it, OverlayShapeItem):
-                from PySide6.QtGui import QTransform as _QT
                 cx = ov.x + ov.shape_w / 2
                 cy = ov.y + ov.shape_h / 2
                 it.setTransformOriginPoint(cx, cy)
                 sx = -1.0 if getattr(ov, "flip_h", False) else 1.0
                 sy = -1.0 if getattr(ov, "flip_v", False) else 1.0
                 import math as _m
-                t = _QT()
+                t = QTransform()
                 if getattr(ov, "skew_x", 0.0) or getattr(ov, "skew_y", 0.0):
                     t.shear(_m.tan(_m.radians(ov.skew_x)),
                              _m.tan(_m.radians(ov.skew_y)))
@@ -13111,14 +13107,12 @@ class StudioEditor(QWidget):
                     "blue": "#4c7fe0", "purple": "#9a56d9",
                     "pink": "#e063b5", "gray": "#888888",
                 }
-                from PySide6.QtGui import QColor
                 item.setForeground(QColor(_tag_map.get(_tag, _tag)))
             item.setData(Qt.ItemDataRole.UserRole, ("overlay", len(self._asset.overlays) - 1 - i))
             if not ov.enabled:
                 item.setForeground(Qt.GlobalColor.gray)
             thumb = self._build_overlay_thumb(ov)
             if thumb is not None:
-                from PySide6.QtGui import QIcon
                 item.setIcon(QIcon(thumb))
             # Hover tooltip — fuller details than the list row can show
             tip_lines = [f"Type: {ov.type}"]
@@ -13154,7 +13148,6 @@ class StudioEditor(QWidget):
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, ("censor", i))
             if thumb is not None:
-                from PySide6.QtGui import QIcon
                 item.setIcon(QIcon(thumb))
             self._layer_panel.addItem(item)
 
@@ -13162,7 +13155,6 @@ class StudioEditor(QWidget):
 
     def _build_overlay_thumb(self, ov) -> "QPixmap | None":
         """Render a 28x28 thumbnail for a layer-panel row."""
-        from PySide6.QtGui import QPixmap, QPainter, QColor, QBrush, QPen
         size = 28
         pm = QPixmap(size, size)
         pm.fill(QColor(0, 0, 0, 0))
@@ -13218,7 +13210,6 @@ class StudioEditor(QWidget):
 
     def _build_censor_thumb(self, cr) -> "QPixmap | None":
         """Render a 28x28 thumbnail matching the censor style."""
-        from PySide6.QtGui import QPixmap, QPainter, QColor, QBrush, QPen
         size = 28
         pm = QPixmap(size, size)
         pm.fill(QColor(0, 0, 0, 0))
@@ -14461,16 +14452,15 @@ class StudioEditor(QWidget):
             self._props_row.setVisible(props_cb.isChecked())
         # Apply rendering flags
         if hasattr(self, "_view"):
-            from PySide6.QtGui import QPainter as _QP
             self._view.setRenderHint(
-                _QP.RenderHint.SmoothPixmapTransform,
+                QPainter.RenderHint.SmoothPixmapTransform,
                 upscale_combo.currentData() != "nearest" and hq_cb.isChecked())
             self._view.setRenderHint(
-                _QP.RenderHint.Antialiasing, aa_cb.isChecked())
+                QPainter.RenderHint.Antialiasing, aa_cb.isChecked())
             self._view.setRenderHint(
-                _QP.RenderHint.TextAntialiasing, text_aa_cb.isChecked())
+                QPainter.RenderHint.TextAntialiasing, text_aa_cb.isChecked())
             self._view.setRenderHint(
-                _QP.RenderHint.LosslessImageRendering, hq_cb.isChecked())
+                QPainter.RenderHint.LosslessImageRendering, hq_cb.isChecked())
         self.info_label.setText("Studio settings saved")
 
     def _show_shortcuts_cheat_sheet(self):
