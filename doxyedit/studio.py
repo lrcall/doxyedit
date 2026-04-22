@@ -7122,21 +7122,92 @@ class StudioEditor(QWidget):
             self.info_label.setText(f"No text overlays matched '{find_str}'")
 
     def _show_undo_history(self):
-        """Display the undo stack as a clickable list so users can jump to
-        any point in history."""
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QListWidget as _QL
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Undo History")
-        dlg.resize(380, 420)
-        # Inherit the app-wide theme stylesheet so the list + frame match
+        """Non-modal, dockable-like undo history panel. Persists its
+        geometry across close / reopen the same way Text and Shape
+        Controls do. Stays open while the user continues working —
+        clicks jump the undo stack to that index."""
+        # Lazily create a single instance rather than a fresh modal
+        # dialog on every click.
+        from PySide6.QtWidgets import QVBoxLayout, QListWidget as _QL
+        if not hasattr(self, "_undo_history_dlg") or \
+                self._undo_history_dlg is None:
+            from PySide6.QtCore import QSettings as _QS
+            _qs = _QS("DoxyEdit", "DoxyEdit")
+
+            class _UndoHistoryDialog(QtWidgets.QDialog):
+                _GEOM_KEY = "studio_undo_history_geom"
+                def __init__(self, parent=None):
+                    super().__init__(parent)
+                    self._qs = _qs
+                def _save_geom(self):
+                    try:
+                        self._qs.setValue(self._GEOM_KEY, self.saveGeometry())
+                    except Exception:
+                        pass
+                def closeEvent(self, ev):
+                    self._save_geom(); super().closeEvent(ev)
+                def hideEvent(self, ev):
+                    self._save_geom(); super().hideEvent(ev)
+                def moveEvent(self, ev):
+                    super().moveEvent(ev); self._save_geom()
+                def resizeEvent(self, ev):
+                    super().resizeEvent(ev); self._save_geom()
+
+            dlg = _UndoHistoryDialog(self)
+            dlg.setWindowTitle("Undo History")
+            dlg.setObjectName("studio_undo_history_dlg")
+            dlg.setWindowFlags(
+                Qt.WindowType.Tool |
+                Qt.WindowType.CustomizeWindowHint |
+                Qt.WindowType.WindowTitleHint |
+                Qt.WindowType.WindowCloseButtonHint)
+            dlg.setMinimumSize(320, 360)
+            layout = QVBoxLayout(dlg)
+            layout.setContentsMargins(6, 6, 6, 6)
+            lst = _QL(dlg)
+            lst.setObjectName("studio_undo_history_list")
+            layout.addWidget(lst)
+            dlg._lst = lst
+            self._undo_history_dlg = dlg
+            # Live refresh: repopulate whenever the undo stack changes
+            # so the dialog stays accurate as the user edits.
+            def _refresh():
+                if not dlg.isVisible():
+                    return
+                self._refresh_undo_history_list()
+            self._undo_stack.indexChanged.connect(lambda _i: _refresh())
+            def _on_click(item):
+                idx = lst.row(item)
+                self._undo_stack.setIndex(idx)
+            lst.itemClicked.connect(_on_click)
+            # Restore saved geometry
+            _geom = _qs.value("studio_undo_history_geom", None)
+            if _geom:
+                try:
+                    dlg.restoreGeometry(_geom)
+                except Exception:
+                    pass
+
+        dlg = self._undo_history_dlg
+        self._refresh_undo_history_list()
         win = self.window()
         if win is not None:
             dlg.setStyleSheet(win.styleSheet())
-        layout = QVBoxLayout(dlg)
-        lst = _QL()
-        lst.setObjectName("studio_undo_history_list")
-        # Index 0 = clean state; undoStack.index() is the "next redo" pointer.
-        # We render each command by text; clicking jumps via setIndex.
+        if not dlg.isVisible():
+            dlg.show()
+        if win is not None and hasattr(win, "_theme_dialog_titlebar"):
+            win._theme_dialog_titlebar(dlg)
+        dlg.raise_()
+
+    def _refresh_undo_history_list(self):
+        if not hasattr(self, "_undo_history_dlg"):
+            return
+        dlg = self._undo_history_dlg
+        lst = getattr(dlg, "_lst", None)
+        if lst is None:
+            return
+        lst.blockSignals(True)
+        lst.clear()
         lst.addItem("(clean)")
         for i in range(self._undo_stack.count()):
             txt = self._undo_stack.text(i)
@@ -7144,16 +7215,7 @@ class StudioEditor(QWidget):
         current = self._undo_stack.index()
         if 0 <= current < lst.count():
             lst.setCurrentRow(current)
-        def _on_click(item):
-            idx = lst.row(item)
-            self._undo_stack.setIndex(idx)
-        lst.itemClicked.connect(_on_click)
-        layout.addWidget(lst)
-        dlg.show()
-        # Theme the Windows 11 title bar (must happen after show())
-        if win is not None and hasattr(win, "_theme_dialog_titlebar"):
-            win._theme_dialog_titlebar(dlg)
-        dlg.exec()
+        lst.blockSignals(False)
 
     def _prompt_zoom_level(self, _event):
         """Click the zoom % label to enter a numeric zoom percentage."""
