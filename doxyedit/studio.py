@@ -160,7 +160,17 @@ class StudioScene(QGraphicsScene):
         super().dropEvent(event)
 
     def drawForeground(self, painter, rect):
-        """Draw snap grid, rule-of-thirds, and smart-guide overlay."""
+        """Draw snap grid, rule-of-thirds, and smart-guide overlay.
+
+        Early-out when all helpers are off — this method runs on every
+        paint (so: every drag-mousemove frame). Skipping the method body
+        removes ~5 attribute reads + super() dispatch per frame on the
+        common case where the user isn't showing any guides.
+        """
+        if (not self._grid_visible
+                and not getattr(self, "_thirds_visible", False)
+                and not self._snap_guides):
+            return
         super().drawForeground(painter, rect)
         _t = self._theme
         if self._grid_visible:
@@ -1197,7 +1207,7 @@ class StudioScene(QGraphicsScene):
         elif chosen is copy_canvas_act:
             if editor._pixmap_item:
                 pm = editor._pixmap_item.pixmap()
-                img = QImage(pm.size(), QImage.Format.Format_ARGB32)
+                img = QImage(pm.size(), QImage.Format.Format_ARGB32_Premultiplied)
                 img.fill(Qt.GlobalColor.transparent)
                 p = QPainter(img)
                 self.render(p, source=editor._pixmap_item.sceneBoundingRect())
@@ -1362,7 +1372,7 @@ class StudioScene(QGraphicsScene):
             return
         r = target.rect().translated(target.pos())
         img = QImage(int(r.width()), int(r.height()),
-                      QImage.Format.Format_ARGB32)
+                      QImage.Format.Format_ARGB32_Premultiplied)
         img.fill(Qt.GlobalColor.transparent)
         # Hide crop items so they don't render into the cropped output
         crops = [c for c in editor._crop_items if c.isVisible()]
@@ -8505,7 +8515,7 @@ class StudioEditor(QWidget):
         # trip through PIL so we get a real gaussian instead of bespoke math.
         mode = getattr(ov, "filter_mode", "") or ""
         if mode in ("grayscale", "invert"):
-            qimg = src.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+            qimg = src.toImage().convertToFormat(QImage.Format.Format_ARGB32_Premultiplied)
             w, h = qimg.width(), qimg.height()
             for y in range(h):
                 for x in range(w):
@@ -12986,7 +12996,7 @@ class StudioEditor(QWidget):
         if not path.lower().endswith(".png"):
             path += ".png"
         img = QImage(int(bounds.width()), int(bounds.height()),
-                      QImage.Format.Format_ARGB32)
+                      QImage.Format.Format_ARGB32_Premultiplied)
         img.fill(Qt.GlobalColor.transparent)
         # Temporarily deselect, hide base + checker so they don't render
         was_pixmap = self._pixmap_item.isVisible()
@@ -13042,7 +13052,7 @@ class StudioEditor(QWidget):
             return
         if not path.lower().endswith(".png"):
             path += ".png"
-        img = QImage(pm.size(), QImage.Format.Format_ARGB32)
+        img = QImage(pm.size(), QImage.Format.Format_ARGB32_Premultiplied)
         img.fill(Qt.GlobalColor.transparent)
         p = QPainter(img)
         # Hide the pixmap + checkerboard before render, restore after
