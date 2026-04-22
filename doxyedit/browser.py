@@ -1,6 +1,7 @@
 """Asset browser — QListView with custom delegate for high-performance thumbnail grid."""
 import fnmatch
 import os
+import random
 import shutil
 import subprocess
 import uuid
@@ -1052,7 +1053,6 @@ class FolderSection(QWidget):
             self.collapsed_changed.emit(self._folder, new_state)
 
     def _on_header_context(self, pos):
-        import subprocess, random
         menu = QMenu(self)
         hide_label = "Show Subfolders" if self._child_folder_count > 0 else "Hide Subfolders"
         menu.addAction(hide_label, lambda: self.hide_requested.emit(self._folder))
@@ -1074,7 +1074,6 @@ class FolderSection(QWidget):
 
     def _theme_accent_variant(self) -> QColor:
         """Generate a random color based on the theme's accent hue with random offset."""
-        import random
         # Get accent color from the delegate's theme, or fallback
         theme = getattr(getattr(self.parent(), '_delegate', None) if hasattr(self, '_view') else None, '_theme', None)
         if not theme:
