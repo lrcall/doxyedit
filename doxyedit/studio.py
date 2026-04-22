@@ -4101,6 +4101,50 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             _sc_w = _QW(); _sc_w.setLayout(sc_row)
             form.addRow("Scale", _sc_w)
 
+            # X / Y position: slider + numeric spin bound together,
+            # updating live. Range bounded to the current canvas +
+            # a margin so sliders don't drag items wildly off-screen.
+            pm_w = pm_h = 2000
+            if self._editor is not None and self._editor._pixmap_item:
+                _pm = self._editor._pixmap_item.pixmap()
+                pm_w = max(400, _pm.width())
+                pm_h = max(400, _pm.height())
+            def _mk_pos_row(attr, lo, hi, default):
+                sl = QSlider(Qt.Orientation.Horizontal)
+                sl.setRange(lo, hi)
+                sl.setValue(default)
+                sl.setMinimumWidth(130)
+                sp = QSpinBox()
+                sp.setRange(lo, hi)
+                sp.setSuffix(" px")
+                sp.setValue(default)
+                sp.setFixedWidth(78)
+                def _on_change(v, _it=item, _attr=attr):
+                    setattr(_it.overlay, _attr, int(v))
+                    if _attr == "x":
+                        _it.overlay.x = int(v)
+                    else:
+                        _it.overlay.y = int(v)
+                    # Shape pivots on center, so just repaint + sync.
+                    _it.prepareGeometryChange()
+                    _it.update()
+                    editor._sync_overlays_to_asset()
+                def _sl_to_sp(v):
+                    sp.blockSignals(True); sp.setValue(v); sp.blockSignals(False)
+                    _on_change(v)
+                def _sp_to_sl(v):
+                    sl.blockSignals(True); sl.setValue(v); sl.blockSignals(False)
+                    _on_change(v)
+                sl.valueChanged.connect(_sl_to_sp)
+                sp.valueChanged.connect(_sp_to_sl)
+                row = QHBoxLayout()
+                row.setContentsMargins(0, 0, 0, 0)
+                row.addWidget(sl, 1); row.addWidget(sp)
+                w = _QW(); w.setLayout(row)
+                return w
+            form.addRow("X", _mk_pos_row("x", 0, pm_w, int(ov.x)))
+            form.addRow("Y", _mk_pos_row("y", 0, pm_h, int(ov.y)))
+
         elif isinstance(item, OverlayArrowItem):
             # Arrow: color, width, arrowhead size / style, double-headed
             color_btn = _ColorSwatchButton(is_outline=False)
