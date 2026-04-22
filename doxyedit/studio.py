@@ -7471,8 +7471,12 @@ class StudioEditor(QWidget):
         self.slider_outline.setRange(0, 10)
         self.slider_outline.setValue(0)
         self.slider_outline.setFixedWidth(_slider_sm)
-        self.slider_outline.setToolTip("Outline width")
+        self.slider_outline.setToolTip(
+            "Outline width. Double-click to reset to 0.")
         self.slider_outline.valueChanged.connect(self._on_outline_changed)
+        def _ol_dclick(ev):
+            self.slider_outline.setValue(0)
+        self.slider_outline.mouseDoubleClickEvent = _ol_dclick
         props.addWidget(self.slider_outline)
 
         props.addWidget(QLabel("|"))
@@ -7483,7 +7487,12 @@ class StudioEditor(QWidget):
         self.slider_kerning.setRange(-20, 20)
         self.slider_kerning.setValue(0)
         self.slider_kerning.setFixedWidth(_slider_sm)
+        self.slider_kerning.setToolTip(
+            "Letter spacing. Double-click to reset to 0.")
         self.slider_kerning.valueChanged.connect(self._on_kerning_changed)
+        def _kern_dclick(ev):
+            self.slider_kerning.setValue(0)
+        self.slider_kerning.mouseDoubleClickEvent = _kern_dclick
         props.addWidget(self.slider_kerning)
 
         props.addWidget(QLabel("LH:"))
@@ -7492,8 +7501,13 @@ class StudioEditor(QWidget):
         self.slider_line_height.setRange(50, 300)  # 0.5x to 3.0x (stored as int * 100)
         self.slider_line_height.setValue(120)       # default 1.2
         self.slider_line_height.setFixedWidth(_slider_sm)
-        self.slider_line_height.setToolTip("Line height (1.0 = tight, 1.5 = loose, 2.0 = double)")
+        self.slider_line_height.setToolTip(
+            "Line height (1.0 = tight, 1.5 = loose, 2.0 = double). "
+            "Double-click to reset to 1.2.")
         self.slider_line_height.valueChanged.connect(self._on_line_height_changed)
+        def _lh_dclick(ev):
+            self.slider_line_height.setValue(120)
+        self.slider_line_height.mouseDoubleClickEvent = _lh_dclick
         props.addWidget(self.slider_line_height)
 
         props.addWidget(QLabel("Rot:"))
@@ -7502,7 +7516,12 @@ class StudioEditor(QWidget):
         self.slider_rotation.setRange(-180, 180)
         self.slider_rotation.setValue(0)
         self.slider_rotation.setFixedWidth(_slider_sm)
+        self.slider_rotation.setToolTip(
+            "Rotation (-180° to 180°). Double-click to reset to 0°.")
         self.slider_rotation.valueChanged.connect(self._on_rotation_changed)
+        def _rot_s_dclick(ev):
+            self.slider_rotation.setValue(0)
+        self.slider_rotation.mouseDoubleClickEvent = _rot_s_dclick
         props.addWidget(self.slider_rotation)
 
         props.addWidget(QLabel("W:"))
