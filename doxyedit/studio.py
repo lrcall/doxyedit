@@ -7936,7 +7936,19 @@ class StudioEditor(QWidget):
             "Text content (edits selected text overlay)")
         self._tc_content_edit.setFixedHeight(int(_dt.font_size * 4.4))
         self._tc_content_edit.textChanged.connect(self._on_tc_content_changed)
-        _dlg_layout.addRow("Text", self._tc_content_edit)
+        # Character + word count line under the editor so the user can
+        # eyeball how long the text is without squinting at the canvas.
+        # Important for platform-specific caption limits.
+        self._tc_count_label = QLabel("0 chars  /  0 words", _dlg)
+        self._tc_count_label.setObjectName("studio_tc_count")
+        _tc_wrap = QWidget(_dlg)
+        _tc_wrap_v = QVBoxLayout(_tc_wrap)
+        _tc_wrap_v.setContentsMargins(0, 0, 0, 0)
+        _tc_wrap_v.setSpacing(2)
+        _tc_wrap_v.addWidget(self._tc_content_edit)
+        _tc_wrap_v.addWidget(self._tc_count_label)
+        self._tc_content_edit.textChanged.connect(self._update_tc_count)
+        _dlg_layout.addRow("Text", _tc_wrap)
         _dlg_layout.addRow("Position", self.combo_position)
         _dlg_layout.addRow("Font", self.font_combo)
         # Font size row: slider + preset buttons (8 / 14 / 24 / 48 / 96 pt)
@@ -11067,6 +11079,20 @@ class StudioEditor(QWidget):
             it.update()
         self._add_recent_color(col.name())
         self._sync_overlays_to_asset()
+
+    def _update_tc_count(self):
+        """Refresh the chars / words counter under the Text Controls
+        mini editor. Runs on every textChanged tick; cheap."""
+        if not hasattr(self, "_tc_count_label"):
+            return
+        txt = self._tc_content_edit.toPlainText()
+        chars = len(txt)
+        # Matches Python's default whitespace split -> ignores extra
+        # spaces, treats newlines as separators.
+        words = len(txt.split()) if txt.strip() else 0
+        lines = txt.count("\n") + 1 if txt else 0
+        self._tc_count_label.setText(
+            f"{chars} chars  /  {words} words  /  {lines} lines")
 
     def _on_tc_content_changed(self):
         """Live-edit the selected text overlay's content from the mini
