@@ -5,10 +5,11 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-    QScrollArea, QPushButton, QComboBox,
+    QScrollArea, QPushButton, QComboBox, QMenu, QDialog,
+    QFormLayout, QSpinBox, QDialogButtonBox,
 )
-from PySide6.QtCore import Signal, Qt, QSize
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Signal, Qt, QSize, QSettings
+from PySide6.QtGui import QPixmap, QCursor
 from doxyedit.themes import ui_font_size
 
 from doxyedit.models import SocialPost, SocialPostStatus, EngagementWindow
@@ -78,8 +79,7 @@ class PostCard(QFrame):
         self._asset_ids = post.asset_ids
         self._project = project
 
-        from PySide6.QtCore import QSettings as _QS
-        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
 
@@ -222,8 +222,7 @@ class PostCard(QFrame):
             if pending:
                 pending.sort(key=lambda x: x[2])
 
-                from PySide6.QtCore import QSettings as _QS
-                _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+                _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
                 _pad = max(4, _f // 3)
                 _pad_lg = max(6, _f // 2)
                 eng_container = QFrame()
@@ -339,7 +338,6 @@ class PostCard(QFrame):
         return names
 
     def contextMenuEvent(self, event):
-        from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
         if self._post and self._post.status in ("posted", SocialPostStatus.POSTED):
             edit_action = menu.addAction("Edit Metrics...")
@@ -347,7 +345,6 @@ class PostCard(QFrame):
         menu.exec(event.globalPos())
 
     def _edit_metrics(self):
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QSpinBox, QDialogButtonBox, QComboBox
         if not self._post:
             return
 
@@ -410,7 +407,6 @@ class PostCard(QFrame):
         if not self._asset_ids:
             return
         from doxyedit.preview import HoverPreview
-        from PySide6.QtGui import QCursor
         for aid in self._asset_ids:
             asset = self._project.get_asset(aid) if self._project else None
             if asset and asset.source_path:
@@ -429,8 +425,7 @@ class GapMarker(QFrame):
         self.setObjectName("timeline_gap")
         self._date_str = date_str
 
-        from PySide6.QtCore import QSettings as _QS
-        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
 
@@ -461,8 +456,7 @@ class TimelineStream(LazyRefreshMixin, QWidget):
         self._thumb_cache = None
         self._day_filter: str | None = None
 
-        from PySide6.QtCore import QSettings as _QS
-        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
 
