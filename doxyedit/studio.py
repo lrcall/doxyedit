@@ -513,6 +513,7 @@ class OverlayImageItem(QGraphicsPixmapItem):
         flip_v_act = menu.addAction("Flip Vertical  (Ctrl+Shift+V)")
         rot_cw_act = menu.addAction("Rotate 90° CW")
         rot_ccw_act = menu.addAction("Rotate 90° CCW")
+        rot_180_act = menu.addAction("Rotate 180°")
         reset_xform_act = menu.addAction("Reset Transform")
         menu.addSeparator()
         front_act = menu.addAction("Bring to Front  (Ctrl+Shift+])")
@@ -603,6 +604,11 @@ class OverlayImageItem(QGraphicsPixmapItem):
                 self._editor._sync_overlays_to_asset()
         elif chosen is rot_ccw_act:
             self.overlay.rotation = (self.overlay.rotation - 90) % 360
+            self._apply_flip()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen is rot_180_act:
+            self.overlay.rotation = (self.overlay.rotation + 180) % 360
             self._apply_flip()
             if self._editor:
                 self._editor._sync_overlays_to_asset()
@@ -2431,6 +2437,7 @@ class OverlayTextItem(QGraphicsTextItem):
         flip_v_act = menu.addAction("Flip Vertical  (Ctrl+Shift+V)")
         rot_cw_act = menu.addAction("Rotate 90° CW")
         rot_ccw_act = menu.addAction("Rotate 90° CCW")
+        rot_180_act = menu.addAction("Rotate 180°")
         reset_xform_act = menu.addAction("Reset Transform")
         menu.addSeparator()
         front_act = menu.addAction("Bring to Front  (Ctrl+Shift+])")
@@ -2582,6 +2589,11 @@ class OverlayTextItem(QGraphicsTextItem):
                 self._editor._sync_overlays_to_asset()
         elif chosen is rot_ccw_act:
             self.overlay.rotation = (self.overlay.rotation - 90) % 360
+            self._apply_flip_text()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen is rot_180_act:
+            self.overlay.rotation = (self.overlay.rotation + 180) % 360
             self._apply_flip_text()
             if self._editor:
                 self._editor._sync_overlays_to_asset()
