@@ -1148,11 +1148,22 @@ class OverlayShapeItem(QGraphicsItem):
         # logical block for comic workflows.
         fit_text_act = None
         unlink_text_act = None
+        preset_comic_act = None
+        preset_manga_act = None
+        preset_whisper_act = None
+        preset_shout_act = None
+        preset_narrator_act = None
         if self._is_bubble():
             menu.addSeparator()
             if self.overlay.linked_text_id:
                 fit_text_act = menu.addAction("Fit Bubble to Text")
                 unlink_text_act = menu.addAction("Unlink Text")
+            preset_menu = menu.addMenu("Bubble Preset")
+            preset_comic_act = preset_menu.addAction("Comic (solid)")
+            preset_manga_act = preset_menu.addAction("Manga (thin)")
+            preset_whisper_act = preset_menu.addAction("Whisper (dashed)")
+            preset_shout_act = preset_menu.addAction("Shout (thick)")
+            preset_narrator_act = preset_menu.addAction("Narrator box (no tail)")
         menu.addSeparator()
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         del_act = menu.addAction("Delete")
@@ -1288,6 +1299,39 @@ class OverlayShapeItem(QGraphicsItem):
             self._fit_to_linked_text()
         elif unlink_text_act is not None and chosen is unlink_text_act and self._editor:
             self.overlay.linked_text_id = ""
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen in (preset_comic_act, preset_manga_act, preset_whisper_act,
+                        preset_shout_act, preset_narrator_act):
+            # Each preset is a small dict applied to the current bubble.
+            # Tail_x/tail_y of 0 means 'no tail' (the paint path skips it
+            # when tail coords are zero and the narrator preset leans on
+            # that to render as a plain rounded rect).
+            presets = {
+                preset_comic_act: dict(
+                    stroke_color="#000000", fill_color="#ffffff",
+                    stroke_width=3, line_style="solid", corner_radius=0),
+                preset_manga_act: dict(
+                    stroke_color="#000000", fill_color="#ffffff",
+                    stroke_width=2, line_style="solid", corner_radius=0),
+                preset_whisper_act: dict(
+                    stroke_color="#000000", fill_color="#ffffff",
+                    stroke_width=2, line_style="dash", corner_radius=0),
+                preset_shout_act: dict(
+                    stroke_color="#000000", fill_color="#ffffff",
+                    stroke_width=5, line_style="solid", corner_radius=0),
+                preset_narrator_act: dict(
+                    stroke_color="#000000", fill_color="#ffffeb",
+                    stroke_width=3, line_style="solid",
+                    # Rect draws without a tail (no speech_bubble paint
+                    # path) so it renders as a plain narrator caption box
+                    shape_kind="rect", corner_radius=6),
+            }
+            fields = presets.get(chosen, {})
+            for k, v in fields.items():
+                setattr(self.overlay, k, v)
+            self.prepareGeometryChange()
+            self.update()
             if self._editor:
                 self._editor._sync_overlays_to_asset()
         elif chosen is dup_act and self._editor:
