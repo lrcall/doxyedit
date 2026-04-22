@@ -8162,7 +8162,6 @@ class StudioEditor(QWidget):
             sw.setFixedSize(18, 18)
             sw.setObjectName("studio_swatch")
             sw.setEnabled(False)
-            sw.setStyleSheet("background: transparent; border: 1px dashed #555;")
             sw.clicked.connect(lambda _, b=sw: self._on_swatch_clicked(b))
             # Right-click a swatch for Clear All / Remove This Color
             sw.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -11311,13 +11310,14 @@ class StudioEditor(QWidget):
         colors = self._get_recent_colors()
         for i, btn in enumerate(self._swatch_buttons):
             if i < len(colors):
-                btn.setStyleSheet(
-                    f"background: {colors[i]}; border: 1px solid #333;")
+                # Background is runtime user data; border + disabled state
+                # come from QSS (#studio_swatch rules in themes.py).
+                btn.setStyleSheet(f"QPushButton#studio_swatch {{ background: {colors[i]}; }}")
                 btn.setToolTip(colors[i])
                 btn.setEnabled(True)
                 btn.setProperty("color", colors[i])
             else:
-                btn.setStyleSheet("background: transparent; border: 1px dashed #555;")
+                btn.setStyleSheet("")
                 btn.setToolTip("")
                 btn.setEnabled(False)
                 btn.setProperty("color", "")

@@ -1335,6 +1335,16 @@ def generate_stylesheet(theme: Theme) -> str:
         QLabel#hive_status_dot[status="posted"] {{ color: {theme.success}; }}
         QLabel#hive_status_dot[status="skip"] {{ color: {theme.text_muted}; }}
 
+        /* Studio recent-color swatches */
+        QPushButton#studio_swatch {{
+            border: 1px solid {theme.border};
+            border-radius: {rad}px;
+        }}
+        QPushButton#studio_swatch:disabled {{
+            background: transparent;
+            border: 1px dashed {theme.text_muted};
+        }}
+
         /* Dashboard */
         QProgressBar#dash_progress {{
             background: {theme.bg_hover};
