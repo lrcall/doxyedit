@@ -6416,6 +6416,32 @@ class StudioEditor(QWidget):
         self._qp_scale.valueChanged.connect(self._qp_apply_scale)
         quickbar.addWidget(self._qp_scale)
 
+        # Quick lock / visibility / align-to-pixel buttons. Photoshop-
+        # style 'edit' buttons that act on the current selection without
+        # needing a popup.
+        qp_lock_btn = QPushButton("Lock")
+        qp_lock_btn.setObjectName("studio_qp_lock")
+        qp_lock_btn.setCheckable(True)
+        qp_lock_btn.setToolTip("Lock selected overlay(s) from editing")
+        qp_lock_btn.clicked.connect(self._qp_toggle_lock)
+        self._qp_lock = qp_lock_btn
+        quickbar.addWidget(qp_lock_btn)
+
+        qp_vis_btn = QPushButton("Hide")
+        qp_vis_btn.setObjectName("studio_qp_hide")
+        qp_vis_btn.setCheckable(True)
+        qp_vis_btn.setToolTip("Hide selected overlay(s)")
+        qp_vis_btn.clicked.connect(self._qp_toggle_visibility)
+        self._qp_hide = qp_vis_btn
+        quickbar.addWidget(qp_vis_btn)
+
+        qp_pixel_btn = QPushButton("Px Snap")
+        qp_pixel_btn.setObjectName("studio_qp_pixel")
+        qp_pixel_btn.setToolTip(
+            "Snap selected overlay position to integer pixels")
+        qp_pixel_btn.clicked.connect(self._qp_snap_to_pixel)
+        quickbar.addWidget(qp_pixel_btn)
+
         self._qp_label = QLabel("(no selection)")
         self._qp_label.setObjectName("studio_qp_label")
         quickbar.addWidget(self._qp_label)
@@ -9423,6 +9449,63 @@ class StudioEditor(QWidget):
                     it._apply_font()
         self._sync_overlays_to_asset()
 
+    def _qp_toggle_lock(self):
+        """Lock / unlock every selected overlay. Locked items can't be
+        moved or re-selected via canvas click (layer-panel still reaches
+        them). Mirrors ov.locked + ItemIsMovable / ItemIsSelectable."""
+        sel = [it for it in self._scene.selectedItems() if hasattr(it, "overlay")]
+        if not sel:
+            return
+        locked = self._qp_lock.isChecked()
+        for it in sel:
+            it.overlay.locked = locked
+            it.setFlag(it.GraphicsItemFlag.ItemIsMovable, not locked)
+            it.setFlag(it.GraphicsItemFlag.ItemIsSelectable, not locked)
+        self._sync_overlays_to_asset()
+        self._rebuild_layer_panel()
+        self.info_label.setText(
+            "Locked" if locked else "Unlocked")
+
+    def _qp_toggle_visibility(self):
+        """Hide / show every selected overlay."""
+        sel = [it for it in self._scene.selectedItems() if hasattr(it, "overlay")]
+        if not sel:
+            return
+        hidden = self._qp_hide.isChecked()
+        for it in sel:
+            it.overlay.enabled = not hidden
+            it.setVisible(not hidden)
+        self._sync_overlays_to_asset()
+        self._rebuild_layer_panel()
+        self.info_label.setText("Hidden" if hidden else "Visible")
+
+    def _qp_snap_to_pixel(self):
+        """Snap every selected overlay's x/y/w/h to integer pixels.
+        Kills sub-pixel jitter that drift-accumulates across a long
+        editing session."""
+        sel = [it for it in self._scene.selectedItems() if hasattr(it, "overlay")]
+        if not sel:
+            return
+        for it in sel:
+            ov = it.overlay
+            ov.x = int(round(ov.x))
+            ov.y = int(round(ov.y))
+            if hasattr(ov, "shape_w"):
+                ov.shape_w = int(round(ov.shape_w))
+                ov.shape_h = int(round(ov.shape_h))
+            if hasattr(ov, "end_x"):
+                ov.end_x = int(round(ov.end_x))
+                ov.end_y = int(round(ov.end_y))
+            if hasattr(ov, "tail_x"):
+                ov.tail_x = int(round(ov.tail_x))
+                ov.tail_y = int(round(ov.tail_y))
+            if hasattr(it, "setPos"):
+                it.setPos(ov.x, ov.y)
+            it.prepareGeometryChange() if hasattr(it, "prepareGeometryChange") else None
+            it.update()
+        self._sync_overlays_to_asset()
+        self.info_label.setText(f"Snapped {len(sel)} to pixels")
+
     def _qp_pick_fill_color(self):
         """Quickbar fill-swatch click -> open QColorDialog and apply to
         EVERY selected overlay (text color / shape fill / arrow color).
@@ -9530,6 +9613,13 @@ class StudioEditor(QWidget):
                 self._qp_scale.setEnabled(True)
                 self._qp_fill.setEnabled(True)
                 self._qp_outline.setEnabled(True)
+                if hasattr(self, "_qp_lock"):
+                    self._qp_lock.setChecked(
+                        bool(getattr(ov, "locked", False)))
+                    self._qp_lock.setEnabled(True)
+                if hasattr(self, "_qp_hide"):
+                    self._qp_hide.setChecked(not bool(ov.enabled))
+                    self._qp_hide.setEnabled(True)
             else:
                 self._qp_label.setText("(no selection)")
                 self._qp_rot.setEnabled(False)
@@ -9537,6 +9627,12 @@ class StudioEditor(QWidget):
                 self._qp_scale.setEnabled(False)
                 self._qp_fill.setEnabled(False)
                 self._qp_outline.setEnabled(False)
+                if hasattr(self, "_qp_lock"):
+                    self._qp_lock.setEnabled(False)
+                    self._qp_lock.setChecked(False)
+                if hasattr(self, "_qp_hide"):
+                    self._qp_hide.setEnabled(False)
+                    self._qp_hide.setChecked(False)
         finally:
             self._qp_syncing = False
 
