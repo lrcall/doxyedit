@@ -7047,6 +7047,20 @@ class StudioEditor(QWidget):
             if hasattr(self, "chk_thirds"):
                 self.chk_thirds.setChecked(not self.chk_thirds.isChecked())
             return
+        # F5..F8 = recall view bookmark slots 1..4.
+        # Shift+F5..F8 = save the CURRENT zoom + scroll position into
+        # the corresponding slot. Bookmarks persist in QSettings so
+        # they survive app restart.
+        if (key in (Qt.Key.Key_F5, Qt.Key.Key_F6,
+                    Qt.Key.Key_F7, Qt.Key.Key_F8)
+                and not ctrl):
+            slot = {Qt.Key.Key_F5: 1, Qt.Key.Key_F6: 2,
+                    Qt.Key.Key_F7: 3, Qt.Key.Key_F8: 4}[key]
+            if shift:
+                self._save_view_bookmark(slot)
+            else:
+                self._load_view_bookmark(slot)
+            return
         # F12 toggles snap on/off. Remembers the last non-zero threshold
         # so the user can flip between 'no snap' and 'my usual snap'
         # without re-entering the value each time.
@@ -9639,6 +9653,49 @@ class StudioEditor(QWidget):
         self._zoom_label.setText(f"{int(factor * 100)}%")
         if hasattr(self, "_canvas_wrap"):
             self._canvas_wrap.refresh()
+
+    def _save_view_bookmark(self, slot: int):
+        """Save the current zoom + scroll position into slot 1..4.
+        Persists via QSettings under studio_view_bookmark_<slot>."""
+        from PySide6.QtCore import QSettings as _QS
+        qs = _QS("DoxyEdit", "DoxyEdit")
+        factor = self._view.transform().m11() or 1.0
+        h_sb = self._view.horizontalScrollBar().value()
+        v_sb = self._view.verticalScrollBar().value()
+        qs.setValue(f"studio_view_bookmark_{slot}",
+                    f"{factor:.4f}|{h_sb}|{v_sb}")
+        self.info_label.setText(
+            f"View bookmark {slot} saved "
+            f"({int(factor * 100)}%)")
+
+    def _load_view_bookmark(self, slot: int):
+        """Restore a previously-saved zoom + scroll into the viewport.
+        No-op if the slot is empty."""
+        from PySide6.QtCore import QSettings as _QS
+        qs = _QS("DoxyEdit", "DoxyEdit")
+        blob = qs.value(f"studio_view_bookmark_{slot}", "", type=str)
+        if not blob or blob.count("|") != 2:
+            self.info_label.setText(
+                f"View bookmark {slot} is empty "
+                "(Shift+F{slot} to set)")
+            return
+        try:
+            factor_s, h_s, v_s = blob.split("|")
+            factor = float(factor_s)
+            h_sb = int(h_s)
+            v_sb = int(v_s)
+        except (ValueError, TypeError):
+            return
+        self._view.resetTransform()
+        self._view.scale(factor, factor)
+        self._view.horizontalScrollBar().setValue(h_sb)
+        self._view.verticalScrollBar().setValue(v_sb)
+        self._zoom_label.setText(f"{int(factor * 100)}%")
+        if hasattr(self, "_canvas_wrap"):
+            self._canvas_wrap.refresh()
+        self.info_label.setText(
+            f"Recalled view bookmark {slot} "
+            f"({int(factor * 100)}%)")
 
     def _apply_text_style_to_all(self, source_overlay):
         """Copy the source overlay's text style fields to every other text
