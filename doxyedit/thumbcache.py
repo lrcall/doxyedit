@@ -5,7 +5,7 @@ import os
 import sqlite3
 from collections import deque, OrderedDict
 from pathlib import Path
-from PySide6.QtCore import QThread, Signal, QMutex, QMutexLocker
+from PySide6.QtCore import QThread, Signal, QMutex, QMutexLocker, QSettings
 from PySide6.QtGui import QPixmap, QImage
 
 from doxyedit.imaging import open_for_thumb, pil_to_qimage, get_shell_thumbnail, PSD_EXTS, SHELL_THUMB_EXTS
@@ -24,7 +24,6 @@ _STD_EXT  = ".png"
 
 def _cache_fmt() -> tuple[str, str]:
     """Return (format, ext) based on fast_cache setting."""
-    from PySide6.QtCore import QSettings
     fast = QSettings("DoxyEdit", "DoxyEdit").value("fast_cache", 0, type=int)
     return (_FAST_FMT, _FAST_EXT) if fast else (_STD_FMT, _STD_EXT)
 
@@ -461,7 +460,6 @@ class ThumbCache:
         self._pixmaps: OrderedDict[str, QPixmap] = OrderedDict()
         self._gen_sizes: dict[str, int] = {}
         self._dims: dict[str, tuple[int, int]] = {}
-        from PySide6.QtCore import QSettings
         self._base_cache_dir: Path | None = (
             Path(QSettings("DoxyEdit", "DoxyEdit").value("cache_dir"))
             if QSettings("DoxyEdit", "DoxyEdit").value("cache_dir") else None

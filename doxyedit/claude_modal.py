@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 from PySide6.QtWidgets import QProgressDialog, QWidget
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import Qt, QThread, Signal, QSettings
 from doxyedit.themes import ui_font_size
 
 
@@ -54,7 +54,6 @@ def show_claude_modal(
     dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
     dlg.setCancelButton(None)
     dlg.setMinimumDuration(0)
-    from PySide6.QtCore import QSettings
     _f = ui_font_size()
     DIALOG_MIN_WIDTH_RATIO = 26.7      # progress dialog minimum width
     dlg.setMinimumWidth(int(_f * DIALOG_MIN_WIDTH_RATIO))
@@ -63,7 +62,6 @@ def show_claude_modal(
     # Theme the title bar on Windows
     try:
         import ctypes
-        from PySide6.QtCore import QSettings
         from doxyedit.themes import THEMES, DEFAULT_THEME
         theme_id = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
         theme = THEMES.get(theme_id, THEMES[DEFAULT_THEME])

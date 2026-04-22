@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
 )
 from PySide6.QtGui import QFont, QIcon
-from PySide6.QtCore import Qt, QTimer, QEventLoop
+from PySide6.QtCore import Qt, QTimer, QEventLoop, QSettings
 from doxyedit.window import MainWindow
 
 _LOG_PATH = Path.home() / ".doxyedit" / "doxyedit.log"
@@ -169,7 +169,6 @@ def main():
     from doxyedit.themes import THEMES, DEFAULT_THEME
     # Use the user's saved theme (same QSettings MainWindow reads) so the
     # splash matches the main window, not the soot default.
-    from PySide6.QtCore import QSettings
     _saved_tid = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
     if _saved_tid not in THEMES:
         _saved_tid = DEFAULT_THEME
