@@ -4350,6 +4350,23 @@ class StudioEditor(QWidget):
             if touched:
                 self._sync_overlays_to_asset()
             return
+        # Ctrl+Alt+X swaps fill and stroke colors on selected shapes.
+        # Classic graphics shortcut; saves round-tripping two color
+        # picker dialogs when the user wants to invert a bubble.
+        if ctrl and alt and not shift and key == Qt.Key.Key_X:
+            touched = False
+            for it in self._scene.selectedItems():
+                if isinstance(it, OverlayShapeItem):
+                    ov = it.overlay
+                    ov.stroke_color, ov.fill_color = (
+                        ov.fill_color or "#ffffff",
+                        ov.stroke_color or "#000000")
+                    it.update()
+                    touched = True
+            if touched:
+                self._sync_overlays_to_asset()
+                self.info_label.setText("Swapped fill and stroke colors")
+            return
         # Ctrl+Alt+T - numeric transform dialog for the selected overlay.
         # Gives the user pixel-precise control for print layouts without
         # eyeballing the spinners in the prop panel.
