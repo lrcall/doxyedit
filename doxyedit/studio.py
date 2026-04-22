@@ -9769,109 +9769,149 @@ class StudioEditor(QWidget):
                     self._rebuild_layer_panel()
 
     def _on_layer_context_menu(self, pos):
-        """Right-click a layer row -> visibility/lock toggle, rename, delete."""
-        item = self._layer_panel.itemAt(pos)
-        if item is None:
+        """Right-click a layer row -> delegate to the scene item's full
+        contextMenuEvent so the user gets the same per-type menu as
+        right-clicking on the canvas. Prepends layer-specific actions
+        (Hide / Lock / Isolate / Rename / Opacity / Arrange) so both
+        feature sets are reachable from the same gesture."""
+        list_item = self._layer_panel.itemAt(pos)
+        if list_item is None:
             return
-        data = item.data(Qt.ItemDataRole.UserRole)
+        data = list_item.data(Qt.ItemDataRole.UserRole)
         if not data:
             return
         kind, idx = data
-        menu = _themed_menu(self._layer_panel)
+        global_pos = self._layer_panel.mapToGlobal(pos)
+        scene_item = None
         if kind == "overlay" and 0 <= idx < len(self._asset.overlays):
-            ov = self._asset.overlays[idx]
-            vis_act = menu.addAction("Hide" if ov.enabled else "Show")
-            lock_act = menu.addAction(
+            target_ov = self._asset.overlays[idx]
+            for it in self._scene.items():
+                if getattr(it, "overlay", None) is target_ov:
+                    scene_item = it
+                    break
+        elif kind == "censor" and 0 <= idx < len(self._asset.censors):
+            target_cr = self._asset.censors[idx]
+            for it in self._scene.items():
+                if (isinstance(it, CensorRectItem)
+                        and getattr(it, "_censor_region", None) is target_cr):
+                    scene_item = it
+                    break
+        # Auto-select the targeted item so the scene-side context menu
+        # acts on it (most item contextMenuEvents operate on self, not
+        # on selection, but selecting makes the quickbar + popups follow
+        # the user's intent).
+        if scene_item is not None:
+            self._scene.clearSelection()
+            scene_item.setSelected(True)
+
+        # Build the layer-only prefix menu first. If the user picks from
+        # it, we're done. Otherwise we dispatch to the scene item's
+        # contextMenuEvent for the full type-specific palette.
+        prefix = _themed_menu(self._layer_panel)
+        if kind == "overlay" and scene_item is not None:
+            ov = scene_item.overlay
+            act_vis = prefix.addAction("Hide" if ov.enabled else "Show")
+            act_lock = prefix.addAction(
                 "Unlock" if getattr(ov, "locked", False) else "Lock")
-            isolate_act = menu.addAction(
+            act_isolate = prefix.addAction(
                 "Exit Isolation" if getattr(self, "_isolation_active", False)
                 else "Isolate (solo)")
-            rename_act = menu.addAction("Rename...")
-            opacity_act = menu.addAction("Opacity...")
-            menu.addSeparator()
-            duplicate_act = menu.addAction("Duplicate  (Ctrl+D)")
-            menu.addSeparator()
-            z_menu = menu.addMenu("Arrange")
-            to_front_act = z_menu.addAction("Bring to Front  (Ctrl+Shift+])")
-            forward_act = z_menu.addAction("Bring Forward  (Ctrl+])")
-            backward_act = z_menu.addAction("Send Backward  (Ctrl+[)")
-            to_back_act = z_menu.addAction("Send to Back  (Ctrl+Shift+[)")
-            menu.addSeparator()
-            delete_act = menu.addAction("Delete")
-            chosen = menu.exec(self._layer_panel.mapToGlobal(pos))
-            if chosen is vis_act:
+            act_rename = prefix.addAction("Rename...")
+            act_opacity = prefix.addAction("Opacity...")
+            z_sub = prefix.addMenu("Arrange")
+            act_to_front = z_sub.addAction("Bring to Front  (Ctrl+Shift+])")
+            act_forward = z_sub.addAction("Bring Forward  (Ctrl+])")
+            act_backward = z_sub.addAction("Send Backward  (Ctrl+[)")
+            act_to_back = z_sub.addAction("Send to Back  (Ctrl+Shift+[)")
+            prefix.addSeparator()
+            act_full = prefix.addAction(
+                f"More ({type(scene_item).__name__.replace('Overlay', '').replace('Item', '')} options)...")
+            chosen = prefix.exec(global_pos)
+            if chosen is None:
+                return
+            if chosen is act_vis:
                 ov.enabled = not ov.enabled
-                for it in self._scene.items():
-                    if hasattr(it, "overlay") and it.overlay is ov:
-                        it.setVisible(ov.enabled)
-                        break
+                scene_item.setVisible(ov.enabled)
                 self._rebuild_layer_panel()
-            elif chosen is lock_act:
+                return
+            if chosen is act_lock:
                 ov.locked = not getattr(ov, "locked", False)
-                for it in self._scene.items():
-                    if hasattr(it, "overlay") and it.overlay is ov:
-                        it.setFlag(
-                            it.GraphicsItemFlag.ItemIsMovable, not ov.locked)
-                        it.setFlag(
-                            it.GraphicsItemFlag.ItemIsSelectable, not ov.locked)
-                        break
+                scene_item.setFlag(
+                    scene_item.GraphicsItemFlag.ItemIsMovable, not ov.locked)
+                scene_item.setFlag(
+                    scene_item.GraphicsItemFlag.ItemIsSelectable, not ov.locked)
                 self._rebuild_layer_panel()
-            elif chosen is rename_act:
-                self._on_layer_double_clicked(item)
-            elif chosen is opacity_act:
-                value, ok = QInputDialog.getInt(
-                    self, "Opacity", "Opacity % (0-100):",
-                    value=int(ov.opacity * 100), minValue=0, maxValue=100)
-                if ok:
-                    ov.opacity = value / 100.0
-                    for it in self._scene.items():
-                        if hasattr(it, "overlay") and it.overlay is ov:
-                            if hasattr(it, "setOpacity"):
-                                it.setOpacity(ov.opacity)
-                            else:
-                                it.update()
-                            break
-                    self._sync_overlays_to_asset()
-                    self._rebuild_layer_panel()
-            elif chosen is duplicate_act:
-                for it in self._scene.items():
-                    if hasattr(it, "overlay") and it.overlay is ov:
-                        self._scene.clearSelection()
-                        it.setSelected(True)
-                        self._duplicate_selected()
-                        break
-            elif chosen in (to_front_act, forward_act, backward_act, to_back_act):
-                for it in self._scene.items():
-                    if hasattr(it, "overlay") and it.overlay is ov:
-                        self._scene.clearSelection()
-                        it.setSelected(True)
-                        delta = (+999 if chosen is to_front_act
-                                 else +1 if chosen is forward_act
-                                 else -1 if chosen is backward_act
-                                 else -999)
-                        self._z_shift_selected(delta)
-                        break
-            elif chosen is isolate_act:
+                return
+            if chosen is act_isolate:
                 if getattr(self, "_isolation_active", False):
                     self._exit_isolation()
                 else:
                     self._enter_isolation(ov)
-            elif chosen is delete_act:
-                for it in self._scene.items():
-                    if hasattr(it, "overlay") and it.overlay is ov:
-                        self._remove_overlay_item(it)
-                        break
+                return
+            if chosen is act_rename:
+                self._on_layer_double_clicked(list_item)
+                return
+            if chosen is act_opacity:
+                v, ok = QInputDialog.getInt(
+                    self, "Opacity", "Opacity % (0-100):",
+                    value=int(ov.opacity * 100), minValue=0, maxValue=100)
+                if ok:
+                    ov.opacity = v / 100.0
+                    if hasattr(scene_item, "setOpacity"):
+                        scene_item.setOpacity(ov.opacity)
+                    else:
+                        scene_item.update()
+                    self._sync_overlays_to_asset()
+                    self._rebuild_layer_panel()
+                return
+            if chosen in (act_to_front, act_forward, act_backward, act_to_back):
+                delta = (+999 if chosen is act_to_front
+                         else +1 if chosen is act_forward
+                         else -1 if chosen is act_backward
+                         else -999)
+                self._z_shift_selected(delta)
+                return
+            if chosen is act_full:
+                # Delegate to the item's own contextMenuEvent - same UI
+                # as right-click on the canvas, full type-specific
+                # palette (color pickers, convert-to, presets, etc.).
+                self._dispatch_scene_context_menu(scene_item, global_pos)
+                return
+        elif kind == "censor" and scene_item is not None:
+            act_delete = prefix.addAction("Delete")
+            prefix.addSeparator()
+            act_full = prefix.addAction("More censor options...")
+            chosen = prefix.exec(global_pos)
+            if chosen is act_delete:
+                self._remove_censor_item(scene_item)
                 self._rebuild_layer_panel()
-        elif kind == "censor" and 0 <= idx < len(self._asset.censors):
-            cr = self._asset.censors[idx]
-            delete_act = menu.addAction("Delete")
-            chosen = menu.exec(self._layer_panel.mapToGlobal(pos))
-            if chosen is delete_act:
-                for it in self._scene.items():
-                    if isinstance(it, CensorRectItem) and it._censor_region is cr:
-                        self._remove_censor_item(it)
-                        break
-                self._rebuild_layer_panel()
+                return
+            if chosen is act_full:
+                self._dispatch_scene_context_menu(scene_item, global_pos)
+                return
+
+    def _dispatch_scene_context_menu(self, scene_item, global_pos):
+        """Fabricate a QGraphicsSceneContextMenuEvent and hand it to the
+        target item's contextMenuEvent. Shows the item's full palette
+        at the requested global position."""
+        try:
+            from PySide6.QtWidgets import QGraphicsSceneContextMenuEvent
+            from PySide6.QtCore import QEvent
+            ev = QGraphicsSceneContextMenuEvent(
+                QEvent.Type.GraphicsSceneContextMenu)
+            ev.setScreenPos(global_pos)
+            rect = scene_item.sceneBoundingRect()
+            ev.setScenePos(rect.center())
+            ev.setModifiers(Qt.KeyboardModifier.NoModifier)
+            ev.setReason(
+                QGraphicsSceneContextMenuEvent.Reason.Mouse)
+            scene_item.contextMenuEvent(ev)
+        except Exception as exc:
+            # Silent fallback - worst case the layer-specific prefix
+            # menu already ran, so user loses the 'More' branch only.
+            if hasattr(self, "info_label"):
+                self.info_label.setText(
+                    f"Layer context menu dispatch failed: {exc}")
 
     def _enter_isolation(self, solo_overlay):
         """Temporarily hide every overlay/censor except the given one.
