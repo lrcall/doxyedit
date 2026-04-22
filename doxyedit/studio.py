@@ -6178,6 +6178,22 @@ class StudioEditor(QWidget):
                 QApplication.clipboard().setText(txt)
                 self.info_label.setText(f"Copied geometry: {txt}")
             return
+        # Alt+I - toggle isolation mode. When off, solos the first
+        # selected overlay (hides every other layer temporarily). When
+        # on, restores all layers to their stored enabled state. Matches
+        # Illustrator's Enter-on-layer workflow with a keyboard-only path.
+        if alt and not ctrl and not shift and key == Qt.Key.Key_I:
+            if getattr(self, "_isolation_active", False):
+                self._exit_isolation()
+            else:
+                sel = [it for it in self._scene.selectedItems()
+                       if hasattr(it, "overlay")]
+                if sel:
+                    self._enter_isolation(sel[0].overlay)
+                else:
+                    self.info_label.setText(
+                        "Select a layer first to isolate")
+            return
         # Ctrl+Shift+I — invert selection among selectable items
         if ctrl and shift and key == Qt.Key.Key_I:
             for it in self._scene.items():
