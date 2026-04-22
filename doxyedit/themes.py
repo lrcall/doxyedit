@@ -1878,6 +1878,11 @@ def generate_stylesheet(theme: Theme) -> str:
         QLabel#tray_count {{
             color: {theme.text_muted};
         }}
+        QLabel#tray_empty_state {{
+            color: {theme.text_muted};
+            background: transparent;
+            padding: 20px;
+        }}
         QListWidget#tray_list {{
             border: none;
         }}

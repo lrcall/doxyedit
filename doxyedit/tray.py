@@ -399,9 +399,21 @@ class WorkTray(QWidget):
         # previews, Enter sends to Studio, Delete removes, 0-5 set stars,
         # Ctrl+D deselects. Ctrl+A (select-all) is native.
         self._list.installEventFilter(self)
+        self._list.viewport().installEventFilter(self)
         # Item delegate paints star / tag dots / platform badge on top
         # of the standard icon + name cell.
         self._list.setItemDelegate(TrayItemDelegate(self, self._list))
+        # Empty-state hint label — child of the viewport so it covers
+        # the scroll area exactly.
+        self._empty_label = QLabel(
+            "Drag assets here\n\n"
+            "Right-click: paste path  /  import folder\n"
+            "Ctrl+Shift+W: toggle tray",
+            self._list.viewport())
+        self._empty_label.setObjectName("tray_empty_state")
+        self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_label.setWordWrap(True)
+        self._empty_label.hide()
         layout.addWidget(self._list)
 
     def _rebuild_index(self):
@@ -426,6 +438,11 @@ class WorkTray(QWidget):
         if obj is self._list and event.type() == QEvent.Type.KeyPress:
             if self._handle_list_key(event):
                 return True
+        # Keep the empty-state hint sized to the viewport
+        if (hasattr(self, "_list")
+                and obj is self._list.viewport()
+                and event.type() == QEvent.Type.Resize):
+            self._update_empty_state()
         return super().eventFilter(obj, event)
 
     def _handle_list_key(self, event) -> bool:
@@ -528,6 +545,15 @@ class WorkTray(QWidget):
         n = len(self._asset_ids)
         self._count_label.setText(f"{n} item{'s' if n != 1 else ''}")
         self._refresh_tab_counts()
+        self._update_empty_state()
+
+    def _update_empty_state(self):
+        """Show / hide the 'Drag assets here' hint based on item count."""
+        if not hasattr(self, "_empty_label"):
+            return
+        vp = self._list.viewport()
+        self._empty_label.setGeometry(0, 0, vp.width(), vp.height())
+        self._empty_label.setVisible(len(self._asset_ids) == 0)
 
     def _refresh_tab_counts(self):
         """Update each tab's display text to include a live item count.
