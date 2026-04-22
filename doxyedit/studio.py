@@ -6147,10 +6147,23 @@ class StudioView(QGraphicsView):
         super().__init__(scene, parent)
         self.setObjectName("studio_view")
         self._studio_editor = None  # set by StudioEditor after creation
-        self.setRenderHints(
-            QPainter.RenderHint.Antialiasing
-            | QPainter.RenderHint.SmoothPixmapTransform
-        )
+        # Apply rendering prefs from Studio Settings so the user's
+        # 'antialias off / nearest upscale / text aa off' choices
+        # actually take effect at app start, not just after they
+        # re-open the settings dialog.
+        from PySide6.QtCore import QSettings as _QS
+        _qs = _QS("DoxyEdit", "DoxyEdit")
+        _aa = _qs.value("studio_render_aa", True, type=bool)
+        _text_aa = _qs.value("studio_render_text_aa", True, type=bool)
+        _hq = _qs.value("studio_render_hq", True, type=bool)
+        _upscale = _qs.value("studio_upscale_mode", "smooth", type=str)
+        self.setRenderHint(QPainter.RenderHint.Antialiasing, _aa)
+        self.setRenderHint(
+            QPainter.RenderHint.SmoothPixmapTransform,
+            _hq and _upscale != "nearest")
+        self.setRenderHint(QPainter.RenderHint.TextAntialiasing, _text_aa)
+        self.setRenderHint(
+            QPainter.RenderHint.LosslessImageRendering, _hq)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
