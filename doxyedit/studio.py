@@ -1571,43 +1571,46 @@ class _GuideLineItem(QGraphicsLineItem):
 
 class _CheckerboardItem(QGraphicsRectItem):
     """Photoshop-style checkerboard that sits behind the image so transparent
-    pixels show through as the classic gray/white check pattern."""
+    pixels show through as the classic gray/white check pattern.
+
+    Draws via a pre-built 2-tile QPixmap used as a tiled brush. A single
+    fillRect call paints the entire checker regardless of size. The prior
+    implementation drew each 12x12 tile individually — on a 2000x3000
+    image that was ~20,000 drawRect calls per paint, and the item spans
+    the full canvas so any overlapping redraw retriggered it."""
 
     TILE = 12
+    _tile_cache: dict = {}  # (dark_hex, light_hex, tile) -> QPixmap
 
     def __init__(self, rect: QRectF, parent=None):
         super().__init__(rect, parent)
         self.setPen(QPen(Qt.PenStyle.NoPen))
-        # Not interactive
         self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable, False)
         self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable, False)
 
+    @classmethod
+    def _get_tile_brush(cls, dark: QColor, light: QColor) -> QBrush:
+        key = (dark.name(), light.name(), cls.TILE)
+        pm = cls._tile_cache.get(key)
+        if pm is None:
+            t = cls.TILE
+            pm = QPixmap(t * 2, t * 2)
+            p = QPainter(pm)
+            p.setPen(Qt.PenStyle.NoPen)
+            # Two-tone 2x2 checker pattern
+            p.fillRect(0, 0, t, t, light)
+            p.fillRect(t, 0, t, t, dark)
+            p.fillRect(0, t, t, t, dark)
+            p.fillRect(t, t, t, t, light)
+            p.end()
+            cls._tile_cache[key] = pm
+        return QBrush(pm)
+
     def paint(self, painter, option, widget=None):
         _t = THEMES[DEFAULT_THEME]
-        c1 = QColor(_t.studio_scene_checker_dark)
-        c2 = QColor(_t.studio_scene_checker_light)
-        r = self.rect()
-        painter.fillRect(r, c1)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(c2)
-        t = self.TILE
-        # Only draw tiles inside the rect
-        y0 = int(r.top())
-        x0 = int(r.left())
-        y_end = int(r.bottom())
-        x_end = int(r.right())
-        y = y0
-        row = 0
-        while y < y_end:
-            col = row % 2
-            x = x0 + col * t
-            while x < x_end:
-                painter.drawRect(int(x), int(y),
-                                  min(t, x_end - int(x)),
-                                  min(t, y_end - int(y)))
-                x += 2 * t
-            y += t
-            row += 1
+        c_dark = QColor(_t.studio_scene_checker_dark)
+        c_light = QColor(_t.studio_scene_checker_light)
+        painter.fillRect(self.rect(), self._get_tile_brush(c_dark, c_light))
 
 
 class _StudioRuler(QWidget):
