@@ -283,6 +283,11 @@ class CanvasOverlay:
     img_brightness: float = 0.0
     img_contrast: float = 0.0
     img_saturation: float = 0.0
+    # Bubble tail curve amount (-1.0 .. 1.0). 0 = straight triangle
+    # tail; positive = tail curves clockwise around the body when
+    # viewed tip-up; negative = counter-clockwise. Rendered via
+    # quadratic bezier sides instead of straight lines.
+    tail_curve: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)

@@ -762,8 +762,31 @@ class OverlayShapeItem(QGraphicsItem):
             path.addRoundedRect(r, effective_pad, effective_pad)
         tail = QPainterPath()
         tail.moveTo(b1)
-        tail.lineTo(tip)
-        tail.lineTo(b2)
+        tail_curve = max(-1.0, min(1.0,
+            float(getattr(self.overlay, "tail_curve", 0.0) or 0.0)))
+        if abs(tail_curve) > 0.02:
+            # Bezier tail: compute a control point perpendicular to the
+            # b1 - tip line, offset by curve * base_len * 1.2. Sides of
+            # the tail both curve in the same direction so the tail
+            # swoops instead of going straight.
+            import math as _m
+            def _perp_ctrl(src, dst, amount):
+                mx = (src.x() + dst.x()) / 2
+                my = (src.y() + dst.y()) / 2
+                dx = dst.x() - src.x()
+                dy = dst.y() - src.y()
+                length = _m.hypot(dx, dy) or 1.0
+                nx = -dy / length
+                ny = dx / length
+                return QPointF(mx + nx * amount, my + ny * amount)
+            amt = tail_curve * base_len * 1.2
+            c1 = _perp_ctrl(b1, tip, amt)
+            c2 = _perp_ctrl(tip, b2, amt)
+            tail.quadTo(c1, tip)
+            tail.quadTo(c2, b2)
+        else:
+            tail.lineTo(tip)
+            tail.lineTo(b2)
         tail.closeSubpath()
         path = path.united(tail)
         # Wobble: walk the path at many points and push each one a small
@@ -4421,6 +4444,8 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     _mk_slider("bubble_oval_stretch", -0.6, 0.6))
                 deform_form.addRow("Wobble",
                     _mk_slider("bubble_wobble", 0.0, 1.0))
+                deform_form.addRow("Tail curve",
+                    _mk_slider("tail_curve", -1.0, 1.0))
                 deform_wrap = _QW()
                 deform_wrap.setLayout(deform_form)
                 self._root_layout.addWidget(deform_wrap)
