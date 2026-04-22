@@ -911,6 +911,26 @@ class OverlayShapeItem(QGraphicsItem):
         return (abs(scene_pos.x() - tip.x()) <= r
                 and abs(scene_pos.y() - tip.y()) <= r)
 
+    def _corner_radius_handle_pos(self) -> QPointF:
+        """Scene-space position of the corner-radius handle. Appears
+        offset from the top-left corner of a rect by `corner_radius`
+        pixels on the X axis. Dragging right increases the radius,
+        left decreases. Only meaningful for shape_kind == 'rect'."""
+        x, y = self.overlay.x, self.overlay.y
+        w = max(1, self.overlay.shape_w)
+        radius = max(0, min(
+            int(self.overlay.corner_radius or 0),
+            w // 2))
+        return QPointF(x + radius, y)
+
+    def _corner_radius_handle_under(self, scene_pos: QPointF) -> bool:
+        if self.overlay.shape_kind != "rect":
+            return False
+        hp = self._corner_radius_handle_pos()
+        r = self._zoom_adaptive_radius(14)
+        return (abs(scene_pos.x() - hp.x()) <= r
+                and abs(scene_pos.y() - hp.y()) <= r)
+
     def _rotate_handle_pos(self) -> QPointF:
         """Scene-space position of the rotate handle: above the top edge
         of the body, offset by a screen-space margin so it's always
@@ -1077,6 +1097,23 @@ class OverlayShapeItem(QGraphicsItem):
                 painter.setPen(QPen(QColor(0, 0, 0), 1))
                 painter.setBrush(QBrush(QColor(100, 200, 255)))
                 painter.drawEllipse(tip, 6, 6)
+            # Corner-radius handle for rect shapes: magenta diamond on
+            # the top edge, offset by corner_radius px. Drag right =
+            # larger radius, left = smaller. Discoverable visual
+            # affordance without needing the Shape Controls popup.
+            if self.overlay.shape_kind == "rect":
+                crh = self._corner_radius_handle_pos()
+                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                painter.setBrush(QBrush(QColor(220, 100, 200)))
+                # Diamond
+                from PySide6.QtGui import QPolygonF as _Poly
+                d = 5
+                painter.drawPolygon(_Poly([
+                    QPointF(crh.x(), crh.y() - d),
+                    QPointF(crh.x() + d, crh.y()),
+                    QPointF(crh.x(), crh.y() + d),
+                    QPointF(crh.x() - d, crh.y()),
+                ]))
             # For linear gradients, also show a direction line + two circles
             # representing the gradient start / end.
             if self.overlay.shape_kind == "gradient_linear":
@@ -1113,6 +1150,12 @@ class OverlayShapeItem(QGraphicsItem):
             # tail tip never accidentally starts a body resize.
             if self._tail_handle_under(event.scenePos()):
                 self._dragging_handle = 'tail'
+                self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                event.accept()
+                return
+            # Corner-radius handle for rect shapes.
+            if self._corner_radius_handle_under(event.scenePos()):
+                self._dragging_handle = 'corner_radius'
                 self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
                 event.accept()
                 return
@@ -1172,6 +1215,19 @@ class OverlayShapeItem(QGraphicsItem):
             if self._editor:
                 self._editor.info_label.setText(
                     f"Rotation: {self.overlay.rotation}°")
+            event.accept()
+            return
+        if self._dragging_handle == 'corner_radius':
+            # Cursor X distance from the shape's left edge = new radius.
+            sp = event.scenePos()
+            new_r = max(0, min(
+                int(sp.x() - self.overlay.x),
+                self.overlay.shape_w // 2))
+            self.overlay.corner_radius = new_r
+            self.update()
+            if self._editor:
+                self._editor.info_label.setText(
+                    f"Corner radius: {new_r}px")
             event.accept()
             return
         if self._dragging_handle == 'tail':
