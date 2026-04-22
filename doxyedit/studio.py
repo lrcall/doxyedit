@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import (
     Qt, QRectF, QPointF, QLineF, Signal, QSettings, QSize,
+    QEvent, QMimeData,
 )
 from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
@@ -2372,7 +2373,6 @@ class OverlayTextItem(QGraphicsTextItem):
 
     def sceneEvent(self, event):
         """Intercept ALL events before Qt's internal text control sees them."""
-        from PySide6.QtCore import QEvent
         if event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Escape:
             cursor = self.textCursor()
             cursor.clearSelection()
@@ -5714,25 +5714,23 @@ class _TextControlsDialog(QtWidgets.QDialog):
         self._pin_on_top = False
         # Install shortcuts: pin + snap-left / snap-right.
         from PySide6.QtGui import QShortcut, QKeySequence
-        from PySide6.QtCore import Qt as _QtC
         _pin_sc = QShortcut(QKeySequence("Ctrl+P"), self)
-        _pin_sc.setContext(_QtC.ShortcutContext.WindowShortcut)
+        _pin_sc.setContext(Qt.ShortcutContext.WindowShortcut)
         _pin_sc.activated.connect(self._toggle_pin_on_top)
         _dl_sc = QShortcut(QKeySequence("Ctrl+Shift+L"), self)
-        _dl_sc.setContext(_QtC.ShortcutContext.WindowShortcut)
+        _dl_sc.setContext(Qt.ShortcutContext.WindowShortcut)
         _dl_sc.activated.connect(lambda: self._snap_to_edge("left"))
         _dr_sc = QShortcut(QKeySequence("Ctrl+Shift+R"), self)
-        _dr_sc.setContext(_QtC.ShortcutContext.WindowShortcut)
+        _dr_sc.setContext(Qt.ShortcutContext.WindowShortcut)
         _dr_sc.activated.connect(lambda: self._snap_to_edge("right"))
 
     def _toggle_pin_on_top(self):
-        from PySide6.QtCore import Qt as _QtC
         self._pin_on_top = not self._pin_on_top
         flags = self.windowFlags()
         if self._pin_on_top:
-            flags |= _QtC.WindowType.WindowStaysOnTopHint
+            flags |= Qt.WindowType.WindowStaysOnTopHint
         else:
-            flags &= ~_QtC.WindowType.WindowStaysOnTopHint
+            flags &= ~Qt.WindowType.WindowStaysOnTopHint
         was_visible = self.isVisible()
         self.setWindowFlags(flags)
         if was_visible:
@@ -7954,8 +7952,7 @@ class StudioEditor(QWidget):
         self.combo_censor_style.setObjectName("studio_censor_style")
         self.combo_censor_style.addItems(["black", "blur", "pixelate"])
         # Restore the user's preferred censor style from prior sessions
-        from PySide6.QtCore import QSettings as _QSC
-        _saved_censor = _QSC("DoxyEdit", "DoxyEdit").value(
+        _saved_censor = QSettings("DoxyEdit", "DoxyEdit").value(
             "studio_censor_default_style", "black", type=str)
         if _saved_censor in ("black", "blur", "pixelate"):
             self.combo_censor_style.setCurrentText(_saved_censor)
@@ -9555,8 +9552,7 @@ class StudioEditor(QWidget):
         self._canvas_split.addWidget(self._canvas_wrap)
         self._canvas_split.addWidget(_layer_side)
         # Restore the user's splitter sizes from the last session
-        from PySide6.QtCore import QSettings as _QSP
-        _split_state = _QSP("DoxyEdit", "DoxyEdit").value(
+        _split_state = QSettings("DoxyEdit", "DoxyEdit").value(
             "studio_canvas_split_state", None)
         if _split_state is not None:
             self._canvas_split.restoreState(_split_state)
@@ -9693,8 +9689,7 @@ class StudioEditor(QWidget):
         # specific scene coordinate. Right-click copies the current
         # cursor coord (whatever's shown) to clipboard.
         def _cursor_press(ev):
-            from PySide6.QtCore import Qt as _QtC
-            if ev.button() == _QtC.MouseButton.LeftButton:
+            if ev.button() == Qt.MouseButton.LeftButton:
                 self._prompt_goto_coord()
         self._cursor_label.mousePressEvent = _cursor_press
         self._cursor_label.setContextMenuPolicy(
@@ -10416,7 +10411,6 @@ class StudioEditor(QWidget):
             minValue=-99999, maxValue=99999)
         if not ok:
             return
-        from PySide6.QtCore import QPointF
         self._view.centerOn(QPointF(x, y))
         self.info_label.setText(f"Centered on ({x}, {y})")
 
@@ -13674,7 +13668,6 @@ class StudioEditor(QWidget):
         at the requested global position."""
         try:
             from PySide6.QtWidgets import QGraphicsSceneContextMenuEvent
-            from PySide6.QtCore import QEvent
             ev = QGraphicsSceneContextMenuEvent(
                 QEvent.Type.GraphicsSceneContextMenu)
             ev.setScreenPos(global_pos)
@@ -15290,7 +15283,6 @@ class StudioEditor(QWidget):
         Serialized as JSON under a custom MIME type. Uses a schema version
         so future format changes can bump and reject older payloads.
         """
-        from PySide6.QtCore import QMimeData
         from dataclasses import asdict
         overlays, censors = [], []
         for it in self._scene.selectedItems():
