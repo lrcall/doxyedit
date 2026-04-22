@@ -243,6 +243,9 @@ class CensorRectItem(QGraphicsRectItem):
             | QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsRectItem.GraphicsItemFlag.ItemSendsGeometryChanges
         )
+        # Rotate around rect center from the start; resize handlers keep
+        # this invariant by re-centering after every setRect.
+        self.setTransformOriginPoint(rect.center())
         self._apply_style()
         # Resize handles (8-point) + rotate handle (above top edge)
         self._handles = {}
@@ -309,9 +312,31 @@ class CensorRectItem(QGraphicsRectItem):
         if cr is not None and hasattr(cr, "rotation"):
             cr.rotation = float(angle)
 
+    def _opposite_anchor_local(self, position: str, r: QRectF) -> QPointF:
+        """Local-frame point on the rect that should stay fixed when
+        dragging the given handle. For 'tl' → bottom-right corner, for
+        't' → bottom-edge midpoint, etc."""
+        if position == "tl": return QPointF(r.right(), r.bottom())
+        if position == "tr": return QPointF(r.left(), r.bottom())
+        if position == "bl": return QPointF(r.right(), r.top())
+        if position == "br": return QPointF(r.left(), r.top())
+        if position == "t":  return QPointF(r.center().x(), r.bottom())
+        if position == "b":  return QPointF(r.center().x(), r.top())
+        if position == "l":  return QPointF(r.right(), r.center().y())
+        if position == "r":  return QPointF(r.left(), r.center().y())
+        return r.center()
+
     def _on_handle_moved(self, position: str, scene_pos):
+        # When the censor is rotated, changing its rect shifts both the
+        # rotation pivot (transformOriginPoint == rect center) and the
+        # visual position of every corner. Lock the opposite anchor in
+        # scene space across the edit so the user's drag feels anchored.
+        old_rect = self.rect()
+        anchor_scene = self.mapToScene(
+            self._opposite_anchor_local(position, old_rect))
+
         local = self.mapFromScene(scene_pos)
-        r = self.rect()
+        r = QRectF(old_rect)
         if "l" in position:
             r.setLeft(min(local.x(), r.right() - 10))
         if "r" in position:
@@ -321,6 +346,12 @@ class CensorRectItem(QGraphicsRectItem):
         if "b" in position:
             r.setBottom(max(local.y(), r.top() + 10))
         self.setRect(r)
+        # Keep rotation pivot centered on the (new) rect.
+        self.setTransformOriginPoint(r.center())
+        # Shift position so the opposite anchor stays put in scene space.
+        new_anchor_scene = self.mapToScene(
+            self._opposite_anchor_local(position, r))
+        self.setPos(self.pos() + (anchor_scene - new_anchor_scene))
         self._update_handle_positions()
         # Update model
         if self._editor:
