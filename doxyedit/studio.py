@@ -4199,6 +4199,22 @@ class StudioEditor(QWidget):
         if ctrl and shift and key == Qt.Key.Key_R:
             self._rotate_selected(-1)
             return
+        # F12 toggles snap on/off. Remembers the last non-zero threshold
+        # so the user can flip between 'no snap' and 'my usual snap'
+        # without re-entering the value each time.
+        if key == Qt.Key.Key_F12 and not ctrl and not shift:
+            from PySide6.QtCore import QSettings as _QS
+            qs = _QS("DoxyEdit", "DoxyEdit")
+            cur = qs.value("studio_snap_threshold_px", 0, type=int)
+            if cur > 0:
+                qs.setValue("studio_snap_threshold_px_prev", cur)
+                qs.setValue("studio_snap_threshold_px", 0)
+                self.info_label.setText("Snap: off")
+            else:
+                prev = qs.value("studio_snap_threshold_px_prev", 5, type=int)
+                qs.setValue("studio_snap_threshold_px", max(1, prev))
+                self.info_label.setText(f"Snap: on ({max(1, prev)}px)")
+            return
         # Alignment shortcuts: Alt+Shift + arrow-like keys. These don't
         # collide with text-align Ctrl combos (which use L/R/E with Ctrl
         # and Shift+Alt swapped), so muscle memory from InDesign transfers.
