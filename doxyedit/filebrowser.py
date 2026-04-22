@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QDir, QSettings, QModelIndex, QRect, QSize, QMimeData, QUrl
 from PySide6.QtGui import QPainter, QColor, QDrag
-from doxyedit.themes import ui_font_size
+from doxyedit.themes import ui_font_size, THEMES, DEFAULT_THEME
 
 
 class FolderDelegate(QStyledItemDelegate):
@@ -29,7 +29,6 @@ class FolderDelegate(QStyledItemDelegate):
         if is_active:
             painter.save()
             painter.setPen(Qt.PenStyle.NoPen)
-            from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
             if getattr(self._panel, '_theme', None):
                 bg = QColor(self._panel._theme.selection_bg)
@@ -72,7 +71,6 @@ class FolderDelegate(QStyledItemDelegate):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
         panel = self._panel
-        from doxyedit.themes import THEMES, DEFAULT_THEME
         _dt = THEMES[DEFAULT_THEME]
         if getattr(panel, '_theme', None):
             if is_active:
