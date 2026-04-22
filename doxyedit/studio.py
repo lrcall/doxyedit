@@ -4203,6 +4203,24 @@ class StudioEditor(QWidget):
         if ctrl and not shift and key == Qt.Key.Key_Semicolon:
             self._toggle_guides_visibility()
             return
+        # Ctrl+Alt+C / Ctrl+Alt+V - copy / paste overlay style. Per-type
+        # slot so a text style pasted onto a text overlay works, but a
+        # shape style won't silently paste onto a text (different fields).
+        alt = bool(mods & Qt.KeyboardModifier.AltModifier)
+        if ctrl and alt and not shift and key == Qt.Key.Key_C:
+            sel = self._scene.selectedItems()
+            if sel and hasattr(sel[0], "overlay"):
+                self._copy_style(sel[0].overlay)
+            return
+        if ctrl and alt and not shift and key == Qt.Key.Key_V:
+            touched = False
+            for it in self._scene.selectedItems():
+                if hasattr(it, "overlay"):
+                    self._paste_style(it.overlay, it)
+                    touched = True
+            if touched:
+                self._sync_overlays_to_asset()
+            return
         # F12 toggles snap on/off. Remembers the last non-zero threshold
         # so the user can flip between 'no snap' and 'my usual snap'
         # without re-entering the value each time.
