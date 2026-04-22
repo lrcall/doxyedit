@@ -163,13 +163,15 @@ class Theme:
     studio_icon_border: str = "#333333"
     studio_error_dot: str = "#ff0000"
     studio_error_dot_alpha: int = 200
-    studio_link_guide_warn: str = "#ffc800"
-    studio_link_guide_ok: str = "#00c800"
-    studio_link_bubble_tail: str = "#64c8ff"
-    studio_link_bubble_tail_alt: str = "#dc64c8"
-    studio_link_bubble_rotate: str = "#50c8b4"
-    studio_link_bubble_scale: str = "#e6a03c"
-    studio_link_bubble_highlight: str = "#78dc78"
+    studio_selection_outline: str = "#ffc800"        # dashed yellow around selected shapes
+    studio_selection_handle_fill: str = "#ffc800"    # corner-handle fill for selected shapes
+    studio_rotate_connector: str = "#00c800"         # dashed line from shape top to rotate circle
+    studio_rotate_circle_fill: str = "#78dc78"       # green circle on rotate gizmo
+    studio_bubble_tail_handle: str = "#64c8ff"       # cyan dot on speech-bubble tail tip
+    studio_corner_radius_handle: str = "#dc64c8"     # magenta diamond for rect corner-radius
+    studio_star_inner_handle: str = "#50c8b4"        # teal dot for star inner-radius
+    studio_polygon_vertex_handle: str = "#e6a03c"    # orange circle for polygon vertex count
+    studio_linked_text_marker: str = "#64c8ff"       # cyan marker on shape linked to text
     # Browser extras
     grid_folder_tag_alpha: int = 60        # folder label tag bg opacity
     tag_bar_active_alpha: int = 255        # active tag button opacity

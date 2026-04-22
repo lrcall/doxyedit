@@ -1288,42 +1288,55 @@ class OverlayShapeItem(QGraphicsItem):
             else:
                 painter.drawRect(r)
         if self.isSelected():
-            painter.setPen(QPen(QColor(255, 200, 0), 1, Qt.PenStyle.DashLine))
+            _dt = THEMES[DEFAULT_THEME]
+            # Size constants for the selection gizmo (local — unused elsewhere)
+            CORNER_HANDLE_HALF = 4
+            ROTATE_CIRCLE_RADIUS = 6
+            BUBBLE_TIP_RADIUS = 6
+            CORNER_RADIUS_DIAMOND_HALF = 5
+            STAR_HANDLE_RADIUS = 5
+            POLYGON_HANDLE_RADIUS = 10
+            GRADIENT_END_RADIUS = 6
+            PEN_WIDTH = _dt.studio_overlay_handle_pen_width
+            border_color = QColor(_dt.studio_overlay_handle_border)
+            sel_color = QColor(_dt.studio_selection_outline)
+            painter.setPen(QPen(sel_color, PEN_WIDTH, Qt.PenStyle.DashLine))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(self.boundingRect())
             # Corner handles
-            _r = 4
-            painter.setPen(QPen(QColor(0, 0, 0), 1))
-            painter.setBrush(QBrush(QColor(255, 200, 0)))
+            painter.setPen(QPen(border_color, PEN_WIDTH))
+            painter.setBrush(QBrush(QColor(_dt.studio_selection_handle_fill)))
             for pt in self._handle_positions().values():
-                painter.drawRect(QRectF(pt.x() - _r, pt.y() - _r, 2 * _r, 2 * _r))
+                painter.drawRect(QRectF(
+                    pt.x() - CORNER_HANDLE_HALF, pt.y() - CORNER_HANDLE_HALF,
+                    2 * CORNER_HANDLE_HALF, 2 * CORNER_HANDLE_HALF))
             # Rotate handle: small green circle + connector line above the
             # top-center edge. Drag to rotate; the Ctrl+R / R shortcuts
             # still work but this makes the affordance discoverable.
             rh = self._rotate_handle_pos()
             top_mid = QPointF(r.center().x(), r.top())
-            painter.setPen(QPen(QColor(0, 200, 0), 1, Qt.PenStyle.DashLine))
+            painter.setPen(QPen(QColor(_dt.studio_rotate_connector),
+                                PEN_WIDTH, Qt.PenStyle.DashLine))
             painter.drawLine(top_mid, rh)
-            painter.setBrush(QBrush(QColor(120, 220, 120)))
-            painter.setPen(QPen(QColor(0, 0, 0), 1))
-            painter.drawEllipse(rh, 6, 6)
+            painter.setBrush(QBrush(QColor(_dt.studio_rotate_circle_fill)))
+            painter.setPen(QPen(border_color, PEN_WIDTH))
+            painter.drawEllipse(rh, ROTATE_CIRCLE_RADIUS, ROTATE_CIRCLE_RADIUS)
             # Tail tip handle for speech / thought bubbles: a cyan-outlined
             # circle at the tail point. Drag to move where the bubble points.
             if self._is_bubble():
                 tip = self._tail_tip(r)
-                painter.setPen(QPen(QColor(0, 0, 0), 1))
-                painter.setBrush(QBrush(QColor(100, 200, 255)))
-                painter.drawEllipse(tip, 6, 6)
+                painter.setPen(QPen(border_color, PEN_WIDTH))
+                painter.setBrush(QBrush(QColor(_dt.studio_bubble_tail_handle)))
+                painter.drawEllipse(tip, BUBBLE_TIP_RADIUS, BUBBLE_TIP_RADIUS)
             # Corner-radius handle for rect shapes: magenta diamond on
             # the top edge, offset by corner_radius px. Drag right =
             # larger radius, left = smaller. Discoverable visual
             # affordance without needing the Shape Controls popup.
             if self.overlay.shape_kind == "rect":
                 crh = self._corner_radius_handle_pos()
-                painter.setPen(QPen(QColor(0, 0, 0), 1))
-                painter.setBrush(QBrush(QColor(220, 100, 200)))
-                # Diamond
-                d = 5
+                painter.setPen(QPen(border_color, PEN_WIDTH))
+                painter.setBrush(QBrush(QColor(_dt.studio_corner_radius_handle)))
+                d = CORNER_RADIUS_DIAMOND_HALF
                 painter.drawPolygon(QPolygonF([
                     QPointF(crh.x(), crh.y() - d),
                     QPointF(crh.x() + d, crh.y()),
@@ -1335,23 +1348,24 @@ class OverlayShapeItem(QGraphicsItem):
             # narrows the star; drag out widens to near-polygon.
             if self.overlay.shape_kind == "star":
                 sh = self._star_inner_handle_pos()
-                painter.setPen(QPen(QColor(0, 0, 0), 1))
-                painter.setBrush(QBrush(QColor(80, 200, 180)))
-                painter.drawEllipse(sh, 5, 5)
+                painter.setPen(QPen(border_color, PEN_WIDTH))
+                painter.setBrush(QBrush(QColor(_dt.studio_star_inner_handle)))
+                painter.drawEllipse(sh, STAR_HANDLE_RADIUS, STAR_HANDLE_RADIUS)
             # Polygon vertex-count handle: orange circle with the
             # current vertex count written inside.
             if self.overlay.shape_kind == "polygon":
                 ph = self._polygon_vertex_handle_pos()
-                painter.setPen(QPen(QColor(0, 0, 0), 1))
-                painter.setBrush(QBrush(QColor(230, 160, 60)))
-                painter.drawEllipse(ph, 10, 10)
-                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                painter.setPen(QPen(border_color, PEN_WIDTH))
+                painter.setBrush(QBrush(QColor(_dt.studio_polygon_vertex_handle)))
+                painter.drawEllipse(ph, POLYGON_HANDLE_RADIUS, POLYGON_HANDLE_RADIUS)
+                painter.setPen(QPen(border_color, PEN_WIDTH))
                 font = painter.font()
                 font.setPixelSize(10)
                 painter.setFont(font)
                 txt = str(max(3, int(self.overlay.star_points or 6)))
                 painter.drawText(
-                    QRectF(ph.x() - 10, ph.y() - 8, 20, 16),
+                    QRectF(ph.x() - POLYGON_HANDLE_RADIUS, ph.y() - 8,
+                           2 * POLYGON_HANDLE_RADIUS, 16),
                     Qt.AlignmentFlag.AlignCenter, txt)
             # For linear gradients, also show a direction line + two circles
             # representing the gradient start / end.
@@ -1364,12 +1378,13 @@ class OverlayShapeItem(QGraphicsItem):
                 sy = cy - math.sin(ang) * radius
                 ex = cx + math.cos(ang) * radius
                 ey = cy + math.sin(ang) * radius
-                painter.setPen(QPen(QColor(100, 200, 255), 1, Qt.PenStyle.DashLine))
+                grad_marker = QColor(_dt.studio_bubble_tail_handle)
+                painter.setPen(QPen(grad_marker, PEN_WIDTH, Qt.PenStyle.DashLine))
                 painter.drawLine(int(sx), int(sy), int(ex), int(ey))
-                painter.setBrush(QBrush(QColor(100, 200, 255)))
-                painter.setPen(QPen(QColor(0, 0, 0), 1))
-                painter.drawEllipse(QPointF(sx, sy), 6, 6)
-                painter.drawEllipse(QPointF(ex, ey), 6, 6)
+                painter.setBrush(QBrush(grad_marker))
+                painter.setPen(QPen(border_color, PEN_WIDTH))
+                painter.drawEllipse(QPointF(sx, sy), GRADIENT_END_RADIUS, GRADIENT_END_RADIUS)
+                painter.drawEllipse(QPointF(ex, ey), GRADIENT_END_RADIUS, GRADIENT_END_RADIUS)
 
     def mousePressEvent(self, event):
         # Fresh drag baseline so the delta tracker in itemChange doesn't
