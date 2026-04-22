@@ -5,6 +5,7 @@ and per-platform crop status.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from PySide6.QtWidgets import (

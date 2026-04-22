@@ -1,6 +1,7 @@
 """Platform assignment panel — two-column card layout + visual dashboard."""
-from pathlib import Path
+import os
 import uuid
+from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QScrollArea, QFrame, QSizePolicy, QSplitter,

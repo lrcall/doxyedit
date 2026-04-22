@@ -1,4 +1,5 @@
 """Work tray — a collapsible right panel for quick-access images."""
+import os
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,

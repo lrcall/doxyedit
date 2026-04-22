@@ -1,4 +1,5 @@
 """Image preview — hover tooltip, full preview with annotation notes, crop tool."""
+import re
 from pathlib import Path
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsScene, QGraphicsView,
