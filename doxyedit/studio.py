@@ -6394,6 +6394,15 @@ class StudioEditor(QWidget):
                     self._sync_overlays_to_asset()
                     self.info_label.setText(f"Scaled by {value}%")
             return
+        # Ctrl+Alt+, / Ctrl+Alt+. = cycle selection to previous / next
+        # layer in z-order. Useful when overlapping overlays make
+        # click-selection ambiguous.
+        if ctrl and alt and not shift and key == Qt.Key.Key_Period:
+            self._cycle_selection(+1)
+            return
+        if ctrl and alt and not shift and key == Qt.Key.Key_Comma:
+            self._cycle_selection(-1)
+            return
         # Ctrl+Alt+F reveals the selected watermark/image overlay's
         # source file in Windows Explorer. Watermark overlays store an
         # absolute image_path; this shortcut is the fastest way to
