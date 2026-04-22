@@ -293,6 +293,11 @@ class CanvasOverlay:
     # stroke entirely inside the shape's bounds; "outside" entirely
     # outside. Matters for pixel-perfect alignment against image edges.
     stroke_align: str = "center"
+    # Layer organization tag color. Empty = no tag. Rendered as a
+    # small colored dot in the layer panel prefix so users can group
+    # related overlays visually. Accepted values: red / orange /
+    # yellow / green / blue / purple / pink / gray, or a hex string.
+    tag_color: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)

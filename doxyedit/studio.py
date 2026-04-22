@@ -13046,6 +13046,13 @@ class StudioEditor(QWidget):
             # Prepend visibility / lock indicators so layer state is
             # readable at a glance
             prefix = ""
+            _tag = getattr(ov, "tag_color", "") or ""
+            if _tag:
+                # Colored disc character for the tag. Unicode 'medium
+                # circle' renders fine on most platforms; the color is
+                # encoded via the theme-aware QListWidgetItem text color
+                # below since QListWidgetItem labels don't parse HTML.
+                prefix += "● "
             if not ov.enabled:
                 prefix += "(hidden) "
             if getattr(ov, "locked", False):
@@ -13053,6 +13060,18 @@ class StudioEditor(QWidget):
             label = prefix + label
             label += _scope_tag(ov.platforms)
             item = QListWidgetItem(label)
+            if _tag:
+                # Map named tags to concrete hexes and color the row's
+                # text with it - the leading ● disc inherits the row
+                # color. User sees one colored circle per tagged layer.
+                _tag_map = {
+                    "red": "#d93838", "orange": "#d98a38",
+                    "yellow": "#d9c638", "green": "#4cb85b",
+                    "blue": "#4c7fe0", "purple": "#9a56d9",
+                    "pink": "#e063b5", "gray": "#888888",
+                }
+                from PySide6.QtGui import QColor
+                item.setForeground(QColor(_tag_map.get(_tag, _tag)))
             item.setData(Qt.ItemDataRole.UserRole, ("overlay", len(self._asset.overlays) - 1 - i))
             if not ov.enabled:
                 item.setForeground(Qt.GlobalColor.gray)
@@ -13384,6 +13403,28 @@ class StudioEditor(QWidget):
                 else "Isolate (solo)")
             act_rename = prefix.addAction("Rename...")
             act_opacity = prefix.addAction("Opacity...")
+            # Tag color submenu. Matches Finder / macOS style labels
+            # (colored dots). Stored per-overlay so it persists across
+            # sessions and survives rebuild_layer_panel.
+            tag_sub = prefix.addMenu("Tag Color")
+            _tag_opts = [
+                ("None", ""),
+                ("Red", "red"),
+                ("Orange", "orange"),
+                ("Yellow", "yellow"),
+                ("Green", "green"),
+                ("Blue", "blue"),
+                ("Purple", "purple"),
+                ("Pink", "pink"),
+                ("Gray", "gray"),
+            ]
+            tag_acts = {}
+            _cur_tag = getattr(ov, "tag_color", "") or ""
+            for tag_label, tag_val in _tag_opts:
+                act = tag_sub.addAction(tag_label)
+                act.setCheckable(True)
+                act.setChecked(_cur_tag == tag_val)
+                tag_acts[act] = tag_val
             act_dup_n = prefix.addAction("Duplicate N times...")
             act_dup_grid = prefix.addAction("Duplicate as grid...")
             act_zoom_to = prefix.addAction("Zoom to Layer")
@@ -13419,6 +13460,11 @@ class StudioEditor(QWidget):
                 return
             if chosen is act_rename:
                 self._on_layer_double_clicked(list_item)
+                return
+            if tag_acts and chosen in tag_acts:
+                ov.tag_color = tag_acts[chosen]
+                self._sync_overlays_to_asset()
+                self._rebuild_layer_panel()
                 return
             if chosen is act_opacity:
                 v, ok = QInputDialog.getInt(
