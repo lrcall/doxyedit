@@ -9536,6 +9536,34 @@ class StudioEditor(QWidget):
             "Click to enter a zoom percentage (or use Ctrl+0 / Ctrl+1)")
         self._zoom_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self._zoom_label.mousePressEvent = self._prompt_zoom_level
+        # Right-click the zoom label for a preset grid — 25 / 50 /
+        # 75 / 100 / 150 / 200 / 400 / 800, plus 'Fit' and 'Fit Width'.
+        self._zoom_label.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        def _zoom_ctx(pos):
+            m = _themed_menu(self._zoom_label)
+            act_fit = m.addAction("Fit View")
+            act_fw = m.addAction("Fit Width")
+            m.addSeparator()
+            for pct in (25, 50, 75, 100, 150, 200, 400, 800):
+                act = m.addAction(f"{pct}%")
+                act.triggered.connect(
+                    lambda _c=False, p=pct: self._set_zoom(p / 100.0))
+            act_fit.triggered.connect(
+                lambda: self._view.fitInView(
+                    self._scene.sceneRect(),
+                    Qt.AspectRatioMode.KeepAspectRatio))
+            def _fw():
+                sr = self._scene.sceneRect()
+                vw = max(1, self._view.viewport().width())
+                if sr.width() > 0:
+                    f = vw / sr.width()
+                    self._view.resetTransform()
+                    self._view.scale(f, f)
+                    self._zoom_label.setText(f"{int(f * 100)}%")
+            act_fw.triggered.connect(_fw)
+            m.exec(self._zoom_label.mapToGlobal(pos))
+        self._zoom_label.customContextMenuRequested.connect(_zoom_ctx)
         status_bar.addWidget(self._zoom_label)
 
         status_bar.addWidget(QLabel("|"))
