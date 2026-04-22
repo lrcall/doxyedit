@@ -7463,6 +7463,31 @@ class StudioEditor(QWidget):
             lambda: self._scene.clearSelection())
         quickbar.addWidget(qp_deselect_btn)
 
+        # Arrange dropdown - quick z-order jumps without reaching
+        # for the Ctrl+[ / Ctrl+] bindings.
+        qp_arrange_btn = QPushButton("Arrange ▾")
+        qp_arrange_btn.setObjectName("studio_qp_arrange")
+        qp_arrange_btn.setToolTip("Z-order actions for the selection")
+        def _show_arrange_menu():
+            from PySide6.QtWidgets import QMenu
+            m = _themed_menu(qp_arrange_btn)
+            a_front = m.addAction("Bring to Front  (Ctrl+Shift+])")
+            a_forward = m.addAction("Bring Forward  (Ctrl+])")
+            a_backward = m.addAction("Send Backward  (Ctrl+[)")
+            a_back = m.addAction("Send to Back  (Ctrl+Shift+[)")
+            chosen = m.exec(qp_arrange_btn.mapToGlobal(
+                qp_arrange_btn.rect().bottomLeft()))
+            if chosen is a_front:
+                self._z_shift_selected(+999)
+            elif chosen is a_forward:
+                self._z_shift_selected(+1)
+            elif chosen is a_backward:
+                self._z_shift_selected(-1)
+            elif chosen is a_back:
+                self._z_shift_selected(-999)
+        qp_arrange_btn.clicked.connect(_show_arrange_menu)
+        quickbar.addWidget(qp_arrange_btn)
+
         self._qp_label = QLabel("(no selection)")
         self._qp_label.setObjectName("studio_qp_label")
         quickbar.addWidget(self._qp_label)
