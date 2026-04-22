@@ -3802,6 +3802,309 @@ class _StudioRuler(QWidget):
                 p.drawLine(0, int(cursor_px), self.width(), int(cursor_px))
 
 
+class _ShapeControlsDialog(QtWidgets.QDialog):
+    """Properties popup for the currently-selected shape / bubble /
+    arrow. Contents rebuild whenever the selected overlay's type
+    changes. Same persisted-geometry behavior as Text Controls so the
+    two popups can share the user's layout."""
+
+    _GEOM_KEY = "studio_shape_controls_geom"
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from PySide6.QtCore import QSettings as _QS
+        self._qs = _QS("DoxyEdit", "DoxyEdit")
+        self._editor = parent
+        self._current_kind = None  # last rebuilt kind
+        self.setWindowTitle("Shape Controls")
+        self.setObjectName("studio_shape_controls_dlg")
+        self.setWindowFlags(
+            Qt.WindowType.Tool |
+            Qt.WindowType.CustomizeWindowHint |
+            Qt.WindowType.WindowTitleHint |
+            Qt.WindowType.WindowCloseButtonHint)
+        self._root_layout = QVBoxLayout(self)
+        self._root_layout.setContentsMargins(8, 8, 8, 8)
+        self._root_layout.setSpacing(6)
+        self.setMinimumWidth(300)
+        self.setMinimumHeight(360)
+
+    def _save_geom(self):
+        try:
+            self._qs.setValue(self._GEOM_KEY, self.saveGeometry())
+        except Exception:
+            pass
+
+    def closeEvent(self, ev):
+        self._save_geom(); super().closeEvent(ev)
+
+    def hideEvent(self, ev):
+        self._save_geom(); super().hideEvent(ev)
+
+    def moveEvent(self, ev):
+        super().moveEvent(ev); self._save_geom()
+
+    def resizeEvent(self, ev):
+        super().resizeEvent(ev); self._save_geom()
+
+    def _clear(self):
+        while self._root_layout.count():
+            it = self._root_layout.takeAt(0)
+            w = it.widget()
+            if w is not None:
+                w.deleteLater()
+
+    def rebuild_for(self, item):
+        """Build form controls tailored to the overlay's type."""
+        from PySide6.QtWidgets import (
+            QFormLayout, QLabel, QSpinBox, QDoubleSpinBox,
+            QComboBox, QPushButton, QHBoxLayout, QWidget as _QW, QSlider)
+        editor = self._editor
+        ov = item.overlay
+        kind = f"{type(item).__name__}:{getattr(ov, 'shape_kind', '')}"
+        self._current_kind = kind
+        self._clear()
+        form = QFormLayout()
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setSpacing(5)
+        form_wrap = _QW()
+        form_wrap.setLayout(form)
+        self._root_layout.addWidget(form_wrap)
+
+        # Header: the type + a Convert dropdown for shapes
+        header = QLabel(f"<b>{ov.type.title()}</b> &mdash; "
+                        f"{getattr(ov, 'shape_kind', '')}")
+        self._root_layout.insertWidget(0, header)
+
+        if isinstance(item, OverlayShapeItem):
+            is_bubble = ov.shape_kind in ("speech_bubble", "thought_bubble")
+            # Stroke color
+            stroke_row = QHBoxLayout()
+            stroke_row.setContentsMargins(0, 0, 0, 0)
+            stroke_btn = _ColorSwatchButton(is_outline=True)
+            stroke_btn.setFixedWidth(30)
+            stroke_btn.setSwatchColor(ov.stroke_color or "#000000")
+            def _stroke(hex_c, _it=item):
+                _it.overlay.stroke_color = hex_c
+                _it.update()
+                stroke_btn.setSwatchColor(hex_c)
+                editor._add_recent_color(hex_c)
+                editor._sync_overlays_to_asset()
+            stroke_btn.on_color_picked = _stroke
+            def _stroke_dialog(_it=item):
+                cur = QColor(_it.overlay.stroke_color or "#000000")
+                c = QColorDialog.getColor(cur, self, "Stroke color")
+                if c.isValid():
+                    _stroke(c.name())
+            stroke_btn.clicked.connect(_stroke_dialog)
+            stroke_row.addWidget(stroke_btn)
+            stroke_row.addStretch()
+            _srw = _QW(); _srw.setLayout(stroke_row)
+            form.addRow("Stroke color", _srw)
+
+            # Fill color
+            fill_row = QHBoxLayout()
+            fill_row.setContentsMargins(0, 0, 0, 0)
+            fill_btn = _ColorSwatchButton(is_outline=False)
+            fill_btn.setFixedWidth(30)
+            fill_btn.setSwatchColor(ov.fill_color or "#ffffff")
+            def _fill(hex_c, _it=item):
+                _it.overlay.fill_color = hex_c
+                _it.update()
+                fill_btn.setSwatchColor(hex_c)
+                editor._add_recent_color(hex_c)
+                editor._sync_overlays_to_asset()
+            fill_btn.on_color_picked = _fill
+            def _fill_dialog(_it=item):
+                cur = QColor(_it.overlay.fill_color or "#ffffff")
+                c = QColorDialog.getColor(cur, self, "Fill color",
+                                          QColorDialog.ColorDialogOption.ShowAlphaChannel)
+                if c.isValid():
+                    _fill(c.name())
+            fill_btn.clicked.connect(_fill_dialog)
+            fill_row.addWidget(fill_btn)
+            clear_btn = QPushButton("Clear")
+            clear_btn.setFixedWidth(50)
+            def _clear_fill(_it=item):
+                _it.overlay.fill_color = ""
+                _it.update()
+                editor._sync_overlays_to_asset()
+            clear_btn.clicked.connect(_clear_fill)
+            fill_row.addWidget(clear_btn)
+            fill_row.addStretch()
+            _frw = _QW(); _frw.setLayout(fill_row)
+            form.addRow("Fill color", _frw)
+
+            # Stroke width
+            sw_spin = QSpinBox()
+            sw_spin.setRange(0, 50)
+            sw_spin.setValue(ov.stroke_width or 2)
+            sw_spin.setSuffix(" px")
+            def _sw_changed(v, _it=item):
+                _it.overlay.stroke_width = v
+                _it.update()
+                editor._sync_overlays_to_asset()
+            sw_spin.valueChanged.connect(_sw_changed)
+            form.addRow("Stroke width", sw_spin)
+
+            # Line style
+            style_combo = QComboBox()
+            style_combo.addItems(["solid", "dash", "dot"])
+            style_combo.setCurrentText(getattr(ov, "line_style", "solid"))
+            def _style_changed(s, _it=item):
+                _it.overlay.line_style = s
+                _it.update()
+                editor._sync_overlays_to_asset()
+            style_combo.currentTextChanged.connect(_style_changed)
+            form.addRow("Line style", style_combo)
+
+            # Corner radius (only for non-bubble rects)
+            if ov.shape_kind == "rect":
+                cr_spin = QSpinBox()
+                cr_spin.setRange(0, 200)
+                cr_spin.setValue(ov.corner_radius or 0)
+                cr_spin.setSuffix(" px")
+                def _cr_changed(v, _it=item):
+                    _it.overlay.corner_radius = v
+                    _it.update()
+                    editor._sync_overlays_to_asset()
+                cr_spin.valueChanged.connect(_cr_changed)
+                form.addRow("Corner radius", cr_spin)
+
+            # Bubble deformers — only when the shape is a bubble
+            if is_bubble:
+                self._root_layout.addWidget(QLabel("<b>Bubble shape</b>"))
+                deform_form = QFormLayout()
+                deform_form.setContentsMargins(0, 0, 0, 0)
+                deform_form.setSpacing(5)
+
+                def _mk_slider(attr, lo, hi, step=1):
+                    sl = QSlider(Qt.Orientation.Horizontal)
+                    # Store as int*100 for QSlider; convert to float.
+                    sl.setRange(int(lo * 100), int(hi * 100))
+                    sl.setValue(int(getattr(ov, attr, 0.0) * 100))
+                    sl.setMinimumWidth(150)
+                    readout = QLabel(f"{getattr(ov, attr, 0.0):+.2f}")
+                    readout.setFixedWidth(52)
+                    def _on_change(v, _it=item, _attr=attr, _r=readout):
+                        val = v / 100.0
+                        setattr(_it.overlay, _attr, val)
+                        _it.prepareGeometryChange()
+                        _it.update()
+                        _r.setText(f"{val:+.2f}")
+                        editor._sync_overlays_to_asset()
+                    sl.valueChanged.connect(_on_change)
+                    row = QHBoxLayout()
+                    row.setContentsMargins(0, 0, 0, 0)
+                    row.addWidget(sl, 1)
+                    row.addWidget(readout)
+                    w = _QW(); w.setLayout(row)
+                    return w
+                deform_form.addRow("Roundness",
+                    _mk_slider("bubble_roundness", 0.0, 1.0))
+                deform_form.addRow("Oval stretch",
+                    _mk_slider("bubble_oval_stretch", -0.6, 0.6))
+                deform_form.addRow("Wobble",
+                    _mk_slider("bubble_wobble", 0.0, 1.0))
+                deform_wrap = _QW()
+                deform_wrap.setLayout(deform_form)
+                self._root_layout.addWidget(deform_wrap)
+
+            # Opacity slider (common)
+            op_slider = QSlider(Qt.Orientation.Horizontal)
+            op_slider.setRange(0, 100)
+            op_slider.setValue(int(ov.opacity * 100))
+            op_slider.setMinimumWidth(150)
+            op_lbl = QLabel(f"{int(ov.opacity * 100)}%")
+            op_lbl.setFixedWidth(40)
+            def _op_changed(v, _it=item, _lbl=op_lbl):
+                _it.overlay.opacity = v / 100.0
+                _it.update()
+                _lbl.setText(f"{v}%")
+                editor._sync_overlays_to_asset()
+            op_slider.valueChanged.connect(_op_changed)
+            op_row = QHBoxLayout()
+            op_row.setContentsMargins(0, 0, 0, 0)
+            op_row.addWidget(op_slider, 1)
+            op_row.addWidget(op_lbl)
+            _op_w = _QW(); _op_w.setLayout(op_row)
+            form.addRow("Opacity", _op_w)
+
+        elif isinstance(item, OverlayArrowItem):
+            # Arrow: color, width, arrowhead size / style, double-headed
+            color_btn = _ColorSwatchButton(is_outline=False)
+            color_btn.setFixedWidth(30)
+            color_btn.setSwatchColor(ov.color or "#000000")
+            def _arrow_color(hex_c, _it=item):
+                _it.overlay.color = hex_c
+                _it.update()
+                color_btn.setSwatchColor(hex_c)
+                editor._add_recent_color(hex_c)
+                editor._sync_overlays_to_asset()
+            color_btn.on_color_picked = _arrow_color
+            def _arrow_color_dlg(_it=item):
+                cur = QColor(_it.overlay.color or "#000000")
+                c = QColorDialog.getColor(cur, self, "Arrow color")
+                if c.isValid():
+                    _arrow_color(c.name())
+            color_btn.clicked.connect(_arrow_color_dlg)
+            form.addRow("Color", color_btn)
+
+            sw_spin = QSpinBox()
+            sw_spin.setRange(1, 30)
+            sw_spin.setValue(ov.stroke_width or 3)
+            sw_spin.setSuffix(" px")
+            def _arrow_sw(v, _it=item):
+                _it.overlay.stroke_width = v
+                _it.update()
+                editor._sync_overlays_to_asset()
+            sw_spin.valueChanged.connect(_arrow_sw)
+            form.addRow("Line width", sw_spin)
+
+            head_spin = QSpinBox()
+            head_spin.setRange(4, 80)
+            head_spin.setValue(ov.arrowhead_size or 18)
+            head_spin.setSuffix(" px")
+            def _arrow_head(v, _it=item):
+                _it.overlay.arrowhead_size = v
+                _it.update()
+                editor._sync_overlays_to_asset()
+            head_spin.valueChanged.connect(_arrow_head)
+            form.addRow("Arrowhead size", head_spin)
+
+            style_combo = QComboBox()
+            style_combo.addItems(["filled", "outline", "none"])
+            style_combo.setCurrentText(ov.arrowhead_style or "filled")
+            def _arrow_head_style(s, _it=item):
+                _it.overlay.arrowhead_style = s
+                _it.update()
+                editor._sync_overlays_to_asset()
+            style_combo.currentTextChanged.connect(_arrow_head_style)
+            form.addRow("Arrowhead style", style_combo)
+
+            ls_combo = QComboBox()
+            ls_combo.addItems(["solid", "dash", "dot"])
+            ls_combo.setCurrentText(getattr(ov, "line_style", "solid"))
+            def _arrow_ls(s, _it=item):
+                _it.overlay.line_style = s
+                _it.update()
+                editor._sync_overlays_to_asset()
+            ls_combo.currentTextChanged.connect(_arrow_ls)
+            form.addRow("Line style", ls_combo)
+
+            dh_btn = QPushButton("Double-headed")
+            dh_btn.setCheckable(True)
+            dh_btn.setChecked(bool(ov.double_headed))
+            def _arrow_dh(checked, _it=item):
+                _it.overlay.double_headed = bool(checked)
+                _it.update()
+                editor._sync_overlays_to_asset()
+            dh_btn.toggled.connect(_arrow_dh)
+            form.addRow("", dh_btn)
+
+        self._root_layout.addStretch(1)
+
+
 class _TextControlsDialog(QtWidgets.QDialog):
     """QDialog subclass that persists its geometry to QSettings across
     close / hide cycles. Instance-level closeEvent assignment doesn't
@@ -6061,6 +6364,18 @@ class StudioEditor(QWidget):
         # _props_row keeps a hidden shell so setEnabled call sites stay valid.
         self._props_row.hide()
 
+        # Shape / Arrow properties popup — partners with Text Controls
+        # for bubbles (both popups show when a speech/thought bubble is
+        # selected so the user can tweak text + shape side-by-side).
+        self._shape_controls_dlg = _ShapeControlsDialog(self)
+        _geom_blob = _qs_geom.value(
+            _ShapeControlsDialog._GEOM_KEY, None)
+        if _geom_blob:
+            try:
+                self._shape_controls_dlg.restoreGeometry(_geom_blob)
+            except Exception:
+                pass
+
         # Scene + View
         self._scene = StudioScene()
         self._scene.on_censor_finished = self._on_censor_drawn
@@ -8035,6 +8350,47 @@ class StudioEditor(QWidget):
                     description="Change scale",
                 )
 
+    def _sync_shape_controls_visibility(self):
+        """Show / hide / rebuild the Shape Controls popup tracking the
+        current selection. When a speech/thought bubble is selected the
+        Text Controls popup (via _sync_text_controls_visibility) and
+        this popup both appear so the user can tweak both halves of
+        the merged type at once."""
+        if not hasattr(self, "_shape_controls_dlg"):
+            return
+        dlg = self._shape_controls_dlg
+        sel = self._scene.selectedItems()
+        target = None
+        for it in sel:
+            if isinstance(it, (OverlayShapeItem, OverlayArrowItem)):
+                target = it
+                break
+        if target is not None:
+            dlg.rebuild_for(target)
+            win = self.window()
+            if win is not None:
+                dlg.setStyleSheet(win.styleSheet())
+            if not dlg.isVisible():
+                dlg.show()
+                if win is not None and hasattr(win, "_theme_dialog_titlebar"):
+                    win._theme_dialog_titlebar(dlg)
+                # Drop it below the Text Controls popup when first shown
+                # so they don't overlap on a small screen.
+                gv = self._view
+                if gv is not None and gv.isVisible():
+                    from PySide6.QtWidgets import QApplication
+                    avail = QApplication.primaryScreen().availableGeometry()
+                    g = dlg.frameGeometry()
+                    if not avail.intersects(g):
+                        gp = gv.mapToGlobal(gv.viewport().rect().topRight())
+                        dlg.move(
+                            gp.x() - max(dlg.width(), 340) - 12,
+                            gp.y() + 460)
+            dlg.raise_()
+        else:
+            if dlg.isVisible():
+                dlg.hide()
+
     def _sync_text_controls_visibility(self):
         """Show the floating text-controls dialog only when text context is
         active (text tool selected or a text overlay selected). Position
@@ -8116,6 +8472,8 @@ class StudioEditor(QWidget):
                 self._propagating_group_sel = False
         # Text-controls popup follows selection
         self._sync_text_controls_visibility()
+        # Shape-controls popup follows selection for shapes / arrows
+        self._sync_shape_controls_visibility()
         # Quickbar mirrors the first selected overlay's state so the
         # duplicated toolbar controls actually reflect what's about to
         # be modified.
