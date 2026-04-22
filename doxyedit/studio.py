@@ -3761,6 +3761,12 @@ class StudioView(QGraphicsView):
         # hundred pixels square.
         self.setViewportUpdateMode(
             QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate)
+        # Cache the entire scene background (base image + checker) into
+        # a viewport-sized pixmap. With many overlays, ALL the items
+        # under the moving one would otherwise repaint every frame; the
+        # cached background skips them entirely — only the moving item's
+        # dirty rect runs through the actual paint pipeline.
+        self.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
         # Opt out of software-composed backing store; direct OpenGL-ish
         # path on Windows is a lot faster for the per-frame blit.
         self.setOptimizationFlag(

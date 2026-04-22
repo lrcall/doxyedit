@@ -786,6 +786,12 @@ class OverlayShapeItem(QGraphicsItem):
             | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         self.setAcceptHoverEvents(True)
+        # Device-coordinate cache: the rasterized bubble is kept at the
+        # viewport's device scale and re-blitted on drag. Combined with
+        # the path cache below, this means bubble drag is a pure memcpy
+        # per frame (plus the handle overlay which is outside the cache).
+        self.setCacheMode(
+            QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self._editor = None
         self._dragging_handle = None  # 'tl', 'tr', 'bl', 'br', or None
         self.setZValue(200)
