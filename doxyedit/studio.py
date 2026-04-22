@@ -9204,11 +9204,17 @@ class StudioEditor(QWidget):
             dlg.rebuild_for(target)
             win = self.window()
             if win is not None:
-                dlg.setStyleSheet(win.styleSheet())
+                current = win.styleSheet()
+                prev = getattr(dlg, "_cached_ss", None)
+                if prev is not current:
+                    dlg.setStyleSheet(current)
+                    dlg._cached_ss = current
             if not dlg.isVisible():
                 dlg.show()
                 if win is not None and hasattr(win, "_theme_dialog_titlebar"):
-                    win._theme_dialog_titlebar(dlg)
+                    if not getattr(dlg, "_titlebar_themed", False):
+                        win._theme_dialog_titlebar(dlg)
+                        dlg._titlebar_themed = True
                 # First-show reposition: only land a default spot if we
                 # haven't positioned this session yet AND the saved
                 # geometry is unusable. After the first manual drag the
@@ -9264,14 +9270,27 @@ class StudioEditor(QWidget):
                     break
         dlg = self._text_controls_dlg
         if has_text_tool or has_text_selected:
-            # Inherit the app-wide stylesheet + Windows 11 caption tint
             win = self.window()
+            # Cache the stylesheet hash on the dialog - re-applying an
+            # identical sheet on every visibility sync was causing the
+            # ~1s white flash each time the popup appeared (setStyleSheet
+            # forces Qt to reparse and re-polish every child widget).
             if win is not None:
-                dlg.setStyleSheet(win.styleSheet())
+                current = win.styleSheet()
+                prev = getattr(dlg, "_cached_ss", None)
+                if prev is not current:
+                    dlg.setStyleSheet(current)
+                    dlg._cached_ss = current
             if not dlg.isVisible():
                 dlg.show()
             if win is not None and hasattr(win, "_theme_dialog_titlebar"):
-                win._theme_dialog_titlebar(dlg)
+                # Only re-tint the titlebar when the dialog is being
+                # shown for the first time or the theme actually changed.
+                if not getattr(dlg, "_titlebar_themed", False) or \
+                        getattr(dlg, "_titlebar_ss", None) is not current:
+                    win._theme_dialog_titlebar(dlg)
+                    dlg._titlebar_themed = True
+                    dlg._titlebar_ss = current
             # Clamp to the primary screen so a stale saved geometry
             # can never park the dialog off-screen. Only auto-position
             # the FIRST time the dialog is shown in this session, and
