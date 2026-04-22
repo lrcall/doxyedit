@@ -13140,6 +13140,19 @@ class StudioEditor(QWidget):
             self._view.centerOn(target)
         except Exception:
             pass
+        # Flash a status message so the user knows which layer is now
+        # active without having to glance at the layer panel.
+        ov = getattr(target, "overlay", None)
+        label = (
+            (ov and (getattr(ov, "label", "") or getattr(ov, "text", "")))
+            or target.__class__.__name__
+                .replace("Overlay", "").replace("Item", "")
+        )
+        try:
+            self.info_label.setText(
+                f"Layer {new_idx + 1}/{len(candidates)}: {label}")
+        except Exception:
+            pass
 
     # ---- alignment + distribute ----
 
