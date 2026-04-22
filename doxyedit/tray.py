@@ -852,11 +852,149 @@ class WorkTray(QWidget):
         index = self._tab_bar.tabAt(pos)
         if index < 0:
             return
+        name = self._tab_bar.tabData(index) or self._tab_bar.tabText(index)
+        count = len(self._trays.get(name, []))
+        settings = QSettings("DoxyEdit", "DoxyEdit")
+        is_default = settings.value("tray_default_name", "") == name
+
         menu = QMenu(self)
         menu.addAction("Rename", lambda: self._rename_tray(index))
+        menu.addAction("Duplicate", lambda: self._duplicate_tray(index))
+        if count:
+            menu.addAction(f"Clear ({count})",
+                           lambda: self._clear_tray_by_index(index))
+            menu.addAction(f"Export as ZIP... ({count})",
+                           lambda: self._export_tray_zip_by_name(name))
+        # Merge into another tray
+        other = [self._tab_bar.tabData(i) or self._tab_bar.tabText(i)
+                  for i in range(self._tab_bar.count()) if i != index]
+        if other and count:
+            merge_menu = menu.addMenu("Merge Into")
+            for other_name in other:
+                merge_menu.addAction(
+                    other_name,
+                    lambda _c=False, src=name, dst=other_name:
+                        self._merge_tray(src, dst))
+        menu.addSeparator()
+        # Set-as-default toggle
+        default_act = menu.addAction("Default Tray on Load")
+        default_act.setCheckable(True)
+        default_act.setChecked(is_default)
+        default_act.triggered.connect(
+            lambda _c=False, n=name, cur=is_default:
+                self._toggle_default_tray(n, not cur))
         if self._tab_bar.count() > 1:
+            menu.addSeparator()
             menu.addAction("Close", lambda: self._close_tray(index))
         menu.exec(self._tab_bar.mapToGlobal(pos))
+
+    def _duplicate_tray(self, index: int):
+        """Clone the tray at index with " copy" appended."""
+        src = self._tab_bar.tabData(index) or self._tab_bar.tabText(index)
+        base = f"{src} copy"
+        name = base
+        n = 2
+        while name in self._trays:
+            name = f"{base} {n}"
+            n += 1
+        # Copy the source items — if src is active, use live _asset_ids
+        items = (list(self._asset_ids) if src == self._current_tray
+                 else list(self._trays.get(src, [])))
+        self._trays[name] = items
+        new_idx = self._tab_bar.addTab(name)
+        self._tab_bar.setTabData(new_idx, name)
+        self._refresh_tab_counts()
+
+    def _clear_tray_by_index(self, index: int):
+        """Empty a specific tray. If it's the active one, also clears
+        the live list widget."""
+        name = self._tab_bar.tabData(index) or self._tab_bar.tabText(index)
+        if name == self._current_tray:
+            self.clear()
+        else:
+            self._trays[name] = []
+        self._refresh_tab_counts()
+
+    def _export_tray_zip_by_name(self, name: str):
+        """Export a tray that may not be active. Resolves asset paths
+        from the project instead of self._paths."""
+        if name not in self._trays or not self._project:
+            return
+        ids = self._trays[name]
+        if not ids:
+            return
+        from PySide6.QtWidgets import QFileDialog
+        import zipfile
+        default_name = f"{name.replace(' ', '_')}.zip"
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, f"Export '{name}' as ZIP", default_name, "ZIP (*.zip)")
+        if not out_path:
+            return
+        written = 0
+        seen_names: dict[str, int] = {}
+        try:
+            with zipfile.ZipFile(out_path, "w",
+                                 compression=zipfile.ZIP_DEFLATED) as zf:
+                for aid in ids:
+                    asset = self._project.get_asset(aid)
+                    if not asset or not Path(asset.source_path).exists():
+                        continue
+                    src = asset.source_path
+                    arc = Path(src).name
+                    seen_names[arc] = seen_names.get(arc, 0) + 1
+                    if seen_names[arc] > 1:
+                        stem = Path(src).stem
+                        ext = Path(src).suffix
+                        arc = f"{stem}_{seen_names[arc]}{ext}"
+                    zf.write(src, arc)
+                    written += 1
+        except Exception as e:
+            import logging
+            logging.error(f"Tray export failed: {e}")
+            return
+        if written:
+            import subprocess
+            win_path = out_path.replace("/", "\\")
+            subprocess.Popen(f'explorer /select,"{win_path}"')
+
+    def _merge_tray(self, src: str, dst: str):
+        """Move all items from src into dst (preserving order, de-duped),
+        then close src. If src is active, switch to dst first."""
+        if src == dst or src not in self._trays or dst not in self._trays:
+            return
+        src_items = (list(self._asset_ids) if src == self._current_tray
+                     else list(self._trays[src]))
+        dst_set = set(self._trays[dst])
+        for aid in src_items:
+            if aid not in dst_set:
+                self._trays[dst].append(aid)
+                dst_set.add(aid)
+        # If src was active, switch to dst before removing its tab
+        if src == self._current_tray:
+            # Find dst index
+            for i in range(self._tab_bar.count()):
+                if (self._tab_bar.tabData(i) or
+                        self._tab_bar.tabText(i)) == dst:
+                    self._tab_bar.setCurrentIndex(i)
+                    break
+        # Remove src tab
+        for i in range(self._tab_bar.count()):
+            if (self._tab_bar.tabData(i) or
+                    self._tab_bar.tabText(i)) == src:
+                self._tab_bar.removeTab(i)
+                break
+        self._trays.pop(src, None)
+        self._refresh_tab_counts()
+
+    def _toggle_default_tray(self, name: str, make_default: bool):
+        """QSettings-backed default tray. load_state activates this one
+        if it exists; otherwise falls back to the first tray in the file."""
+        settings = QSettings("DoxyEdit", "DoxyEdit")
+        if make_default:
+            settings.setValue("tray_default_name", name)
+        else:
+            settings.remove("tray_default_name")
+        settings.sync()
 
     def _rename_tray(self, index: int):
         old_name = self._tab_bar.tabData(index) or self._tab_bar.tabText(index)
@@ -925,12 +1063,18 @@ class WorkTray(QWidget):
         self._tab_bar.blockSignals(True)
         while self._tab_bar.count():
             self._tab_bar.removeTab(0)
-        for name in tray_dict:
+        active_idx = 0
+        default_name = QSettings(
+            "DoxyEdit", "DoxyEdit").value("tray_default_name", "")
+        for i, name in enumerate(tray_dict):
             idx = self._tab_bar.addTab(name)
             self._tab_bar.setTabData(idx, name)
-        first_name = next(iter(tray_dict), "Tray 1")
+            if default_name and name == default_name:
+                active_idx = i
+        first_name = (default_name if default_name in tray_dict
+                      else next(iter(tray_dict), "Tray 1"))
         self._current_tray = first_name
-        self._tab_bar.setCurrentIndex(0)
+        self._tab_bar.setCurrentIndex(active_idx)
         self._tab_bar.blockSignals(False)
         for aid in tray_dict.get(first_name, []):
             asset = project.get_asset(aid)
