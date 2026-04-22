@@ -10880,18 +10880,22 @@ class StudioEditor(QWidget):
                 dlg.show()
                 if win is not None and hasattr(win, "_theme_dialog_titlebar"):
                     win._theme_dialog_titlebar(dlg)
-                # Drop it below the Text Controls popup when first shown
-                # so they don't overlap on a small screen.
-                gv = self._view
-                if gv is not None and gv.isVisible():
-                    from PySide6.QtWidgets import QApplication
-                    avail = QApplication.primaryScreen().availableGeometry()
-                    g = dlg.frameGeometry()
-                    if not avail.intersects(g):
-                        gp = gv.mapToGlobal(gv.viewport().rect().topRight())
-                        dlg.move(
-                            gp.x() - max(dlg.width(), 340) - 12,
-                            gp.y() + 460)
+                # First-show reposition: only land a default spot if we
+                # haven't positioned this session yet AND the saved
+                # geometry is unusable. After the first manual drag the
+                # user's position is sticky across hides and reshows.
+                if not getattr(dlg, "_positioned_once", False):
+                    gv = self._view
+                    if gv is not None and gv.isVisible():
+                        from PySide6.QtWidgets import QApplication
+                        avail = QApplication.primaryScreen().availableGeometry()
+                        g = dlg.frameGeometry()
+                        if not avail.intersects(g):
+                            gp = gv.mapToGlobal(gv.viewport().rect().topRight())
+                            dlg.move(
+                                gp.x() - max(dlg.width(), 340) - 12,
+                                gp.y() + 460)
+                    dlg._positioned_once = True
             dlg.raise_()
         else:
             if dlg.isVisible():
@@ -10941,13 +10945,16 @@ class StudioEditor(QWidget):
             if win is not None and hasattr(win, "_theme_dialog_titlebar"):
                 win._theme_dialog_titlebar(dlg)
             # Clamp to the primary screen so a stale saved geometry
-            # can never park the dialog off-screen.
+            # can never park the dialog off-screen. Only auto-position
+            # the FIRST time the dialog is shown in this session, and
+            # only if the saved geometry is actually unusable - otherwise
+            # the sync handler was overriding the user's drag position
+            # on every selection change.
             from PySide6.QtWidgets import QApplication
             screen = QApplication.primaryScreen()
-            if screen is not None:
+            if screen is not None and not getattr(
+                    dlg, "_positioned_once", False):
                 avail = screen.availableGeometry()
-                # If the dialog's top-left is offscreen or width/height
-                # is zero (fresh-show race), re-anchor to the canvas.
                 g = dlg.frameGeometry()
                 needs_reposition = (
                     g.width() < 50 or g.height() < 50
@@ -10962,12 +10969,12 @@ class StudioEditor(QWidget):
                     else:
                         target_x = avail.right() - 380
                         target_y = avail.top() + 80
-                    # Final clamp so we can't land past the screen
                     target_x = max(avail.left() + 10,
                                     min(avail.right() - 200, target_x))
                     target_y = max(avail.top() + 10,
                                     min(avail.bottom() - 200, target_y))
                     dlg.move(target_x, target_y)
+                dlg._positioned_once = True
             # Bring to front in case user had something else on top.
             dlg.raise_()
             dlg.activateWindow()
