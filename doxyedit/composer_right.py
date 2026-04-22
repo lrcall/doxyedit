@@ -14,7 +14,8 @@ from PySide6.QtWidgets import (
     QScrollArea, QGroupBox, QStackedWidget, QTextBrowser,
     QSizePolicy, QComboBox, QSpinBox, QSplitter, QRadioButton,
     QButtonGroup, QProgressDialog, QApplication, QMessageBox,
-    QDialog, QFileDialog,
+    QDialog, QFileDialog, QFormLayout, QDialogButtonBox,
+    QTabWidget, QListWidget, QListWidgetItem,
 )
 from PySide6.QtCore import Qt, QDateTime, Signal, QSettings, QThread, QTimer
 from doxyedit.browser import FlowLayout
@@ -1350,11 +1351,7 @@ RULES:
 
     def _edit_identity(self) -> None:
         """Open a tabbed dialog to create or edit the current identity."""
-        from PySide6.QtWidgets import (
-            QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-            QPushButton, QFormLayout, QDialogButtonBox, QComboBox as _QCB,
-            QTabWidget, QWidget, QScrollArea, QListWidget, QListWidgetItem,
-        )
+        _QCB = QComboBox
         current = self._identity_combo.currentData() or ""
         identity = dict(self._project.identities.get(current, {})) if current else {}
 
