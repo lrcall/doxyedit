@@ -31,7 +31,7 @@ from PySide6.QtGui import (
     QKeyEvent, QTransform, QUndoCommand, QUndoStack, QIcon,
     QPolygonF, QPainterPath, QImage, QShortcut, QKeySequence,
     QTextCursor, QLinearGradient, QRadialGradient, QTextOption,
-    QTextBlockFormat, QPainterPathStroker,
+    QTextBlockFormat,
 )
 import copy
 import json
@@ -11008,13 +11008,13 @@ class StudioEditor(QWidget):
             src = QPixmap.fromImage(qimg)
         elif mode in ("blur3", "blur8"):
             radius = 3 if mode == "blur3" else 8
-            from PIL import Image as _PImg, ImageFilter as _PF
-            import io as _io
-            buf = _io.BytesIO()
+            from PIL import ImageFilter
+            import io
+            buf = io.BytesIO()
             src.toImage().save(buf, "PNG")
-            pil_img = _PImg.open(_io.BytesIO(buf.getvalue())).convert("RGBA")
-            pil_img = pil_img.filter(_PF.GaussianBlur(radius=radius))
-            out_buf = _io.BytesIO()
+            pil_img = Image.open(io.BytesIO(buf.getvalue())).convert("RGBA")
+            pil_img = pil_img.filter(ImageFilter.GaussianBlur(radius=radius))
+            out_buf = io.BytesIO()
             pil_img.save(out_buf, "PNG")
             qimg2 = QImage()
             qimg2.loadFromData(out_buf.getvalue())
@@ -11026,18 +11026,18 @@ class StudioEditor(QWidget):
         _ct = float(getattr(ov, "img_contrast", 0.0) or 0.0)
         _st = float(getattr(ov, "img_saturation", 0.0) or 0.0)
         if _br or _ct or _st:
-            from PIL import Image as _PImg, ImageEnhance as _PE
-            import io as _io
-            buf = _io.BytesIO()
+            from PIL import ImageEnhance
+            import io
+            buf = io.BytesIO()
             src.toImage().save(buf, "PNG")
-            pil_img = _PImg.open(_io.BytesIO(buf.getvalue())).convert("RGBA")
+            pil_img = Image.open(io.BytesIO(buf.getvalue())).convert("RGBA")
             if _br:
-                pil_img = _PE.Brightness(pil_img).enhance(1.0 + _br)
+                pil_img = ImageEnhance.Brightness(pil_img).enhance(1.0 + _br)
             if _ct:
-                pil_img = _PE.Contrast(pil_img).enhance(1.0 + _ct)
+                pil_img = ImageEnhance.Contrast(pil_img).enhance(1.0 + _ct)
             if _st:
-                pil_img = _PE.Color(pil_img).enhance(1.0 + _st)
-            out_buf = _io.BytesIO()
+                pil_img = ImageEnhance.Color(pil_img).enhance(1.0 + _st)
+            out_buf = io.BytesIO()
             pil_img.save(out_buf, "PNG")
             qimg3 = QImage()
             qimg3.loadFromData(out_buf.getvalue())
