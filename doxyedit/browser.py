@@ -7,7 +7,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListView, QStyledItemDelegate,
     QLabel, QPushButton, QFileDialog, QFrame, QLineEdit, QComboBox,
     QMenu, QApplication, QSizePolicy, QStyle, QCheckBox,
-    QStackedWidget, QScrollArea, QSlider,
+    QStackedWidget, QScrollArea, QSlider, QMessageBox, QInputDialog,
+    QDialog,
 )
 from PySide6.QtCore import (
     Qt, Signal, QThread, QTimer, QSettings, QSize, QRect, QPoint, QPointF,
@@ -997,7 +998,6 @@ class FolderSection(QWidget):
         self._view.setMouseTracking(True)
         self._view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._view.setStyleSheet("QListView { border: none; }")
-        from PySide6.QtWidgets import QSizePolicy
         self._view.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         layout.addWidget(self._view)
 
@@ -1038,7 +1038,6 @@ class FolderSection(QWidget):
     collapse_children_requested = Signal(str, bool)  # (folder_path, collapse)
 
     def _toggle_collapse(self):
-        from PySide6.QtWidgets import QApplication
         mods = QApplication.keyboardModifiers()
         if mods & Qt.KeyboardModifier.ControlModifier:
             new_state = not self.is_collapsed
@@ -1052,7 +1051,6 @@ class FolderSection(QWidget):
 
     def _on_header_context(self, pos):
         import subprocess, random
-        from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
         hide_label = "Show Subfolders" if self._child_folder_count > 0 else "Hide Subfolders"
         menu.addAction(hide_label, lambda: self.hide_requested.emit(self._folder))
@@ -1626,7 +1624,6 @@ class AssetBrowser(QWidget):
         self._tag_bar_frame.updateGeometry()
 
     def _add_custom_tag(self):
-        from PySide6.QtWidgets import QInputDialog, QMessageBox
         parent = self.window()
         dlg = QInputDialog(parent)
         dlg.setWindowTitle("New Tag")
@@ -2660,7 +2657,6 @@ class AssetBrowser(QWidget):
         self._refresh_grid()
 
     def _on_folder_remove_requested(self, folder: str):
-        from PySide6.QtWidgets import QMessageBox
         n = sum(1 for a in self.project.assets if a.source_folder == folder)
         reply = QMessageBox.question(
             self, "Remove Folder",
@@ -2677,7 +2673,6 @@ class AssetBrowser(QWidget):
 
     def _on_folder_date_filter(self, folder: str):
         """Right-click → Set Date Filter on a folder header."""
-        from PySide6.QtWidgets import QDialog
         norm = folder.replace("\\", "/")
         source = next((s for s in self.project.import_sources
                        if s.get("path", "").replace("\\", "/") == norm), None)
@@ -3344,7 +3339,6 @@ class AssetBrowser(QWidget):
 
     def _delete_from_disk(self, asset):
         """Permanently delete file from disk + remove from project. Requires confirmation."""
-        from PySide6.QtWidgets import QMessageBox
         path = asset.source_path
         name = Path(path).name
         reply = QMessageBox.warning(
@@ -3392,7 +3386,6 @@ class AssetBrowser(QWidget):
             pass
 
     def _add_tag_dialog(self, asset):
-        from PySide6.QtWidgets import QInputDialog
         dlg = QInputDialog(self.window())
         dlg.setWindowTitle("Add Tag")
         dlg.setLabelText("Tag to add:")
@@ -3460,7 +3453,6 @@ class AssetBrowser(QWidget):
 
     def _remove_selected(self):
         """Remove all selected assets from project."""
-        from PySide6.QtWidgets import QMessageBox
         n = len(self._selected_ids)
         if QMessageBox.question(self, "Remove from Project",
             f"Remove {n} assets from project?") != QMessageBox.StandardButton.Yes:
@@ -3473,7 +3465,6 @@ class AssetBrowser(QWidget):
 
     def _delete_selected_from_disk(self):
         """Permanently delete all selected files from disk + remove from project."""
-        from PySide6.QtWidgets import QMessageBox
         assets = self.get_selected_assets()
         n = len(assets)
         reply = QMessageBox.warning(
