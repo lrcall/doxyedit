@@ -2069,6 +2069,9 @@ class OverlayArrowItem(QGraphicsItem):
         double_head_act = menu.addAction("Double-Headed")
         double_head_act.setCheckable(True)
         double_head_act.setChecked(bool(getattr(self.overlay, "double_headed", False)))
+        flip_dir_act = menu.addAction("Flip Direction")
+        straighten_act = menu.addAction("Straighten (snap to 15°)")
+        select_all_arrows_act = menu.addAction("Select All Arrows")
         dup_act = menu.addAction("Duplicate  (Ctrl+D)")
         menu.addSeparator()
         copy_style_act = menu.addAction("Copy Style")
@@ -2114,6 +2117,45 @@ class OverlayArrowItem(QGraphicsItem):
             self.update()
             if self._editor:
                 self._editor._sync_overlays_to_asset()
+        elif chosen is flip_dir_act:
+            # Swap arrow tail <-> tip so the point reverses without
+            # moving the overall line position. Mirrors the Shape
+            # Controls 'Flip arrow direction' button.
+            self.overlay.x, self.overlay.end_x = (
+                self.overlay.end_x, self.overlay.x)
+            self.overlay.y, self.overlay.end_y = (
+                self.overlay.end_y, self.overlay.y)
+            self.prepareGeometryChange()
+            self.update()
+            if self._editor:
+                self._editor._sync_overlays_to_asset()
+        elif chosen is straighten_act:
+            # Snap the arrow's angle to the nearest 15°, preserving
+            # length and tail anchor. Same math as the Shape Controls
+            # button so the two stay in sync.
+            import math as _math
+            ov_a = self.overlay
+            dx = ov_a.end_x - ov_a.x
+            dy = ov_a.end_y - ov_a.y
+            length = _math.hypot(dx, dy)
+            if length >= 1:
+                angle = _math.degrees(_math.atan2(dy, dx))
+                snapped = round(angle / 15.0) * 15.0
+                rad = _math.radians(snapped)
+                ov_a.end_x = int(round(ov_a.x + length * _math.cos(rad)))
+                ov_a.end_y = int(round(ov_a.y + length * _math.sin(rad)))
+                self.prepareGeometryChange()
+                self.update()
+                if self._editor:
+                    self._editor._sync_overlays_to_asset()
+                    self._editor.info_label.setText(
+                        f"Arrow straightened to {int(snapped)}°")
+        elif chosen is select_all_arrows_act and self._editor:
+            # Select all arrow overlays at once for batch styling.
+            self._editor._scene.clearSelection()
+            for it in self._editor._overlay_items:
+                if isinstance(it, OverlayArrowItem):
+                    it.setSelected(True)
         elif chosen is copy_style_act and self._editor:
             self._editor._copy_style(self.overlay)
         elif chosen is paste_style_act and self._editor:
