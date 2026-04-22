@@ -3537,6 +3537,21 @@ class StudioScene(QGraphicsScene):
         sel_hidden_act = select_menu.addAction("All Hidden Overlays")
         sel_locked_act = select_menu.addAction("All Locked Overlays")
         sel_unlocked_act = select_menu.addAction("All Unlocked Overlays")
+        # Per-tag-color submenu. Only show tag colors that actually
+        # have at least one overlay assigned so the menu doesn't
+        # fill with dead entries.
+        _tag_sel_acts = {}
+        if editor._asset:
+            _tags_seen = set()
+            for _o in editor._asset.overlays:
+                _tc = getattr(_o, "tag_color", "") or ""
+                if _tc:
+                    _tags_seen.add(_tc)
+            if _tags_seen:
+                by_tag_sub = select_menu.addMenu("By Tag Color")
+                for _tc in sorted(_tags_seen):
+                    act = by_tag_sub.addAction(_tc.title())
+                    _tag_sel_acts[act] = _tc
         # Platform-scoped sub-selection: grab every unique platform on
         # any overlay + censor, add a 'Select All on <platform>' entry
         # per platform. Overlays with empty platforms list are 'all
@@ -3892,6 +3907,19 @@ class StudioScene(QGraphicsScene):
                         it.setSelected(True)
                     elif want_unlocked and not getattr(ov, "locked", False):
                         it.setSelected(True)
+        elif _tag_sel_acts and chosen in _tag_sel_acts:
+            # Select every overlay that carries the picked tag color.
+            target = _tag_sel_acts[chosen]
+            editor._scene.clearSelection()
+            count = 0
+            for it in editor._overlay_items:
+                ov = getattr(it, "overlay", None)
+                if ov is not None and getattr(
+                        ov, "tag_color", "") == target:
+                    it.setSelected(True)
+                    count += 1
+            editor.info_label.setText(
+                f"Selected {count} tagged {target}")
         elif _plat_sel_acts and chosen in _plat_sel_acts:
             # Select overlays + censors scoped to the picked platform.
             # Overlays with empty platforms list are 'all platforms'
