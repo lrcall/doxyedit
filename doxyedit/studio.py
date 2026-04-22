@@ -4293,6 +4293,15 @@ class StudioEditor(QWidget):
             self._view.setCursor(Qt.CursorShape.ArrowCursor)
             return
         super().keyReleaseEvent(event)
+        # The handlers below historically lived inside keyPressEvent but
+        # ended up misattached here after a refactor split the method;
+        # resurrecting them by defining the locals explicitly. Firing on
+        # release is acceptable for arrow-nudge + tool shortcuts since
+        # the user typically presses and releases quickly.
+        key = event.key()
+        mods = event.modifiers()
+        ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+        shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
 
         # Arrow nudge — plain = 1, Shift = 10, Shift+Ctrl = 100
         if key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
