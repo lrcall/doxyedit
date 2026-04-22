@@ -415,6 +415,11 @@ class StudioScene(QGraphicsScene):
         """
         if moving_item is None:
             return 0.0, 0.0, []
+        # Early-out when snap is disabled (threshold 0 is the default).
+        # Otherwise we iterate every scene item TWICE per mousemove frame
+        # — O(N) per drag frame with zero observable effect.
+        if self.SNAP_THRESHOLD_PX <= 0:
+            return 0.0, 0.0, []
         mb = moving_item.sceneBoundingRect()
         m_edges_x = [mb.left(), mb.center().x(), mb.right()]
         m_edges_y = [mb.top(), mb.center().y(), mb.bottom()]
