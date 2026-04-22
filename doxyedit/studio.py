@@ -6786,11 +6786,27 @@ class StudioEditor(QWidget):
                 self._save_notes_to_asset()
             return
 
-        # Escape is handled by StudioScene.keyPressEvent (scene focus) or
-        # OverlayTextItem.sceneEvent (text-item focus). Widget-level handler
-        # is no longer needed; leaving it here would stomp on those paths.
+        # Escape: force-clear selection + exit any active tool even when
+        # focus is on a sidebar button (previously the widget-level
+        # handler just re-dispatched to super, which never reached the
+        # scene if focus was on a button or the toolbar). Scene / text
+        # item paths still handle their own edit-exit below via event
+        # propagation if the scene happens to own focus.
         if key == Qt.Key.Key_Escape:
-            super().keyPressEvent(event)
+            focus = self._scene.focusItem()
+            if focus is not None and isinstance(focus, OverlayTextItem):
+                cur = focus.textCursor()
+                cur.clearSelection()
+                focus.setTextCursor(cur)
+                focus.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.NoTextInteraction)
+                focus.overlay.text = focus.toPlainText()
+                focus.clearFocus()
+            self._scene.clearSelection()
+            self._clear_escape_state()
+            if self._scene.current_tool != StudioTool.SELECT:
+                self._set_tool(StudioTool.SELECT)
+            event.accept()
             return
 
         # Shift+B inserts a thought bubble at cursor (sibling to plain
@@ -8268,6 +8284,17 @@ class StudioEditor(QWidget):
         self._f10_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._f10_shortcut.activated.connect(self._nuclear_clear)
 
+        # Escape = universal 'deselect + exit tool' regardless of which
+        # studio widget has focus (sidebar button, slider, layer panel).
+        # Scoped with WidgetWithChildrenShortcut so it does NOT interfere
+        # with Escape-cancel on QInputDialog / QColorDialog popups, which
+        # own their own focus scope.
+        self._esc_shortcut = QShortcut(
+            QKeySequence(Qt.Key.Key_Escape), self)
+        self._esc_shortcut.setContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self._esc_shortcut.activated.connect(self._handle_escape_shortcut)
+
         # Snap grid overlay — flag on the scene, drawn via foreground.
         # Both spacing and visibility are user prefs persisted via QSettings.
         from PySide6.QtCore import QSettings as _QS
@@ -9105,6 +9132,26 @@ class StudioEditor(QWidget):
         self._set_tool(StudioTool.SELECT)
         self._view.setFocus()
         self.info_label.setText("F10 — cleared")
+
+    def _handle_escape_shortcut(self):
+        """Fired by the WidgetWithChildrenShortcut — runs the full
+        Escape cleanup regardless of whether the focus widget is the
+        scene, view, sidebar button, or a spin / slider input. Previous
+        behavior was that Escape on a sidebar button just went to the
+        parent widget and did nothing."""
+        if not self.isVisible():
+            return
+        if self._scene is not None:
+            focus = self._scene.focusItem()
+            if focus is not None and isinstance(focus, OverlayTextItem):
+                cursor = focus.textCursor()
+                cursor.clearSelection()
+                focus.setTextCursor(cursor)
+                focus.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.NoTextInteraction)
+                focus.overlay.text = focus.toPlainText()
+                focus.clearFocus()
+        self._clear_escape_state()
 
     def _clear_escape_state(self):
         """Shared cleanup for Escape — reset tool, clear text-edit state,
