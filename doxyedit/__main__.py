@@ -1130,7 +1130,6 @@ def cmd_plan_posts(project_path: str, args: list):
     """Generate a posting plan briefing — asset inventory, post history, gaps, identity.
     Outputs everything Claude needs to plan months of posts."""
     from doxyedit.models import Project, SocialPost, SocialPostStatus
-    import json as _json
 
     proj = Project.load(project_path)
 
@@ -1282,7 +1281,7 @@ def cmd_plan_posts(project_path: str, args: list):
                 for p in sorted(proj.posts, key=lambda x: x.scheduled_time or "")
             ],
         }
-        print(_json.dumps(data, indent=2, ensure_ascii=False))
+        print(json.dumps(data, indent=2, ensure_ascii=False))
         return
 
     # Table format
