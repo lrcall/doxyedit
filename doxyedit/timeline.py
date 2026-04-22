@@ -142,10 +142,9 @@ class PostCard(QFrame):
         if time_str:
             tz_parts = [time_str]
             try:
-                from datetime import datetime as _dt
                 from zoneinfo import ZoneInfo
-                local_dt = _dt.fromisoformat(post.scheduled_time)
-                local_tz = _dt.now().astimezone().tzinfo
+                local_dt = datetime.fromisoformat(post.scheduled_time)
+                local_tz = datetime.now().astimezone().tzinfo
                 aware = local_dt.replace(tzinfo=local_tz)
                 for tz_name, tz_label in [("US/Eastern", "EST"), ("US/Pacific", "PST"), ("Asia/Tokyo", "JST")]:
                     conv = aware.astimezone(ZoneInfo(tz_name))
@@ -382,7 +381,6 @@ class PostCard(QFrame):
         layout.addWidget(buttons)
 
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            from datetime import datetime
             pid = plat_combo.currentData() or "all"
             metrics = {k: s.value() for k, s in spins.items()}
             metrics["last_checked"] = datetime.now().isoformat()
@@ -617,8 +615,7 @@ class TimelineStream(LazyRefreshMixin, QWidget):
 
         # Update engagement button badge (don't auto-show the popup)
         if self._project:
-            from datetime import datetime as _dt
-            now = _dt.now()
+            now = datetime.now()
             eng_count = 0
             for p in self._project.posts:
                 for cd in getattr(p, 'engagement_checks', []):
@@ -626,7 +623,7 @@ class TimelineStream(LazyRefreshMixin, QWidget):
                     if check.done:
                         continue
                     try:
-                        ct = _dt.fromisoformat(check.check_at)
+                        ct = datetime.fromisoformat(check.check_at)
                         if (ct - now).total_seconds() / 60 <= 60:
                             eng_count += 1
                     except Exception:
