@@ -6274,6 +6274,13 @@ class StudioEditor(QWidget):
                     self._sync_overlays_to_asset()
                     self.info_label.setText(f"Renamed to '{ov.label}'")
             return
+        # Ctrl+F - open Find and Replace across all text overlays. This
+        # was only reachable via the text-overlay right-click menu
+        # before, so it wasn't discoverable until you already had a
+        # text selected.
+        if ctrl and not shift and not alt and key == Qt.Key.Key_F:
+            self._find_replace_text()
+            return
         # Shift+F - fit view to the union bounding rect of the current
         # selection. Zoom-to-selection. If nothing's selected, no-op.
         if shift and not ctrl and key == Qt.Key.Key_F:
