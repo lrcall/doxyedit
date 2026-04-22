@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QCheckBox, QSizePolicy, QMenu, QComboBox,
 )
-from PySide6.QtCore import Qt, QSize, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Qt, QSize, Signal, QSettings, QRectF
+from PySide6.QtGui import QPixmap, QPainter, QPen, QColor
 
 from doxyedit.models import Project, Asset, PLATFORMS
 
@@ -30,8 +30,7 @@ class ImagePreviewPanel(QWidget):
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
         self.setObjectName("composer_preview_panel")
-        from PySide6.QtCore import QSettings as _QS
-        _f = _QS("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
         _cb = max(14, int(_f * 1.17))
         self._f = _f  # stash for methods
         self._project = project
@@ -423,8 +422,6 @@ class ImagePreviewPanel(QWidget):
         )
         # Draw crop/note overlays if asset has them
         if self._assets and (self._assets[0].crops or self._assets[0].notes):
-            from PySide6.QtGui import QPainter, QPen, QColor
-            from PySide6.QtCore import QRectF
             asset = self._assets[0]
             sx = scaled.width() / pm.width() if pm.width() else 1
             sy = scaled.height() / pm.height() if pm.height() else 1
