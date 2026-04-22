@@ -1241,9 +1241,8 @@ class OverlayShapeItem(QGraphicsItem):
                 painter.setPen(QPen(QColor(0, 0, 0), 1))
                 painter.setBrush(QBrush(QColor(220, 100, 200)))
                 # Diamond
-                from PySide6.QtGui import QPolygonF as _Poly
                 d = 5
-                painter.drawPolygon(_Poly([
+                painter.drawPolygon(QPolygonF([
                     QPointF(crh.x(), crh.y() - d),
                     QPointF(crh.x() + d, crh.y()),
                     QPointF(crh.x(), crh.y() + d),
@@ -5803,12 +5802,11 @@ class _StudioIcons:
     def select():
         def d(p, s):
             # Arrow pointer: 2-segment cursor silhouette
-            from PySide6.QtGui import QPolygonF as _Poly
             pts = [QPointF(4, 3), QPointF(4, s - 5),
                    QPointF(s // 2 - 1, s // 2 + 1),
                    QPointF(s - 5, s - 5)]
             p.setBrush(QBrush(QColor("#2a2a2a")))
-            p.drawPolygon(_Poly(pts))
+            p.drawPolygon(QPolygonF(pts))
         return _StudioIcons.make(d)
 
     @staticmethod
@@ -5860,13 +5858,12 @@ class _StudioIcons:
     @staticmethod
     def arrow():
         def d(p, s):
-            from PySide6.QtGui import QPolygonF as _Poly
             p.drawLine(3, s - 3, s - 5, 5)
             # Arrowhead
             pts = [QPointF(s - 3, 3), QPointF(s - 3, 9),
                    QPointF(s - 9, 3)]
             p.setBrush(QBrush(QColor("#2a2a2a")))
-            p.drawPolygon(_Poly(pts))
+            p.drawPolygon(QPolygonF(pts))
         return _StudioIcons.make(d)
 
     @staticmethod
@@ -5890,7 +5887,6 @@ class _StudioIcons:
     def undo():
         def d(p, s):
             # Curved arrow left
-            _Poly = QPolygonF
             path = QPainterPath()
             path.moveTo(s - 3, s // 2)
             path.arcTo(QRectF(3, 3, s - 6, s - 6), 0, 210)
@@ -5898,13 +5894,12 @@ class _StudioIcons:
             p.setBrush(QBrush(QColor("#2a2a2a")))
             pts = [QPointF(6, s - 6), QPointF(2, s - 3),
                    QPointF(6, s)]
-            p.drawPolygon(_Poly(pts))
+            p.drawPolygon(QPolygonF(pts))
         return _StudioIcons.make(d)
 
     @staticmethod
     def redo():
         def d(p, s):
-            _Poly = QPolygonF
             path = QPainterPath()
             path.moveTo(3, s // 2)
             path.arcTo(QRectF(3, 3, s - 6, s - 6), 180, 210)
@@ -5912,7 +5907,7 @@ class _StudioIcons:
             p.setBrush(QBrush(QColor("#2a2a2a")))
             pts = [QPointF(s - 6, s - 6), QPointF(s - 2, s - 3),
                    QPointF(s - 6, s)]
-            p.drawPolygon(_Poly(pts))
+            p.drawPolygon(QPolygonF(pts))
         return _StudioIcons.make(d)
 
     @staticmethod
@@ -5991,12 +5986,11 @@ class _StudioIcons:
     def flip():
         def d(p, s):
             p.drawLine(s // 2, 3, s // 2, s - 3)
-            from PySide6.QtGui import QPolygonF as _Poly
             p.setBrush(QBrush(QColor("#2a2a2a")))
-            p.drawPolygon(_Poly([
+            p.drawPolygon(QPolygonF([
                 QPointF(s // 2 - 2, 6), QPointF(4, s // 2),
                 QPointF(s // 2 - 2, s - 6)]))
-            p.drawPolygon(_Poly([
+            p.drawPolygon(QPolygonF([
                 QPointF(s // 2 + 2, 6), QPointF(s - 4, s // 2),
                 QPointF(s // 2 + 2, s - 6)]))
         return _StudioIcons.make(d)
@@ -6004,10 +5998,9 @@ class _StudioIcons:
     @staticmethod
     def export():
         def d(p, s):
-            from PySide6.QtGui import QPolygonF as _Poly
             p.drawLine(s // 2, 3, s // 2, s - 8)
             p.setBrush(QBrush(QColor("#2a2a2a")))
-            p.drawPolygon(_Poly([
+            p.drawPolygon(QPolygonF([
                 QPointF(s // 2 - 4, s - 12), QPointF(s // 2, s - 8),
                 QPointF(s // 2 + 4, s - 12)]))
             p.drawLine(3, s - 3, s - 3, s - 3)
