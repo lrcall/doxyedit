@@ -4431,8 +4431,11 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
         self._root_layout = QVBoxLayout(self)
         self._root_layout.setContentsMargins(8, 8, 8, 8)
         self._root_layout.setSpacing(6)
-        self.setMinimumWidth(300)
-        self.setMinimumHeight(360)
+        # Wider default so inline button rows (color swatch + Clear +
+        # Rand, or spinbox + 5 preset stroke widths) fit without the
+        # trailing buttons getting cropped to 'lea' / empty squares.
+        self.setMinimumWidth(400)
+        self.setMinimumHeight(440)
 
     def _save_geom(self):
         try:
@@ -4542,7 +4545,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 editor._add_recent_color(hex_c)
                 editor._sync_overlays_to_asset()
             stroke_btn.on_color_picked = _stroke
-            def _stroke_dialog(_it=item):
+            def _stroke_dialog(_checked=False, _it=item):
                 cur = QColor(_it.overlay.stroke_color or "#000000")
                 c = QColorDialog.getColor(cur, self, "Stroke color")
                 if c.isValid():
@@ -4566,7 +4569,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 editor._add_recent_color(hex_c)
                 editor._sync_overlays_to_asset()
             fill_btn.on_color_picked = _fill
-            def _fill_dialog(_it=item):
+            def _fill_dialog(_checked=False, _it=item):
                 cur = QColor(_it.overlay.fill_color or "#ffffff")
                 c = QColorDialog.getColor(cur, self, "Fill color",
                                           QColorDialog.ColorDialogOption.ShowAlphaChannel)
@@ -4575,8 +4578,8 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             fill_btn.clicked.connect(_fill_dialog)
             fill_row.addWidget(fill_btn)
             clear_btn = QPushButton("Clear")
-            clear_btn.setFixedWidth(50)
-            def _clear_fill(_it=item):
+            clear_btn.setMinimumWidth(56)
+            def _clear_fill(_checked=False, _it=item):
                 _it.overlay.fill_color = ""
                 _it.update()
                 editor._sync_overlays_to_asset()
@@ -4585,11 +4588,13 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             # Random pleasing color (uses HSL with mid brightness +
             # saturation so results don't go black / neon). Seeds the
             # color into fill, recent colors, and the swatch preview.
-            rand_btn = QPushButton("🎲")
-            rand_btn.setFixedWidth(34)
+            # Text label instead of dice glyph - the emoji rendered as
+            # a single letter on Windows default fonts.
+            rand_btn = QPushButton("Rand")
+            rand_btn.setMinimumWidth(56)
             rand_btn.setToolTip(
                 "Random pleasing color (HSL mid-brightness).")
-            def _rand_fill(_it=item):
+            def _rand_fill(_checked=False, _it=item):
                 import random as _rand
                 h = _rand.randint(0, 359)
                 s = _rand.randint(55, 95)
@@ -4621,11 +4626,15 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 editor._sync_overlays_to_asset()
             sw_spin.valueChanged.connect(_sw_changed)
             sw_row.addWidget(sw_spin)
+            # Preset width quick-pick buttons. Explicit minimum width
+            # so the digit stays legible on themes that expand the
+            # default button padding.
             for _w in (1, 2, 4, 8, 16):
                 pb = QPushButton(str(_w))
-                pb.setFixedWidth(26)
+                pb.setMinimumWidth(34)
+                pb.setMaximumWidth(42)
                 pb.setToolTip(f"Stroke {_w} px")
-                def _pick(v=_w):
+                def _pick(_checked=False, v=_w):
                     sw_spin.setValue(v)
                 pb.clicked.connect(_pick)
                 sw_row.addWidget(pb)
@@ -4666,7 +4675,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             reset_btn.setToolTip(
                 "Zero rotation / skew / flip + blend mode 'normal' on "
                 "the selected shape(s).")
-            def _reset_transform(_it=item):
+            def _reset_transform(_checked=False, _it=item):
                 sel_shapes = [x for x in editor._scene.selectedItems()
                               if isinstance(x, OverlayShapeItem)] or [_it]
                 for x in sel_shapes:
@@ -4692,7 +4701,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             save_default_btn.setToolTip(
                 "Current stroke / fill / width / line style become the "
                 "defaults for new shapes drawn with the Shape tool.")
-            def _save_default(_it=item):
+            def _save_default(_checked=False, _it=item):
                 from PySide6.QtCore import QSettings as _QS
                 qs = _QS("DoxyEdit", "DoxyEdit")
                 qs.setValue("studio_shape_stroke_color",
@@ -4779,7 +4788,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             swap_btn.setToolTip(
                 "Exchange the fill color with the stroke color. "
                 "Illustrator calls this 'X'.")
-            def _swap_fs(_it=item):
+            def _swap_fs(_checked=False, _it=item):
                 ov_s = _it.overlay
                 ov_s.fill_color, ov_s.stroke_color = (
                     ov_s.stroke_color, ov_s.fill_color)
@@ -4814,7 +4823,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 square_btn.setToolTip(
                     "Equalize width and height (using the larger of the "
                     "two), keeping the shape centered in place.")
-                def _make_square(_it=item):
+                def _make_square(_checked=False, _it=item):
                     ov_s = _it.overlay
                     side = max(int(ov_s.shape_w), int(ov_s.shape_h))
                     cx = ov_s.x + ov_s.shape_w / 2
@@ -4874,7 +4883,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 preset_row.addWidget(preset_combo, 1)
                 swap_btn = QPushButton("Swap")
                 swap_btn.setToolTip("Swap gradient start / end colors")
-                def _swap_grad(_it=item):
+                def _swap_grad(_checked=False, _it=item):
                     _it.overlay.gradient_start_color, \
                         _it.overlay.gradient_end_color = (
                             _it.overlay.gradient_end_color,
@@ -4989,7 +4998,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 reset_def_btn.setToolTip(
                     "Zero bubble roundness / oval / wobble / tail curve "
                     "back to their default values.")
-                def _reset_def(_it=item):
+                def _reset_def(_checked=False, _it=item):
                     ov_r = _it.overlay
                     ov_r.bubble_roundness = 0.0
                     ov_r.bubble_oval_stretch = 0.0
@@ -5270,7 +5279,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             reset_adj_btn = QPushButton("Reset Adjustments")
             reset_adj_btn.setToolTip(
                 "Zero brightness / contrast / saturation back to defaults.")
-            def _reset_adj(_it=item):
+            def _reset_adj(_checked=False, _it=item):
                 _it.overlay.img_brightness = 0.0
                 _it.overlay.img_contrast = 0.0
                 _it.overlay.img_saturation = 0.0
@@ -5289,7 +5298,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             img_save_btn.setToolTip(
                 "Current scale / opacity / filter / blend / adjustments "
                 "become the defaults for newly-dropped watermarks.")
-            def _img_save_default(_it=item):
+            def _img_save_default(_checked=False, _it=item):
                 if hasattr(editor, "_save_watermark_style_as_default"):
                     editor._save_watermark_style_as_default(_it.overlay)
                 elif hasattr(editor, "info_label"):
@@ -5325,7 +5334,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 editor._add_recent_color(hex_c)
                 editor._sync_overlays_to_asset()
             color_btn.on_color_picked = _arrow_color
-            def _arrow_color_dlg(_it=item):
+            def _arrow_color_dlg(_checked=False, _it=item):
                 cur = QColor(_it.overlay.color or "#000000")
                 c = QColorDialog.getColor(cur, self, "Arrow color")
                 if c.isValid():
@@ -5348,9 +5357,10 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             a_sw_row.addWidget(sw_spin)
             for _aw in (1, 2, 3, 5, 8):
                 apb = QPushButton(str(_aw))
-                apb.setFixedWidth(26)
+                apb.setMinimumWidth(34)
+                apb.setMaximumWidth(42)
                 apb.setToolTip(f"Line {_aw} px")
-                def _apick(v=_aw):
+                def _apick(_checked=False, v=_aw):
                     sw_spin.setValue(v)
                 apb.clicked.connect(_apick)
                 a_sw_row.addWidget(apb)
@@ -5403,7 +5413,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             flip_dir_btn.setToolTip(
                 "Swap arrow tail + tip endpoints so the arrow points "
                 "the other way without moving the overall line.")
-            def _flip_dir(_it=item):
+            def _flip_dir(_checked=False, _it=item):
                 ov_a = _it.overlay
                 ov_a.x, ov_a.end_x = ov_a.end_x, ov_a.x
                 ov_a.y, ov_a.end_y = ov_a.end_y, ov_a.y
@@ -5418,7 +5428,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 "Rotate the arrow to the nearest 15° increment while "
                 "keeping the tail anchored. Useful for lining up "
                 "diagrams and callouts.")
-            def _straighten(_it=item):
+            def _straighten(_checked=False, _it=item):
                 import math as _math
                 ov_a = _it.overlay
                 dx = ov_a.end_x - ov_a.x
