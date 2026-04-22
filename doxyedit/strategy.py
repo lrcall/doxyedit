@@ -13,10 +13,9 @@ from __future__ import annotations
 import subprocess
 from collections import Counter
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Optional
 
-from doxyedit.models import Asset, CollectionIdentity, Project, SocialPost, SocialPostStatus
+from doxyedit.models import Asset, Project, SocialPost, SocialPostStatus
 
 
 # ---------------------------------------------------------------------------
@@ -617,7 +616,6 @@ Skip sections that don't apply. No padding."""
 
 def _clean_ai_output(text: str) -> str:
     """Strip em dashes and common AI-speak from Claude's output."""
-    import re
     # Replace em dash (U+2014) and en dash (U+2013) with comma or hyphen
     text = text.replace("\u2014", ",")   # em dash -> comma
     text = text.replace("\u2013", "-")   # en dash -> hyphen

@@ -4,8 +4,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QFrame, QLineEdit, QCheckBox, QProgressBar,
     QSizePolicy,
 )
-from PySide6.QtCore import Qt, Signal, QSettings
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtCore import Signal
 from doxyedit.themes import ui_font_size
 from doxyedit.panel_mixin import LazyRefreshMixin
 

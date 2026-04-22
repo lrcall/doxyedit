@@ -9,12 +9,12 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QCheckBox, QSizePolicy, QScrollArea, QMenu, QComboBox,
+    QFrame, QCheckBox, QSizePolicy, QMenu, QComboBox,
 )
 from PySide6.QtCore import Qt, QSize, Signal
 from PySide6.QtGui import QPixmap
 
-from doxyedit.models import Project, SocialPost, Asset, PLATFORMS
+from doxyedit.models import Project, Asset, PLATFORMS
 
 
 PREVIEW_SIZE = 300
@@ -423,7 +423,7 @@ class ImagePreviewPanel(QWidget):
         )
         # Draw crop/note overlays if asset has them
         if self._assets and (self._assets[0].crops or self._assets[0].notes):
-            from PySide6.QtGui import QPainter, QPen, QColor, QFont as _QFont
+            from PySide6.QtGui import QPainter, QPen, QColor
             from PySide6.QtCore import QRectF
             asset = self._assets[0]
             sx = scaled.width() / pm.width() if pm.width() else 1
@@ -608,7 +608,6 @@ class ImagePreviewPanel(QWidget):
     def _generate_censored_preview(self, asset: Asset) -> QPixmap | None:
         """Apply censors to asset image and return as QPixmap."""
         try:
-            from PIL import Image
             from doxyedit.exporter import apply_censors
             from doxyedit.imaging import pil_to_qpixmap
 

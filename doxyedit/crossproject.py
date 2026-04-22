@@ -7,10 +7,9 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field
-from datetime import datetime, date
+from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
-from typing import Optional
 
 
 _REGISTRY_DIR = Path.home() / ".doxyedit"

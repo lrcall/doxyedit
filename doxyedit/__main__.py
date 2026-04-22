@@ -343,7 +343,7 @@ def cmd_search_advanced(path: str, tag: str = None, min_width: int = 0, aspect: 
 def cmd_extract_thumbs(path: str, size: int = 512, output: str = None):
     """Extract proxy thumbnails for all assets that don't have one yet."""
     from doxyedit.models import Project
-    from doxyedit.imaging import open_for_thumb, pil_to_qpixmap
+    from doxyedit.imaging import open_for_thumb
     from PIL import Image as PILImage
 
     proj = Project.load(path)
@@ -1563,7 +1563,6 @@ def cmd_transport(project_path: str, args: list):
                 merged_name = f"{d.name}_{child.name}"
                 merged = d.parent / merged_name
                 # Move child contents up into merged name
-                import shutil as _sh
                 child.rename(merged)
                 d.rmdir()  # now empty
                 compacted += 1
