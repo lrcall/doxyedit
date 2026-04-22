@@ -4063,7 +4063,15 @@ class _GuideLineItem(QGraphicsLineItem):
         self._editor = None
 
     def mouseDoubleClickEvent(self, event):
-        # Double-click removes the guide
+        # Double-click removes the guide, unless lock-guides is on.
+        from PySide6.QtCore import QSettings as _QS
+        if _QS("DoxyEdit", "DoxyEdit").value(
+                "studio_lock_guides", False, type=bool):
+            if self._editor and hasattr(self._editor, "info_label"):
+                self._editor.info_label.setText(
+                    "Guides locked (Studio Settings > View)")
+            event.accept()
+            return
         if self.scene() is not None:
             if self._editor and hasattr(self._editor, "_guide_items"):
                 if self in self._editor._guide_items:
@@ -11373,6 +11381,8 @@ class StudioEditor(QWidget):
         # duplicated toolbar controls actually reflect what's about to
         # be modified.
         self._sync_quickbar()
+        # Dim non-selected overlays if the setting is on.
+        self._apply_dim_nonselected()
         # Total selected (overlays + censors + crops + notes) for status bar
         all_sel = self._scene.selectedItems()
         total = len(all_sel)
@@ -12071,6 +12081,26 @@ class StudioEditor(QWidget):
         self._qp_outline.setSwatchColor(col)
         self._add_recent_color(col.name())
         self._sync_overlays_to_asset()
+
+    def _apply_dim_nonselected(self):
+        """Honor the 'dim non-selected overlays' view setting. When on,
+        every overlay / censor that isn't currently selected is rendered
+        at 40% opacity; selected items keep their stored opacity. Flips
+        back to full opacity when no selection exists or the setting is
+        off. Doesn't mutate CanvasOverlay.opacity - just the live
+        QGraphicsItem display opacity."""
+        from PySide6.QtCore import QSettings as _QS
+        enabled = _QS("DoxyEdit", "DoxyEdit").value(
+            "studio_dim_nonselected", False, type=bool)
+        sel = set(self._scene.selectedItems()) if self._scene else set()
+        has_sel = bool(sel)
+        for it in self._overlay_items + list(self._censor_items):
+            ov = getattr(it, "overlay", None)
+            base_op = getattr(ov, "opacity", 1.0) if ov is not None else 1.0
+            if enabled and has_sel and it not in sel:
+                it.setOpacity(base_op * 0.4)
+            else:
+                it.setOpacity(base_op)
 
     def _sync_quickbar(self):
         """Reflect the first selected overlay's state on the quickbar.
@@ -13591,6 +13621,24 @@ class StudioEditor(QWidget):
         props_cb.setChecked(qs.value(
             "studio_propsrow_visible", True, type=bool))
         view_form.addRow("", props_cb)
+
+        lock_guides_cb = QCheckBox("Lock guides (prevent drag + delete)")
+        lock_guides_cb.setChecked(qs.value(
+            "studio_lock_guides", False, type=bool))
+        lock_guides_cb.setToolTip(
+            "When locked, existing ruler guides stay put - no drag, "
+            "no double-click delete. Unlock to reposition.")
+        view_form.addRow("", lock_guides_cb)
+
+        dim_nonsel_cb = QCheckBox(
+            "Dim non-selected overlays when a selection is active")
+        dim_nonsel_cb.setChecked(qs.value(
+            "studio_dim_nonselected", False, type=bool))
+        dim_nonsel_cb.setToolTip(
+            "Fades every other overlay to 40% opacity while anything "
+            "is selected, so the selection visually pops. Doesn't "
+            "change stored overlay opacity.")
+        view_form.addRow("", dim_nonsel_cb)
         tabs.addTab(tab_view, "View")
 
         # ── Tab: Rendering ───────────────────────────────────────────
@@ -13804,6 +13852,16 @@ class StudioEditor(QWidget):
         qs.setValue("studio_minimap_visible", minimap_cb.isChecked())
         qs.setValue("studio_quickbar_visible", quickbar_cb.isChecked())
         qs.setValue("studio_propsrow_visible", props_cb.isChecked())
+        qs.setValue("studio_lock_guides", lock_guides_cb.isChecked())
+        qs.setValue("studio_dim_nonselected", dim_nonsel_cb.isChecked())
+        # Propagate guide lock to existing guide items immediately
+        for _g in getattr(self, "_guide_items", []):
+            _g.setFlag(
+                QGraphicsItem.GraphicsItemFlag.ItemIsMovable,
+                not lock_guides_cb.isChecked())
+        # Trigger dim-nonselected reflow if selection already exists
+        if hasattr(self, "_apply_dim_nonselected"):
+            self._apply_dim_nonselected()
         qs.setValue("studio_upscale_mode", upscale_combo.currentData())
         qs.setValue("studio_render_aa", aa_cb.isChecked())
         qs.setValue("studio_render_text_aa", text_aa_cb.isChecked())
