@@ -17,7 +17,9 @@ from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QSlider,
     QFontComboBox, QSpinBox, QColorDialog, QInputDialog, QMenu,
     QListWidget, QListWidgetItem, QSplitter, QScrollArea, QCheckBox,
-    QGridLayout, QApplication,
+    QGridLayout, QApplication, QFormLayout, QLineEdit, QDialog,
+    QDialogButtonBox, QTabWidget, QTextBrowser, QMessageBox,
+    QWidgetAction, QDoubleSpinBox, QPlainTextEdit,
 )
 from PySide6.QtCore import (
     Qt, QRectF, QPointF, QLineF, Signal, QSettings, QSize,
@@ -8800,7 +8802,6 @@ class StudioEditor(QWidget):
         # Re-shape _props_row's QHBoxLayout into a tall QFormLayout inside
         # the dialog so it reads as a column of labeled rows, not a wide
         # ribbon.
-        from PySide6.QtWidgets import QFormLayout
         # Use the _TextControlsDialog subclass for proper closeEvent /
         # hideEvent / moveEvent / resizeEvent handling — the previous
         # instance-level `dlg.closeEvent = fn` pattern didn't actually
@@ -9532,7 +9533,6 @@ class StudioEditor(QWidget):
         self._layer_props_widget = _layer_props
 
         # Layer search box — filters visible rows by label substring
-        from PySide6.QtWidgets import QLineEdit
         self._layer_filter = QLineEdit()
         self._layer_filter.setObjectName("studio_layer_filter")
         self._layer_filter.setPlaceholderText("Filter layers...")
@@ -11328,7 +11328,6 @@ class StudioEditor(QWidget):
         name = self.combo_text_style.currentText().strip()
         if not name:
             return
-        from PySide6.QtWidgets import QMessageBox
         if QMessageBox.question(
                 self, "Delete Text Style",
                 f"Delete style '{name}'?",
@@ -13393,7 +13392,6 @@ class StudioEditor(QWidget):
                         it.setSelected(True)
                 return
             if chosen is clear_all_act:
-                from PySide6.QtWidgets import QMessageBox
                 count = len(self._asset.overlays) + len(self._asset.censors) \
                     + len(self._asset.crops) + len(self._notes)
                 if count == 0:
@@ -13914,7 +13912,6 @@ class StudioEditor(QWidget):
         for it in self._scene.items():
             if getattr(it, "overlay", None) is ov:
                 def _apply_locked(item, v):
-                    from PySide6.QtWidgets import QGraphicsItem
                     item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, not bool(v))
                     item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, not bool(v))
                     if v:
@@ -14518,7 +14515,6 @@ class StudioEditor(QWidget):
             existing.raise_()
             existing.activateWindow()
             return
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser
         dlg = QDialog(self)
         self._shortcuts_dlg = dlg
         dlg.setWindowTitle("Studio Shortcuts")
@@ -15616,7 +15612,6 @@ class StudioEditor(QWidget):
                 slot_name = getattr(scoped[0], "slot_name", "") or scoped[0].label
 
         if not platform_id:
-            from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(
                 self, "Export Platform",
                 "No platform selected.\n\n"
