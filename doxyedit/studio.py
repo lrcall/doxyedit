@@ -11866,6 +11866,7 @@ class StudioEditor(QWidget):
             act_rename = prefix.addAction("Rename...")
             act_opacity = prefix.addAction("Opacity...")
             act_dup_n = prefix.addAction("Duplicate N times...")
+            act_zoom_to = prefix.addAction("Zoom to Layer")
             z_sub = prefix.addMenu("Arrange")
             act_to_front = z_sub.addAction("Bring to Front  (Ctrl+Shift+])")
             act_forward = z_sub.addAction("Bring Forward  (Ctrl+])")
@@ -11911,6 +11912,20 @@ class StudioEditor(QWidget):
                         scene_item.update()
                     self._sync_overlays_to_asset()
                     self._rebuild_layer_panel()
+                return
+            if chosen is act_zoom_to:
+                # Fit-in-view on this single layer's bounding rect so
+                # the user can eyeball detail work without fishing for
+                # the right zoom level.
+                bounds = scene_item.sceneBoundingRect()
+                bounds.adjust(-40, -40, 40, 40)
+                self._view.fitInView(bounds,
+                                      Qt.AspectRatioMode.KeepAspectRatio)
+                if hasattr(self, "_zoom_label"):
+                    self._zoom_label.setText(
+                        f"{int(self._view.transform().m11() * 100)}%")
+                if hasattr(self, "_canvas_wrap"):
+                    self._canvas_wrap.refresh()
                 return
             if chosen is act_dup_n:
                 n, ok = QInputDialog.getInt(
