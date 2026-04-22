@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidgetItem, QAbstractItemView, QMenu, QApplication,
-    QInputDialog, QSplitter,
+    QInputDialog, QSplitter, QSlider,
 )
 from PySide6.QtCore import (
     Qt, Signal, QSize, QSettings, QEvent, QTimer,
@@ -57,6 +57,12 @@ class WorkTray(QWidget):
         # T16 pin state (session-only, not persisted). Per tray so the
         # same asset can be pinned in one tray and loose in another.
         self._pinned: dict[str, set[str]] = {}
+        # T12 per-instance thumbnail size (was a module const). Slider
+        # in the header drives this; all add_asset / update_pixmap /
+        # view-mode paths read this instead of TRAY_ICON_SIZE.
+        self._icon_size = int(QSettings(
+            "DoxyEdit", "DoxyEdit").value("tray_icon_size", TRAY_ICON_SIZE,
+                                            type=int))
         self._build()
 
     def _build(self):
@@ -105,6 +111,20 @@ class WorkTray(QWidget):
         self._view_btn.clicked.connect(self._cycle_view_mode)
         self._view_mode = 0  # 0=list, 1=2col, 2=3col
         header.addWidget(self._view_btn)
+
+        # T12 zoom slider — direct control of thumbnail size; persists in
+        # QSettings. Double-click the slider to reset to the default.
+        self._zoom_slider = QSlider(Qt.Orientation.Horizontal)
+        self._zoom_slider.setObjectName("tray_zoom_slider")
+        self._zoom_slider.setRange(40, 200)
+        self._zoom_slider.setValue(self._icon_size)
+        self._zoom_slider.setFixedWidth(max(60, _f * 5))
+        self._zoom_slider.setToolTip(
+            "Thumbnail size (double-click to reset)")
+        self._zoom_slider.valueChanged.connect(self._on_zoom_changed)
+        self._zoom_slider.mouseDoubleClickEvent = (
+            lambda _e: self._zoom_slider.setValue(TRAY_ICON_SIZE))
+        header.addWidget(self._zoom_slider)
 
         self._clear_btn = QPushButton("Clear")
         self._clear_btn.setObjectName("tray_action_btn")
@@ -158,7 +178,7 @@ class WorkTray(QWidget):
         # List widget — shows thumbnails vertically
         self._list = DragOutListWidget()
         self._list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self._list.setIconSize(QSize(TRAY_ICON_SIZE, TRAY_ICON_SIZE))
+        self._list.setIconSize(QSize(self._icon_size, self._icon_size))
         self._list.setSpacing(max(2, _pad // 2))
         self._list.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
         self._list.setDragEnabled(True)
@@ -305,7 +325,7 @@ class WorkTray(QWidget):
         item.setData(NAME_ROLE, name)  # store name for mode switching
         item.setData(PATH_ROLE, path)  # store path for drag-out
         if pixmap and not pixmap.isNull():
-            scaled = pixmap.scaled(TRAY_ICON_SIZE, TRAY_ICON_SIZE, Qt.AspectRatioMode.KeepAspectRatio,
+            scaled = pixmap.scaled(self._icon_size, self._icon_size, Qt.AspectRatioMode.KeepAspectRatio,
                                    Qt.TransformationMode.SmoothTransformation)
             item.setIcon(QIcon(scaled))
             self._pixmaps[asset_id] = pixmap
@@ -940,6 +960,28 @@ class WorkTray(QWidget):
         if path:
             QApplication.clipboard().setText(path)
 
+    def _on_zoom_changed(self, value: int):
+        """Thumbnail zoom slider — rescale existing icons from cached
+        pixmaps, persist the preference, update the list widget's
+        icon-size hint for grid-mode layout."""
+        self._icon_size = max(40, min(200, value))
+        QSettings("DoxyEdit", "DoxyEdit").setValue(
+            "tray_icon_size", self._icon_size)
+        self._list.setIconSize(QSize(self._icon_size, self._icon_size))
+        # Recompose every item's icon from its source pixmap cache so
+        # the new size takes effect immediately.
+        for aid, pm in self._pixmaps.items():
+            row = self._id_to_row.get(aid)
+            if row is None or not pm or pm.isNull():
+                continue
+            scaled = pm.scaled(
+                self._icon_size, self._icon_size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            item = self._list.item(row)
+            if item:
+                item.setIcon(QIcon(scaled))
+
     def _cycle_view_mode(self):
         self._set_view_mode((self._view_mode + 1) % 3)
 
@@ -953,7 +995,7 @@ class WorkTray(QWidget):
             # List mode — full filename + icon
             self._view_btn.setText("\u2630")
             self._list.setViewMode(QListWidget.ViewMode.ListMode)
-            self._list.setIconSize(QSize(TRAY_ICON_SIZE, TRAY_ICON_SIZE))
+            self._list.setIconSize(QSize(self._icon_size, self._icon_size))
             self._list.setGridSize(QSize())  # auto
             self._list.setSpacing(max(2, _pad // 2))
             for i in range(self._list.count()):
@@ -1337,7 +1379,7 @@ class WorkTray(QWidget):
             return
         item = self._list.item(row)
         if item:
-            scaled = pixmap.scaled(TRAY_ICON_SIZE, TRAY_ICON_SIZE, Qt.AspectRatioMode.KeepAspectRatio,
+            scaled = pixmap.scaled(self._icon_size, self._icon_size, Qt.AspectRatioMode.KeepAspectRatio,
                                    Qt.TransformationMode.SmoothTransformation)
             item.setIcon(QIcon(scaled))
             self._pixmaps[asset_id] = pixmap
