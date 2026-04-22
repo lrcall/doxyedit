@@ -8340,7 +8340,6 @@ class StudioEditor(QWidget):
         self._qp_rot.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu)
         def _rot_ctx(pos, _w=self._qp_rot):
-            from PySide6.QtWidgets import QMenu
             m = _themed_menu(_w)
             for angle in (0, 15, 30, 45, 90, 180, 270, -15, -30, -45):
                 act = m.addAction(f"{angle}°")
@@ -8528,7 +8527,6 @@ class StudioEditor(QWidget):
         qp_arrange_btn.setObjectName("studio_qp_arrange")
         qp_arrange_btn.setToolTip("Z-order actions for the selection")
         def _show_arrange_menu():
-            from PySide6.QtWidgets import QMenu
             m = _themed_menu(qp_arrange_btn)
             a_front = m.addAction("Bring to Front  (Ctrl+Shift+])")
             a_forward = m.addAction("Bring Forward  (Ctrl+])")
@@ -15094,7 +15092,6 @@ class StudioEditor(QWidget):
 
     def _show_align_menu(self):
         """Dropdown from the Align toolbar button with alignment actions."""
-        from PySide6.QtWidgets import QMenu
         menu = _themed_menu(self)
         a_left = menu.addAction("Align Left")
         a_right = menu.addAction("Align Right")
