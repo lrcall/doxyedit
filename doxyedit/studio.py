@@ -4124,8 +4124,13 @@ class StudioView(QGraphicsView):
                         c = img.pixelColor(x_i, y_i)
                         color_txt = f"  {c.name()}"
                 editor._cursor_label.setText(f"{x_i}, {y_i}{color_txt}")
+            # Skip ruler cursor line update during drag — rulers repaint on
+            # every update_cursor call (tick math + text drawing per frame)
+            # and the cursor line is noise while the user is hauling an
+            # overlay around. Cheap and invisible during drag.
             if hasattr(self._studio_editor, "_canvas_wrap"):
-                self._studio_editor._canvas_wrap.update_cursor(sp)
+                if not is_dragging:
+                    self._studio_editor._canvas_wrap.update_cursor(sp)
         if self._fps_enabled:
             now = self._fps_time.perf_counter()
             # Rate-limit drag logs to ~20Hz so we don't flood the file
