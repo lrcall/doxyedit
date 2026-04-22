@@ -9773,9 +9773,54 @@ class StudioEditor(QWidget):
         contextMenuEvent so the user gets the same per-type menu as
         right-clicking on the canvas. Prepends layer-specific actions
         (Hide / Lock / Isolate / Rename / Opacity / Arrange) so both
-        feature sets are reachable from the same gesture."""
+        feature sets are reachable from the same gesture.
+
+        Right-click on EMPTY panel area -> Clear All Layers
+        (with confirmation) + a Select All bulk action."""
         list_item = self._layer_panel.itemAt(pos)
+        global_pos_empty = self._layer_panel.mapToGlobal(pos)
         if list_item is None:
+            empty_menu = _themed_menu(self._layer_panel)
+            sel_all_act = empty_menu.addAction("Select All Overlays")
+            empty_menu.addSeparator()
+            clear_all_act = empty_menu.addAction("Clear All Layers...")
+            chosen = empty_menu.exec(global_pos_empty)
+            if chosen is sel_all_act:
+                for it in self._overlay_items:
+                    if hasattr(it, "setSelected"):
+                        it.setSelected(True)
+                return
+            if chosen is clear_all_act:
+                from PySide6.QtWidgets import QMessageBox
+                count = len(self._asset.overlays) + len(self._asset.censors) \
+                    + len(self._asset.crops) + len(self._notes)
+                if count == 0:
+                    if hasattr(self, "info_label"):
+                        self.info_label.setText("Nothing to clear")
+                    return
+                resp = QMessageBox.warning(
+                    self, "Clear all layers",
+                    f"Delete ALL {count} layers (overlays, censors, crops, notes) "
+                    "from this asset?\nUndoable via Ctrl+Z.",
+                    QMessageBox.StandardButton.Yes
+                    | QMessageBox.StandardButton.Cancel,
+                    QMessageBox.StandardButton.Cancel)
+                if resp != QMessageBox.StandardButton.Yes:
+                    return
+                # Select everything then dispatch through the undoable
+                # delete path so Ctrl+Z still recovers.
+                self._scene.clearSelection()
+                for it in self._overlay_items:
+                    it.setSelected(True)
+                for it in self._censor_items:
+                    it.setSelected(True)
+                for it in self._crop_items:
+                    it.setSelected(True)
+                for it in self._notes:
+                    it.setSelected(True)
+                self._delete_selected()
+                if hasattr(self, "info_label"):
+                    self.info_label.setText(f"Cleared {count} layers")
             return
         data = list_item.data(Qt.ItemDataRole.UserRole)
         if not data:
