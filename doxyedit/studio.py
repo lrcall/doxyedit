@@ -4203,6 +4203,10 @@ class StudioEditor(QWidget):
         if ctrl and not shift and key == Qt.Key.Key_Semicolon:
             self._toggle_guides_visibility()
             return
+        # Ctrl+/ opens the Studio keyboard cheat sheet.
+        if ctrl and key == Qt.Key.Key_Slash:
+            self._show_shortcuts_cheat_sheet()
+            return
         # Ctrl+Alt+C / Ctrl+Alt+V - copy / paste overlay style. Per-type
         # slot so a text style pasted onto a text overlay works, but a
         # shape style won't silently paste onto a text (different fields).
@@ -8414,6 +8418,96 @@ class StudioEditor(QWidget):
                 continue
             label = item.text().lower()
             item.setHidden(bool(needle) and needle not in label)
+
+    def _show_shortcuts_cheat_sheet(self):
+        """Modal popup listing the Studio keyboard shortcuts. Grouped by
+        task so users can scan it, not read it. Opened via Ctrl+/."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Studio Shortcuts")
+        dlg.resize(640, 640)
+        layout = QVBoxLayout(dlg)
+        view = QTextBrowser(dlg)
+        view.setOpenExternalLinks(False)
+        view.setStyleSheet("QTextBrowser { padding: 12px; }")
+        view.setHtml(
+            "<h2>Studio Keyboard Shortcuts</h2>"
+            "<h3>Tools</h3>"
+            "<table cellspacing=6>"
+            "<tr><td><b>Q / V</b></td><td>Select</td></tr>"
+            "<tr><td><b>T</b></td><td>Text tool</td></tr>"
+            "<tr><td><b>X</b></td><td>Censor</td></tr>"
+            "<tr><td><b>C</b></td><td>Crop</td></tr>"
+            "<tr><td><b>N</b></td><td>Note</td></tr>"
+            "<tr><td><b>E</b></td><td>Watermark / logo</td></tr>"
+            "<tr><td><b>A</b></td><td>Arrow</td></tr>"
+            "<tr><td><b>I</b></td><td>Eyedropper</td></tr>"
+            "<tr><td><b>B</b></td><td>Quick bubble (+ edit)</td></tr>"
+            "</table>"
+            "<h3>View</h3>"
+            "<table cellspacing=6>"
+            "<tr><td><b>Ctrl+0</b></td><td>Fit view</td></tr>"
+            "<tr><td><b>Ctrl+1</b></td><td>100%</td></tr>"
+            "<tr><td><b>Ctrl+=</b> / <b>Ctrl+-</b></td><td>Zoom in / out</td></tr>"
+            "<tr><td><b>Space</b> (hold)</td><td>Pan</td></tr>"
+            "<tr><td><b>F</b></td><td>Fit view</td></tr>"
+            "<tr><td><b>M</b></td><td>Toggle minimap</td></tr>"
+            "<tr><td><b>Ctrl+;</b></td><td>Hide / show guides</td></tr>"
+            "<tr><td><b>F12</b></td><td>Toggle snap</td></tr>"
+            "</table>"
+            "<h3>Edit</h3>"
+            "<table cellspacing=6>"
+            "<tr><td><b>Ctrl+Z</b> / <b>Ctrl+Y</b></td><td>Undo / redo</td></tr>"
+            "<tr><td><b>Ctrl+D</b> / <b>Ctrl+J</b></td><td>Duplicate selected</td></tr>"
+            "<tr><td><b>Ctrl+C</b></td><td>Copy selected overlay(s)</td></tr>"
+            "<tr><td><b>Ctrl+V</b></td><td>Paste at cursor</td></tr>"
+            "<tr><td><b>Ctrl+Alt+C</b> / <b>Ctrl+Alt+V</b></td>"
+            "<td>Copy / paste style</td></tr>"
+            "<tr><td><b>Ctrl+Alt+T</b></td><td>Transform dialog (X/Y/W/H)</td></tr>"
+            "<tr><td><b>Ctrl+Alt+S</b></td><td>Scale by %</td></tr>"
+            "<tr><td><b>Ctrl+R</b> / <b>Ctrl+Shift+R</b></td>"
+            "<td>Rotate 1° CW / CCW</td></tr>"
+            "<tr><td><b>R</b></td><td>Rotate 90°</td></tr>"
+            "<tr><td><b>Del / Backspace</b></td><td>Delete selected</td></tr>"
+            "<tr><td><b>Arrow keys</b></td><td>Nudge 1px</td></tr>"
+            "<tr><td><b>Shift + Arrow</b></td><td>Nudge 10px</td></tr>"
+            "<tr><td><b>Shift+Ctrl + Arrow</b></td><td>Nudge 100px</td></tr>"
+            "<tr><td><b>0-9</b></td><td>Set opacity 100% / 10% / ... / 90%</td></tr>"
+            "</table>"
+            "<h3>Align</h3>"
+            "<table cellspacing=6>"
+            "<tr><td><b>Alt+Shift+L/R/C</b></td>"
+            "<td>Align left / right / horizontal center</td></tr>"
+            "<tr><td><b>Alt+Shift+T/B/M</b></td>"
+            "<td>Align top / bottom / vertical middle</td></tr>"
+            "<tr><td><b>Alt+Shift+H/V</b></td>"
+            "<td>Distribute horizontally / vertically (3+)</td></tr>"
+            "</table>"
+            "<h3>Text (inside edit mode)</h3>"
+            "<table cellspacing=6>"
+            "<tr><td><b>Ctrl+Shift+L / R / E</b></td>"
+            "<td>Align left / right / center</td></tr>"
+            "<tr><td><b>Esc</b></td><td>Commit + exit edit mode</td></tr>"
+            "</table>"
+            "<h3>Arrange</h3>"
+            "<table cellspacing=6>"
+            "<tr><td><b>Ctrl+]</b> / <b>Ctrl+[</b></td>"
+            "<td>Bring forward / send backward</td></tr>"
+            "<tr><td><b>Ctrl+Shift+]</b> / <b>Ctrl+Shift+[</b></td>"
+            "<td>Bring to front / send to back</td></tr>"
+            "<tr><td><b>Ctrl+L</b></td><td>Lock / unlock</td></tr>"
+            "<tr><td><b>H</b></td><td>Toggle overlay visibility</td></tr>"
+            "</table>"
+        )
+        layout.addWidget(view)
+        win = self.window()
+        if win is not None:
+            dlg.setStyleSheet(win.styleSheet())
+            if hasattr(win, "_theme_dialog_titlebar"):
+                dlg.show()
+                win._theme_dialog_titlebar(dlg)
+                return
+        dlg.exec()
 
     def _open_transform_dialog(self):
         """Modal dialog with X / Y / W / H / Rotation for the first
