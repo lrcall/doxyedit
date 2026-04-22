@@ -6627,6 +6627,7 @@ class StudioEditor(QWidget):
         mods = event.modifiers()
         ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
         shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
+        alt = bool(mods & Qt.KeyboardModifier.AltModifier)
 
         # Spacebar — temporary hand/pan tool (Photoshop convention)
         if key == Qt.Key.Key_Space and not ctrl and not shift and not event.isAutoRepeat():
