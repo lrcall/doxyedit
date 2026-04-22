@@ -826,10 +826,9 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         QShortcut(QKeySequence("Ctrl+Shift+C"), self).activated.connect(self._copy_full_path)
         # Shift+E notes overlay
         QShortcut(QKeySequence("Shift+E"), self).activated.connect(self._show_notes_overlay)
-        # F1-F6 = jump to main tab (Assets / Studio / Social / Platforms / Overview / Notes)
+        # F1-F6 = jump to main tab (F2 is free for Rename — Studio uses S).
         self._fkey_tab_map = [
             (Qt.Key.Key_F1, self._browse_split),
-            (Qt.Key.Key_F2, self.studio),
             (Qt.Key.Key_F3, self._social_split),
             (Qt.Key.Key_F4, self._plat_full),
             (Qt.Key.Key_F5, self._overview_split),
@@ -838,6 +837,10 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         for fkey, target in self._fkey_tab_map:
             QShortcut(QKeySequence(fkey), self).activated.connect(
                 lambda t=target: self.tabs.setCurrentWidget(t))
+        # S = jump to Studio tab. Single-letter, so WindowShortcut context
+        # keeps it dormant when a text input has focus.
+        QShortcut(QKeySequence("S"), self).activated.connect(
+            lambda: self.tabs.setCurrentWidget(self.studio))
 
         # --- Status bar with progress ---
         self.status = QStatusBar()
@@ -2229,7 +2232,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         edit_menu.addAction("Select &None", self._select_none).setShortcut(QKeySequence("Ctrl+Shift+D"))
         edit_menu.addAction("&Invert Selection", self._invert_selection)
         edit_menu.addSeparator()
-        edit_menu.addAction("&Rename File on Disk", self._rename_selected).setShortcut(QKeySequence("Shift+F2"))
+        edit_menu.addAction("&Rename File on Disk", self._rename_selected).setShortcut(QKeySequence("F2"))
         edit_menu.addAction("&Delete Selected (Ignore)", self._handle_delete).setShortcut(QKeySequence("Delete"))
         edit_menu.addAction("&Remove from Project", self._remove_selected)
         edit_menu.addSeparator()
@@ -6127,12 +6130,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # Context-specific shortcuts not registered as QActions on the menubar
         extras = [
             ("F1", "Jump to Assets tab"),
-            ("F2", "Jump to Studio tab"),
+            ("S", "Jump to Studio tab"),
             ("F3", "Jump to Social tab"),
             ("F4", "Jump to Platforms tab"),
             ("F5", "Jump to Overview tab"),
             ("F6", "Jump to Notes tab"),
-            ("Shift+F2", "Rename file on disk"),
+            ("F2", "Rename file on disk"),
             ("Ctrl+Scroll", "Zoom thumbnails"),
             ("Ctrl+Click tag", "Search by tag"),
             ("Studio - Q", "Select tool"),
