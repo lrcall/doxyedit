@@ -1517,6 +1517,7 @@ class OverlayArrowItem(QGraphicsItem):
 
     def mousePressEvent(self, event):
         # Endpoint drag overrides body drag
+        self._drag_prev_value = QPointF(0, 0)
         ep = self._endpoint_under(event.scenePos())
         if ep and self.isSelected():
             self._dragging_endpoint = ep
@@ -1542,6 +1543,7 @@ class OverlayArrowItem(QGraphicsItem):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
+        self._drag_prev_value = QPointF(0, 0)
         if self._dragging_endpoint:
             self._dragging_endpoint = None
             # Restore ItemIsMovable and sync to the model
@@ -1550,20 +1552,27 @@ class OverlayArrowItem(QGraphicsItem):
                 self._editor._sync_overlays_to_asset()
             event.accept()
             return
+        if self._editor:
+            self._editor._sync_overlays_to_asset()
         super().mouseReleaseEvent(event)
 
     def itemChange(self, change, value):
-        if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            # When the whole arrow is dragged, move both endpoints.
-            pos = self.pos()
-            if pos != QPointF(0, 0):
-                dx, dy = int(pos.x()), int(pos.y())
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
+            # Same fix as OverlayShapeItem: refuse Qt's position change
+            # and apply only the incremental delta to overlay endpoints,
+            # so repeated ItemPositionChange deliveries during a single
+            # drag don't multiply the motion (cumulative pressPos bug).
+            prev = getattr(self, "_drag_prev_value", QPointF(0, 0))
+            dx = int(value.x() - prev.x())
+            dy = int(value.y() - prev.y())
+            if dx or dy:
                 self.overlay.x += dx
                 self.overlay.y += dy
                 self.overlay.end_x += dx
                 self.overlay.end_y += dy
-                self.setPos(0, 0)
                 self.prepareGeometryChange()
+            self._drag_prev_value = value
+            return QPointF(0, 0)
         return super().itemChange(change, value)
 
     def contextMenuEvent(self, event):
