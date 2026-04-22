@@ -151,11 +151,17 @@ class WorkTray(QWidget):
         layout.setSpacing(_pad)
         outer.addWidget(self._content)
 
-        # Header
+        # Header — title and count label share a "Tray Options" right-click
         header = QHBoxLayout()
-        title = QLabel("Work Tray")
-        f = title.font(); f.setBold(True); title.setFont(f)
-        header.addWidget(title)
+        self._title_label = QLabel("Work Tray")
+        f = self._title_label.font(); f.setBold(True); self._title_label.setFont(f)
+        self._title_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._title_label.setToolTip("Right-click for tray options")
+        self._title_label.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self._title_label.customContextMenuRequested.connect(
+            lambda pos, w=self._title_label: self._header_menu(w, pos))
+        header.addWidget(self._title_label)
         header.addStretch()
 
         self._view_btn = QPushButton("\u2630")  # ☰ hamburger
@@ -204,9 +210,15 @@ class WorkTray(QWidget):
         self._tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tab_bar.customContextMenuRequested.connect(self._tab_context_menu)
 
-        # Count
+        # Count — also a right-click handle for Tray Options
         self._count_label = QLabel("0 items")
         self._count_label.setObjectName("tray_count")
+        self._count_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._count_label.setToolTip("Right-click for tray options")
+        self._count_label.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self._count_label.customContextMenuRequested.connect(
+            lambda pos, w=self._count_label: self._header_menu(w, pos))
         layout.addWidget(self._count_label)
 
         # List widget — shows thumbnails vertically
@@ -492,8 +504,33 @@ class WorkTray(QWidget):
 
     def _empty_area_menu(self, pos):
         """Right-click on the empty list area — tray-wide actions."""
+        menu = self._build_tray_options_menu(include_view=False)
+        menu.exec(self._list.viewport().mapToGlobal(pos))
+
+    def _header_menu(self, anchor_widget, pos):
+        """Right-click on the header title or count label — same options
+        plus a View submenu."""
+        menu = self._build_tray_options_menu(include_view=True)
+        menu.exec(anchor_widget.mapToGlobal(pos))
+
+    def _build_tray_options_menu(self, include_view: bool) -> QMenu:
+        """Shared Tray Options menu body. include_view adds a View submenu
+        at the top (used for the header right-click where the hamburger
+        button is not in reach)."""
         menu = QMenu(self)
         n = self._list.count()
+        if include_view:
+            view_menu = menu.addMenu("View")
+            labels = [("List (with names)", 0),
+                       ("2 Columns", 1),
+                       ("3 Columns", 2)]
+            for label, mode in labels:
+                act = view_menu.addAction(label)
+                act.setCheckable(True)
+                act.setChecked(self._view_mode == mode)
+                act.triggered.connect(
+                    lambda _c=False, m=mode: self._set_view_mode(m))
+            menu.addSeparator()
         menu.addAction("Paste Path from Clipboard", self._paste_path_from_clipboard)
         menu.addAction("Import Folder...", self._import_folder)
         menu.addSeparator()
@@ -514,10 +551,9 @@ class WorkTray(QWidget):
             menu.addSeparator()
             menu.addAction(f"Clear Tray ({n})", self.clear)
         else:
-            # empty state — gentle hint
             act = menu.addAction("(empty - drop files or paste a path above)")
             act.setEnabled(False)
-        menu.exec(self._list.viewport().mapToGlobal(pos))
+        return menu
 
     def _paste_path_from_clipboard(self):
         """Take whatever is on the clipboard, treat each line as a path,
@@ -689,9 +725,14 @@ class WorkTray(QWidget):
             QApplication.clipboard().setText(path)
 
     def _cycle_view_mode(self):
+        self._set_view_mode((self._view_mode + 1) % 3)
+
+    def _set_view_mode(self, mode: int):
+        """Jump directly to a view mode (0=list, 1=2col, 2=3col) without
+        cycling. Header right-click uses this."""
         _f = ui_font_size()
         _pad = max(4, _f // 3)
-        self._view_mode = (self._view_mode + 1) % 3
+        self._view_mode = mode % 3
         if self._view_mode == 0:
             # List mode — full filename + icon
             self._view_btn.setText("\u2630")
