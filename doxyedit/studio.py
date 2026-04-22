@@ -4666,6 +4666,12 @@ class StudioEditor(QWidget):
                 # immediately enter edit mode. Comic workflow shortcut.
                 self._quick_add_bubble()
                 return
+            if key == Qt.Key.Key_K:
+                # Quick burst ('Kaboom' / shout) at the cursor. Bursts
+                # are decorative so no paired text is auto-created; the
+                # user can still add one with T afterwards.
+                self._quick_add_bubble(kind="burst")
+                return
             if key == Qt.Key.Key_N:
                 self._set_tool(StudioTool.NOTE)
                 return
