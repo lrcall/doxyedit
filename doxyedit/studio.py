@@ -3030,7 +3030,13 @@ class _StudioIcons:
 
     @staticmethod
     def _fg() -> str:
-        return THEMES[DEFAULT_THEME].studio_icon_fg
+        # Read the active theme (not DEFAULT_THEME) so sidebar tool icons
+        # contrast against whatever backdrop the user has picked. For
+        # light themes (Candy, Dawn, Gold, ...) this resolves to a dark
+        # ink; for dark themes (Soot, Midnight, ...) a light ink.
+        tid = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
+        theme = THEMES.get(tid, THEMES[DEFAULT_THEME])
+        return theme.text_primary
 
     @staticmethod
     def _pen(color_hex: str | None = None, w: float = 1.6) -> QPen:
