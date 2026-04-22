@@ -7495,7 +7495,7 @@ class StudioEditor(QWidget):
         # studio_text_defaults so new text overlays inherit them.
         _td_row = QHBoxLayout()
         _td_row.setContentsMargins(0, 0, 0, 0)
-        _save_def_btn = QPushButton("Save as Default Text Style")
+        _save_def_btn = QPushButton("Save as Default")
         _save_def_btn.setObjectName("studio_save_text_default_btn")
         _save_def_btn.setToolTip(
             "Persist the selected text overlay's style as the "
@@ -7511,6 +7511,37 @@ class StudioEditor(QWidget):
             self._save_text_style_as_default(sel[0].overlay)
         _save_def_btn.clicked.connect(_save_text_default)
         _td_row.addWidget(_save_def_btn)
+
+        # Apply the saved default to the current selection.
+        _apply_def_btn = QPushButton("Apply Default")
+        _apply_def_btn.setObjectName("studio_apply_text_default_btn")
+        _apply_def_btn.setToolTip(
+            "Apply the saved default text style to every "
+            "selected text overlay.")
+        def _apply_text_default():
+            defaults = self._load_text_style_defaults()
+            if not defaults:
+                self.info_label.setText("No default text style saved yet")
+                return
+            sel = [it for it in self._scene.selectedItems()
+                   if isinstance(it, OverlayTextItem)]
+            if not sel:
+                self.info_label.setText("Select text overlays to apply to")
+                return
+            for it in sel:
+                for k, v in defaults.items():
+                    if k == "text_width":
+                        continue
+                    setattr(it.overlay, k, v)
+                if hasattr(it, "_apply_font"):
+                    it._apply_font()
+                it.update()
+            self._sync_overlays_to_asset()
+            self.info_label.setText(
+                f"Applied default to {len(sel)} text overlay(s)")
+        _apply_def_btn.clicked.connect(_apply_text_default)
+        _td_row.addWidget(_apply_def_btn)
+
         _td_row.addStretch()
         _td_w = QWidget(_dlg)
         _td_w.setLayout(_td_row)
