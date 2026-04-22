@@ -8675,11 +8675,44 @@ class StudioEditor(QWidget):
         self.info_label.setText("Reset default watermark style")
 
     def _refresh_overlay_image(self, item):
-        """Reload the pixmap for an image overlay and re-apply filter_mode."""
+        """Reload+reapply pipeline for an image overlay. Debounced because
+        brightness / contrast / saturation sliders call this on every
+        tick, and the pipeline (disk read + smooth scale + PIL enhance)
+        is 50-200ms per call.
+
+        Slider ticks at 60 Hz would otherwise pile 60+ invocations per
+        second onto the main thread. Coalesce to one call per 80ms of
+        quiet, keyed by the item. The timer re-fires on each call — only
+        the most recent invocation wins.
+        """
+        if not hasattr(self, "_overlay_refresh_timer"):
+            self._overlay_refresh_timer = QTimer(self)
+            self._overlay_refresh_timer.setSingleShot(True)
+            self._overlay_refresh_timer.setInterval(80)
+            self._overlay_refresh_pending = set()
+            def _flush():
+                pending = list(self._overlay_refresh_pending)
+                self._overlay_refresh_pending.clear()
+                for it in pending:
+                    try:
+                        self._refresh_overlay_image_now(it)
+                    except Exception:
+                        pass
+            self._overlay_refresh_timer.timeout.connect(_flush)
+        self._overlay_refresh_pending.add(item)
+        self._overlay_refresh_timer.start()
+
+    def _refresh_overlay_image_now(self, item):
+        """Immediate synchronous version (called by the debounce timer)."""
         ov = item.overlay
         if not ov.image_path:
             return
-        src = QPixmap(ov.image_path)
+        # Cache the source pixmap on the item — prior code did
+        # QPixmap(path) (disk read + decode) on every slider tick.
+        src = getattr(item, "_source_pixmap", None)
+        if src is None or src.isNull():
+            src = QPixmap(ov.image_path)
+            item._source_pixmap = src
         if src.isNull():
             return
         # Re-scale
