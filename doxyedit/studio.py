@@ -1649,12 +1649,22 @@ class _StudioRuler(QWidget):
         self._orientation = orientation  # 'h' or 'v'
         self._theme = theme
         self._cursor_scene = 0.0  # updated from view mouseMove for marker
+        # Unit cached to avoid QSettings file-read per paint. Refresh via
+        # reload_unit() from the places that change the unit (right-click
+        # ruler menu, Studio Settings dialog).
+        self._unit = QSettings("DoxyEdit", "DoxyEdit").value(
+            "studio_ruler_unit", "px", type=str)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         # Drag-to-create guide state (editor owns the pending line item)
         self._drag_guide = False
         # Cursor hint on hover
         self.setCursor(Qt.CursorShape.SplitHCursor if orientation == 'h'
                         else Qt.CursorShape.SplitVCursor)
+
+    def reload_unit(self):
+        self._unit = QSettings("DoxyEdit", "DoxyEdit").value(
+            "studio_ruler_unit", "px", type=str)
+        self.update()
 
     def mousePressEvent(self, event):
         if event.button() != Qt.MouseButton.LeftButton:
@@ -1712,9 +1722,12 @@ class _StudioRuler(QWidget):
             new_u = ("px" if chosen is unit_px
                      else "mm" if chosen is unit_mm else "in")
             qs.setValue("studio_ruler_unit", new_u)
-            # Nudge both rulers if we can reach them through the editor
+            # Refresh the unit cache on both rulers
             if editor and hasattr(editor, "_canvas_wrap"):
+                editor._canvas_wrap._h_ruler.reload_unit()
+                editor._canvas_wrap._v_ruler.reload_unit()
                 editor._canvas_wrap.refresh()
+            self._unit = new_u
             self.update()
             if hasattr(editor, "info_label"):
                 editor.info_label.setText(f"Ruler units: {new_u}")
@@ -1792,8 +1805,7 @@ class _StudioRuler(QWidget):
         # Unit conversion: 96 DPI canonical — 1 in = 96 px, 1 mm = 96 /
         # 25.4 ≈ 3.7795 px. The tick values are rendered in the chosen
         # unit but the screen-pixel math still uses the raw px delta.
-        _unit = QSettings("DoxyEdit", "DoxyEdit").value(
-            "studio_ruler_unit", "px", type=str)
+        _unit = self._unit
         if _unit == "mm":
             unit_per_px = 25.4 / 96.0  # mm per px at 96 DPI
             unit_suffix = ""
@@ -12172,6 +12184,9 @@ class StudioEditor(QWidget):
         qs.setValue("studio_grid_spacing_pct", grid_pct_spin.value())
         qs.setValue("studio_rulers_visible", rulers_cb.isChecked())
         qs.setValue("studio_ruler_unit", ruler_unit_combo.currentData())
+        if hasattr(self, "_canvas_wrap"):
+            self._canvas_wrap._h_ruler.reload_unit()
+            self._canvas_wrap._v_ruler.reload_unit()
         qs.setValue("studio_thirds_visible", thirds_cb.isChecked())
         qs.setValue("studio_notes_visible", notes_cb.isChecked())
         qs.setValue("studio_minimap_visible", minimap_cb.isChecked())
