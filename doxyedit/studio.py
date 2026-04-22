@@ -4517,6 +4517,26 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     _mk_slider("bubble_wobble", 0.0, 1.0))
                 deform_form.addRow("Tail curve",
                     _mk_slider("tail_curve", -1.0, 1.0))
+                reset_def_btn = QPushButton("Reset Deformers")
+                reset_def_btn.setToolTip(
+                    "Zero bubble roundness / oval / wobble / tail curve "
+                    "back to their default values.")
+                def _reset_def(_it=item):
+                    ov_r = _it.overlay
+                    ov_r.bubble_roundness = 0.0
+                    ov_r.bubble_oval_stretch = 0.0
+                    ov_r.bubble_wobble = 0.0
+                    ov_r.tail_curve = 0.0
+                    _it.prepareGeometryChange()
+                    _it.update()
+                    editor._sync_overlays_to_asset()
+                    # Rebuild so the slider positions reset too
+                    if hasattr(editor, "_shape_controls_dlg"):
+                        editor._shape_controls_dlg.rebuild_for(_it)
+                    if hasattr(editor, "info_label"):
+                        editor.info_label.setText("Bubble deformers reset")
+                reset_def_btn.clicked.connect(_reset_def)
+                deform_form.addRow("", reset_def_btn)
                 deform_wrap = _QW()
                 deform_wrap.setLayout(deform_form)
                 self._root_layout.addWidget(deform_wrap)
@@ -4778,6 +4798,23 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             form.addRow("Brightness", _mk_adjust("img_brightness", "Brightness"))
             form.addRow("Contrast", _mk_adjust("img_contrast", "Contrast"))
             form.addRow("Saturation", _mk_adjust("img_saturation", "Saturation"))
+            # Reset all three adjustments quickly.
+            reset_adj_btn = QPushButton("Reset Adjustments")
+            reset_adj_btn.setToolTip(
+                "Zero brightness / contrast / saturation back to defaults.")
+            def _reset_adj(_it=item):
+                _it.overlay.img_brightness = 0.0
+                _it.overlay.img_contrast = 0.0
+                _it.overlay.img_saturation = 0.0
+                if hasattr(editor, "_refresh_overlay_image"):
+                    editor._refresh_overlay_image(_it)
+                editor._sync_overlays_to_asset()
+                if hasattr(editor, "_shape_controls_dlg"):
+                    editor._shape_controls_dlg.rebuild_for(_it)
+                if hasattr(editor, "info_label"):
+                    editor.info_label.setText("Image adjustments reset")
+            reset_adj_btn.clicked.connect(_reset_adj)
+            form.addRow("", reset_adj_btn)
 
             # Save-as-default row for watermark/image overlays.
             img_save_btn = QPushButton("Save as default watermark style")
@@ -7514,7 +7551,35 @@ class StudioEditor(QWidget):
         _col_row.addWidget(self.btn_outline_color)
         _col_row.addStretch()
         _dlg_layout.addRow("Colors", _col_widget)
-        _dlg_layout.addRow("Outline", self.slider_outline)
+        # Outline row: slider + Clear button
+        _ol_row = QHBoxLayout()
+        _ol_row.setContentsMargins(0, 0, 0, 0)
+        _ol_row.addWidget(self.slider_outline, 1)
+        _ol_clear_btn = QPushButton("Clr")
+        _ol_clear_btn.setFixedWidth(36)
+        _ol_clear_btn.setToolTip("Clear text outline (stroke color + width)")
+        def _clear_outline():
+            sel = [it for it in self._scene.selectedItems()
+                   if isinstance(it, OverlayTextItem)]
+            if not sel:
+                return
+            for it in sel:
+                it.overlay.stroke_color = ""
+                it.overlay.stroke_width = 0
+                if hasattr(it, "_apply_font"):
+                    it._apply_font()
+                it.update()
+            if hasattr(self, "slider_outline"):
+                self.slider_outline.blockSignals(True)
+                self.slider_outline.setValue(0)
+                self.slider_outline.blockSignals(False)
+            self._sync_overlays_to_asset()
+            self.info_label.setText("Text outline cleared")
+        _ol_clear_btn.clicked.connect(_clear_outline)
+        _ol_row.addWidget(_ol_clear_btn)
+        _ol_w = QWidget(_dlg)
+        _ol_w.setLayout(_ol_row)
+        _dlg_layout.addRow("Outline", _ol_w)
         _dlg_layout.addRow("Kerning", self.slider_kerning)
         _dlg_layout.addRow("Line Height", self.slider_line_height)
         _dlg_layout.addRow("Rotation", self.slider_rotation)
