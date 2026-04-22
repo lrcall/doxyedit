@@ -4018,6 +4018,17 @@ class StudioView(QGraphicsView):
         self.on_file_dropped = None  # callback(path, scene_pos)
 
     def wheelEvent(self, event: QWheelEvent):
+        # Shift+wheel pans horizontally instead of zooming. Common
+        # accessibility affordance for trackpads / vertical-only mice.
+        if (event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+                and not event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            sb = self.horizontalScrollBar()
+            step = sb.singleStep() * 5 if sb.singleStep() else 40
+            if event.angleDelta().y() > 0 or event.angleDelta().x() > 0:
+                sb.setValue(sb.value() - step)
+            else:
+                sb.setValue(sb.value() + step)
+            return
         # Alt+wheel rotates the currently-selected overlays by 5° steps
         # (Photoshop uses Alt for precise controls; this repurposes it).
         editor = self._studio_editor
