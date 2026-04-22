@@ -4112,6 +4112,34 @@ class StudioEditor(QWidget):
         if ctrl and shift and key == Qt.Key.Key_R:
             self._rotate_selected(-1)
             return
+        # Alignment shortcuts: Alt+Shift + arrow-like keys. These don't
+        # collide with text-align Ctrl combos (which use L/R/E with Ctrl
+        # and Shift+Alt swapped), so muscle memory from InDesign transfers.
+        alt = bool(mods & Qt.KeyboardModifier.AltModifier)
+        if alt and shift and key == Qt.Key.Key_L:
+            self._align_selected("left")
+            return
+        if alt and shift and key == Qt.Key.Key_R:
+            self._align_selected("right")
+            return
+        if alt and shift and key == Qt.Key.Key_C:
+            self._align_selected("hcenter")
+            return
+        if alt and shift and key == Qt.Key.Key_T:
+            self._align_selected("top")
+            return
+        if alt and shift and key == Qt.Key.Key_B:
+            self._align_selected("bottom")
+            return
+        if alt and shift and key == Qt.Key.Key_M:
+            self._align_selected("vcenter")
+            return
+        if alt and shift and key == Qt.Key.Key_H:
+            self._align_selected("dist_h")
+            return
+        if alt and shift and key == Qt.Key.Key_V:
+            self._align_selected("dist_v")
+            return
         # Ctrl+] / Ctrl+[ — bring forward / send backward
         # Ctrl+Shift+] / Ctrl+Shift+[ — bring to front / send to back
         # Some layouts send Key_Brace{Left,Right} when Shift is held, others
@@ -6975,6 +7003,100 @@ class StudioEditor(QWidget):
         return [i for i in self._scene.selectedItems()
                 if isinstance(i, (OverlayImageItem, OverlayTextItem,
                                    OverlayArrowItem))]
+
+    def _all_selected_moveable(self):
+        """Everything that has a sceneBoundingRect + overlay.x/y we can mutate,
+        including shapes and text/image overlays. Arrows are skipped (they
+        track endpoints, not a top-left), as are notes/censors/crops whose
+        position semantics differ."""
+        return [i for i in self._scene.selectedItems()
+                if isinstance(i, (OverlayImageItem, OverlayTextItem,
+                                   OverlayShapeItem))]
+
+    def _align_selected(self, mode: str):
+        """Align / distribute the currently selected moveable overlays.
+
+        Modes: ``left``, ``right``, ``hcenter``, ``top``, ``bottom``,
+        ``vcenter``, ``dist_h``, ``dist_v``. 2+ items required; distribute
+        needs 3+. Operates on sceneBoundingRect and writes back through the
+        overlay's x / y (or shape_w/shape_h center for shapes) so undo /
+        serialization stays consistent."""
+        items = self._all_selected_moveable()
+        if len(items) < 2:
+            return
+        rects = [(it, it.sceneBoundingRect()) for it in items]
+        if mode.startswith("dist_") and len(items) < 3:
+            self.info_label.setText("Distribute needs 3 or more items")
+            return
+        # Union bounding rect as the anchor for align modes
+        minx = min(r.left() for _, r in rects)
+        maxx = max(r.right() for _, r in rects)
+        miny = min(r.top() for _, r in rects)
+        maxy = max(r.bottom() for _, r in rects)
+        cx = (minx + maxx) / 2
+        cy = (miny + maxy) / 2
+
+        def _shift(it, dx, dy):
+            """Move an overlay by the given scene-px delta."""
+            it.overlay.x += int(dx)
+            it.overlay.y += int(dy)
+            if isinstance(it, OverlayShapeItem):
+                # Also shift the tail if present so the bubble stays coherent
+                if it.overlay.tail_x or it.overlay.tail_y:
+                    it.overlay.tail_x += int(dx)
+                    it.overlay.tail_y += int(dy)
+                # Paired-text hop along for linked bubbles
+                if it.overlay.linked_text_id:
+                    for other in self._overlay_items:
+                        if (isinstance(other, OverlayTextItem)
+                                and other.overlay.label == it.overlay.linked_text_id):
+                            other.overlay.x += int(dx)
+                            other.overlay.y += int(dy)
+                            other.setPos(other.overlay.x, other.overlay.y)
+                            break
+                it.prepareGeometryChange()
+                it.update()
+            else:
+                it.setPos(it.overlay.x, it.overlay.y)
+
+        if mode == "left":
+            for it, r in rects:
+                _shift(it, minx - r.left(), 0)
+        elif mode == "right":
+            for it, r in rects:
+                _shift(it, maxx - r.right(), 0)
+        elif mode == "hcenter":
+            for it, r in rects:
+                _shift(it, cx - r.center().x(), 0)
+        elif mode == "top":
+            for it, r in rects:
+                _shift(it, 0, miny - r.top())
+        elif mode == "bottom":
+            for it, r in rects:
+                _shift(it, 0, maxy - r.bottom())
+        elif mode == "vcenter":
+            for it, r in rects:
+                _shift(it, 0, cy - r.center().y())
+        elif mode == "dist_h":
+            # Sort by center x; keep leftmost / rightmost pinned, distribute
+            # the middle items so edge-to-edge spacing is equal.
+            rects.sort(key=lambda ir: ir[1].center().x())
+            first_cx = rects[0][1].center().x()
+            last_cx = rects[-1][1].center().x()
+            step = (last_cx - first_cx) / (len(rects) - 1)
+            for i, (it, r) in enumerate(rects[1:-1], start=1):
+                target_cx = first_cx + step * i
+                _shift(it, target_cx - r.center().x(), 0)
+        elif mode == "dist_v":
+            rects.sort(key=lambda ir: ir[1].center().y())
+            first_cy = rects[0][1].center().y()
+            last_cy = rects[-1][1].center().y()
+            step = (last_cy - first_cy) / (len(rects) - 1)
+            for i, (it, r) in enumerate(rects[1:-1], start=1):
+                target_cy = first_cy + step * i
+                _shift(it, 0, target_cy - r.center().y())
+        self._sync_overlays_to_asset()
+        self.info_label.setText(f"Aligned: {mode}")
 
     def _on_position_changed(self, text: str):
         if not self._pixmap_item:
