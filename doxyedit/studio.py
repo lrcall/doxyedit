@@ -6573,6 +6573,26 @@ class StudioEditor(QWidget):
         _dlg_layout.addRow("Line Height", self.slider_line_height)
         _dlg_layout.addRow("Rotation", self.slider_rotation)
         _dlg_layout.addRow("Width", self.slider_text_width)
+        # Shadow toggles - persist through the overlay's shadow_color/
+        # shadow_offset/shadow_blur fields so they round-trip on save.
+        _shadow_row = QHBoxLayout()
+        _shadow_row.setContentsMargins(0, 0, 0, 0)
+        self.btn_shadow_toggle = QPushButton("Drop Shadow")
+        self.btn_shadow_toggle.setCheckable(True)
+        self.btn_shadow_toggle.setObjectName("studio_btn_shadow_toggle")
+        self.btn_shadow_toggle.toggled.connect(self._on_shadow_toggled)
+        _shadow_row.addWidget(self.btn_shadow_toggle)
+        self.slider_shadow_offset = QSlider(Qt.Orientation.Horizontal)
+        self.slider_shadow_offset.setObjectName("studio_shadow_offset")
+        self.slider_shadow_offset.setRange(0, 15)
+        self.slider_shadow_offset.setValue(0)
+        self.slider_shadow_offset.setFixedWidth(int(_dt.font_size * 6))
+        self.slider_shadow_offset.setToolTip("Shadow offset (both x/y) in px")
+        self.slider_shadow_offset.valueChanged.connect(self._on_shadow_offset_changed)
+        _shadow_row.addWidget(self.slider_shadow_offset)
+        _shadow_widget = QWidget(_dlg)
+        _shadow_widget.setLayout(_shadow_row)
+        _dlg_layout.addRow("Shadow", _shadow_widget)
         # Named text styles: combo + Save / Apply / Delete. Replaces the
         # generic 'Save Template' button (that moved to the overlay
         # context menu where it belongs). Styles persist via QSettings.
@@ -9132,6 +9152,51 @@ class StudioEditor(QWidget):
         color = QColorDialog.getColor(current, self, "Overlay Color")
         if color.isValid():
             self._apply_text_color(color.name())
+
+    def _on_shadow_toggled(self, checked: bool):
+        """Text Controls 'Drop Shadow' toggle. Off = clear color /
+        offset / blur fields; On = set sensible defaults (black, 3px,
+        3 blur)."""
+        sel = [it for it in self._scene.selectedItems()
+               if isinstance(it, OverlayTextItem)]
+        if not sel:
+            return
+        for it in sel:
+            ov = it.overlay
+            if checked:
+                if not ov.shadow_color:
+                    ov.shadow_color = "#000000"
+                if ov.shadow_offset == 0:
+                    ov.shadow_offset = 3
+                if ov.shadow_blur == 0:
+                    ov.shadow_blur = 3
+            else:
+                ov.shadow_color = ""
+                ov.shadow_offset = 0
+                ov.shadow_blur = 0
+            if hasattr(it, "_apply_font"):
+                it._apply_font()
+            it.update()
+        # Mirror offset slider value
+        if checked and hasattr(self, "slider_shadow_offset"):
+            self.slider_shadow_offset.blockSignals(True)
+            self.slider_shadow_offset.setValue(3)
+            self.slider_shadow_offset.blockSignals(False)
+        self._sync_overlays_to_asset()
+
+    def _on_shadow_offset_changed(self, value: int):
+        sel = [it for it in self._scene.selectedItems()
+               if isinstance(it, OverlayTextItem)]
+        if not sel:
+            return
+        for it in sel:
+            it.overlay.shadow_offset = value
+            if value > 0 and not it.overlay.shadow_color:
+                it.overlay.shadow_color = "#000000"
+            if hasattr(it, "_apply_font"):
+                it._apply_font()
+            it.update()
+        self._sync_overlays_to_asset()
 
     def _on_tc_content_changed(self):
         """Live-edit the selected text overlay's content from the mini
