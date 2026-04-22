@@ -840,6 +840,43 @@ class OverlayShapeItem(QGraphicsItem):
             points.append(QPointF(px, py))
         painter.drawPolygon(QPolygonF(points))
 
+    def _paint_star(self, painter, r: QRectF):
+        """Regular n-pointed star. Controlled by overlay.star_points
+        (number of outer points, default 5) and overlay.inner_ratio
+        (inner/outer radius fraction, default 0.4)."""
+        from PySide6.QtGui import QPolygonF
+        import math
+        cx, cy = r.center().x(), r.center().y()
+        rx, ry = r.width() / 2, r.height() / 2
+        n_points = max(3, int(getattr(self.overlay, "star_points", 5) or 5))
+        inner_scale = max(0.1, min(0.95,
+            float(getattr(self.overlay, "inner_ratio", 0.4) or 0.4)))
+        points = []
+        for i in range(n_points * 2):
+            frac = (2 * math.pi * i) / (n_points * 2)
+            s = 1.0 if i % 2 == 0 else inner_scale
+            px = cx + math.cos(frac - math.pi / 2) * rx * s
+            py = cy + math.sin(frac - math.pi / 2) * ry * s
+            points.append(QPointF(px, py))
+        painter.drawPolygon(QPolygonF(points))
+
+    def _paint_polygon(self, painter, r: QRectF):
+        """Regular n-sided polygon. Controlled by overlay.star_points
+        (vertex count, default 6 = hexagon). Rotated so a flat edge
+        sits at the bottom for n=4,6,8 (a pointy top for n=3,5,7)."""
+        from PySide6.QtGui import QPolygonF
+        import math
+        cx, cy = r.center().x(), r.center().y()
+        rx, ry = r.width() / 2, r.height() / 2
+        n = max(3, int(getattr(self.overlay, "star_points", 6) or 6))
+        points = []
+        for i in range(n):
+            frac = (2 * math.pi * i) / n - math.pi / 2
+            px = cx + math.cos(frac) * rx
+            py = cy + math.sin(frac) * ry
+            points.append(QPointF(px, py))
+        painter.drawPolygon(QPolygonF(points))
+
     def _handle_under(self, scene_pos: QPointF):
         r = self.HANDLE_HIT_RADIUS
         for key, pt in self._handle_positions().items():
@@ -968,6 +1005,10 @@ class OverlayShapeItem(QGraphicsItem):
             self._paint_thought_bubble(painter, r)
         elif kind == "burst":
             self._paint_burst(painter, r)
+        elif kind == "star":
+            self._paint_star(painter, r)
+        elif kind == "polygon":
+            self._paint_polygon(painter, r)
         elif kind == "ellipse":
             painter.drawEllipse(r)
         elif kind in ("gradient_linear", "gradient_radial"):
@@ -6096,6 +6137,7 @@ class StudioEditor(QWidget):
         self.combo_shape_kind.addItems([
             "Rectangle", "Ellipse",
             "Speech Bubble", "Thought Bubble", "Burst",
+            "Star", "Polygon",
         ])
         self.combo_shape_kind.setToolTip(
             "Shape kind - click Shape then drag to draw")
@@ -7837,6 +7879,8 @@ class StudioEditor(QWidget):
             "Speech Bubble": "speech_bubble",
             "Thought Bubble": "thought_bubble",
             "Burst": "burst",
+            "Star": "star",
+            "Polygon": "polygon",
         }.get(self.combo_shape_kind.currentText() if hasattr(self, "combo_shape_kind") else "", "")
         if combo_kind:
             kind = combo_kind

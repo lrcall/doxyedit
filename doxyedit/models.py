@@ -270,6 +270,12 @@ class CanvasOverlay:
     bubble_roundness: float = 0.0
     bubble_oval_stretch: float = 0.0
     bubble_wobble: float = 0.0
+    # Star / polygon shape params. shape_kind="star" -> n-pointed star,
+    # "polygon" -> n-sided regular polygon. star_points doubles as
+    # point-count for both. inner_ratio is the star's inner/outer
+    # radius fraction (0.4 = classic five-point star).
+    star_points: int = 5
+    inner_ratio: float = 0.4
 
     def to_dict(self) -> dict:
         return asdict(self)
