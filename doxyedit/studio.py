@@ -4427,6 +4427,12 @@ class StudioEditor(QWidget):
                 self._sync_overlays_to_asset()
                 self.info_label.setText(f"Ungrouped {cleared} overlays")
             return
+        # Ctrl+Home - recenter the canvas on the pixmap origin. Handy
+        # after a series of pans when the user wants to reset.
+        if ctrl and key == Qt.Key.Key_Home:
+            if self._pixmap_item is not None:
+                self._view.centerOn(self._pixmap_item)
+            return
         # F2 - rename the currently-selected overlay (layer-panel row)
         # without having to go through the right-click context menu.
         # Mirrors the global app F2-to-rename convention.
