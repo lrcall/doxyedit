@@ -950,6 +950,18 @@ THEMES: dict[str, Theme] = {
     "neon": NEON,
 }
 
+
+# Brightness tiers for the theme menu. Each entry is (label, [theme_ids]).
+# The UI builder renders a disabled section-header action + separator
+# between groups so users see "Bright / Medium / Dark" dividers instead
+# of a flat list.
+THEME_GROUPS: list[tuple[str, list[str]]] = [
+    ("Bright", ["milk_glass", "bone", "dawn", "citrus", "gold", "candy", "sunset"]),
+    ("Medium", ["slate", "ocean", "moss", "lavender", "wine"]),
+    ("Dark",   ["vinik24", "dark", "forest", "warm_charcoal", "ember", "aurora",
+                 "soot", "midnight", "neon"]),
+]
+
 DEFAULT_THEME = "soot"
 
 

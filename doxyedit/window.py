@@ -35,7 +35,7 @@ from PySide6.QtGui import (
 from doxyedit.models import Project, PLATFORMS, TAG_ALL, TAG_SHORTCUTS, toggle_tags
 from doxyedit import windroptarget
 from doxyedit.browser import AssetBrowser, IMAGE_EXTS, THUMB_GEN_SIZE
-from doxyedit.themes import THEMES, DEFAULT_THEME, generate_stylesheet
+from doxyedit.themes import THEMES, THEME_GROUPS, DEFAULT_THEME, generate_stylesheet
 from doxyedit.platforms import PlatformPanel
 from doxyedit.timeline import TimelineStream
 from doxyedit.calendar_pane import CalendarPane
@@ -1482,7 +1482,7 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         if d.is_dir():
             self._settings.setValue("last_dialog_dir", str(d))
 
-    def _apply_theme(self, theme_id: str):
+    def _apply_theme(self, theme_id: str, persist: bool = True):
         from dataclasses import replace
         self._current_theme_id = theme_id
         base = THEMES.get(theme_id, THEMES[DEFAULT_THEME])
@@ -1494,11 +1494,12 @@ class MainWindow(SaveLoadMixin, QMainWindow):
                                "selection_border": proj_accent})
         self._theme = replace(base, **overrides)
         self.setStyleSheet(generate_stylesheet(self._theme))
-        self._settings.setValue("theme", theme_id)
-        self._settings.sync()
-        # Save theme to current project so it persists with the file
-        if hasattr(self, 'project') and self.project:
-            self.project.theme_id = theme_id
+        if persist:
+            self._settings.setValue("theme", theme_id)
+            self._settings.sync()
+            # Save theme to current project so it persists with the file
+            if hasattr(self, 'project') and self.project:
+                self.project.theme_id = theme_id
         self._tint_titlebar(proj_accent)
         # Panels with deeply nested widgets that need explicit theme
         if hasattr(self, 'browser') and hasattr(self.browser, '_delegate'):
@@ -2441,10 +2442,48 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         for n in [64, 128, 256, 512, 768, 1024]:
             gen_menu.addAction(f"{n}px", lambda size=n: self._set_thumb_gen_size(size))
 
-        # Theme submenu (kept as-is)
+        # Theme submenu grouped by brightness tier. Each group gets a
+        # disabled section-header action + separator so the Bright /
+        # Medium / Dark divisions are visually obvious. Hovering an
+        # action previews the theme live; leaving the menu without
+        # clicking reverts to whatever was active when the menu opened.
         theme_menu = view_menu.addMenu("Theme")
-        for tid, theme in THEMES.items():
-            theme_menu.addAction(theme.name, lambda t=tid: self._apply_theme(t))
+        self._theme_preview_entry = None  # theme id active when menu opened
+        self._theme_preview_committed = False
+
+        def _on_theme_preview_open():
+            self._theme_preview_entry = QSettings(
+                "DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
+            self._theme_preview_committed = False
+
+        def _on_theme_preview_hover(tid):
+            self._apply_theme(tid, persist=False)
+
+        def _on_theme_preview_triggered(tid):
+            self._theme_preview_committed = True
+            self._apply_theme(tid)
+
+        def _on_theme_preview_close():
+            if (not self._theme_preview_committed
+                    and self._theme_preview_entry
+                    and self._theme_preview_entry in THEMES):
+                self._apply_theme(self._theme_preview_entry, persist=False)
+
+        theme_menu.aboutToShow.connect(_on_theme_preview_open)
+        theme_menu.aboutToHide.connect(_on_theme_preview_close)
+        for group_idx, (label, tids) in enumerate(THEME_GROUPS):
+            if group_idx > 0:
+                theme_menu.addSeparator()
+            header = theme_menu.addAction(f"— {label} —")
+            header.setEnabled(False)
+            for tid in tids:
+                theme = THEMES.get(tid)
+                if theme is None:
+                    continue
+                act = theme_menu.addAction(theme.name)
+                act.hovered.connect(lambda t=tid: _on_theme_preview_hover(t))
+                act.triggered.connect(
+                    lambda _c=False, t=tid: _on_theme_preview_triggered(t))
 
         # Hover Preview submenu (merged size + delay)
         hover_sub = view_menu.addMenu("Hover Preview")
