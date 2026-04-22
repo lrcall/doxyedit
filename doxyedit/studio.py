@@ -4555,6 +4555,10 @@ class StudioEditor(QWidget):
         if ctrl and key == Qt.Key.Key_Slash:
             self._show_shortcuts_cheat_sheet()
             return
+        # Ctrl+, opens Studio Settings (conventional app-settings shortcut).
+        if ctrl and key == Qt.Key.Key_Comma:
+            self._show_studio_settings()
+            return
         # Ctrl+Alt+C / Ctrl+Alt+V - copy / paste overlay style. Per-type
         # slot so a text style pasted onto a text overlay works, but a
         # shape style won't silently paste onto a text (different fields).
@@ -9237,6 +9241,140 @@ class StudioEditor(QWidget):
                 continue
             label = item.text().lower()
             item.setHidden(bool(needle) and needle not in label)
+
+    def _show_studio_settings(self):
+        """Studio-wide settings popup: snap, grid, rulers, minimap,
+        bubble autofit, zoom upscale mode, base bg color preset, etc.
+        Single dialog beats hunting across ruler right-clicks + canvas
+        right-clicks + toolbar toggles for preferences the user wants
+        persistent.
+        """
+        from PySide6.QtWidgets import (
+            QDialog, QFormLayout, QSpinBox, QCheckBox, QComboBox,
+            QDialogButtonBox, QLabel)
+        from PySide6.QtCore import QSettings as _QS
+        qs = _QS("DoxyEdit", "DoxyEdit")
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Studio Settings")
+        dlg.setMinimumWidth(360)
+        form = QFormLayout(dlg)
+
+        form.addRow(QLabel("<b>Snap & Grid</b>"))
+        snap_spin = QSpinBox()
+        snap_spin.setRange(0, 50)
+        snap_spin.setSuffix(" px")
+        snap_spin.setValue(qs.value("studio_snap_threshold_px", 0, type=int))
+        snap_spin.setToolTip(
+            "Distance (px) within which items snap to other edges / guides. "
+            "0 disables snap. F12 toggles.")
+        form.addRow("Snap proximity", snap_spin)
+
+        grid_cb = QCheckBox("Show snap grid")
+        grid_cb.setChecked(qs.value("studio_grid_visible", False, type=bool))
+        form.addRow("", grid_cb)
+
+        grid_spin = QSpinBox()
+        grid_spin.setRange(5, 500)
+        grid_spin.setSingleStep(5)
+        grid_spin.setSuffix(" px")
+        grid_spin.setValue(qs.value(
+            "studio_grid_spacing", STUDIO_GRID_SPACING, type=int))
+        form.addRow("Grid spacing", grid_spin)
+
+        form.addRow(QLabel(""))
+        form.addRow(QLabel("<b>View</b>"))
+        rulers_cb = QCheckBox("Show rulers")
+        rulers_cb.setChecked(qs.value("studio_rulers_visible", True, type=bool))
+        form.addRow("", rulers_cb)
+
+        thirds_cb = QCheckBox("Rule-of-thirds overlay")
+        thirds_cb.setChecked(qs.value("studio_thirds_visible", False, type=bool))
+        form.addRow("", thirds_cb)
+
+        notes_cb = QCheckBox("Show note overlays")
+        notes_cb.setChecked(qs.value("studio_notes_visible", True, type=bool))
+        form.addRow("", notes_cb)
+
+        minimap_cb = QCheckBox("Show minimap")
+        minimap_cb.setChecked(qs.value("studio_minimap_visible", False, type=bool))
+        form.addRow("", minimap_cb)
+
+        form.addRow(QLabel(""))
+        form.addRow(QLabel("<b>Canvas rendering</b>"))
+        upscale_combo = QComboBox()
+        upscale_combo.addItem("Smooth (bilinear)", "smooth")
+        upscale_combo.addItem("Nearest (pixel art)", "nearest")
+        cur_upscale = qs.value("studio_upscale_mode", "smooth", type=str)
+        upscale_combo.setCurrentIndex(0 if cur_upscale != "nearest" else 1)
+        upscale_combo.setToolTip(
+            "Smoothing applied when the canvas is zoomed in past 100%. "
+            "Nearest preserves hard pixel edges for pixel art.")
+        form.addRow("Zoom upscale", upscale_combo)
+
+        form.addRow(QLabel(""))
+        form.addRow(QLabel("<b>Bubble workflow</b>"))
+        autofit_cb = QCheckBox("Auto-fit bubble to text on edit exit")
+        autofit_cb.setChecked(qs.value(
+            "studio_bubble_autofit", True, type=bool))
+        form.addRow("", autofit_cb)
+
+        form.addRow(QLabel(""))
+        form.addRow(QLabel("<b>Tools</b>"))
+        sticky_cb = QCheckBox("Sticky tools (stay selected after use)")
+        sticky_cb.setChecked(qs.value("studio_sticky_tools", True, type=bool))
+        form.addRow("", sticky_cb)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel)
+        form.addRow(buttons)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+
+        win = self.window()
+        if win is not None:
+            dlg.setStyleSheet(win.styleSheet())
+            if hasattr(win, "_theme_dialog_titlebar"):
+                dlg.show()
+                win._theme_dialog_titlebar(dlg)
+                dlg.hide()
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        # Apply + persist
+        qs.setValue("studio_snap_threshold_px", snap_spin.value())
+        qs.setValue("studio_grid_visible", grid_cb.isChecked())
+        qs.setValue("studio_grid_spacing", grid_spin.value())
+        qs.setValue("studio_rulers_visible", rulers_cb.isChecked())
+        qs.setValue("studio_thirds_visible", thirds_cb.isChecked())
+        qs.setValue("studio_notes_visible", notes_cb.isChecked())
+        qs.setValue("studio_minimap_visible", minimap_cb.isChecked())
+        qs.setValue("studio_upscale_mode", upscale_combo.currentData())
+        qs.setValue("studio_bubble_autofit", autofit_cb.isChecked())
+        qs.setValue("studio_sticky_tools", sticky_cb.isChecked())
+        # Reflect the check-state in the matching toolbar toggles so the
+        # UI stays in sync without a restart.
+        if hasattr(self, "chk_grid"):
+            self.chk_grid.setChecked(grid_cb.isChecked())
+        if hasattr(self, "chk_thirds"):
+            self.chk_thirds.setChecked(thirds_cb.isChecked())
+        if hasattr(self, "chk_rulers"):
+            self.chk_rulers.setChecked(rulers_cb.isChecked())
+        if hasattr(self, "chk_notes"):
+            self.chk_notes.setChecked(notes_cb.isChecked())
+        if hasattr(self, "chk_minimap"):
+            self.chk_minimap.setChecked(minimap_cb.isChecked())
+        if hasattr(self, "spin_grid"):
+            self.spin_grid.setValue(grid_spin.value())
+        # Apply upscale mode to the view
+        if hasattr(self, "_view"):
+            from PySide6.QtGui import QPainter as _QP
+            if upscale_combo.currentData() == "nearest":
+                self._view.setRenderHint(
+                    _QP.RenderHint.SmoothPixmapTransform, False)
+            else:
+                self._view.setRenderHint(
+                    _QP.RenderHint.SmoothPixmapTransform, True)
+        self.info_label.setText("Studio settings saved")
 
     def _show_shortcuts_cheat_sheet(self):
         """Modal popup listing the Studio keyboard shortcuts. Grouped by
