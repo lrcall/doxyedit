@@ -1123,10 +1123,16 @@ class OverlayShapeItem(QGraphicsItem):
         convert_menu = menu.addMenu("Convert To")
         conv_rect_act = convert_menu.addAction("Rectangle")
         conv_ellipse_act = convert_menu.addAction("Ellipse")
+        conv_speech_act = convert_menu.addAction("Speech Bubble")
+        conv_thought_act = convert_menu.addAction("Thought Bubble")
+        conv_burst_act = convert_menu.addAction("Burst / Shout")
         conv_lingrad_act = convert_menu.addAction("Linear Gradient")
         conv_radgrad_act = convert_menu.addAction("Radial Gradient")
         for a, k in ((conv_rect_act, "rect"),
                        (conv_ellipse_act, "ellipse"),
+                       (conv_speech_act, "speech_bubble"),
+                       (conv_thought_act, "thought_bubble"),
+                       (conv_burst_act, "burst"),
                        (conv_lingrad_act, "gradient_linear"),
                        (conv_radgrad_act, "gradient_radial")):
             a.setCheckable(True)
@@ -4842,11 +4848,6 @@ class StudioEditor(QWidget):
 
         props.addWidget(QLabel("|"))
 
-        self.btn_save_template = QPushButton("Save Template")
-        self.btn_save_template.setObjectName("studio_save_template_btn")
-        self.btn_save_template.clicked.connect(self._save_as_template)
-        props.addWidget(self.btn_save_template)
-
         props.addStretch()
         # Always visible but disabled when no overlay selected (prevents layout shift)
         self._props_row.setEnabled(False)
@@ -4860,30 +4861,67 @@ class StudioEditor(QWidget):
         from PySide6.QtWidgets import QDialog as _QDlg, QFormLayout
         self._text_controls_dlg = _QDlg(self)
         self._text_controls_dlg.setWindowTitle("Text Controls")
+        self._text_controls_dlg.setObjectName("studio_text_controls_dlg")
         self._text_controls_dlg.setWindowFlags(
             Qt.WindowType.Tool |
             Qt.WindowType.CustomizeWindowHint |
             Qt.WindowType.WindowTitleHint |
             Qt.WindowType.WindowCloseButtonHint)
-        # Force reparent each control to the dialog BEFORE adding it to the
-        # QFormLayout. Previously the widgets lived in `props` (a QHBoxLayout
-        # on `self._props_row`); Qt's addRow does reparent implicitly, but
-        # if `_props_row` had been hidden first, children inherited the
-        # hidden state and the dialog appeared to be blank / zero-sized.
-        # Explicit setParent + ensure visible is the safe idiom.
+        # Persist position / size across show-hide cycles. QSettings keeps
+        # the geometry per machine. closeEvent saves; show path restores
+        # iff a previous geometry was stored.
+        from PySide6.QtCore import QSettings as _QS
+        _qs_geom = _QS("DoxyEdit", "DoxyEdit")
+        self._text_controls_dlg._geom_settings = _qs_geom
+        def _save_geom(_ev):
+            _qs_geom.setValue(
+                "studio_text_controls_geom",
+                self._text_controls_dlg.saveGeometry())
+            _QDlg.closeEvent(self._text_controls_dlg, _ev)
+        self._text_controls_dlg.closeEvent = _save_geom
+        # Explicit reparent each control to the dialog BEFORE adding it to
+        # the QFormLayout. Without this, widgets inherit their original
+        # _props_row parent's hidden state, leaving the dialog blank.
         _dlg = self._text_controls_dlg
         for _w in (self.combo_position, self.font_combo, self.slider_font_size,
                    self.btn_bold, self.btn_italic,
                    self.btn_color, self.btn_outline_color,
                    self.slider_outline, self.slider_kerning,
                    self.slider_line_height, self.slider_rotation,
-                   self.slider_text_width, self.btn_save_template):
+                   self.slider_text_width):
             _w.setParent(_dlg)
             _w.show()
+        # Font combo forced to not exceed the form's field column so it
+        # doesn't stretch the whole dialog when a long family name appears.
+        self.font_combo.setMaximumWidth(220)
+        self.font_combo.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Preferred,
+            QtWidgets.QSizePolicy.Policy.Fixed)
+        # Bold / Italic buttons need larger hit area + explicit typeface
+        # to survive theme restyling. Inline font overrides defeat the
+        # case where QSS renders text in the same shade as the fill.
+        _bi_btn_w = max(32, int(_dt.font_size * 2.8))
+        for _b, _face, _weight, _slant in (
+                (self.btn_bold, "B", QFont.Weight.Bold, False),
+                (self.btn_italic, "I", QFont.Weight.Normal, True)):
+            _b.setText(_face)
+            _b.setMinimumWidth(_bi_btn_w)
+            _b.setFixedWidth(_bi_btn_w)
+            _f = QFont(_b.font())
+            _f.setWeight(_weight)
+            _f.setItalic(_slant)
+            _f.setPointSize(max(10, _dt.font_size))
+            _b.setFont(_f)
+        # Color swatch buttons get a bigger hit area + the glyphs are
+        # drawn on paintEvent so theme stylesheets can't hide them.
+        _sw = max(32, int(_dt.font_size * 2.8))
+        for _b in (self.btn_color, self.btn_outline_color):
+            _b.setMinimumWidth(_sw)
+            _b.setFixedWidth(_sw)
         _dlg_layout = QFormLayout(_dlg)
         _dlg_layout.setContentsMargins(_pad_lg, _pad_lg, _pad_lg, _pad_lg)
         _dlg_layout.setSpacing(_pad)
-        _dlg_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        _dlg_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         _dlg_layout.addRow("Position", self.combo_position)
         _dlg_layout.addRow("Font", self.font_combo)
         _dlg_layout.addRow("Size", self.slider_font_size)
@@ -4893,7 +4931,7 @@ class StudioEditor(QWidget):
         _bi_row.addWidget(self.btn_bold)
         _bi_row.addWidget(self.btn_italic)
         _bi_row.addStretch()
-        _dlg_layout.addRow("Style", _bi_widget)
+        _dlg_layout.addRow("Weight", _bi_widget)
         _col_widget = QWidget(_dlg)
         _col_row = QHBoxLayout(_col_widget)
         _col_row.setContentsMargins(0, 0, 0, 0)
@@ -4906,16 +4944,44 @@ class StudioEditor(QWidget):
         _dlg_layout.addRow("Line Height", self.slider_line_height)
         _dlg_layout.addRow("Rotation", self.slider_rotation)
         _dlg_layout.addRow("Width", self.slider_text_width)
-        _dlg_layout.addRow("", self.btn_save_template)
-        # Give the dialog a sensible size envelope so it's never 0x0 on
-        # first show. Width ~320px fits the font combo + 90px label column;
-        # height derived from the 11-row form.
-        _dlg.setMinimumWidth(max(320, int(_dt.font_size * 28)))
-        _dlg.setMinimumHeight(380)
-        # _props_row was the original horizontal container. Its children
-        # have been reparented above. Keep the empty shell as a hidden
-        # widget so `self._props_row.setEnabled(...)` call sites stay
-        # valid — the dialog itself is shown/hidden to reflect state.
+        # Named text styles: combo + Save / Apply / Delete. Replaces the
+        # generic 'Save Template' button (that moved to the overlay
+        # context menu where it belongs). Styles persist via QSettings.
+        self.combo_text_style = QComboBox(_dlg)
+        self.combo_text_style.setObjectName("studio_text_style_combo")
+        self.combo_text_style.setMinimumWidth(120)
+        self.btn_style_save = QPushButton("Save", _dlg)
+        self.btn_style_save.setObjectName("studio_text_style_save")
+        self.btn_style_save.setToolTip("Save current text styling as a named style")
+        self.btn_style_save.clicked.connect(self._save_named_text_style)
+        self.btn_style_apply = QPushButton("Apply", _dlg)
+        self.btn_style_apply.setObjectName("studio_text_style_apply")
+        self.btn_style_apply.setToolTip("Apply selected style to the current text")
+        self.btn_style_apply.clicked.connect(self._apply_named_text_style)
+        self.btn_style_delete = QPushButton("Delete", _dlg)
+        self.btn_style_delete.setObjectName("studio_text_style_delete")
+        self.btn_style_delete.setToolTip("Delete the selected style")
+        self.btn_style_delete.clicked.connect(self._delete_named_text_style)
+        _style_widget = QWidget(_dlg)
+        _style_row = QHBoxLayout(_style_widget)
+        _style_row.setContentsMargins(0, 0, 0, 0)
+        _style_row.setSpacing(3)
+        _style_row.addWidget(self.combo_text_style, 1)
+        _style_row.addWidget(self.btn_style_save)
+        _style_row.addWidget(self.btn_style_apply)
+        _style_row.addWidget(self.btn_style_delete)
+        _dlg_layout.addRow("Style", _style_widget)
+        self._populate_text_styles_combo()
+        # Reasonable min size envelope. Restore persisted geometry if any.
+        _dlg.setMinimumWidth(max(360, int(_dt.font_size * 32)))
+        _dlg.setMinimumHeight(420)
+        _geom_blob = _qs_geom.value("studio_text_controls_geom", None)
+        if _geom_blob:
+            try:
+                _dlg.restoreGeometry(_geom_blob)
+            except Exception:
+                pass
+        # _props_row keeps a hidden shell so setEnabled call sites stay valid.
         self._props_row.hide()
 
         # Scene + View
@@ -6253,6 +6319,141 @@ class StudioEditor(QWidget):
         from PySide6.QtCore import QSettings as _QS
         _QS("DoxyEdit", "DoxyEdit").remove("studio_text_defaults")
         self.info_label.setText("Reset default text style")
+
+    def _load_named_text_styles(self) -> dict:
+        """Return {name: {field: value}} of user-saved named text styles."""
+        from PySide6.QtCore import QSettings as _QS
+        import json as _json
+        raw = _QS("DoxyEdit", "DoxyEdit").value("studio_text_named_styles", "", type=str)
+        if not raw:
+            return {}
+        try:
+            d = _json.loads(raw)
+            return {name: {k: v for k, v in fields.items()
+                           if k in self._TEXT_STYLE_FIELDS}
+                    for name, fields in d.items()}
+        except Exception:
+            return {}
+
+    def _write_named_text_styles(self, styles: dict):
+        from PySide6.QtCore import QSettings as _QS
+        import json as _json
+        _QS("DoxyEdit", "DoxyEdit").setValue(
+            "studio_text_named_styles",
+            _json.dumps(styles, ensure_ascii=False))
+
+    def _populate_text_styles_combo(self):
+        """Refill the text-style dropdown from QSettings. Remembers the
+        previously-selected name if still present."""
+        if not hasattr(self, "combo_text_style"):
+            return
+        prev = self.combo_text_style.currentText()
+        self.combo_text_style.blockSignals(True)
+        self.combo_text_style.clear()
+        for name in sorted(self._load_named_text_styles().keys()):
+            self.combo_text_style.addItem(name)
+        if prev:
+            idx = self.combo_text_style.findText(prev)
+            if idx >= 0:
+                self.combo_text_style.setCurrentIndex(idx)
+        self.combo_text_style.blockSignals(False)
+
+    def _save_named_text_style(self):
+        """Save current text styling under a user-supplied name. If a text
+        overlay is selected, read from it; otherwise fall back to the
+        current dialog control values."""
+        name, ok = QInputDialog.getText(
+            self, "Save Text Style", "Style name:")
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+        sel = [it for it in self._scene.selectedItems()
+               if isinstance(it, OverlayTextItem)]
+        styles = self._load_named_text_styles()
+        if sel:
+            ov = sel[0].overlay
+            styles[name] = {k: getattr(ov, k) for k in self._TEXT_STYLE_FIELDS}
+        else:
+            # No selection: snapshot from the dialog controls. Preserve
+            # any previously-persisted default for fields the dialog
+            # doesn't expose directly (underline, strikethrough, etc.).
+            base = self._load_text_style_defaults()
+            base.update({
+                "font_size": self.slider_font_size.value(),
+                "bold": self.btn_bold.isChecked(),
+                "italic": self.btn_italic.isChecked(),
+                "stroke_width": self.slider_outline.value(),
+                "letter_spacing": self.slider_kerning.value(),
+                "line_height": self.slider_line_height.value() / 100.0,
+                "font_family": self.font_combo.currentText(),
+            })
+            styles[name] = {k: v for k, v in base.items()
+                            if k in self._TEXT_STYLE_FIELDS}
+        self._write_named_text_styles(styles)
+        self._populate_text_styles_combo()
+        self.combo_text_style.setCurrentText(name)
+        self.info_label.setText(f"Saved text style: {name}")
+
+    def _apply_named_text_style(self):
+        """Push the selected named style onto each selected text overlay.
+        With no text selection, the style becomes the new default used
+        for newly-created text overlays."""
+        if not hasattr(self, "combo_text_style"):
+            return
+        name = self.combo_text_style.currentText().strip()
+        if not name:
+            return
+        styles = self._load_named_text_styles()
+        fields = styles.get(name)
+        if not fields:
+            self.info_label.setText(f"Style '{name}' not found")
+            return
+        sel = [it for it in self._scene.selectedItems()
+               if isinstance(it, OverlayTextItem)]
+        if sel:
+            for it in sel:
+                for k, v in fields.items():
+                    setattr(it.overlay, k, v)
+                # Rebuild the text item's rendered state from the new
+                # field values. _apply_font handles font family, size,
+                # weight, italic, kerning, line height.
+                if hasattr(it, "_apply_font"):
+                    it._apply_font()
+                it.update()
+            self._sync_overlays_to_asset()
+            self.info_label.setText(
+                f"Applied '{name}' to {len(sel)} text overlay(s)")
+        else:
+            # Set as default for future text overlays
+            from PySide6.QtCore import QSettings as _QS
+            import json as _json
+            _QS("DoxyEdit", "DoxyEdit").setValue(
+                "studio_text_defaults",
+                _json.dumps(fields, ensure_ascii=False))
+            self.info_label.setText(
+                f"'{name}' is now the default text style")
+
+    def _delete_named_text_style(self):
+        """Remove the selected named style after a quick confirmation."""
+        if not hasattr(self, "combo_text_style"):
+            return
+        name = self.combo_text_style.currentText().strip()
+        if not name:
+            return
+        from PySide6.QtWidgets import QMessageBox
+        if QMessageBox.question(
+                self, "Delete Text Style",
+                f"Delete style '{name}'?",
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        styles = self._load_named_text_styles()
+        if name in styles:
+            del styles[name]
+            self._write_named_text_styles(styles)
+            self._populate_text_styles_combo()
+            self.info_label.setText(f"Deleted text style: {name}")
 
     def _pick_text_color(self, text_item):
         """Open a color picker and apply to the given OverlayTextItem."""
