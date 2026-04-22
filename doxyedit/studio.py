@@ -3778,6 +3778,64 @@ class StudioView(QGraphicsView):
         self._fps_last_paint_ms = 0.0
         self._fps_rolling_ms = 0.0
         self._fps_time = _t
+        # Perf log — when FPS HUD is on, append paint/interaction events
+        # as JSONL so the dev can correlate user actions with perf.
+        # Path is predictable + readable by Claude Code for diagnosis.
+        import os as _os, tempfile as _tf, json as _json
+        self._perf_log_path = _os.path.join(
+            _tf.gettempdir(), "doxyedit_studio_perf.jsonl")
+        self._perf_log_file = None
+        self._perf_json = _json
+        self._perf_paint_sample_every = 10   # log 1 in N paint events
+        self._perf_paint_counter = 0
+        self._perf_last_event = 0.0
+        self._perf_drag_last_log = 0.0
+        if self._fps_enabled:
+            self._perf_open_log()
+
+    def _perf_open_log(self):
+        try:
+            import os as _os, time as _t
+            self._perf_log_file = open(self._perf_log_path, "w",
+                                        encoding="utf-8")
+            self._perf_log_event({
+                "type": "session_start",
+                "path": self._perf_log_path,
+                "pid": _os.getpid(),
+            })
+        except Exception:
+            self._perf_log_file = None
+
+    def _perf_close_log(self):
+        if self._perf_log_file is not None:
+            try:
+                self._perf_log_event({"type": "session_end"})
+                self._perf_log_file.close()
+            except Exception:
+                pass
+            self._perf_log_file = None
+
+    def _perf_log_event(self, ev: dict):
+        """Append one JSON event to the perf log. Adds t, items, zoom."""
+        if self._perf_log_file is None:
+            return
+        try:
+            now = self._fps_time.perf_counter()
+            ev.setdefault("t", round(now, 4))
+            if "items" not in ev:
+                sc = self.scene()
+                ev["items"] = len(sc.items()) if sc else 0
+            if "zoom" not in ev:
+                ev["zoom"] = round(self.transform().m11(), 3)
+            self._perf_log_file.write(self._perf_json.dumps(ev) + "\n")
+            self._perf_log_file.flush()
+        except Exception:
+            pass
+
+    def _describe_item(self, it) -> str:
+        if it is None:
+            return "none"
+        return type(it).__name__
 
     def paintEvent(self, event):
         t0 = self._fps_time.perf_counter()
@@ -3798,6 +3856,17 @@ class StudioView(QGraphicsView):
             # Live fps = frames in the last second
             recent = [ts for ts in self._fps_times if ts > t1 - 1.0]
             fps = len(recent)
+            # Log every Nth paint to keep file small
+            self._perf_paint_counter += 1
+            if self._perf_paint_counter % self._perf_paint_sample_every == 0:
+                self._perf_log_event({
+                    "type": "paint",
+                    "fps": fps,
+                    "paint_ms": round(self._fps_last_paint_ms, 2),
+                    "avg_ms": round(self._fps_rolling_ms, 2),
+                    "dirty_w": event.rect().width(),
+                    "dirty_h": event.rect().height(),
+                })
             # Paint HUD on viewport
             vp = self.viewport()
             p = QPainter(vp)
@@ -3839,6 +3908,10 @@ class StudioView(QGraphicsView):
         QSettings("DoxyEdit", "DoxyEdit").setValue(
             "studio_show_fps", self._fps_enabled)
         self._fps_times.clear()
+        if self._fps_enabled:
+            self._perf_open_log()
+        else:
+            self._perf_close_log()
         self.viewport().update()
 
     def wheelEvent(self, event: QWheelEvent):
@@ -3919,6 +3992,11 @@ class StudioView(QGraphicsView):
         _zoom = 1.5 if _is_ctrl else 1.15
         factor = _zoom if event.angleDelta().y() > 0 else 1 / _zoom
         self.setTransform(self.transform().scale(factor, factor))
+        if self._fps_enabled:
+            self._perf_log_event({
+                "type": "zoom",
+                "factor": round(factor, 3),
+            })
         if self._studio_editor is not None:
             if hasattr(self._studio_editor, "_canvas_wrap"):
                 self._studio_editor._canvas_wrap.refresh()
@@ -3927,6 +4005,27 @@ class StudioView(QGraphicsView):
                 self._studio_editor._zoom_label.setText(f"{pct}%")
 
     def mousePressEvent(self, event):
+        if self._fps_enabled:
+            btn_map = {
+                Qt.MouseButton.LeftButton: "left",
+                Qt.MouseButton.MiddleButton: "middle",
+                Qt.MouseButton.RightButton: "right",
+            }
+            sp = self.mapToScene(event.position().toPoint())
+            hit = None
+            if self.scene() is not None:
+                for it in self.scene().items(sp):
+                    if not it.isVisible():
+                        continue
+                    hit = self._describe_item(it)
+                    break
+            self._perf_log_event({
+                "type": "mouse_press",
+                "button": btn_map.get(event.button(), "other"),
+                "scene_x": round(sp.x(), 1),
+                "scene_y": round(sp.y(), 1),
+                "hit": hit,
+            })
         if event.button() == Qt.MouseButton.MiddleButton:
             self._panning = True
             self._pan_start = event.position()
@@ -3948,27 +4047,69 @@ class StudioView(QGraphicsView):
         # Update the Studio status bar cursor-position label in scene coords
         if self._studio_editor is not None:
             sp = self.mapToScene(event.position().toPoint())
-            # Remember the last hovered scene position so paste-from-
-            # clipboard can drop the new overlay under the cursor instead
-            # of at a fixed offset.
             self._studio_editor._last_cursor_scene_pos = sp
             if hasattr(self._studio_editor, "_cursor_label"):
                 editor = self._studio_editor
                 x_i, y_i = int(sp.x()), int(sp.y())
-                # Append pixel color when hovering inside the base image
+                # Pixel-color lookup: the prior implementation called
+                # pm.toImage() on EVERY mousemove, which converts the
+                # full base pixmap (~25MB for a 2000x3000 image) to a
+                # QImage — the single biggest source of Studio drag lag.
+                # Now the QImage is cached on the editor and only re-
+                # fetched when the base pixmap changes (tracked via
+                # cacheKey()). Also skipped entirely during a mouse drag
+                # (left/middle button down) so we don't even do the
+                # cache lookup during the hot path.
                 color_txt = ""
-                if (editor._pixmap_item is not None):
+                btns = event.buttons()
+                is_dragging = bool(
+                    btns & (Qt.MouseButton.LeftButton
+                             | Qt.MouseButton.MiddleButton
+                             | Qt.MouseButton.RightButton))
+                if (editor._pixmap_item is not None and not is_dragging):
                     pm = editor._pixmap_item.pixmap()
                     if 0 <= x_i < pm.width() and 0 <= y_i < pm.height():
-                        img = pm.toImage()
+                        ck = pm.cacheKey()
+                        cached_key = getattr(
+                            editor, "_base_image_cache_key", None)
+                        if cached_key != ck:
+                            editor._base_image_cache = pm.toImage()
+                            editor._base_image_cache_key = ck
+                        img = editor._base_image_cache
                         c = img.pixelColor(x_i, y_i)
                         color_txt = f"  {c.name()}"
                 editor._cursor_label.setText(f"{x_i}, {y_i}{color_txt}")
             if hasattr(self._studio_editor, "_canvas_wrap"):
                 self._studio_editor._canvas_wrap.update_cursor(sp)
+        if self._fps_enabled:
+            now = self._fps_time.perf_counter()
+            # Rate-limit drag logs to ~20Hz so we don't flood the file
+            if now - self._perf_drag_last_log > 0.05:
+                self._perf_drag_last_log = now
+                btns = event.buttons()
+                is_dragging = bool(
+                    btns & (Qt.MouseButton.LeftButton
+                             | Qt.MouseButton.MiddleButton))
+                if is_dragging:
+                    self._perf_log_event({
+                        "type": "drag_move",
+                        "fps": len([ts for ts in self._fps_times
+                                     if ts > now - 1.0]),
+                        "avg_ms": round(self._fps_rolling_ms, 2),
+                    })
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
+        if self._fps_enabled:
+            btn_map = {
+                Qt.MouseButton.LeftButton: "left",
+                Qt.MouseButton.MiddleButton: "middle",
+                Qt.MouseButton.RightButton: "right",
+            }
+            self._perf_log_event({
+                "type": "mouse_release",
+                "button": btn_map.get(event.button(), "other"),
+            })
         if event.button() == Qt.MouseButton.MiddleButton:
             self._panning = False
             self.setCursor(Qt.CursorShape.ArrowCursor)
