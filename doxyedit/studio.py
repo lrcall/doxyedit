@@ -5845,6 +5845,33 @@ class StudioEditor(QWidget):
                         self.slider_font_size.setValue(sel_text.overlay.font_size)
                         self.slider_font_size.blockSignals(False)
             return
+        # Ctrl+Shift+0 resets rotation of the selected overlays to 0°.
+        # Quick recovery after experimenting with rotation/skew sliders.
+        if ctrl and shift and key == Qt.Key.Key_0:
+            touched = False
+            for it in self._scene.selectedItems():
+                ov = getattr(it, "overlay", None)
+                if ov is None:
+                    continue
+                ov.rotation = 0.0
+                if hasattr(ov, "skew_x"):
+                    ov.skew_x = 0.0
+                    ov.skew_y = 0.0
+                if isinstance(it, OverlayShapeItem):
+                    it.setRotation(0)
+                    from PySide6.QtGui import QTransform as _QT
+                    it.setTransform(_QT())
+                elif hasattr(it, "_apply_flip"):
+                    it._apply_flip()
+                elif hasattr(it, "_apply_flip_text"):
+                    it._apply_flip_text()
+                else:
+                    it.update()
+                touched = True
+            if touched:
+                self._sync_overlays_to_asset()
+                self.info_label.setText("Rotation reset")
+            return
         if ctrl and shift and key in (
                 Qt.Key.Key_Comma, Qt.Key.Key_Less):
             touched = False
