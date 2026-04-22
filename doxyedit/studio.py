@@ -19,7 +19,9 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QSplitter, QScrollArea, QCheckBox,
     QGridLayout,
 )
-from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal
+from PySide6.QtCore import (
+    Qt, QRectF, QPointF, QLineF, Signal, QSettings, QSize,
+)
 from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
     QKeyEvent, QTransform, QUndoCommand, QUndoStack, QIcon,
