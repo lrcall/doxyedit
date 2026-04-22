@@ -14943,6 +14943,9 @@ class StudioEditor(QWidget):
         menu.addSeparator()
         a_dh = menu.addAction("Distribute Horizontal")
         a_dv = menu.addAction("Distribute Vertical")
+        menu.addSeparator()
+        a_stack_h = menu.addAction("Stack in Row (top-aligned)")
+        a_stack_v = menu.addAction("Stack in Column (left-aligned)")
         # Anchor below the button
         pos = self.btn_align.mapToGlobal(self.btn_align.rect().bottomLeft())
         chosen = menu.exec(pos)
@@ -14968,6 +14971,10 @@ class StudioEditor(QWidget):
             self._distribute_selected("h")
         elif chosen is a_dv:
             self._distribute_selected("v")
+        elif chosen is a_stack_h:
+            self._stack_selected("h")
+        elif chosen is a_stack_v:
+            self._stack_selected("v")
 
     def _center_on_canvas(self, axis: str):
         """Move selected items so their bounding rect center matches the
@@ -15034,6 +15041,42 @@ class StudioEditor(QWidget):
             for it, r in zip(items, rects):
                 it.moveBy(0, target - r.center().y())
         self._sync_after_align(items)
+
+    def _stack_selected(self, axis: str):
+        """Stack the selected items in a row (h) or column (v) with
+        equal gaps, aligning the top (row) or left (column) edges.
+        Useful for building menu bars, icon strips, list mockups etc.
+        Anchored on the left-most / top-most current position."""
+        items = self._alignable_items()
+        if len(items) < 2:
+            self.info_label.setText("Select 2+ items to stack")
+            return
+        pairs = [(it, it.sceneBoundingRect()) for it in items]
+        gap = 8  # default inter-item gap, px
+        if axis == "h":
+            pairs.sort(key=lambda p: p[1].left())
+            top = min(p[1].top() for p in pairs)
+            cursor_x = pairs[0][1].left()
+            for it, r in pairs:
+                dx = cursor_x - r.left()
+                dy = top - r.top()
+                if dx or dy:
+                    it.moveBy(dx, dy)
+                cursor_x += r.width() + gap
+        else:
+            pairs.sort(key=lambda p: p[1].top())
+            left = min(p[1].left() for p in pairs)
+            cursor_y = pairs[0][1].top()
+            for it, r in pairs:
+                dx = left - r.left()
+                dy = cursor_y - r.top()
+                if dx or dy:
+                    it.moveBy(dx, dy)
+                cursor_y += r.height() + gap
+        self._sync_after_align(items)
+        self.info_label.setText(
+            f"Stacked {len(items)} items "
+            f"{'horizontally' if axis == 'h' else 'vertically'}")
 
     def _distribute_selected(self, axis: str):
         items = self._alignable_items()
