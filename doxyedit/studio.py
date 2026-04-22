@@ -5154,13 +5154,24 @@ class StudioEditor(QWidget):
             if touched:
                 self._sync_overlays_to_asset()
                 return
-        # Ctrl+R — rotate 1 degree CW (Ctrl+Shift+R — 1 CCW).
-        # Fine rotation for precise layouts.
+        # Ctrl+R toggles ruler visibility (Photoshop convention).
+        # Fine rotation (1°) moves to Alt+wheel which already rotates in
+        # 5° ticks; 1° steps can be achieved via the Ctrl+T transform
+        # dialog or the rotation spinbox in the quickbar.
         if ctrl and not shift and key == Qt.Key.Key_R:
-            self._rotate_selected(1)
+            if hasattr(self, "chk_rulers"):
+                self.chk_rulers.setChecked(not self.chk_rulers.isChecked())
             return
         if ctrl and shift and key == Qt.Key.Key_R:
+            # Ctrl+Shift+R still rotates 1° CCW for users who had it in
+            # muscle memory. Prefer the Transform dialog though.
             self._rotate_selected(-1)
+            return
+        # Ctrl+H hides all helpers: grid, thirds, rulers, guides. Press
+        # again to restore. Preview-pass affordance complementary to
+        # the backslash peek (which hides OVERLAYS; this hides helpers).
+        if ctrl and not shift and key == Qt.Key.Key_H:
+            self._toggle_all_helpers()
             return
         # Ctrl+; toggles guide visibility (Photoshop convention).
         if ctrl and not shift and key == Qt.Key.Key_Semicolon:
@@ -6942,6 +6953,42 @@ class StudioEditor(QWidget):
         if hasattr(self, "info_label"):
             self.info_label.setText(
                 "Previewing base art" if hidden else "Overlays restored")
+
+    def _toggle_all_helpers(self):
+        """Ctrl+H: hide everything that isn't the user's content — grid,
+        rule-of-thirds, rulers, guides, snap indicators. Press again to
+        restore each back to its pre-hide state. Store the state in
+        _helpers_hidden_state so the restore knows which flags were on."""
+        hidden = getattr(self, "_helpers_hidden_state", None)
+        if hidden is None:
+            # Capture current state and hide everything
+            state = {
+                "grid": self.chk_grid.isChecked() if hasattr(self, "chk_grid") else False,
+                "thirds": self.chk_thirds.isChecked() if hasattr(self, "chk_thirds") else False,
+                "rulers": self.chk_rulers.isChecked() if hasattr(self, "chk_rulers") else False,
+                "notes": self.chk_notes.isChecked() if hasattr(self, "chk_notes") else False,
+            }
+            for k, w_attr in (("grid", "chk_grid"), ("thirds", "chk_thirds"),
+                               ("rulers", "chk_rulers"), ("notes", "chk_notes")):
+                if state[k] and hasattr(self, w_attr):
+                    getattr(self, w_attr).setChecked(False)
+            # Hide guides
+            for g in getattr(self, "_guide_items", []):
+                g.setVisible(False)
+            self._helpers_hidden_state = state
+            if hasattr(self, "info_label"):
+                self.info_label.setText("Helpers hidden (Ctrl+H to restore)")
+        else:
+            # Restore
+            for k, w_attr in (("grid", "chk_grid"), ("thirds", "chk_thirds"),
+                               ("rulers", "chk_rulers"), ("notes", "chk_notes")):
+                if hidden.get(k) and hasattr(self, w_attr):
+                    getattr(self, w_attr).setChecked(True)
+            for g in getattr(self, "_guide_items", []):
+                g.setVisible(True)
+            self._helpers_hidden_state = None
+            if hasattr(self, "info_label"):
+                self.info_label.setText("Helpers restored")
 
     def _toggle_guides_visibility(self):
         """Hide / show existing guides without deleting them. Ctrl+; keymap.
@@ -9158,9 +9205,22 @@ class StudioEditor(QWidget):
                 it.update()
                 touched = True
             elif isinstance(it, OverlayTextItem):
-                ov.font_size = max(4, int(base["font_size"] * factor))
+                new_size = max(4, int(base["font_size"] * factor))
+                ov.font_size = new_size
                 if hasattr(it, "_apply_font"):
                     it._apply_font()
+                # Force geometry/paint refresh - _apply_font usually does
+                # this via QGraphicsTextItem.setFont but an edge case
+                # where text_width is locked can leave the bounding rect
+                # stale. Prod the item explicitly.
+                it.prepareGeometryChange()
+                it.update()
+                # Mirror into the font-size slider in the Text Controls
+                # popup so the user sees the two UIs agree.
+                if hasattr(self, "slider_font_size"):
+                    self.slider_font_size.blockSignals(True)
+                    self.slider_font_size.setValue(new_size)
+                    self.slider_font_size.blockSignals(False)
                 touched = True
         if touched:
             self._sync_overlays_to_asset()
