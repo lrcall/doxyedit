@@ -3606,6 +3606,8 @@ class StudioScene(QGraphicsScene):
         sort_type_act = sort_menu.addAction("By Type (text / shape / …)")
         sort_name_act = sort_menu.addAction("By Label (A → Z)")
         sort_size_act = sort_menu.addAction("By Size (largest first)")
+        sort_tag_act = sort_menu.addAction("By Tag Color")
+        sort_opacity_act = sort_menu.addAction("By Opacity (transparent first)")
         sort_reverse_act = sort_menu.addAction("Reverse")
         sort_menu.addSeparator()
         normalize_z_act = sort_menu.addAction("Normalize Z-values")
@@ -3957,6 +3959,7 @@ class StudioScene(QGraphicsScene):
         elif chosen is export_selection_act:
             editor._export_selection_as_transparent_png()
         elif chosen in (sort_type_act, sort_name_act, sort_size_act,
+                         sort_tag_act, sort_opacity_act,
                          sort_reverse_act):
             ovs = list(editor._asset.overlays)
             if chosen is sort_type_act:
@@ -3976,6 +3979,18 @@ class StudioScene(QGraphicsScene):
                             o.end_x - o.x, o.end_y - o.y))
                     return 0
                 ovs.sort(key=_area)
+            elif chosen is sort_tag_act:
+                # Ordered by the named color priority; untagged last.
+                _tag_order = {
+                    "red": 0, "orange": 1, "yellow": 2,
+                    "green": 3, "blue": 4, "purple": 5,
+                    "pink": 6, "gray": 7, "": 99,
+                }
+                ovs.sort(key=lambda o: (
+                    _tag_order.get(getattr(o, "tag_color", "") or "", 50),
+                    o.label or ""))
+            elif chosen is sort_opacity_act:
+                ovs.sort(key=lambda o: getattr(o, "opacity", 1.0) or 0.0)
             elif chosen is sort_reverse_act:
                 ovs.reverse()
             editor._asset.overlays = ovs
