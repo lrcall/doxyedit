@@ -15,6 +15,7 @@ from PySide6.QtCore import Qt, QSize, Signal, QSettings, QRectF
 from PySide6.QtGui import QPixmap, QPainter, QPen, QColor
 
 from doxyedit.models import Project, Asset, PLATFORMS
+from doxyedit.themes import THEMES, DEFAULT_THEME
 
 
 PREVIEW_SIZE = 300
@@ -191,7 +192,6 @@ class ImagePreviewPanel(QWidget):
             return
 
         from doxyedit.pipeline import check_readiness
-        from doxyedit.models import PLATFORMS
 
         asset = project.get_asset(asset_ids[0]) if asset_ids else None
         if not asset:
@@ -217,7 +217,6 @@ class ImagePreviewPanel(QWidget):
             row.setContentsMargins(max(2, _pad // 2), max(1, _pad // 4), max(2, _pad // 2), max(1, _pad // 4))
             row.setSpacing(_pad_lg)
 
-            from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
             dot_colors = {"green": _dt.success, "yellow": _dt.warning, "red": _dt.error}
             dot = QLabel("●")
@@ -429,7 +428,6 @@ class ImagePreviewPanel(QWidget):
             painter = QPainter(result)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             # Draw crops
-            from doxyedit.themes import THEMES, DEFAULT_THEME
             _dt = THEMES[DEFAULT_THEME]
             _cc = QColor(_dt.crop_border); _cc.setAlpha(_dt.composer_status_active_alpha)
             crop_pen = QPen(_cc, max(1, _dt.crop_border_width - 1))
