@@ -138,6 +138,26 @@ class StudioScene(QGraphicsScene):
             return
         super().keyPressEvent(event)
 
+    # URL drops (tray items) — don't let the scene swallow the event.
+    # Ignore so the QGraphicsView's override handles it end-to-end.
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.ignore()
+            return
+        super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.ignore()
+            return
+        super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.ignore()
+            return
+        super().dropEvent(event)
+
     def drawForeground(self, painter, rect):
         """Draw snap grid, rule-of-thirds, and smart-guide overlay."""
         super().drawForeground(painter, rect)
@@ -3868,22 +3888,40 @@ class StudioView(QGraphicsView):
         super().keyPressEvent(event)
 
     def dragEnterEvent(self, event):
+        # QGraphicsView forwards drags to the scene first, so we need to
+        # accept at this level and NOT call super() which would re-route
+        # to the scene and lose the event.
         if event.mimeData().hasUrls():
-            event.acceptProposedAction()
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+            return
+        super().dragEnterEvent(event)
 
     def dragMoveEvent(self, event):
         if event.mimeData().hasUrls():
-            event.acceptProposedAction()
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+            return
+        super().dragMoveEvent(event)
+
+    def dragLeaveEvent(self, event):
+        event.accept()
 
     def dropEvent(self, event):
         if event.mimeData().hasUrls():
+            handled = False
             for url in event.mimeData().urls():
                 if url.isLocalFile():
                     path = url.toLocalFile()
                     if self.on_file_dropped:
                         pos = self.mapToScene(event.position().toPoint())
                         self.on_file_dropped(path, pos)
-            event.acceptProposedAction()
+                        handled = True
+            if handled:
+                event.setDropAction(Qt.DropAction.CopyAction)
+                event.accept()
+                return
+        super().dropEvent(event)
 
 
 # ---------------------------------------------------------------------------
@@ -3898,6 +3936,11 @@ class StudioEditor(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("studio_editor")
+        # Accept URL drops anywhere on the Studio widget — so dragging
+        # a tray item onto the layer panel, the toolbar area, or the
+        # canvas all work. The top-level widget routes to load_asset /
+        # add-overlay depending on whether the base is already loaded.
+        self.setAcceptDrops(True)
         self._asset: Asset | None = None
         self._project: Project | None = None
         self._project_path: str = ""
@@ -9250,6 +9293,38 @@ class StudioEditor(QWidget):
 
     # ---- drag-drop from tray ----
 
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+            return
+        super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+            return
+        super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            handled = False
+            for url in event.mimeData().urls():
+                if not url.isLocalFile():
+                    continue
+                path = url.toLocalFile()
+                # Scene center is a reasonable default for widget-level drops
+                # that didn't hit the canvas view directly.
+                center = self._scene.sceneRect().center()
+                self._on_file_dropped(path, center)
+                handled = True
+            if handled:
+                event.setDropAction(Qt.DropAction.CopyAction)
+                event.accept()
+                return
+        super().dropEvent(event)
+
     def _on_file_dropped(self, path: str, scene_pos):
         """Add dropped file as overlay. If no asset is loaded yet, try to
         resolve the dropped path to a project asset and load it as the
@@ -9258,11 +9333,25 @@ class StudioEditor(QWidget):
         if not self._asset:
             # No base loaded: resolve to project asset and load it
             if self._project is not None:
+                norm = path.replace("\\", "/").lower()
                 for a in self._project.assets:
-                    if (a.source_path or "").replace("\\", "/").lower() == \
-                            path.replace("\\", "/").lower():
+                    ap = (a.source_path or "").replace("\\", "/").lower()
+                    if ap == norm:
                         self.load_asset(a)
                         return
+            # Fall back to loading directly from disk so drops from outside
+            # the project (or when project lookup fails) still do something.
+            if ext in ('.png', '.jpg', '.jpeg', '.webp', '.psd', '.psb',
+                       '.tif', '.tiff', '.bmp'):
+                try:
+                    stub = Asset(
+                        id=Path(path).stem,
+                        source_path=path,
+                        source_folder=str(Path(path).parent),
+                    )
+                    self.load_asset(stub)
+                except Exception:
+                    pass
             return
         if ext not in ('.png', '.jpg', '.jpeg', '.webp', '.gif'):
             return
@@ -9274,6 +9363,7 @@ class StudioEditor(QWidget):
         )
         self._add_overlay_image(ov)
         self._sync_overlays_to_asset()
+        self._rebuild_layer_panel()
 
     def _add_overlay_image(self, ov: CanvasOverlay):
         """Add an overlay to the asset and scene."""
