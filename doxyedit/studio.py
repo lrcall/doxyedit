@@ -8668,26 +8668,30 @@ class StudioEditor(QWidget):
             target_w = max(10, int(base_w * ov.scale))
             src = src.scaledToWidth(target_w,
                                      Qt.TransformationMode.SmoothTransformation)
-        # Apply filter. Grayscale / invert: per-pixel QImage. Blur: round-
-        # trip through PIL so we get a real gaussian instead of bespoke math.
+        # Apply filter. Grayscale / invert / blur route through PIL for
+        # vectorized ops — was a Python per-pixel loop that took minutes
+        # on large overlays (~6M iterations for a 2k x 3k image).
         mode = getattr(ov, "filter_mode", "") or ""
         if mode in ("grayscale", "invert"):
-            qimg = src.toImage().convertToFormat(QImage.Format.Format_ARGB32_Premultiplied)
-            w, h = qimg.width(), qimg.height()
-            for y in range(h):
-                for x in range(w):
-                    c = qimg.pixelColor(x, y)
-                    if c.alpha() == 0:
-                        continue
-                    if mode == "grayscale":
-                        g = int(0.299 * c.red() + 0.587 * c.green()
-                                 + 0.114 * c.blue())
-                        c.setRgb(g, g, g, c.alpha())
-                    elif mode == "invert":
-                        c.setRgb(255 - c.red(), 255 - c.green(),
-                                  255 - c.blue(), c.alpha())
-                    qimg.setPixelColor(x, y, c)
-            src = QPixmap.fromImage(qimg)
+            from PIL import Image, ImageOps
+            pil_img = qimage_to_pil(src.toImage())
+            if mode == "grayscale":
+                # Keep alpha channel; grayscale only RGB.
+                if pil_img.mode == "RGBA":
+                    r, g, b, a = pil_img.split()
+                    gray = ImageOps.grayscale(pil_img.convert("RGB"))
+                    pil_img = Image.merge("RGBA", (gray, gray, gray, a))
+                else:
+                    pil_img = ImageOps.grayscale(pil_img).convert("RGBA")
+            else:  # invert
+                if pil_img.mode == "RGBA":
+                    r, g, b, a = pil_img.split()
+                    inv = ImageOps.invert(pil_img.convert("RGB")).split()
+                    pil_img = Image.merge(
+                        "RGBA", (inv[0], inv[1], inv[2], a))
+                else:
+                    pil_img = ImageOps.invert(pil_img.convert("RGB")).convert("RGBA")
+            src = QPixmap.fromImage(pil_to_qimage(pil_img))
         elif mode in ("blur3", "blur8"):
             radius = 3 if mode == "blur3" else 8
             from PIL import ImageFilter
