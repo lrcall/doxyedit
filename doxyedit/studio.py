@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QSlider,
     QFontComboBox, QSpinBox, QColorDialog, QInputDialog, QMenu,
     QListWidget, QListWidgetItem, QSplitter, QScrollArea, QCheckBox,
-    QGridLayout,
+    QGridLayout, QApplication,
 )
 from PySide6.QtCore import (
     Qt, QRectF, QPointF, QLineF, Signal, QSettings, QSize,
