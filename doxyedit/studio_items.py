@@ -722,7 +722,7 @@ class OverlayImageItem(QGraphicsPixmapItem):
             a.setChecked(self.overlay.blend_mode == bm)
             blend_acts[a] = bm
         select_same_blend_act = menu.addAction(
-            f"Select All with {getattr(self.overlay, 'blend_mode', 'normal').title()} Blend")
+            f"Select All with {(self.overlay.blend_mode or 'normal').title()} Blend")
         menu.addSeparator()
         flip_h_act = menu.addAction("Flip Horizontal  (Ctrl+Shift+H)")
         flip_v_act = menu.addAction("Flip Vertical  (Ctrl+Shift+V)")
@@ -3148,7 +3148,7 @@ class OverlayTextItem(QGraphicsTextItem):
             "right": Qt.AlignmentFlag.AlignRight,
         }
         opt = QTextOption(align_map.get(
-            getattr(self.overlay, "text_align", "left"),
+            self.overlay.text_align,
             Qt.AlignmentFlag.AlignLeft))
         self.document().setDefaultTextOption(opt)
         self.setDefaultTextColor(QColor(self.overlay.color))
@@ -3237,7 +3237,7 @@ class OverlayTextItem(QGraphicsTextItem):
         if mode != QPainter.CompositionMode.CompositionMode_SourceOver:
             painter.setCompositionMode(mode)
         # Optional background fill behind the text (sticker/callout effect)
-        bg = getattr(self.overlay, "background_color", "")
+        bg = self.overlay.background_color
         if bg:
             bg_color = QColor(bg)
             if bg_color.isValid():
@@ -3349,7 +3349,7 @@ class OverlayTextItem(QGraphicsTextItem):
         align_left_act = align_menu.addAction("Left")
         align_center_act = align_menu.addAction("Center")
         align_right_act = align_menu.addAction("Right")
-        cur_align = getattr(self.overlay, "text_align", "left")
+        cur_align = self.overlay.text_align
         for a, v in ((align_left_act, "left"),
                      (align_center_act, "center"),
                      (align_right_act, "right")):
