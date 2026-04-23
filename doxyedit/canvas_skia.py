@@ -512,6 +512,83 @@ class CanvasSkia(QWidget):
         receive per-paint JSONL events. Pass None to detach."""
         self._fps_perf_log = file_handle
 
+    # ------------------------------------------------------------------
+    # QGraphicsScene-compatible API (Day 14 cutover shim)
+    #
+    # Provides drop-in replacements for the QGraphicsScene methods that
+    # StudioEditor calls most often. When the full cutover happens,
+    # existing `self._scene.itemAt(pos)` / `self._scene.selectedItems()`
+    # / etc. calls continue to work unchanged against a CanvasSkia
+    # instance.
+    # ------------------------------------------------------------------
+
+    def itemAt(self, scene_pos: QPointF, _device_transform=None):
+        """QGraphicsScene.itemAt() shim. Returns the topmost overlay at
+        the given scene position, or None. _device_transform ignored —
+        accepted for signature compat with Qt's 2-arg form."""
+        return self.hit_test_image(scene_pos)
+
+    def items(self, rect=None):
+        """QGraphicsScene.items() shim. Returns list of overlays in
+        z-order (front-to-back). If `rect` provided (QRectF), filters
+        to overlays whose bbox intersects. Censors are returned after
+        overlays to match the 'draw censors above overlays' semantics."""
+        result = []
+        if rect is None:
+            result.extend(reversed(self._overlays))
+            result.extend(reversed(self._censors))
+            return result
+        # Rect-filtered: test each overlay's bbox against rect
+        for ov in reversed(self._overlays):
+            try:
+                ox, oy, w, h = self._selection_bbox_local(ov)
+                if QRectF(ox, oy, w, h).intersects(rect):
+                    result.append(ov)
+            except Exception:
+                continue
+        return result
+
+    def selectedItems(self):
+        """Return selected overlays in current z-order."""
+        return [ov for ov in self._overlays if id(ov) in self._selected_ids]
+
+    def clearSelection(self):
+        if self._selected_ids:
+            self._selected_ids.clear()
+            self.update()
+
+    def addItem(self, ov):
+        """QGraphicsScene.addItem() shim. Accepts a CanvasOverlay or a
+        CensorRegion and routes to the appropriate list."""
+        # Detect type by attribute presence — CanvasOverlay has 'type',
+        # CensorRegion has 'style' + 'w'/'h'.
+        if hasattr(ov, "type"):
+            self._overlays.append(ov)
+        elif hasattr(ov, "style") and hasattr(ov, "w"):
+            self._censors.append(ov)
+        self.update()
+
+    def removeItem(self, ov):
+        """QGraphicsScene.removeItem() shim."""
+        if ov in self._overlays:
+            self._overlays.remove(ov)
+        elif ov in self._censors:
+            self._censors.remove(ov)
+        self._selected_ids.discard(id(ov))
+        self.update()
+
+    def sceneRect(self) -> QRectF:
+        """Return the base image's rect in scene coords (top-left at
+        origin). QGraphicsScene returns the unioned bbox of all items
+        by default; we pin to the base image since overlays always
+        position relative to it in this codebase."""
+        if self._base_image is None:
+            return QRectF(0, 0, 0, 0)
+        return QRectF(
+            0, 0,
+            float(self._base_image.width()),
+            float(self._base_image.height()))
+
     def remove_overlay(self, ov):
         try:
             self._overlays.remove(ov)
