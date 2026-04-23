@@ -3769,6 +3769,60 @@ class _StudioCanvas(QWidget):
             self.refresh()
 
 
+_GL_PROBE_RESULT: bool | None = None
+_GL_PROBE_ERROR: str = ""
+
+
+def _probe_gl_viewport() -> bool:
+    """Return True if a QOpenGLWidget can be created and bound on the
+    current platform. Result is memoized — the probe creates real GL
+    resources which isn't free, and the answer won't change within a
+    session.
+
+    Checks:
+    - QtOpenGLWidgets module imports
+    - QSurfaceFormat + QOpenGLWidget instantiable
+    - QOpenGLContext can be created with the widget's format
+
+    Used at StudioView construction to decide whether to honor
+    studio_use_gl_viewport=True, and to log which backend is actually
+    active to the perf log.
+    """
+    global _GL_PROBE_RESULT, _GL_PROBE_ERROR
+    if _GL_PROBE_RESULT is not None:
+        return _GL_PROBE_RESULT
+    try:
+        from PySide6.QtOpenGLWidgets import QOpenGLWidget
+        from PySide6.QtGui import QSurfaceFormat, QOpenGLContext
+        w = QOpenGLWidget()
+        fmt = QSurfaceFormat()
+        fmt.setSwapInterval(1)
+        fmt.setSamples(0)
+        w.setFormat(fmt)
+        # Actually create a GL context to prove we have working drivers.
+        # Without this, QOpenGLWidget construction succeeds even when
+        # OpenGL is missing (e.g. running under WSLg with no GL).
+        ctx = QOpenGLContext()
+        ctx.setFormat(fmt)
+        if not ctx.create():
+            _GL_PROBE_ERROR = "QOpenGLContext.create() failed"
+            _GL_PROBE_RESULT = False
+            return False
+        # Clean up probe widget/context so we don't leak GL state.
+        w.deleteLater()
+        _GL_PROBE_RESULT = True
+        return True
+    except Exception as e:
+        _GL_PROBE_ERROR = str(e)
+        _GL_PROBE_RESULT = False
+        return False
+
+
+def gl_probe_result() -> tuple[bool, str]:
+    """Inspect the GL probe without re-running it. Returns (ok, error)."""
+    return (bool(_GL_PROBE_RESULT), _GL_PROBE_ERROR)
+
+
 class StudioView(QGraphicsView):
     """Zoomable (wheel) + pannable (middle-drag) view."""
 
@@ -3816,18 +3870,25 @@ class StudioView(QGraphicsView):
         _use_gl = _qs.value("studio_use_gl_viewport", False, type=bool)
         gl_ok = False
         if _use_gl:
-            try:
-                from PySide6.QtOpenGLWidgets import QOpenGLWidget
-                from PySide6.QtGui import QSurfaceFormat
-                gl = QOpenGLWidget()
-                fmt = QSurfaceFormat()
-                fmt.setSwapInterval(1)  # vsync
-                fmt.setSamples(0)        # no MSAA - cheap
-                gl.setFormat(fmt)
-                self.setViewport(gl)
-                gl_ok = True
-            except Exception:
+            # Startup probe — check the platform actually supports GL
+            # before swapping the viewport. Probes catch missing drivers
+            # (Intel HD without OpenGL), WSL environments, and remote-
+            # desktop sessions where GL fails silently.
+            if not _probe_gl_viewport():
                 gl_ok = False
+            else:
+                try:
+                    from PySide6.QtOpenGLWidgets import QOpenGLWidget
+                    from PySide6.QtGui import QSurfaceFormat
+                    gl = QOpenGLWidget()
+                    fmt = QSurfaceFormat()
+                    fmt.setSwapInterval(1)  # vsync
+                    fmt.setSamples(0)        # no MSAA - cheap
+                    gl.setFormat(fmt)
+                    self.setViewport(gl)
+                    gl_ok = True
+                except Exception:
+                    gl_ok = False
         if gl_ok:
             # GL viewport requires FullViewportUpdate - partial rects
             # don't work; the framebuffer swaps whole anyway.
@@ -3888,10 +3949,14 @@ class StudioView(QGraphicsView):
             import os as _os, time as _t
             self._perf_log_file = open(self._perf_log_path, "w",
                                         encoding="utf-8")
+            gl_ok, gl_err = gl_probe_result()
             self._perf_log_event({
                 "type": "session_start",
                 "path": self._perf_log_path,
                 "pid": _os.getpid(),
+                "gl_active": self._gl_viewport_active,
+                "gl_probe_ok": gl_ok,
+                "gl_probe_err": gl_err,
             })
         except Exception:
             self._perf_log_file = None
