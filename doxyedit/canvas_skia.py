@@ -1865,11 +1865,22 @@ class CanvasSkia(QWidget):
         if self._surface is None or self._qimg is None:
             return
         try:
-            info = skia.ImageInfo.Make(
-                self._qimg.width(), self._qimg.height(),
-                skia.ColorType.kRGBA_8888_ColorType,
-                skia.AlphaType.kPremul_AlphaType,
-            )
+            # Cache the ImageInfo by (w, h, format) — canvas size is
+            # stable for long stretches and re-allocating the info
+            # every paint was pure churn. Invalidated naturally when
+            # the window is resized (the key flips).
+            w = self._qimg.width()
+            h = self._qimg.height()
+            cur = getattr(self, "_readback_info_key", None)
+            info = getattr(self, "_readback_info", None)
+            if cur != (w, h) or info is None:
+                info = skia.ImageInfo.Make(
+                    w, h,
+                    skia.ColorType.kRGBA_8888_ColorType,
+                    skia.AlphaType.kPremul_AlphaType,
+                )
+                self._readback_info = info
+                self._readback_info_key = (w, h)
             # readPixels writes into a bytes-like destination.
             # QImage.bits() returns a PySide PyVoid pointer; feed its
             # underlying memoryview instead.
