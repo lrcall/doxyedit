@@ -4415,6 +4415,12 @@ class StudioEditor(QWidget):
         self._qp_scale_base_map = {}
         self._helpers_hidden_state = None
         self._guide_items = []
+        # Layer panel + debounce timer slots — populated by _build()
+        # and _schedule_layer_rebuild lazy-init respectively. Pre-init
+        # so callers can use direct attribute reads with explicit
+        # None-check instead of hasattr probes.
+        self._layer_panel = None
+        self._layer_rebuild_timer = None
         # Undo stack must exist before _build() because the toolbar wires
         # the undo/redo buttons to it.
         self._undo_stack = QUndoStack(self)
@@ -7995,7 +8001,7 @@ class StudioEditor(QWidget):
             size_mb = src.stat().st_size / (1024*1024) if src.exists() else 0
             self._asset_info.setText(f"{pm.width()}\u00d7{pm.height()} \u00b7 {src.suffix.upper().lstrip('.')} \u00b7 {size_mb:.1f}MB")
 
-        if hasattr(self, '_layer_panel'):
+        if self._layer_panel is not None:
             self._rebuild_layer_panel()
 
     def _set_zoom(self, factor: float):
@@ -11049,7 +11055,7 @@ class StudioEditor(QWidget):
 
     def _on_focus_toggled(self, on: bool):
         """Focus mode: hide layer panel + filmstrip to maximize canvas."""
-        if hasattr(self, "_layer_panel"):
+        if self._layer_panel is not None:
             self._layer_panel.parent().setVisible(not on)
         if hasattr(self, "_preview_strip"):
             self._preview_strip.setVisible(not on)
@@ -12134,9 +12140,9 @@ class StudioEditor(QWidget):
         repeatedly during drag / slider-tick, so coalescing into one
         rebuild per event-loop idle saves a full QListWidget clear +
         repopulate per tick. Lazy-creates the timer on first call."""
-        if not hasattr(self, '_layer_panel'):
+        if self._layer_panel is None:
             return
-        timer = getattr(self, '_layer_rebuild_timer', None)
+        timer = self._layer_rebuild_timer
         if timer is None:
             timer = QTimer(self)
             timer.setSingleShot(True)
