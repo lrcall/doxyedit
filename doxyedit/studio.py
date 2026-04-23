@@ -6924,6 +6924,17 @@ class StudioEditor(QWidget):
         self._fps_hud_shortcut.activated.connect(
             lambda: self._view.toggle_fps_hud())
 
+        # Shift+S = open the Skia-backend preview window (Day 14).
+        # Side-by-side preview of the same scene rendered via the
+        # skia-python compositor. Lets the user see the work-in-progress
+        # without any risk to the main QGraphicsView path.
+        self._skia_preview_shortcut = QShortcut(
+            QKeySequence("Shift+S"), self)
+        self._skia_preview_shortcut.setContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self._skia_preview_shortcut.activated.connect(
+            self._open_skia_preview)
+
         # Escape = universal 'deselect + exit tool' regardless of which
         # studio widget has focus (sidebar button, slider, layer panel).
         # Scoped with WidgetWithChildrenShortcut so it does NOT interfere
@@ -8082,6 +8093,64 @@ class StudioEditor(QWidget):
             return
         self._view.centerOn(QPointF(x, y))
         self.info_label.setText(f"Centered on ({x}, {y})")
+
+    def _open_skia_preview(self):
+        """Shift+S — open a window showing the current asset rendered
+        via the Skia backend (canvas_skia.CanvasSkia). Side-by-side
+        preview so the user can confirm the Skia pipeline works on
+        their actual content before Day-14-full-cutover wires the
+        backend as the main compositor.
+
+        Reuses the live Asset / CanvasOverlay / CensorRegion objects —
+        zero conversion. Draws the base image + every overlay + every
+        censor at native resolution.
+        """
+        if self._asset is None:
+            if hasattr(self, "info_label"):
+                self.info_label.setText("Load an asset first")
+            return
+        try:
+            from doxyedit.canvas_skia import (
+                CanvasSkia, skia_available, skia_error,
+            )
+        except Exception as e:
+            if hasattr(self, "info_label"):
+                self.info_label.setText(f"Skia import failed: {e}")
+            return
+        if not skia_available():
+            if hasattr(self, "info_label"):
+                self.info_label.setText(
+                    f"Skia unavailable: {skia_error()}")
+            return
+        # Build (or reuse) the preview window.
+        dlg = getattr(self, "_skia_preview_dlg", None)
+        if dlg is None:
+            from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
+            dlg = QMainWindow(self.window())
+            dlg.setWindowTitle("DoxyEdit — Skia Preview (beta)")
+            dlg.resize(1100, 750)
+            canvas = CanvasSkia(dlg)
+            dlg.setCentralWidget(canvas)
+            dlg._canvas = canvas
+            self._skia_preview_dlg = dlg
+        canvas = dlg._canvas
+        # Load the current asset's base image into the Skia canvas.
+        canvas.set_base_image_path(self._asset.source_path)
+        # Pass the live overlay / censor objects straight through.
+        canvas.set_overlays(list(self._asset.overlays or []))
+        canvas.set_censors(list(self._asset.censors or []))
+        # Auto-fit the image to the preview viewport the first time.
+        bw = canvas.base_size().width() or 1
+        bh = canvas.base_size().height() or 1
+        avail_w = canvas.width() or 1
+        avail_h = canvas.height() or 1
+        fit = min(avail_w / bw, avail_h / bh, 1.0)
+        canvas.set_zoom(fit if fit > 0 else 1.0)
+        canvas._pan_x = max(0.0, (avail_w - bw * fit) / 2)
+        canvas._pan_y = max(0.0, (avail_h - bh * fit) / 2)
+        canvas.update()
+        dlg.show()
+        dlg.raise_()
 
     def _nuclear_clear(self):
         """F10 — clear text selection + crop mask. The two that work."""
