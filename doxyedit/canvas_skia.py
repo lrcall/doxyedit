@@ -354,6 +354,121 @@ class CanvasSkia(QWidget):
     def is_selected(self, ov) -> bool:
         return id(ov) in self._selected_ids
 
+    # ------------------------------------------------------------------
+    # Day 10 — export
+    # ------------------------------------------------------------------
+
+    def export_to_qimage(self, include_decorators: bool = False) -> QImage | None:
+        """Render the current scene at the base image's native resolution
+        (no pan/zoom applied) and return a QImage. Selection decorators
+        and snap guides are omitted by default — exports should look like
+        the final asset, not the editing UI.
+
+        If no base image is loaded, falls back to the current viewport
+        size. Returns None on failure (skia unavailable, render error)."""
+        if not _SKIA_OK:
+            return None
+        base = self._base_image
+        if base is not None:
+            w, h = base.width(), base.height()
+        else:
+            w = max(1, self.width())
+            h = max(1, self.height())
+        try:
+            info = skia.ImageInfo.Make(
+                w, h,
+                skia.ColorType.kRGBA_8888_ColorType,
+                skia.AlphaType.kPremul_AlphaType,
+            )
+            surface = skia.Surface.MakeRaster(info)
+            if surface is None:
+                return None
+            canvas = surface.getCanvas()
+            canvas.clear(skia.Color(0, 0, 0, 0))
+            # No pan / zoom for export — render at native coords.
+            if base is not None:
+                canvas.drawImage(base, 0, 0, paint=skia.Paint())
+            for ov in self._overlays:
+                t = getattr(ov, "type", "")
+                if t in ("watermark", "logo"):
+                    self._draw_overlay_image(canvas, ov)
+                elif t == "text":
+                    self._draw_overlay_text(canvas, ov)
+                elif t == "shape":
+                    self._draw_overlay_shape(canvas, ov)
+                elif t == "arrow":
+                    self._draw_overlay_arrow(canvas, ov)
+            for cr in self._censors:
+                self._draw_censor(canvas, cr, base)
+            if include_decorators:
+                for ov in self._overlays:
+                    if id(ov) in self._selected_ids:
+                        self._draw_selection_decor(canvas, ov)
+                if self._snap_guides:
+                    self._draw_snap_guides(canvas)
+            try:
+                canvas.flush()
+            except AttributeError:
+                pass
+            out = QImage(w, h, QImage.Format.Format_RGBA8888_Premultiplied)
+            out.fill(Qt.GlobalColor.transparent)
+            surface.readPixels(info, out.bits(),
+                               out.bytesPerLine(), 0, 0)
+            return out
+        except Exception:
+            return None
+
+    def export_to_png(self, path: str) -> bool:
+        """Export the scene to a PNG file via Skia's native encoder.
+        Returns True on success. Bypasses QImage for a cleaner pipeline
+        when the caller just wants a file on disk."""
+        if not _SKIA_OK:
+            return False
+        base = self._base_image
+        if base is not None:
+            w, h = base.width(), base.height()
+        else:
+            w = max(1, self.width())
+            h = max(1, self.height())
+        try:
+            info = skia.ImageInfo.Make(
+                w, h,
+                skia.ColorType.kRGBA_8888_ColorType,
+                skia.AlphaType.kPremul_AlphaType,
+            )
+            surface = skia.Surface.MakeRaster(info)
+            if surface is None:
+                return False
+            canvas = surface.getCanvas()
+            canvas.clear(skia.Color(0, 0, 0, 0))
+            if base is not None:
+                canvas.drawImage(base, 0, 0, paint=skia.Paint())
+            for ov in self._overlays:
+                t = getattr(ov, "type", "")
+                if t in ("watermark", "logo"):
+                    self._draw_overlay_image(canvas, ov)
+                elif t == "text":
+                    self._draw_overlay_text(canvas, ov)
+                elif t == "shape":
+                    self._draw_overlay_shape(canvas, ov)
+                elif t == "arrow":
+                    self._draw_overlay_arrow(canvas, ov)
+            for cr in self._censors:
+                self._draw_censor(canvas, cr, base)
+            try:
+                canvas.flush()
+            except AttributeError:
+                pass
+            img = surface.makeImageSnapshot()
+            data = img.encodeToData(skia.EncodedImageFormat.kPNG, 100)
+            if data is None:
+                return False
+            with open(path, "wb") as f:
+                f.write(bytes(data))
+            return True
+        except Exception:
+            return False
+
     def set_snap_guides(self, guides: list):
         """List of (x1, y1, x2, y2) tuples in scene coords. Drawn
         dashed-cyan over everything while active during drag."""
