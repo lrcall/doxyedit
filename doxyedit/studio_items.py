@@ -3182,15 +3182,24 @@ class OverlayTextItem(QGraphicsTextItem):
 
         Stroke and bg pill extend on all four sides; shadow is a single
         positive-offset copy so it only extends right/bottom.
+
+        Qt hits this constantly for scene bookkeeping. Fast-path
+        checks ov.stroke_width / ov.shadow_offset / ov.background_color
+        first; if all three are the default no-style values we return
+        super().boundingRect() immediately without allocating.
         """
+        ov = self.overlay
+        # All three are dataclass fields on CanvasOverlay so direct
+        # attribute access is safe — no getattr fallback needed.
+        stroke_w = ov.stroke_width
+        shadow_off = ov.shadow_offset
+        bg = ov.background_color
+        if not stroke_w and not shadow_off and not bg:
+            return super().boundingRect()
         r = super().boundingRect()
-        pad_stroke = int(self.overlay.stroke_width or 0)
-        pad_shadow = int(self.overlay.shadow_offset or 0)
-        pad_bg = 0
-        if getattr(self.overlay, "background_color", ""):
-            pad_bg = max(4, int(self.overlay.font_size * 0.2))
-        if pad_stroke == 0 and pad_shadow == 0 and pad_bg == 0:
-            return r
+        pad_stroke = int(stroke_w or 0)
+        pad_shadow = int(shadow_off or 0)
+        pad_bg = max(4, int(ov.font_size * 0.2)) if bg else 0
         base_pad = max(pad_stroke, pad_bg)
         return r.adjusted(
             -base_pad, -base_pad,
