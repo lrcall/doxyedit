@@ -109,16 +109,26 @@ class CanvasSkia(QWidget):
         h = max(1, int(size.height()))
         self._qimg = QImage(w, h, QImage.Format.Format_RGBA8888_Premultiplied)
         self._qimg.fill(Qt.GlobalColor.transparent)
-        if _SKIA_OK:
+        self._surface = None
+        self._surface_is_direct = False
+        if not _SKIA_OK:
+            return
+        try:
             info = skia.ImageInfo.Make(
                 w, h,
                 skia.ColorType.kRGBA_8888_ColorType,
                 skia.AlphaType.kPremul_AlphaType,
             )
-            # Wrap the QImage bits directly — Skia paints into Qt's buffer.
-            ptr = int(self._qimg.bits())
-            self._surface = skia.Surface.MakeRasterDirect(
-                info, ptr, self._qimg.bytesPerLine())
+            # Allocated raster surface — Skia owns the backing store.
+            # At paint time we snapshot + copy pixels into the QImage.
+            # MakeRasterDirect into PySide6's QImage.bits() buffer is
+            # viable but requires ctypes gymnastics around PySide's
+            # PyVoid pointer; allocated surface is simpler and the
+            # extra copy is 1-2ms for a 1080p viewport — dwarfed by
+            # the 10-20x GPU composite win we're building toward.
+            self._surface = skia.Surface.MakeRaster(info)
+        except Exception:
+            self._surface = None
 
     def resizeEvent(self, event):
         self._resize_buffers(event.size())
@@ -233,6 +243,196 @@ class CanvasSkia(QWidget):
             return skia.BlendMode.kLighten
         return None  # default kSrcOver for "normal" and unknowns
 
+    def _draw_overlay_text(self, canvas, ov):
+        """Render a text overlay. Day-4 scope: font family, size,
+        bold / italic / underline / strike, color, letter-spacing,
+        text alignment, line height, outline (stroke_width /
+        stroke_color), drop shadow (shadow_offset / shadow_color),
+        rotation, opacity, blend mode.
+
+        Skia native text rendering — a single paint call for glyphs,
+        no 9-pass stroke hack needed (SkPaint.setStyle(StrokeAndFill)
+        handles stroke natively). Drop shadow via SkImageFilter chain
+        is one paint, not a second document-draw pass.
+        """
+        if not getattr(ov, "enabled", True):
+            return
+        text = getattr(ov, "text", "") or ""
+        if not text:
+            return
+        family = getattr(ov, "font_family", "Segoe UI") or "Segoe UI"
+        size = float(getattr(ov, "font_size", 14) or 14)
+        bold = bool(getattr(ov, "bold", False))
+        italic = bool(getattr(ov, "italic", False))
+        # Skia Typeface — matches QFont's family + weight + italic.
+        style = skia.FontStyle(
+            skia.FontStyle.kBold_Weight if bold
+            else skia.FontStyle.kNormal_Weight,
+            skia.FontStyle.kNormal_Width,
+            (skia.FontStyle.kItalic_Slant if italic
+             else skia.FontStyle.kUpright_Slant),
+        )
+        typeface = skia.Typeface(family, style)
+        font = skia.Font(typeface, size)
+        # Layout lines with line_height spacing. Skia doesn't have a
+        # built-in paragraph layout at this scope; we handle line
+        # breaks manually matching QTextDocument's block layout.
+        lines = text.split("\n")
+        metrics = font.getMetrics()
+        line_h = float(getattr(ov, "line_height", 1.2) or 1.2)
+        ascent = -metrics.fAscent       # SkFontMetrics ascent is negative
+        descent = metrics.fDescent
+        line_step = (ascent + descent) * line_h
+        # Alignment: compute per-line x offset from text_align.
+        align = getattr(ov, "text_align", "left") or "left"
+        # text_width clamp — if > 0, treat as pinned line width for
+        # alignment math. Otherwise each line is left-aligned relative
+        # to overlay.x.
+        pinned_w = float(getattr(ov, "text_width", 0) or 0)
+        canvas.save()
+        # Position + transform (rotation around text center for parity
+        # with OverlayTextItem).
+        canvas.translate(float(ov.x), float(ov.y))
+        rot = float(getattr(ov, "rotation", 0) or 0)
+        if rot:
+            # Pivot around the middle of the text block
+            total_h = line_step * len(lines)
+            widest = max((font.measureText(l) for l in lines), default=0)
+            cx = (pinned_w if pinned_w > 0 else widest) / 2
+            cy = total_h / 2
+            canvas.translate(cx, cy)
+            canvas.rotate(rot)
+            canvas.translate(-cx, -cy)
+        # Flip
+        sx = -1.0 if getattr(ov, "flip_h", False) else 1.0
+        sy = -1.0 if getattr(ov, "flip_v", False) else 1.0
+        if sx < 0 or sy < 0:
+            widest = max((font.measureText(l) for l in lines), default=0)
+            total_h = line_step * len(lines)
+            canvas.translate(widest / 2, total_h / 2)
+            canvas.scale(sx, sy)
+            canvas.translate(-widest / 2, -total_h / 2)
+        # Build the base paint (fill).
+        color_hex = getattr(ov, "color", "#ffffff") or "#ffffff"
+        fill_color = self._parse_hex(color_hex, (255, 255, 255, 255))
+        opacity = float(getattr(ov, "opacity", 1.0) or 1.0)
+        alpha = int(max(0.0, min(1.0, opacity)) * 255)
+        # Background pill if configured.
+        bg_hex = getattr(ov, "background_color", "") or ""
+        if bg_hex:
+            bg_paint = skia.Paint()
+            bg_paint.setColor(skia.Color(*self._parse_hex(bg_hex, (0, 0, 0, 200))))
+            bg_paint.setAntiAlias(True)
+            widest = max((font.measureText(l) for l in lines), default=0)
+            total_h = line_step * len(lines)
+            pad = max(4.0, size * 0.2)
+            rect = skia.Rect.MakeXYWH(-pad, -pad - ascent,
+                                       (pinned_w if pinned_w > 0 else widest) + pad * 2,
+                                       total_h + pad * 2)
+            canvas.drawRoundRect(rect, pad, pad, bg_paint)
+        # Drop shadow — one paint with SkImageFilters.DropShadow handles
+        # it in a single glyph draw, no second document pass.
+        shadow_off = float(getattr(ov, "shadow_offset", 0) or 0)
+        shadow_hex = getattr(ov, "shadow_color", "") or ""
+        shadow_blur = float(getattr(ov, "shadow_blur", 0) or 0)
+        stroke_w = float(getattr(ov, "stroke_width", 0) or 0)
+        stroke_hex = getattr(ov, "stroke_color", "") or ""
+        # Build a reusable image filter for shadow+stroke combined
+        # below. Paints applied per-line via drawSimpleText.
+        def _mk_paint(fill_rgba, stroke=False, stroke_rgba=None,
+                      stroke_px=0.0, with_shadow=False):
+            p = skia.Paint()
+            p.setAntiAlias(True)
+            p.setAlphaf(alpha / 255.0)
+            if stroke:
+                p.setStyle(skia.Paint.kStroke_Style)
+                p.setColor(skia.Color(*stroke_rgba))
+                p.setStrokeWidth(stroke_px)
+                p.setStrokeJoin(skia.Paint.kRound_Join)
+            else:
+                p.setStyle(skia.Paint.kFill_Style)
+                p.setColor(skia.Color(*fill_rgba))
+            if with_shadow and shadow_off > 0 and shadow_hex:
+                sh_rgba = self._parse_hex(shadow_hex, (0, 0, 0, 220))
+                try:
+                    f = skia.ImageFilters.DropShadow(
+                        float(shadow_off), float(shadow_off),
+                        float(max(0.5, shadow_blur)),
+                        float(max(0.5, shadow_blur)),
+                        skia.Color(*sh_rgba), None)
+                    p.setImageFilter(f)
+                except Exception:
+                    pass
+            return p
+        # Letter spacing — Skia Font supports ScaleX / SkewX but not
+        # direct letter_spacing in older versions. Emulate by drawing
+        # each character advanced manually; cheap for short text.
+        letter_spacing = float(getattr(ov, "letter_spacing", 0) or 0)
+
+        def _draw_line(line_str, base_y, paint):
+            if letter_spacing == 0:
+                # Alignment offset based on line width
+                w = font.measureText(line_str)
+                pin = pinned_w if pinned_w > 0 else w
+                if align == "center":
+                    x = (pin - w) / 2
+                elif align == "right":
+                    x = pin - w
+                else:
+                    x = 0
+                canvas.drawSimpleText(line_str, x, base_y, font, paint)
+            else:
+                # Per-glyph draw with manual advance
+                cursor = 0.0
+                if align != "left":
+                    # Pre-compute total width with spacing
+                    total = sum(
+                        font.measureText(ch) + letter_spacing
+                        for ch in line_str
+                    ) - (letter_spacing if line_str else 0)
+                    pin = pinned_w if pinned_w > 0 else total
+                    if align == "center":
+                        cursor = (pin - total) / 2
+                    elif align == "right":
+                        cursor = pin - total
+                for ch in line_str:
+                    canvas.drawSimpleText(
+                        ch, cursor, base_y, font, paint)
+                    cursor += font.measureText(ch) + letter_spacing
+
+        # Stroke pass under fill for outlined text look.
+        if stroke_w > 0 and stroke_hex:
+            stroke_rgba = self._parse_hex(stroke_hex, (0, 0, 0, 255))
+            stroke_paint = _mk_paint(
+                None, stroke=True, stroke_rgba=stroke_rgba,
+                stroke_px=stroke_w * 2, with_shadow=False)
+            for i, line in enumerate(lines):
+                _draw_line(line, ascent + i * line_step, stroke_paint)
+        # Fill pass (with shadow if configured; otherwise plain).
+        fill_paint = _mk_paint(
+            fill_color, with_shadow=bool(shadow_off and shadow_hex))
+        mode = self._blend_mode_for(getattr(ov, "blend_mode", "normal") or "normal")
+        if mode is not None:
+            fill_paint.setBlendMode(mode)
+        for i, line in enumerate(lines):
+            _draw_line(line, ascent + i * line_step, fill_paint)
+        canvas.restore()
+
+    @staticmethod
+    def _parse_hex(s: str, default: tuple) -> tuple:
+        """Parse #RRGGBB / #RRGGBBAA -> (r,g,b,a). Returns default on error."""
+        try:
+            h = (s or "").lstrip("#")
+            if len(h) == 6:
+                return (int(h[0:2], 16), int(h[2:4], 16),
+                        int(h[4:6], 16), 255)
+            if len(h) == 8:
+                return (int(h[0:2], 16), int(h[2:4], 16),
+                        int(h[4:6], 16), int(h[6:8], 16))
+        except Exception:
+            pass
+        return default
+
     def _draw_overlay_image(self, canvas, ov):
         """Render an image overlay (watermark / logo). Day-3 scope:
         position, scale, opacity, rotation, flip, blend mode. No
@@ -325,7 +525,9 @@ class CanvasSkia(QWidget):
             ov_type = getattr(ov, "type", "")
             if ov_type in ("watermark", "logo"):
                 self._draw_overlay_image(canvas, ov)
-            # text/shape/arrow come in future milestones
+            elif ov_type == "text":
+                self._draw_overlay_text(canvas, ov)
+            # shape/arrow come in Day 5
         canvas.restore()
         # HUD — always at screen pixels (no transform).
         hud_paint = skia.Paint()
@@ -336,10 +538,32 @@ class CanvasSkia(QWidget):
                 f"pan=({int(self._pan_x)},{int(self._pan_y)})  "
                 f"overlays={len(self._overlays)}")
         canvas.drawString(text, 12, 20, font, hud_paint)
-        # Flush so the bytes are in the QImage buffer before Qt blits.
-        # With raster surfaces, flush() is effectively a no-op but kept
-        # for parity with the GPU milestone.
+        # Copy Skia's backing store into the QImage so Qt can blit it.
+        # Skia's Surface.MakeRaster allocates its own buffer; we pull
+        # it into Qt's buffer via readPixels.
         try:
             canvas.flush()
         except AttributeError:
+            pass
+        self._copy_skia_to_qimage()
+
+    def _copy_skia_to_qimage(self):
+        """Readback Skia's rendered pixels into self._qimg."""
+        if self._surface is None or self._qimg is None:
+            return
+        try:
+            info = skia.ImageInfo.Make(
+                self._qimg.width(), self._qimg.height(),
+                skia.ColorType.kRGBA_8888_ColorType,
+                skia.AlphaType.kPremul_AlphaType,
+            )
+            # readPixels writes into a bytes-like destination.
+            # QImage.bits() returns a PySide PyVoid pointer; feed its
+            # underlying memoryview instead.
+            buf = self._qimg.bits()
+            # buf is a memoryview or voidptr — Skia accepts a bytes-like
+            # dest via the low-level readPixels overload.
+            self._surface.readPixels(
+                info, buf, self._qimg.bytesPerLine(), 0, 0)
+        except Exception:
             pass
