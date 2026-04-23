@@ -870,7 +870,10 @@ def _render_shape_to_image(overlay_snapshot, pad: int):
     When the GUI thread adopts the image, it translates by (x-pad, y-pad)
     so the shape lands at the overlay's scene position.
     """
-    from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
+    from PySide6.QtGui import (
+        QPainter, QColor, QPen, QBrush, QPainterPath, QPolygonF,
+        QLinearGradient, QRadialGradient,
+    )
     import math as _math
 
     def _run(img, params):
@@ -892,14 +895,51 @@ def _render_shape_to_image(overlay_snapshot, pad: int):
                 path.addRect(body)
         elif kind == "ellipse":
             path.addEllipse(body)
+        elif kind == "star":
+            n = max(3, int(getattr(ov, "star_points", 5) or 5))
+            inner = max(0.1, min(0.95,
+                float(getattr(ov, "inner_ratio", 0.4) or 0.4)))
+            cx, cy = pad + w / 2, pad + h / 2
+            rx, ry = w / 2, h / 2
+            pts = []
+            for i in range(n * 2):
+                frac = (2 * _math.pi * i) / (n * 2) - _math.pi / 2
+                s = 1.0 if i % 2 == 0 else inner
+                pts.append(QPointF(cx + _math.cos(frac) * rx * s,
+                                    cy + _math.sin(frac) * ry * s))
+            path.addPolygon(QPolygonF(pts))
+            path.closeSubpath()
+        elif kind == "polygon":
+            n = max(3, int(getattr(ov, "star_points", 6) or 6))
+            cx, cy = pad + w / 2, pad + h / 2
+            rx, ry = w / 2, h / 2
+            pts = []
+            for i in range(n):
+                frac = (2 * _math.pi * i) / n - _math.pi / 2
+                pts.append(QPointF(cx + _math.cos(frac) * rx,
+                                    cy + _math.sin(frac) * ry))
+            path.addPolygon(QPolygonF(pts))
+            path.closeSubpath()
+        elif kind == "burst":
+            cx, cy = pad + w / 2, pad + h / 2
+            rx, ry = w / 2, h / 2
+            n = 14
+            inner = 0.62
+            pts = []
+            for i in range(n * 2):
+                frac = (2 * _math.pi * i) / (n * 2)
+                s = 1.0 if i % 2 == 0 else inner
+                pts.append(QPointF(
+                    cx + _math.cos(frac - _math.pi / 2) * rx * s,
+                    cy + _math.sin(frac - _math.pi / 2) * ry * s))
+            path.addPolygon(QPolygonF(pts))
+            path.closeSubpath()
         elif kind == "speech_bubble":
-            # Simple speech bubble: rounded rect + triangular tail
             roundness = max(0.0, min(1.0,
                 getattr(ov, "bubble_roundness", 0.0) or 0.0))
             inner_pad = min(w, h) * 0.18
             eff_pad = inner_pad + (min(w, h) / 2 - inner_pad) * roundness
             path.addRoundedRect(body, eff_pad, eff_pad)
-            # Tail — default pointing down-left
             tx = getattr(ov, "tail_x", 0) or 0
             ty = getattr(ov, "tail_y", 0) or 0
             if tx == 0 and ty == 0:
@@ -915,16 +955,67 @@ def _render_shape_to_image(overlay_snapshot, pad: int):
             tail.lineTo(pad, pad + h * 0.5 + base_len)
             tail.closeSubpath()
             path = path.united(tail)
+        elif kind == "thought_bubble":
+            # Central ellipse + 10 peripheral puff unions.
+            cx, cy = pad + w / 2, pad + h / 2
+            rx, ry = w / 2, h / 2
+            path.addEllipse(QRectF(
+                cx - rx * 0.78, cy - ry * 0.78,
+                rx * 1.56, ry * 1.56))
+            n_puffs = 10
+            puff_r = min(rx, ry) * 0.28
+            for i in range(n_puffs):
+                ang = (2 * _math.pi * i) / n_puffs
+                px = cx + _math.cos(ang) * (rx - puff_r * 0.4)
+                py = cy + _math.sin(ang) * (ry - puff_r * 0.4)
+                sub = QPainterPath()
+                sub.addEllipse(QPointF(px, py), puff_r, puff_r)
+                path = path.united(sub)
         else:
             path.addRect(body)
-        # Fill
-        fill_hex = getattr(ov, "fill_color", "") or ""
-        if fill_hex:
-            c = QColor(fill_hex)
-            c.setAlphaF(float(getattr(ov, "opacity", 1.0) or 1.0))
-            p.setBrush(QBrush(c))
+        # Fill — gradient first (for gradient_linear/gradient_radial),
+        # then solid fill_color.
+        if kind in ("gradient_linear", "gradient_radial"):
+            def _parse_hex_grad(s, default):
+                h = (s or default).lstrip("#")
+                if len(h) == 8:
+                    return QColor(int(h[0:2], 16), int(h[2:4], 16),
+                                   int(h[4:6], 16), int(h[6:8], 16))
+                return QColor(s or default)
+            c0 = _parse_hex_grad(
+                getattr(ov, "gradient_start_color", "") or "", "#000000")
+            c1 = _parse_hex_grad(
+                getattr(ov, "gradient_end_color", "") or "", "#ffffff")
+            op = float(getattr(ov, "opacity", 1.0) or 1.0)
+            c0.setAlphaF(c0.alphaF() * op)
+            c1.setAlphaF(c1.alphaF() * op)
+            if kind == "gradient_linear":
+                ang = _math.radians(
+                    float(getattr(ov, "gradient_angle", 0) or 0))
+                cx, cy = pad + w / 2, pad + h / 2
+                half_w = w / 2
+                gx0 = cx - _math.cos(ang) * half_w
+                gy0 = cy - _math.sin(ang) * half_w
+                gx1 = cx + _math.cos(ang) * half_w
+                gy1 = cy + _math.sin(ang) * half_w
+                grad = QLinearGradient(gx0, gy0, gx1, gy1)
+            else:
+                grad = QRadialGradient(
+                    QPointF(pad + w / 2, pad + h / 2),
+                    max(w, h) / 2)
+            grad.setColorAt(0.0, c0)
+            grad.setColorAt(1.0, c1)
             p.setPen(Qt.PenStyle.NoPen)
-            p.drawPath(path)
+            p.setBrush(QBrush(grad))
+            p.drawRect(body)
+        else:
+            fill_hex = getattr(ov, "fill_color", "") or ""
+            if fill_hex:
+                c = QColor(fill_hex)
+                c.setAlphaF(float(getattr(ov, "opacity", 1.0) or 1.0))
+                p.setBrush(QBrush(c))
+                p.setPen(Qt.PenStyle.NoPen)
+                p.drawPath(path)
         # Stroke
         stroke_w = float(getattr(ov, "stroke_width", 0) or 0)
         stroke_hex = (getattr(ov, "stroke_color", "")
