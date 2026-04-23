@@ -1739,10 +1739,18 @@ class CanvasSkia(QWidget):
             self._draw_snap_guides(canvas)
         canvas.restore()
         # HUD — always at screen pixels (no transform).
-        hud_paint = skia.Paint()
-        hud_paint.setColor(skia.Color(220, 220, 220, 200))
-        hud_paint.setAntiAlias(True)
-        font = skia.Font(skia.Typeface("Consolas"), 11)
+        # Reuse paint + font across frames; they have no per-frame
+        # state. Matches the CanvasSkiaGL HUD cache path.
+        hud_paint = getattr(self, "_hud_paint", None)
+        if hud_paint is None:
+            hud_paint = skia.Paint()
+            hud_paint.setColor(skia.Color(220, 220, 220, 200))
+            hud_paint.setAntiAlias(True)
+            self._hud_paint = hud_paint
+        font = getattr(self, "_hud_font", None)
+        if font is None:
+            font = skia.Font(skia.Typeface("Consolas"), 11)
+            self._hud_font = font
         dpr = getattr(self, "_dpr", 1.0)
         # Use paint_ms from the PREVIOUS frame; current frame's ms isn't
         # known until after drawString returns.
@@ -2096,10 +2104,21 @@ if _QOGW_OK and _SKIA_OK:
             Matches the style of the CanvasSkia CPU HUD so visual
             comparison across the Shift+S backend picker is immediate."""
             try:
-                paint = skia.Paint()
-                paint.setColor(skia.Color(220, 220, 220, 210))
-                paint.setAntiAlias(True)
-                font = skia.Font(skia.Typeface("Consolas"), 11)
+                # Reuse the paint + font across frames — they have no
+                # per-frame state. Prior code allocated a fresh
+                # skia.Typeface("Consolas") every paint which is a
+                # system font lookup; the HUD alone was accounting for
+                # the equivalent of 60 font-lookups/sec at 60fps.
+                paint = getattr(self, "_hud_paint", None)
+                if paint is None:
+                    paint = skia.Paint()
+                    paint.setColor(skia.Color(220, 220, 220, 210))
+                    paint.setAntiAlias(True)
+                    self._hud_paint = paint
+                font = getattr(self, "_hud_font", None)
+                if font is None:
+                    font = skia.Font(skia.Typeface("Consolas"), 11)
+                    self._hud_font = font
                 prev = self._fps_last_ms
                 fps = sum(1 for ts in self._fps_samples
                           if ts > self._fps_time.perf_counter() - 1.0)
@@ -2124,7 +2143,17 @@ if _QOGW_OK and _SKIA_OK:
             self.update()
 
         def set_overlays(self, overlays):
-            self._overlays = list(overlays)
+            new_list = list(overlays)
+            # Mirror CanvasSkia.set_overlays' path cache prune — the GL
+            # subclass uses the same _build_shape_path helper (bound as
+            # a method in __init__) which writes into _skia_path_cache.
+            if self._skia_path_cache:
+                live_ids = {id(ov) for ov in new_list}
+                self._skia_path_cache = {
+                    k: v for k, v in self._skia_path_cache.items()
+                    if k in live_ids
+                }
+            self._overlays = new_list
             self.update()
 
         def set_censors(self, censors):
