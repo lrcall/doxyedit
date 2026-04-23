@@ -1182,9 +1182,9 @@ class StudioScene(QGraphicsScene):
                         # temporarily show them so setSelected takes.
                         it.setVisible(True)
                         it.setSelected(True)
-                    elif want_locked and getattr(ov, "locked", False):
+                    elif want_locked and ov.locked:
                         it.setSelected(True)
-                    elif want_unlocked and not getattr(ov, "locked", False):
+                    elif want_unlocked and not ov.locked:
                         it.setSelected(True)
         elif _tag_sel_acts and chosen in _tag_sel_acts:
             # Select every overlay that carries the picked tag color.
@@ -2217,7 +2217,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             # Line style
             style_combo = QComboBox()
             style_combo.addItems(["solid", "dash", "dot"])
-            style_combo.setCurrentText(getattr(ov, "line_style", "solid"))
+            style_combo.setCurrentText(ov.line_style)
             def _style_changed(s, _it=item):
                 _it.overlay.line_style = s
                 _it.update()
@@ -2230,7 +2230,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             blend_combo.addItems([
                 "normal", "multiply", "screen", "overlay",
                 "darken", "lighten"])
-            blend_combo.setCurrentText(getattr(ov, "blend_mode", "normal"))
+            blend_combo.setCurrentText(ov.blend_mode)
             def _blend_changed(m, _it=item):
                 _it.overlay.blend_mode = m
                 _it.update()
@@ -2336,7 +2336,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             align_combo = QComboBox()
             align_combo.addItems(["inside", "center", "outside"])
             align_combo.setCurrentText(
-                getattr(ov, "stroke_align", "center"))
+                ov.stroke_align)
             align_combo.setToolTip(
                 "Where the stroke sits relative to the shape:\n"
                 "• inside - stroke entirely within the shape bounds\n"
@@ -2491,7 +2491,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 sp_form.setSpacing(5)
                 pts_spin = QSpinBox()
                 pts_spin.setRange(3, 50)
-                pts_spin.setValue(int(getattr(ov, "star_points", 5) or 5))
+                pts_spin.setValue(int(ov.star_points or 5))
                 pts_spin.setToolTip(
                     "Star: number of outer points. Polygon: vertex count.")
                 def _pts_changed(v, _it=item):
@@ -2505,7 +2505,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     ir_slider = QSlider(Qt.Orientation.Horizontal)
                     ir_slider.setRange(10, 95)
                     ir_slider.setValue(int(
-                        float(getattr(ov, "inner_ratio", 0.4) or 0.4) * 100))
+                        float(ov.inner_ratio or 0.4) * 100))
                     ir_slider.setMinimumWidth(150)
                     ir_lbl = QLabel(
                         f"{int(float(getattr(ov, 'inner_ratio', 0.4) or 0.4) * 100)}%")
@@ -2610,7 +2610,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             # Rotation slider (-180 to 180)
             rot_slider = QSlider(Qt.Orientation.Horizontal)
             rot_slider.setRange(-180, 180)
-            rot_init = int(getattr(ov, "rotation", 0))
+            rot_init = int(ov.rotation)
             if rot_init > 180:
                 rot_init -= 360
             rot_slider.setValue(rot_init)
@@ -2761,7 +2761,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             # Rotation slider
             rot_slider = QSlider(Qt.Orientation.Horizontal)
             rot_slider.setRange(-180, 180)
-            rot_init = int(getattr(ov, "rotation", 0))
+            rot_init = int(ov.rotation)
             if rot_init > 180:
                 rot_init -= 360
             rot_slider.setValue(rot_init)
@@ -2789,7 +2789,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             fm_combo.addItem("Invert", "invert")
             fm_combo.addItem("Blur (small)", "blur3")
             fm_combo.addItem("Blur (heavy)", "blur8")
-            current_filter = getattr(ov, "filter_mode", "") or ""
+            current_filter = ov.filter_mode
             for idx in range(fm_combo.count()):
                 if fm_combo.itemData(idx) == current_filter:
                     fm_combo.setCurrentIndex(idx)
@@ -2808,7 +2808,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             bl_combo.addItems([
                 "normal", "multiply", "screen", "overlay",
                 "darken", "lighten"])
-            bl_combo.setCurrentText(getattr(ov, "blend_mode", "normal"))
+            bl_combo.setCurrentText(ov.blend_mode)
             def _img_blend(m, _it=item):
                 _it.overlay.blend_mode = m
                 _it.update()
@@ -2959,7 +2959,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
 
             ls_combo = QComboBox()
             ls_combo.addItems(["solid", "dash", "dot"])
-            ls_combo.setCurrentText(getattr(ov, "line_style", "solid"))
+            ls_combo.setCurrentText(ov.line_style)
             def _arrow_ls(s, _it=item):
                 _it.overlay.line_style = s
                 _it.update()
@@ -4625,7 +4625,7 @@ class StudioEditor(QWidget):
                 ov = getattr(it, "overlay", None)
                 if ov is None:
                     continue
-                cur_mode = getattr(ov, "blend_mode", "normal")
+                cur_mode = ov.blend_mode
                 idx = _modes.index(cur_mode) if cur_mode in _modes else 0
                 new_mode = _modes[(idx + direction) % len(_modes)]
                 ov.blend_mode = new_mode
@@ -5190,7 +5190,7 @@ class StudioEditor(QWidget):
                 ov = getattr(item, "overlay", None)
                 if ov is None:
                     continue
-                ov.locked = not getattr(ov, "locked", False)
+                ov.locked = not ov.locked
                 item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable,
                               not ov.locked)
                 item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable,
@@ -8864,7 +8864,7 @@ class StudioEditor(QWidget):
             item._editor = self
             self._scene.addItem(item)
             # Filter applies after construction so the stored pixmap reflects it
-            if getattr(ov, "filter_mode", ""):
+            if ov.filter_mode:
                 self._refresh_overlay_image(item)
             return item
         elif ov.type == "text":
@@ -8990,7 +8990,7 @@ class StudioEditor(QWidget):
         # Apply filter. Grayscale / invert / blur route through PIL for
         # vectorized ops — was a Python per-pixel loop that took minutes
         # on large overlays (~6M iterations for a 2k x 3k image).
-        mode = getattr(ov, "filter_mode", "") or ""
+        mode = ov.filter_mode
         if mode in ("grayscale", "invert"):
             from PIL import Image, ImageOps
             pil_img = qimage_to_pil(src.toImage())
@@ -10695,7 +10695,7 @@ class StudioEditor(QWidget):
                 self._qp_outline.setEnabled(True)
                 if hasattr(self, "_qp_lock"):
                     self._qp_lock.setChecked(
-                        bool(getattr(ov, "locked", False)))
+                        bool(ov.locked))
                     self._qp_lock.setEnabled(True)
                 if hasattr(self, "_qp_hide"):
                     self._qp_hide.setChecked(not bool(ov.enabled))
@@ -11191,7 +11191,7 @@ class StudioEditor(QWidget):
                 prefix += "● "
             if not ov.enabled:
                 prefix += "(hidden) "
-            if getattr(ov, "locked", False):
+            if ov.locked:
                 prefix += "\U0001F512 "  # 🔒
             label = prefix + label
             label += _scope_tag(ov.platforms)
@@ -11219,7 +11219,7 @@ class StudioEditor(QWidget):
                 tip_lines.append(f"Platforms: {', '.join(ov.platforms)}")
             if ov.blend_mode and ov.blend_mode != "normal":
                 tip_lines.append(f"Blend: {ov.blend_mode}")
-            if getattr(ov, "locked", False):
+            if ov.locked:
                 tip_lines.append("Locked")
             if not ov.enabled:
                 tip_lines.append("Hidden")
@@ -11545,7 +11545,7 @@ class StudioEditor(QWidget):
             ov = scene_item.overlay
             act_vis = prefix.addAction("Hide" if ov.enabled else "Show")
             act_lock = prefix.addAction(
-                "Unlock" if getattr(ov, "locked", False) else "Lock")
+                "Unlock" if ov.locked else "Lock")
             act_isolate = prefix.addAction(
                 "Exit Isolation" if getattr(self, "_isolation_active", False)
                 else "Isolate (solo)")
@@ -11585,7 +11585,7 @@ class StudioEditor(QWidget):
                 self._rebuild_layer_panel()
                 return
             if chosen is act_lock:
-                ov.locked = not getattr(ov, "locked", False)
+                ov.locked = not ov.locked
                 scene_item.setFlag(
                     scene_item.GraphicsItemFlag.ItemIsMovable, not ov.locked)
                 scene_item.setFlag(
@@ -11811,7 +11811,7 @@ class StudioEditor(QWidget):
                 self._rebuild_layer_panel()
                 return
             if mods & Qt.KeyboardModifier.ControlModifier:
-                ov.locked = not getattr(ov, "locked", False)
+                ov.locked = not ov.locked
                 for it in self._scene.items():
                     if hasattr(it, "overlay") and it.overlay is ov:
                         it.setFlag(
@@ -11850,7 +11850,7 @@ class StudioEditor(QWidget):
             self.chk_layer_enabled.setChecked(ov.enabled)
             self.chk_layer_enabled.blockSignals(False)
             self.chk_layer_locked.blockSignals(True)
-            self.chk_layer_locked.setChecked(bool(getattr(ov, "locked", False)))
+            self.chk_layer_locked.setChecked(bool(ov.locked))
             self.chk_layer_locked.blockSignals(False)
             # Sync BOTH the spinbox and the matching slider so the
             # two halves of each slider+spinbox pair display the same
@@ -11867,7 +11867,7 @@ class StudioEditor(QWidget):
                     max(_widget.minimum(),
                          min(_widget.maximum(), int(ov.y))))
                 _widget.blockSignals(False)
-            _rv = int(getattr(ov, "rotation", 0))
+            _rv = int(ov.rotation)
             for _widget in (self.spin_rotation_layer, self.slider_rotation_layer):
                 _widget.blockSignals(True)
                 _widget.setValue(_rv)
@@ -12953,7 +12953,7 @@ class StudioEditor(QWidget):
 
         form.addRow(QLabel("<b>Rotation / Skew</b>"))
         sr = QSpinBox(); sr.setRange(-360, 360); sr.setSuffix("°")
-        sr.setValue(int(getattr(ov, "rotation", 0)))
+        sr.setValue(int(ov.rotation))
         form.addRow("Rotation", sr)
         skew_x = QDoubleSpinBox()
         skew_x.setRange(-85.0, 85.0); skew_x.setSuffix("°")
