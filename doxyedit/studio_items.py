@@ -1209,8 +1209,20 @@ class OverlayShapeItem(QGraphicsItem):
         cache invalidates when the tail moves independently (not during
         body drag, since itemChange updates body + tail in lock-step)."""
         ov = self.overlay
-        tail_dx = getattr(ov, "tail_x", 0) - ov.x
-        tail_dy = getattr(ov, "tail_y", 0) - ov.y
+        # Tail offset relative to body origin. For bubbles with NO
+        # explicit tail position (tail_x=tail_y=0), the renderer uses
+        # a default offset derived from w/h only — the resulting
+        # pixels don't depend on the overlay's scene position at all.
+        # So key those as (0, 0) regardless of ov.x / ov.y, otherwise
+        # every drag frame would show a different tail_dx and
+        # invalidate the cache on every mousemove.
+        tx = getattr(ov, "tail_x", 0) or 0
+        ty = getattr(ov, "tail_y", 0) or 0
+        if tx == 0 and ty == 0:
+            tail_dx, tail_dy = 0, 0
+        else:
+            tail_dx = int(tx - ov.x)
+            tail_dy = int(ty - ov.y)
         return (
             ov.shape_kind,
             int(ov.shape_w), int(ov.shape_h),
@@ -1219,7 +1231,7 @@ class OverlayShapeItem(QGraphicsItem):
             getattr(ov, "bubble_oval_stretch", 0.0),
             getattr(ov, "bubble_wobble", 0.0),
             getattr(ov, "tail_curve", 0.0),
-            int(tail_dx), int(tail_dy),
+            tail_dx, tail_dy,
             getattr(ov, "star_points", 0),
             getattr(ov, "inner_ratio", 0.0),
             getattr(ov, "polygon_vertices", 0),
