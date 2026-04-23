@@ -1367,10 +1367,10 @@ class OverlayShapeItem(QGraphicsItem):
         params = self._shape_render_params_tuple()
         if params == self._cached_render_key and self._cached_render is not None:
             return  # cache already valid for these params
-        w = int(max(1, getattr(self.overlay, "shape_w", 0) or 0))
-        h = int(max(1, getattr(self.overlay, "shape_h", 0) or 0))
+        w = int(max(1, (self.overlay.shape_w or 0)))
+        h = int(max(1, (self.overlay.shape_h or 0)))
         # Include stroke pad so the render doesn't clip thick strokes.
-        pad = int(max(4, getattr(self.overlay, "stroke_width", 0) or 0) * 2)
+        pad = int(max(4, (self.overlay.stroke_width or 0)) * 2)
         size = QSize(w + pad * 2, h + pad * 2)
         self._render_token += 1
         token = self._render_token
@@ -1532,7 +1532,7 @@ class OverlayShapeItem(QGraphicsItem):
         overlap = max(4.0, min(r.width(), r.height()) * 0.08)
         # Apply bubble_oval_stretch: >0 widens, <0 taller. Normalize
         # against a central pivot so the overall footprint stays similar.
-        stretch = max(-0.6, min(0.6, getattr(self.overlay, "bubble_oval_stretch", 0.0)))
+        stretch = max(-0.6, min(0.6, self.overlay.bubble_oval_stretch))
         if stretch != 0:
             sx = 1.0 + stretch
             sy = 1.0 - stretch * 0.5
@@ -1560,7 +1560,7 @@ class OverlayShapeItem(QGraphicsItem):
         # Build path: roundness blends between pad-rounded rect (0.0)
         # and a pure ellipse (1.0).
         roundness = max(0.0, min(1.0,
-            getattr(self.overlay, "bubble_roundness", 0.0)))
+            self.overlay.bubble_roundness))
         path = QPainterPath()
         if roundness >= 0.99:
             path.addEllipse(r)
@@ -1570,7 +1570,7 @@ class OverlayShapeItem(QGraphicsItem):
         tail = QPainterPath()
         tail.moveTo(b1)
         tail_curve = max(-1.0, min(1.0,
-            float(getattr(self.overlay, "tail_curve", 0.0) or 0.0)))
+            float(self.overlay.tail_curve or 0.0)))
         if abs(tail_curve) > 0.02:
             # Bezier tail: compute a control point perpendicular to the
             # b1 - tip line, offset by curve * base_len * 1.2. Sides of
@@ -1599,7 +1599,7 @@ class OverlayShapeItem(QGraphicsItem):
         # amount along its normal using a sin function of its arc-length
         # parameter. Produces a hand-drawn look.
         wobble = max(0.0, min(1.0,
-            getattr(self.overlay, "bubble_wobble", 0.0)))
+            self.overlay.bubble_wobble))
         if wobble > 0.01:
             amp = wobble * min(r.width(), r.height()) * 0.04
             wobbled = QPainterPath()
@@ -1707,9 +1707,9 @@ class OverlayShapeItem(QGraphicsItem):
         (inner/outer radius fraction, default 0.4)."""
         cx, cy = r.center().x(), r.center().y()
         rx, ry = r.width() / 2, r.height() / 2
-        n_points = max(3, int(getattr(self.overlay, "star_points", 5) or 5))
+        n_points = max(3, int(self.overlay.star_points or 5))
         inner_scale = max(0.1, min(0.95,
-            float(getattr(self.overlay, "inner_ratio", 0.4) or 0.4)))
+            float(self.overlay.inner_ratio or 0.4)))
         points = []
         for i in range(n_points * 2):
             frac = (2 * math.pi * i) / (n_points * 2)
@@ -1725,7 +1725,7 @@ class OverlayShapeItem(QGraphicsItem):
         sits at the bottom for n=4,6,8 (a pointy top for n=3,5,7)."""
         cx, cy = r.center().x(), r.center().y()
         rx, ry = r.width() / 2, r.height() / 2
-        n = max(3, int(getattr(self.overlay, "star_points", 6) or 6))
+        n = max(3, int(self.overlay.star_points or 6))
         points = []
         for i in range(n):
             frac = (2 * math.pi * i) / n - math.pi / 2
@@ -1953,7 +1953,7 @@ class OverlayShapeItem(QGraphicsItem):
             # Cache was rendered at (pad, pad) origin; translate scene
             # coords (overlay.x - pad, overlay.y - pad) to place it.
             pad = int(max(4,
-                (getattr(self.overlay, "stroke_width", 0) or 0)) * 2)
+                ((self.overlay.stroke_width or 0))) * 2)
             painter.drawImage(
                 QPointF(self.overlay.x - pad, self.overlay.y - pad),
                 self._cached_render)
@@ -2679,9 +2679,9 @@ class OverlayShapeItem(QGraphicsItem):
                 self.overlay.gradient_end_color = "#00000000"
             # Seed star / polygon vertex count if missing
             if target in ("star", "polygon"):
-                if not getattr(self.overlay, "star_points", 0):
+                if not self.overlay.star_points:
                     self.overlay.star_points = 5 if target == "star" else 6
-                if target == "star" and not getattr(self.overlay, "inner_ratio", 0.0):
+                if target == "star" and not self.overlay.inner_ratio:
                     self.overlay.inner_ratio = 0.4
             self.prepareGeometryChange()
             self.update()
@@ -2870,7 +2870,7 @@ class OverlayArrowItem(QGraphicsItem):
         length = math.hypot(dx, dy)
         if length < 1:
             return
-        head_style = getattr(self.overlay, "arrowhead_style", "filled")
+        head_style = self.overlay.arrowhead_style
         if head_style != "none":
             ux, uy = dx / length, dy / length  # unit vector along line
             hs = max(self.overlay.arrowhead_size, 6)
@@ -2896,7 +2896,7 @@ class OverlayArrowItem(QGraphicsItem):
                 painter.drawPath(path)
 
             _head(x2, y2, 1)
-            if getattr(self.overlay, "double_headed", False):
+            if self.overlay.double_headed:
                 _head(x1, y1, -1)
         # Selection highlight + endpoint handles
         if self.isSelected():
@@ -3005,10 +3005,10 @@ class OverlayArrowItem(QGraphicsItem):
                       (head_outline_act, "outline"),
                       (head_none_act, "none")):
             a.setCheckable(True)
-            a.setChecked(getattr(self.overlay, "arrowhead_style", "filled") == s)
+            a.setChecked(self.overlay.arrowhead_style == s)
         double_head_act = menu.addAction("Double-Headed")
         double_head_act.setCheckable(True)
-        double_head_act.setChecked(bool(getattr(self.overlay, "double_headed", False)))
+        double_head_act.setChecked(bool(self.overlay.double_headed))
         flip_dir_act = menu.addAction("Flip Direction")
         straighten_act = menu.addAction("Straighten (snap to 15°)")
         select_all_arrows_act = menu.addAction("Select All Arrows")
@@ -3134,9 +3134,9 @@ class OverlayTextItem(QGraphicsTextItem):
             font.setBold(True)
         if self.overlay.italic:
             font.setItalic(True)
-        if getattr(self.overlay, "underline", False):
+        if self.overlay.underline:
             font.setUnderline(True)
-        if getattr(self.overlay, "strikethrough", False):
+        if self.overlay.strikethrough:
             font.setStrikeOut(True)
         if self.overlay.letter_spacing:
             font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, self.overlay.letter_spacing)
@@ -3341,10 +3341,10 @@ class OverlayTextItem(QGraphicsTextItem):
         clear_bg_act = menu.addAction("Clear Background")
         underline_act = menu.addAction("Underline")
         underline_act.setCheckable(True)
-        underline_act.setChecked(bool(getattr(self.overlay, "underline", False)))
+        underline_act.setChecked(bool(self.overlay.underline))
         strike_act = menu.addAction("Strikethrough")
         strike_act.setCheckable(True)
-        strike_act.setChecked(bool(getattr(self.overlay, "strikethrough", False)))
+        strike_act.setChecked(bool(self.overlay.strikethrough))
         align_menu = menu.addMenu("Align Text")
         align_left_act = align_menu.addAction("Left")
         align_center_act = align_menu.addAction("Center")
@@ -3418,14 +3418,14 @@ class OverlayTextItem(QGraphicsTextItem):
             self._editor._sync_overlays_to_asset()
         elif chosen is underline_act and self._editor:
             self._editor._push_overlay_attr(
-                self, "underline", not getattr(self.overlay, "underline", False),
+                self, "underline", not self.overlay.underline,
                 apply_cb=lambda it, _v: it._apply_font(),
                 description="Toggle underline")
             self._editor._sync_overlays_to_asset()
         elif chosen is strike_act and self._editor:
             self._editor._push_overlay_attr(
                 self, "strikethrough",
-                not getattr(self.overlay, "strikethrough", False),
+                not self.overlay.strikethrough,
                 apply_cb=lambda it, _v: it._apply_font(),
                 description="Toggle strikethrough")
             self._editor._sync_overlays_to_asset()
