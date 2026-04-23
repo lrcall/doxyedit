@@ -1027,6 +1027,12 @@ def _render_shape_to_image(overlay_snapshot, pad: int):
             sc.setAlphaF(float(getattr(ov, "opacity", 1.0) or 1.0))
             pen = QPen(sc, stroke_w)
             pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            # Mirror the live path's line_style handling (dash / dot).
+            line_style = getattr(ov, "line_style", "solid") or "solid"
+            if line_style == "dash":
+                pen.setStyle(Qt.PenStyle.DashLine)
+            elif line_style == "dot":
+                pen.setStyle(Qt.PenStyle.DotLine)
             p.setPen(pen)
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawPath(path)
