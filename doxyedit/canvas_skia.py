@@ -24,6 +24,7 @@ Default is "qgraphics". Fallback to QGraphicsView on any init failure.
 from __future__ import annotations
 
 from pathlib import Path
+import bisect
 import functools
 import json
 import math
@@ -1841,7 +1842,10 @@ class CanvasSkia(QWidget):
             self._fps_samples.pop(0)
         if self._fps_perf_log is not None:
             try:
-                fps = sum(1 for ts in self._fps_samples if ts > t1 - 1.0)
+                # _fps_samples is strictly monotonic; bisect is O(log N)
+                # vs the generator's O(N).
+                fps = len(self._fps_samples) - bisect.bisect_left(
+                    self._fps_samples, t1 - 1.0)
                 self._fps_perf_log.write(json.dumps({
                     "t": round(t1, 4),
                     "type": "skia_paint",
@@ -2178,8 +2182,11 @@ if _QOGW_OK and _SKIA_OK:
                     font = skia.Font(skia.Typeface("Consolas"), 11)
                     self._hud_font = font
                 prev = self._fps_last_ms
-                fps = sum(1 for ts in self._fps_samples
-                          if ts > self._fps_time.perf_counter() - 1.0)
+                # Bisect over the strictly-monotonic _fps_samples is
+                # O(log N) vs the generator's O(N).
+                fps = len(self._fps_samples) - bisect.bisect_left(
+                    self._fps_samples,
+                    self._fps_time.perf_counter() - 1.0)
                 dpr = getattr(self, "_dpr", 1.0)
                 err = f"  err={self._last_init_error}" if self._last_init_error else ""
                 txt = (f"SKIA-GL  zoom={self._zoom:.2f}  "
