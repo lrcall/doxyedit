@@ -104,6 +104,15 @@ class CanvasSkia(QWidget):
         # in scene coords, drawn as dashed overlay above everything.
         self._selected_ids: set = set()
         self._snap_guides: list = []
+        # Day 9: draft shape. Populated by tool mode while the user is
+        # drawing a new overlay (rect / ellipse / line / arrow). Rendered
+        # at the end of the scene pass so it appears above everything
+        # and can be stylized differently (dashed outline etc.).
+        # Shape: {"kind": "rect"|"ellipse"|"line"|"arrow",
+        #         "x": float, "y": float, "w": float, "h": float,
+        #         "color": "#rrggbb", "stroke_width": float,
+        #         "x2": float (for line/arrow), "y2": float}
+        self._draft_shape: dict | None = None
         # Day 13: FPS HUD timing state.
         import time as _t
         self._fps_time = _t
@@ -486,6 +495,17 @@ class CanvasSkia(QWidget):
         dashed-cyan over everything while active during drag."""
         self._snap_guides = list(guides)
         self.update()
+
+    def set_draft_shape(self, draft: dict | None):
+        """Set the in-progress shape being drawn (tool modes). Pass a
+        dict with keys kind/x/y/w/h/... or None to clear. Re-renders."""
+        self._draft_shape = draft
+        self.update()
+
+    def clear_draft_shape(self):
+        if self._draft_shape is not None:
+            self._draft_shape = None
+            self.update()
 
     def attach_perf_log(self, file_handle):
         """Attach a writable file handle (e.g. open('path','w')) to
@@ -1169,6 +1189,44 @@ class CanvasSkia(QWidget):
         bp.setColor(skia.Color(*self._HANDLE_BORDER))
         canvas.drawRect(rect, bp)
 
+    def _draw_draft_shape(self, canvas, draft):
+        """Render the in-progress shape from tool-drag state. Dashed
+        outline to signal 'not committed yet'."""
+        kind = draft.get("kind", "rect")
+        color_hex = draft.get("color", "#88ccff")
+        rgba = self._parse_hex(color_hex, (0x88, 0xcc, 0xff, 0xff))
+        sw = float(draft.get("stroke_width", 1.5))
+        paint = skia.Paint()
+        paint.setAntiAlias(True)
+        paint.setStyle(skia.Paint.kStroke_Style)
+        paint.setColor(skia.Color(*rgba))
+        paint.setStrokeWidth(max(1.0, sw / max(0.01, self._zoom)))
+        try:
+            paint.setPathEffect(
+                skia.DashPathEffect.Make([6.0, 4.0], 0.0))
+        except Exception:
+            pass
+        if kind == "rect":
+            x = float(draft.get("x", 0))
+            y = float(draft.get("y", 0))
+            w = float(draft.get("w", 0))
+            h = float(draft.get("h", 0))
+            canvas.drawRect(skia.Rect.MakeXYWH(x, y, w, h), paint)
+        elif kind == "ellipse":
+            x = float(draft.get("x", 0))
+            y = float(draft.get("y", 0))
+            w = float(draft.get("w", 0))
+            h = float(draft.get("h", 0))
+            canvas.drawOval(skia.Rect.MakeXYWH(x, y, w, h), paint)
+        elif kind in ("line", "arrow"):
+            x1 = float(draft.get("x", 0))
+            y1 = float(draft.get("y", 0))
+            x2 = float(draft.get("x2", 0))
+            y2 = float(draft.get("y2", 0))
+            # Draft uses round caps for a softer look
+            paint.setStrokeCap(skia.Paint.kRound_Cap)
+            canvas.drawLine(x1, y1, x2, y2, paint)
+
     def _draw_snap_guides(self, canvas):
         """Dashed cyan lines over the canvas for snap-alignment feedback."""
         gp = skia.Paint()
@@ -1446,6 +1504,10 @@ class CanvasSkia(QWidget):
         for ov in self._overlays:
             if id(ov) in self._selected_ids:
                 self._draw_selection_decor(canvas, ov)
+        # Draft shape (in-progress tool drag) drawn above everything
+        # except snap guides so it remains visible during creation.
+        if self._draft_shape is not None:
+            self._draw_draft_shape(canvas, self._draft_shape)
         # Snap guides drawn last, cyan dashed lines.
         if self._snap_guides:
             self._draw_snap_guides(canvas)
