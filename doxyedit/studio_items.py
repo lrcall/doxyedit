@@ -2087,7 +2087,14 @@ class OverlayShapeItem(QGraphicsItem):
             sel_color = QColor(_dt.studio_selection_outline)
             painter.setPen(QPen(sel_color, PEN_WIDTH, Qt.PenStyle.DashLine))
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRect(self.boundingRect())
+            # Draw the selection outline at the BODY rect, not at the
+            # full boundingRect. boundingRect includes the rotate-handle
+            # pad + bubble-tail extension for Qt's dirty-region / hit-
+            # test math; painting the outline at that inflated rect
+            # made selected bubbles look like they had a floating,
+            # oversized box around them (the "outer yellow dashed rect"
+            # issue users reported on speech bubbles with long tails).
+            painter.drawRect(r)
             # Corner handles
             painter.setPen(QPen(border_color, PEN_WIDTH))
             painter.setBrush(QBrush(QColor(_dt.studio_selection_handle_fill)))
