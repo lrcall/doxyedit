@@ -165,6 +165,14 @@ class CanvasSkia(QWidget):
         self._fps_rolling_ms: float = 0.0
         self._fps_samples: list = []  # (timestamp, paint_ms)
         self._fps_perf_log = None    # optional file handle
+        # HUD + readback caches, pre-created as None sentinels so the
+        # paint-time lazy-init branches use direct attribute reads
+        # instead of getattr-with-None probes.
+        self._hud_paint = None
+        self._hud_font = None
+        self._pixelate_cache: dict = {}
+        self._readback_info = None
+        self._readback_info_key = None
         self._resize_buffers(self.size())
         # Record whether Skia is live; surfacing this to the editor lets
         # the FPS HUD show which backend is active.
@@ -296,9 +304,7 @@ class CanvasSkia(QWidget):
             self._base_image = None
         # Pixelate censors cache the down-sampled intermediate keyed
         # on id(base_image); a fresh load invalidates all entries.
-        pc = getattr(self, "_pixelate_cache", None)
-        if pc:
-            pc.clear()
+        self._pixelate_cache.clear()
         self.update()
 
     def base_size(self) -> QSize:
@@ -1661,10 +1667,7 @@ class CanvasSkia(QWidget):
             # in set_base_image_path). Without the cache, every paint
             # allocates a fresh SkSurface + copies pixels — tens of MB
             # per frame for a full-canvas pixelate censor.
-            cache = getattr(self, "_pixelate_cache", None)
-            if cache is None:
-                cache = {}
-                self._pixelate_cache = cache
+            cache = self._pixelate_cache
             key = (id(base_image), int(x), int(y), int(w), int(h),
                    ratio, small_w, small_h)
             small_img = cache.get(key)
@@ -1819,13 +1822,13 @@ class CanvasSkia(QWidget):
         # HUD — always at screen pixels (no transform).
         # Reuse paint + font across frames; they have no per-frame
         # state. Matches the CanvasSkiaGL HUD cache path.
-        hud_paint = getattr(self, "_hud_paint", None)
+        hud_paint = self._hud_paint
         if hud_paint is None:
             hud_paint = skia.Paint()
             hud_paint.setColor(skia.Color(220, 220, 220, 200))
             hud_paint.setAntiAlias(True)
             self._hud_paint = hud_paint
-        font = getattr(self, "_hud_font", None)
+        font = self._hud_font
         if font is None:
             font = skia.Font(skia.Typeface("Consolas"), 11)
             self._hud_font = font
@@ -1889,8 +1892,8 @@ class CanvasSkia(QWidget):
             # the window is resized (the key flips).
             w = self._qimg.width()
             h = self._qimg.height()
-            cur = getattr(self, "_readback_info_key", None)
-            info = getattr(self, "_readback_info", None)
+            cur = self._readback_info_key
+            info = self._readback_info
             if cur != (w, h) or info is None:
                 info = skia.ImageInfo.Make(
                     w, h,
@@ -1987,6 +1990,11 @@ if _QOGW_OK and _SKIA_OK:
             # never matches a real FBO, so paintGL's drift check fires
             # a rebuild on the first real paint.
             self._surface_fbo = -1
+            # HUD + pixelate caches — match CanvasSkia's lazy-init
+            # pattern but pre-create so paint-path reads are direct.
+            self._hud_paint = None
+            self._hud_font = None
+            self._pixelate_cache: dict = {}
             self.backend_name = "skia_gl"
             # Error trail for context loss / init failure. Surfaced
             # to the perf log's session_start event and shown in the
@@ -2206,13 +2214,13 @@ if _QOGW_OK and _SKIA_OK:
                 # skia.Typeface("Consolas") every paint which is a
                 # system font lookup; the HUD alone was accounting for
                 # the equivalent of 60 font-lookups/sec at 60fps.
-                paint = getattr(self, "_hud_paint", None)
+                paint = self._hud_paint
                 if paint is None:
                     paint = skia.Paint()
                     paint.setColor(skia.Color(220, 220, 220, 210))
                     paint.setAntiAlias(True)
                     self._hud_paint = paint
-                font = getattr(self, "_hud_font", None)
+                font = self._hud_font
                 if font is None:
                     font = skia.Font(skia.Typeface("Consolas"), 11)
                     self._hud_font = font
@@ -2240,9 +2248,7 @@ if _QOGW_OK and _SKIA_OK:
                 self._base_image = skia.Image.MakeFromEncoded(data)
             except Exception:
                 self._base_image = None
-            pc = getattr(self, "_pixelate_cache", None)
-            if pc:
-                pc.clear()
+            self._pixelate_cache.clear()
             self.update()
 
         def set_overlays(self, overlays):
