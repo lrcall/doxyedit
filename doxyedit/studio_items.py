@@ -2833,11 +2833,23 @@ class OverlayArrowItem(QGraphicsItem):
         super().hoverMoveEvent(event)
 
     def boundingRect(self) -> QRectF:
-        x1, y1 = self.overlay.x, self.overlay.y
-        x2, y2 = self.overlay.end_x, self.overlay.end_y
-        hs = max(self.overlay.arrowhead_size, 6)
-        r = QRectF(QPointF(x1, y1), QPointF(x2, y2)).normalized()
-        return r.adjusted(-hs, -hs, hs, hs)
+        # Inline min/max + single QRectF construction. Prior code built
+        # two QPointFs, a QRectF from them, called normalized(), and
+        # then adjusted() to pad for the arrowhead — four allocations
+        # per call. Qt invokes boundingRect on every hit test, scene-
+        # index update, and dirty-region union, so the saving adds up
+        # for arrow-heavy comic pages.
+        ov = self.overlay
+        x1, y1 = ov.x, ov.y
+        x2, y2 = ov.end_x, ov.end_y
+        hs = ov.arrowhead_size
+        if hs < 6:
+            hs = 6
+        left = (x1 if x1 < x2 else x2) - hs
+        top = (y1 if y1 < y2 else y2) - hs
+        w = abs(x2 - x1) + 2 * hs
+        h = abs(y2 - y1) + 2 * hs
+        return QRectF(left, top, w, h)
 
     def paint(self, painter, option, widget=None):
         x1, y1 = self.overlay.x, self.overlay.y
