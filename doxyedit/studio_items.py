@@ -265,13 +265,41 @@ class CensorRectItem(QGraphicsRectItem):
 
     def _handle_at_pos(self, local_pos: QPointF) -> str | None:
         """Hit-test against handles in local coords. Returns the handle
-        key if hit, otherwise None."""
-        pts = self._handle_points_local()
+        key if hit, otherwise None.
+
+        Inline rect-relative math instead of materializing the full
+        9-point dict every hover frame. hoverMoveEvent fires at 60+Hz
+        and the prior implementation allocated 9 QPointFs per call —
+        ~540 throwaway allocations per second per selected censor.
+        """
+        r = self.rect()
+        lx, ly = local_pos.x(), local_pos.y()
         hit_r = self._HANDLE_HALF + self._HIT_PAD
-        for key, pt in pts.items():
-            rr = self._ROTATE_RADIUS + self._HIT_PAD if key == "rotate" else hit_r
-            if (abs(local_pos.x() - pt.x()) <= rr
-                    and abs(local_pos.y() - pt.y()) <= rr):
+        # Rotate handle first — different radius, farthest-away.
+        rot_r = self._ROTATE_RADIUS + self._HIT_PAD
+        rot_x = r.center().x()
+        rot_y = r.top() - self._ROTATE_OFFSET
+        if abs(lx - rot_x) <= rot_r and abs(ly - rot_y) <= rot_r:
+            return "rotate"
+        # Corner + edge handles: walk edges once.
+        left, right = r.left(), r.right()
+        top, bottom = r.top(), r.bottom()
+        mid_x, mid_y = r.center().x(), r.center().y()
+        # Order matches the original dict iteration so behavior is
+        # identical when multiple handles are within the hit radius
+        # (unlikely but preserve deterministic first-hit semantics).
+        checks = (
+            ("tl", left, top),
+            ("t", mid_x, top),
+            ("tr", right, top),
+            ("l", left, mid_y),
+            ("r", right, mid_y),
+            ("bl", left, bottom),
+            ("b", mid_x, bottom),
+            ("br", right, bottom),
+        )
+        for key, px, py in checks:
+            if abs(lx - px) <= hit_r and abs(ly - py) <= hit_r:
                 return key
         return None
 
