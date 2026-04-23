@@ -77,19 +77,12 @@ class StudioScene(QGraphicsScene):
         # Flat linear scan is faster than BSP maintenance for our typical
         # item counts (<50 overlays + 1 base + 1 checker). The BSP index
         # rebuilds itself on every item move — dominant during drags.
-        # For large scenes (>200 items) the default BSP would win, but
-        # Studio docs do not support that scale today.
         self.setItemIndexMethod(
             QGraphicsScene.ItemIndexMethod.NoIndex)
         # Snap threshold cached — previously a @property that hit
-        # QSettings (file I/O) on every drag frame via _compute_snap_guides.
+        # QSettings on every drag frame via _compute_snap_guides.
         # Refresh via reload_snap_threshold() when the Snap Proximity
         # menu/dialog updates the setting.
-        self.SNAP_THRESHOLD_PX = QSettings(
-            "DoxyEdit", "DoxyEdit").value(
-                "studio_snap_threshold_px", 0, type=int)
-
-    def reload_snap_threshold(self):
         self.SNAP_THRESHOLD_PX = QSettings(
             "DoxyEdit", "DoxyEdit").value(
                 "studio_snap_threshold_px", 0, type=int)
@@ -116,6 +109,11 @@ class StudioScene(QGraphicsScene):
         self.on_note_finished = None     # callable(QRectF, NoteRectItem)
         self.on_text_overlay_placed = None  # callable(QPointF)
         self.get_crop_aspect = None      # callable() -> float | None
+
+    def reload_snap_threshold(self):
+        self.SNAP_THRESHOLD_PX = QSettings(
+            "DoxyEdit", "DoxyEdit").value(
+                "studio_snap_threshold_px", 0, type=int)
 
     def set_theme(self, theme):
         self._theme = theme
