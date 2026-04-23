@@ -9853,7 +9853,10 @@ class StudioEditor(QWidget):
             else:
                 self._geom_label.setText("")
 
-        sel = [i for i in self._scene.selectedItems()
+        # Filter from the already-computed all_sel rather than calling
+        # selectedItems() again — selection hasn't changed between the
+        # two reads (the sync calls above only read, never write).
+        sel = [i for i in all_sel
                if isinstance(i, (OverlayImageItem, OverlayTextItem))]
         if not sel:
             self._props_row.setEnabled(False)
