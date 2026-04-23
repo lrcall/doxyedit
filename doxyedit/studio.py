@@ -12094,14 +12094,7 @@ class StudioEditor(QWidget):
                 new_censors.append(cr)
         self._asset.censors.clear()
         self._asset.censors.extend(new_censors)
-        if hasattr(self, '_layer_panel'):
-            if not hasattr(self, '_layer_rebuild_timer'):
-                self._layer_rebuild_timer = QTimer(self)
-                self._layer_rebuild_timer.setSingleShot(True)
-                self._layer_rebuild_timer.setInterval(80)
-                self._layer_rebuild_timer.timeout.connect(
-                    self._rebuild_layer_panel)
-            self._layer_rebuild_timer.start()
+        self._schedule_layer_rebuild()
 
     def _sync_overlays_to_asset(self):
         """Write overlay items back to asset.overlays.
@@ -12129,18 +12122,28 @@ class StudioEditor(QWidget):
         if structure_changed:
             self._asset.overlays.clear()
             self._asset.overlays.extend(items_overlays)
-        if hasattr(self, '_layer_panel'):
-            if not hasattr(self, '_layer_rebuild_timer'):
-                self._layer_rebuild_timer = QTimer(self)
-                self._layer_rebuild_timer.setSingleShot(True)
-                self._layer_rebuild_timer.setInterval(80)
-                self._layer_rebuild_timer.timeout.connect(
-                    self._rebuild_layer_panel)
-            # Only reschedule the rebuild when structure actually changed.
-            # Attribute-only updates (slider drag) don't need the layer
-            # panel redrawn — the row labels are structural, not live.
-            if structure_changed:
-                self._layer_rebuild_timer.start()
+        # Only reschedule the rebuild when structure actually changed.
+        # Attribute-only updates (slider drag) don't need the layer
+        # panel redrawn — the row labels are structural, not live.
+        if structure_changed:
+            self._schedule_layer_rebuild()
+
+    def _schedule_layer_rebuild(self):
+        """Kick the 80ms debounced layer-panel rebuild. Shared by
+        _sync_censors_to_asset and _sync_overlays_to_asset — both fire
+        repeatedly during drag / slider-tick, so coalescing into one
+        rebuild per event-loop idle saves a full QListWidget clear +
+        repopulate per tick. Lazy-creates the timer on first call."""
+        if not hasattr(self, '_layer_panel'):
+            return
+        timer = getattr(self, '_layer_rebuild_timer', None)
+        if timer is None:
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.setInterval(80)
+            timer.timeout.connect(self._rebuild_layer_panel)
+            self._layer_rebuild_timer = timer
+        timer.start()
 
     # ---- actions ----
 
