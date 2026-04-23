@@ -374,8 +374,8 @@ class CanvasSkia(QWidget):
             # Approximate bounds from text metrics — good enough for
             # click routing; exact layout bounds would require a Skia
             # text blob measure pass, deferred to Day 9.
-            size = float(getattr(ov, "font_size", 14) or 14)
-            text = getattr(ov, "text", "") or ""
+            size = float(ov.font_size or 14)
+            text = ov.text
             lines = text.split("\n")
             lh = float(getattr(ov, "line_height", 1.2) or 1.2)
             # Rough width: longest line × avg char width (0.6 × size)
@@ -817,11 +817,11 @@ class CanvasSkia(QWidget):
         """
         if not ov.enabled:
             return
-        text = getattr(ov, "text", "") or ""
+        text = ov.text
         if not text:
             return
-        family = getattr(ov, "font_family", "Segoe UI") or "Segoe UI"
-        size = float(getattr(ov, "font_size", 14) or 14)
+        family = (ov.font_family or "Segoe UI")
+        size = float(ov.font_size or 14)
         bold = bool(getattr(ov, "bold", False))
         italic = bool(getattr(ov, "italic", False))
         # Typeface cache: OS font lookup runs once per (family, bold,
@@ -858,7 +858,7 @@ class CanvasSkia(QWidget):
         descent = metrics.fDescent
         line_step = (ascent + descent) * line_h
         # Alignment: compute per-line x offset from text_align.
-        align = getattr(ov, "text_align", "left") or "left"
+        align = (ov.text_align or "left")
         # text_width clamp — if > 0, treat as pinned line width for
         # alignment math. Otherwise each line is left-aligned relative
         # to overlay.x.
@@ -909,8 +909,8 @@ class CanvasSkia(QWidget):
         shadow_off = float(getattr(ov, "shadow_offset", 0) or 0)
         shadow_hex = getattr(ov, "shadow_color", "") or ""
         shadow_blur = float(getattr(ov, "shadow_blur", 0) or 0)
-        stroke_w = float(getattr(ov, "stroke_width", 0) or 0)
-        stroke_hex = getattr(ov, "stroke_color", "") or ""
+        stroke_w = float(ov.stroke_width or 0)
+        stroke_hex = ov.stroke_color
         # Build a reusable image filter for shadow+stroke combined
         # below. Paints applied per-line via drawSimpleText.
         def _mk_paint(fill_rgba, stroke=False, stroke_rgba=None,
@@ -1026,7 +1026,7 @@ class CanvasSkia(QWidget):
         """
         # Build a fingerprint of every attribute that affects path
         # geometry. Kept in sync with the SHAPE_PATH_KEYS set below.
-        kind = getattr(ov, "shape_kind", "rect") or "rect"
+        kind = (ov.shape_kind or "rect")
         w = float(getattr(ov, "shape_w", 100) or 100)
         h = float(getattr(ov, "shape_h", 100) or 100)
         # tail_x / tail_y only matter for bubble kinds; for everything
@@ -1243,14 +1243,14 @@ class CanvasSkia(QWidget):
             canvas.rotate(rot)
             canvas.translate(-w / 2, -h / 2)
         opacity = float(getattr(ov, "opacity", 1.0) or 1.0)
-        kind = getattr(ov, "shape_kind", "rect") or "rect"
+        kind = (ov.shape_kind or "rect")
         blend_mode = self._blend_mode_for(
             (ov.blend_mode or "normal"))
         # Fill
         if kind in ("gradient_linear", "gradient_radial"):
             self._fill_gradient(canvas, path, ov, w, h, blend_mode, opacity)
         else:
-            fill_hex = getattr(ov, "fill_color", "") or ""
+            fill_hex = ov.fill_color
             if fill_hex:
                 fill_rgba = self._parse_hex(fill_hex, (0, 0, 0, 255))
                 fp = skia.Paint()
@@ -1262,7 +1262,7 @@ class CanvasSkia(QWidget):
                     fp.setBlendMode(blend_mode)
                 canvas.drawPath(path, fp)
         # Stroke
-        stroke_w = float(getattr(ov, "stroke_width", 0) or 0)
+        stroke_w = float(ov.stroke_width or 0)
         stroke_hex = (getattr(ov, "stroke_color", "") or
                       getattr(ov, "color", "") or "")
         if stroke_w > 0 and stroke_hex:
@@ -1292,7 +1292,7 @@ class CanvasSkia(QWidget):
         end_hex = getattr(ov, "gradient_end_color", "") or "#ffffff"
         c0 = self._parse_hex(start_hex, (0, 0, 0, 255))
         c1 = self._parse_hex(end_hex, (255, 255, 255, 255))
-        kind = getattr(ov, "shape_kind", "")
+        kind = ov.shape_kind
         colors = [skia.Color(*c0), skia.Color(*c1)]
         try:
             if kind == "gradient_linear":
@@ -1350,8 +1350,8 @@ class CanvasSkia(QWidget):
             return (min(x1, x2), min(y1, y2),
                     abs(x2 - x1), abs(y2 - y1))
         if t == "text":
-            size = float(getattr(ov, "font_size", 14) or 14)
-            text = getattr(ov, "text", "") or ""
+            size = float(ov.font_size or 14)
+            text = ov.text
             lines = text.split("\n")
             widest = max((len(l) for l in lines), default=0)
             lh = float(getattr(ov, "line_height", 1.2) or 1.2)
@@ -1457,7 +1457,7 @@ class CanvasSkia(QWidget):
                               max(4.0, 6.0 / max(0.01, self._zoom)),
                               rot_border)
             # Tail handle for bubbles
-            if getattr(ov, "shape_kind", "") in ("speech_bubble", "thought_bubble"):
+            if ov.shape_kind in ("speech_bubble", "thought_bubble"):
                 tx = float(getattr(ov, "tail_x", 0) or 0)
                 ty = float(getattr(ov, "tail_y", 0) or 0)
                 if tx or ty:
