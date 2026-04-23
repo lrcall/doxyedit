@@ -322,7 +322,7 @@ class CanvasSkia(QWidget):
         y = image_pos.y()
         # Walk overlays in reverse so the topmost (last-drawn) wins.
         for ov in reversed(self._overlays):
-            if not getattr(ov, "enabled", True):
+            if not ov.enabled:
                 continue
             if self._overlay_contains(ov, x, y):
                 return ov
@@ -815,7 +815,7 @@ class CanvasSkia(QWidget):
         handles stroke natively). Drop shadow via SkImageFilter chain
         is one paint, not a second document-draw pass.
         """
-        if not getattr(ov, "enabled", True):
+        if not ov.enabled:
             return
         text = getattr(ov, "text", "") or ""
         if not text:
@@ -1228,7 +1228,7 @@ class CanvasSkia(QWidget):
         (rect/ellipse/star/polygon/burst/bubbles), stroke, fill,
         gradient fills (linear/radial), rotation, opacity, blend mode.
         """
-        if not getattr(ov, "enabled", True):
+        if not ov.enabled:
             return
         w = float(getattr(ov, "shape_w", 100) or 100)
         h = float(getattr(ov, "shape_h", 100) or 100)
@@ -1545,7 +1545,7 @@ class CanvasSkia(QWidget):
     def _draw_overlay_arrow(self, canvas, ov):
         """Render an arrow overlay. Line from (x, y) to (end_x, end_y)
         with an arrowhead at the tip. Optional double-heading."""
-        if not getattr(ov, "enabled", True):
+        if not ov.enabled:
             return
         x1 = float(getattr(ov, "x", 0) or 0)
         y1 = float(getattr(ov, "y", 0) or 0)
@@ -1703,7 +1703,7 @@ class CanvasSkia(QWidget):
         img = self._skia_image_for_overlay(ov)
         if img is None:
             return
-        if not getattr(ov, "enabled", True):
+        if not ov.enabled:
             return
         canvas.save()
         # Translate to overlay position.
