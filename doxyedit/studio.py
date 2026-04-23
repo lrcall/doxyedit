@@ -8123,33 +8123,78 @@ class StudioEditor(QWidget):
             return
         # Build (or reuse) the preview window.
         dlg = getattr(self, "_skia_preview_dlg", None)
-        if dlg is None:
-            from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
+        fresh_build = dlg is None
+        if fresh_build:
+            from PySide6.QtWidgets import (
+                QMainWindow, QVBoxLayout, QWidget, QToolBar,
+                QCheckBox,
+            )
+            from PySide6.QtCore import QTimer
             dlg = QMainWindow(self.window())
             dlg.setWindowTitle("DoxyEdit — Skia Preview (beta)")
             dlg.resize(1100, 750)
             canvas = CanvasSkia(dlg)
             dlg.setCentralWidget(canvas)
             dlg._canvas = canvas
+            # Toolbar: manual refresh + auto-follow toggle.
+            tb = QToolBar("Preview", dlg)
+            refresh_act = tb.addAction("↻ Refresh")
+            follow_cb = QCheckBox("Auto-follow")
+            follow_cb.setChecked(True)
+            follow_cb.setToolTip(
+                "Re-render every 500ms to track live Studio edits")
+            tb.addWidget(follow_cb)
+            dlg.addToolBar(tb)
+            dlg._follow_cb = follow_cb
+            # Auto-refresh timer: pulls from the current asset every
+            # 500ms when follow_cb is checked. Cheap enough on a raster
+            # Skia surface (1-2ms per render); stops when dlg hidden.
+            timer = QTimer(dlg)
+            timer.setInterval(500)
+            timer.timeout.connect(
+                lambda: self._refresh_skia_preview() if follow_cb.isChecked()
+                and dlg.isVisible() else None)
+            timer.start()
+            dlg._follow_timer = timer
+            refresh_act.triggered.connect(self._refresh_skia_preview)
             self._skia_preview_dlg = dlg
-        canvas = dlg._canvas
-        # Load the current asset's base image into the Skia canvas.
-        canvas.set_base_image_path(self._asset.source_path)
-        # Pass the live overlay / censor objects straight through.
-        canvas.set_overlays(list(self._asset.overlays or []))
-        canvas.set_censors(list(self._asset.censors or []))
-        # Auto-fit the image to the preview viewport the first time.
-        bw = canvas.base_size().width() or 1
-        bh = canvas.base_size().height() or 1
-        avail_w = canvas.width() or 1
-        avail_h = canvas.height() or 1
-        fit = min(avail_w / bw, avail_h / bh, 1.0)
-        canvas.set_zoom(fit if fit > 0 else 1.0)
-        canvas._pan_x = max(0.0, (avail_w - bw * fit) / 2)
-        canvas._pan_y = max(0.0, (avail_h - bh * fit) / 2)
-        canvas.update()
+        # First-open: fit-to-view; subsequent opens just refresh.
+        if fresh_build:
+            canvas = dlg._canvas
+            canvas.set_base_image_path(self._asset.source_path)
+            canvas.set_overlays(list(self._asset.overlays or []))
+            canvas.set_censors(list(self._asset.censors or []))
+            bw = canvas.base_size().width() or 1
+            bh = canvas.base_size().height() or 1
+            avail_w = canvas.width() or 1
+            avail_h = canvas.height() or 1
+            fit = min(avail_w / bw, avail_h / bh, 1.0)
+            canvas.set_zoom(fit if fit > 0 else 1.0)
+            canvas._pan_x = max(0.0, (avail_w - bw * fit) / 2)
+            canvas._pan_y = max(0.0, (avail_h - bh * fit) / 2)
+            canvas.update()
+        else:
+            self._refresh_skia_preview()
         dlg.show()
         dlg.raise_()
+
+    def _refresh_skia_preview(self):
+        """Pull current asset state into the Skia preview canvas.
+        Called by the 500ms auto-follow timer and the manual Refresh
+        button. Cheap when the asset hasn't changed — set_overlays /
+        set_censors just swap list references + schedule a repaint."""
+        dlg = getattr(self, "_skia_preview_dlg", None)
+        if dlg is None or self._asset is None:
+            return
+        canvas = dlg._canvas
+        # If the asset changed (different source_path), reload base.
+        cur_path = getattr(canvas, "_loaded_path", None)
+        new_path = self._asset.source_path
+        if cur_path != new_path:
+            canvas.set_base_image_path(new_path)
+            canvas._loaded_path = new_path
+        canvas.set_overlays(list(self._asset.overlays or []))
+        canvas.set_censors(list(self._asset.censors or []))
 
     def _nuclear_clear(self):
         """F10 — clear text selection + crop mask. The two that work."""
