@@ -8175,7 +8175,8 @@ class StudioEditor(QWidget):
             return
         try:
             from doxyedit.canvas_skia import (
-                CanvasSkia, skia_available, skia_error,
+                CanvasSkia, CanvasSkiaGL,
+                skia_available, skia_error, canvas_skia_gl_available,
             )
         except Exception as e:
             if hasattr(self, "info_label"):
@@ -8192,16 +8193,24 @@ class StudioEditor(QWidget):
         if fresh_build:
             from PySide6.QtWidgets import (
                 QMainWindow, QVBoxLayout, QWidget, QToolBar,
-                QCheckBox,
+                QCheckBox, QComboBox, QLabel,
             )
             from PySide6.QtCore import QTimer
             dlg = QMainWindow(self.window())
             dlg.setWindowTitle("DoxyEdit — Skia Preview (beta)")
             dlg.resize(1100, 750)
-            canvas = CanvasSkia(dlg)
+            # Pick backend from setting (skia_cpu default, skia_gl opt-in).
+            # GL Skia is the Tier 2 GPU path; falls back to CPU raster
+            # if the platform can't create a GL context.
+            compositor = QSettings("DoxyEdit", "DoxyEdit").value(
+                "studio_compositor", "skia_cpu", type=str)
+            if compositor == "skia_gl" and canvas_skia_gl_available():
+                canvas = CanvasSkiaGL(dlg)
+            else:
+                canvas = CanvasSkia(dlg)
             dlg.setCentralWidget(canvas)
             dlg._canvas = canvas
-            # Toolbar: manual refresh + auto-follow toggle.
+            # Toolbar: manual refresh + auto-follow toggle + backend picker.
             tb = QToolBar("Preview", dlg)
             refresh_act = tb.addAction("↻ Refresh")
             follow_cb = QCheckBox("Auto-follow")
@@ -8209,6 +8218,30 @@ class StudioEditor(QWidget):
             follow_cb.setToolTip(
                 "Re-render every 500ms to track live Studio edits")
             tb.addWidget(follow_cb)
+            tb.addSeparator()
+            tb.addWidget(QLabel("  Backend: "))
+            backend_combo = QComboBox()
+            backend_combo.addItem("CPU raster (skia_cpu)", "skia_cpu")
+            if canvas_skia_gl_available():
+                backend_combo.addItem("GPU Skia (skia_gl)", "skia_gl")
+            # Select the currently-active backend
+            for idx in range(backend_combo.count()):
+                if backend_combo.itemData(idx) == compositor:
+                    backend_combo.setCurrentIndex(idx)
+                    break
+            backend_combo.setToolTip(
+                "Switching swaps the render backend and persists via "
+                "studio_compositor. Requires closing+reopening this window.")
+
+            def _on_backend_changed(idx):
+                new = backend_combo.itemData(idx)
+                QSettings("DoxyEdit", "DoxyEdit").setValue(
+                    "studio_compositor", new)
+                # Force a rebuild on next Shift+S
+                self._skia_preview_dlg = None
+                dlg.close()
+            backend_combo.currentIndexChanged.connect(_on_backend_changed)
+            tb.addWidget(backend_combo)
             dlg.addToolBar(tb)
             dlg._follow_cb = follow_cb
             # Auto-refresh timer: pulls from the current asset every
