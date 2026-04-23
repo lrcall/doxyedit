@@ -257,7 +257,7 @@ class CanvasSkia(QWidget):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        if getattr(self, "_panning", False):
+        if self._panning:
             try:
                 pos = event.position()
             except AttributeError:
@@ -272,7 +272,7 @@ class CanvasSkia(QWidget):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.MiddleButton and getattr(self, "_panning", False):
+        if event.button() == Qt.MouseButton.MiddleButton and self._panning:
             self._panning = False
             self.setCursor(Qt.CursorShape.ArrowCursor)
             event.accept()
@@ -1775,7 +1775,7 @@ class CanvasSkia(QWidget):
         # Day 11: apply devicePixelRatio scale so logical-pixel coords
         # (what the rest of the code uses) render at physical resolution
         # on high-DPI screens. pan_x/pan_y are in logical pixels too.
-        dpr = getattr(self, "_dpr", 1.0)
+        dpr = self._dpr
         if dpr != 1.0:
             canvas.scale(dpr, dpr)
         # Apply pan + zoom.
@@ -1829,7 +1829,7 @@ class CanvasSkia(QWidget):
         if font is None:
             font = skia.Font(skia.Typeface("Consolas"), 11)
             self._hud_font = font
-        dpr = getattr(self, "_dpr", 1.0)
+        dpr = self._dpr
         # Use paint_ms from the PREVIOUS frame; current frame's ms isn't
         # known until after drawString returns.
         prev_ms = self._fps_last_ms
@@ -1982,6 +1982,11 @@ if _QOGW_OK and _SKIA_OK:
             self._panning = False
             self._pan_start = QPointF(0, 0)
             self._dpr = float(self.devicePixelRatioF() or 1.0)
+            # FBO tracking sentinel — resizeGL overwrites with the real
+            # default framebuffer ID once Qt hands us a GL context. -1
+            # never matches a real FBO, so paintGL's drift check fires
+            # a rebuild on the first real paint.
+            self._surface_fbo = -1
             self.backend_name = "skia_gl"
             # Error trail for context loss / init failure. Surfaced
             # to the perf log's session_start event and shown in the
@@ -2134,7 +2139,7 @@ if _QOGW_OK and _SKIA_OK:
             # don't rebuild, paintGL draws to the wrong target.
             cur_fbo = int(self.defaultFramebufferObject() or 0)
             if (self._surface is not None
-                    and getattr(self, "_surface_fbo", -1) != cur_fbo):
+                    and self._surface_fbo != cur_fbo):
                 self.resizeGL(self.width(), self.height())
             if self._surface is None or self._gr_context is None:
                 # Fell through re-init — paint nothing; hopefully next
@@ -2217,7 +2222,7 @@ if _QOGW_OK and _SKIA_OK:
                 fps = len(self._fps_samples) - bisect.bisect_left(
                     self._fps_samples,
                     self._fps_time.perf_counter() - 1.0)
-                dpr = getattr(self, "_dpr", 1.0)
+                dpr = self._dpr
                 err = f"  err={self._last_init_error}" if self._last_init_error else ""
                 txt = (f"SKIA-GL  zoom={self._zoom:.2f}  "
                        f"ovl={len(self._overlays)}  dpr={dpr:.1f}  "
