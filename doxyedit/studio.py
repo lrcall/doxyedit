@@ -49,6 +49,7 @@ from PySide6.QtGui import (
     QTextCursor, QLinearGradient, QRadialGradient, QTextOption,
     QTextBlockFormat,
 )
+import bisect
 import copy
 import json
 import math
@@ -4008,9 +4009,14 @@ class StudioView(QGraphicsView):
             cutoff = t1 - 2.0
             while self._fps_times and self._fps_times[0] < cutoff:
                 self._fps_times.pop(0)
-            # Live fps = frames in the last second
-            recent = [ts for ts in self._fps_times if ts > t1 - 1.0]
-            fps = len(recent)
+            # Live fps = frames in the last second. _fps_times is sorted
+            # (appended in perf_counter order); bisect finds the split
+            # point in O(log N) vs the list-comprehension's O(N) scan +
+            # allocation. Only matters with FPS HUD on but that's when
+            # the user is actively watching — avoid paint-loop overhead.
+            fps_cutoff = t1 - 1.0
+            fps = len(self._fps_times) - bisect.bisect_left(
+                self._fps_times, fps_cutoff)
             # Log every Nth paint to keep file small
             self._perf_paint_counter += 1
             if self._perf_paint_counter % self._perf_paint_sample_every == 0:
@@ -4258,10 +4264,12 @@ class StudioView(QGraphicsView):
                     btns & (Qt.MouseButton.LeftButton
                              | Qt.MouseButton.MiddleButton))
                 if is_dragging:
+                    _drag_cutoff = now - 1.0
+                    _fps = len(self._fps_times) - bisect.bisect_left(
+                        self._fps_times, _drag_cutoff)
                     self._perf_log_event({
                         "type": "drag_move",
-                        "fps": len([ts for ts in self._fps_times
-                                     if ts > now - 1.0]),
+                        "fps": _fps,
                         "avg_ms": round(self._fps_rolling_ms, 2),
                     })
         super().mouseMoveEvent(event)
