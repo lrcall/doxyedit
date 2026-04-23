@@ -10583,9 +10583,18 @@ class StudioEditor(QWidget):
         at 40% opacity; selected items keep their stored opacity. Flips
         back to full opacity when no selection exists or the setting is
         off. Doesn't mutate CanvasOverlay.opacity - just the live
-        QGraphicsItem display opacity."""
-        enabled = QSettings("DoxyEdit", "DoxyEdit").value(
-            "studio_dim_nonselected", False, type=bool)
+        QGraphicsItem display opacity.
+
+        The QSettings.value() call was hitting the registry on every
+        selection change (and selection changes fire during drag). Cache
+        the setting on the editor; it's invalidated by the settings
+        dialog via _invalidate_dim_cache() after a user toggle.
+        """
+        enabled = getattr(self, "_dim_nonselected_cached", None)
+        if enabled is None:
+            enabled = QSettings("DoxyEdit", "DoxyEdit").value(
+                "studio_dim_nonselected", False, type=bool)
+            self._dim_nonselected_cached = enabled
         sel = set(self._scene.selectedItems()) if self._scene else set()
         has_sel = bool(sel)
         for it in self._overlay_items + list(self._censor_items):
@@ -10595,6 +10604,11 @@ class StudioEditor(QWidget):
                 it.setOpacity(base_op * 0.4)
             else:
                 it.setOpacity(base_op)
+
+    def _invalidate_dim_cache(self):
+        """Called after studio_dim_nonselected changes so the cached
+        value in _apply_dim_nonselected gets re-read on the next call."""
+        self._dim_nonselected_cached = None
 
     def _sync_quickbar(self):
         """Reflect the first selected overlay's state on the quickbar.
@@ -12522,6 +12536,10 @@ class StudioEditor(QWidget):
                 not lock_guides_cb.isChecked())
         # Trigger dim-nonselected reflow if selection already exists
         if hasattr(self, "_apply_dim_nonselected"):
+            # Invalidate the per-editor cache first so the next call
+            # reads the just-saved QSettings value.
+            if hasattr(self, "_invalidate_dim_cache"):
+                self._invalidate_dim_cache()
             self._apply_dim_nonselected()
         qs.setValue("studio_upscale_mode", upscale_combo.currentData())
         qs.setValue("studio_render_aa", aa_cb.isChecked())
