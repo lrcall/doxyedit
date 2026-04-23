@@ -785,12 +785,16 @@ class MainWindow(SaveLoadMixin, QMainWindow):
             self._file_browser.setVisible(files_vis)
 
         # Restore the Assets tab top-toolbar visibility. Defaults to
-        # shown — power users can Ctrl+Shift+M to reclaim the vertical
-        # space when focusing on the thumbnail grid.
+        # shown, power users can Ctrl+Shift+M to reclaim the vertical
+        # space when focusing on the thumbnail grid. Both rows (main
+        # toolbar and the Search/Filter/Sort row 2) toggle together.
         if hasattr(self.browser, '_toolbar_widget'):
             tb_vis = self._settings.value(
                 "browser_toolbar_visible", True, type=bool)
             self.browser._toolbar_widget.setVisible(tb_vis)
+            row2 = getattr(self.browser, '_row2_widget', None)
+            if row2 is not None:
+                row2.setVisible(tb_vis)
 
         # Tab / Shift+Tab cycle top tabs forward / backward. Installed
         # as an event filter on the QApplication so they work even when
@@ -3428,14 +3432,19 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._info_panel.setVisible(vis)
 
     def _toggle_browser_toolbar(self):
-        """Show/hide the Assets tab's top toolbar (Files/Tags/Tray
-        toggles + Folder/Files/Filter buttons). Gives the user full
-        thumbnail real-estate when browsing a large asset grid."""
+        """Show/hide BOTH Assets tab toolbar rows: row 1 (Files/Tags/Tray
+        toggles + Folder/Files/Filter buttons) and row 2 (Search / ▼
+        Filters / Collapse / Expand / Tags checkbox / format / sort).
+        Gives the user full thumbnail real-estate when browsing a large
+        asset grid."""
         tb = getattr(self.browser, "_toolbar_widget", None)
+        row2 = getattr(self.browser, "_row2_widget", None)
         if tb is None:
             return
         vis = not tb.isVisible()
         tb.setVisible(vis)
+        if row2 is not None:
+            row2.setVisible(vis)
         self._settings.setValue("browser_toolbar_visible", vis)
 
     def _toggle_file_browser(self):

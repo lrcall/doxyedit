@@ -1,4 +1,5 @@
-DoxyEdit v2.2 — 71 commits
-[ ] ✓ All active bugs fixed (toggles, folder width, depth, delegate colors)
-[ ] Test app end-to-end
-[ ] Push when ready
+DoxyEdit v2.4 - Studio Export Pipeline
+[ ] Fix Escape clearing (F10+click work, Esc still blocked)
+[ ] Export All: per-crop with scoped overlays working
+[ ] Export Platform: respects crop combo selection
+[ ] Identity import/export + tokenization pass

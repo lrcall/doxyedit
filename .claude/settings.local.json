@@ -94,7 +94,11 @@
       "Bash(cmd:*)",
       "Bash(/c/Users/dikud/AppData/Local/Programs/Python/Python311/python.exe:*)",
       "Bash(PYTHONPATH=E:/git/doxyedit C:/Users/dikud/AppData/Local/Programs/Python/Python311/python.exe:*)",
-      "Skill(claude-md-management:revise-claude-md)"
+      "Skill(claude-md-management:revise-claude-md)",
+      "WebFetch(domain:www.qtcentre.org)",
+      "WebFetch(domain:sourcecodequery.com)",
+      "WebFetch(domain:stackoverflow.com)",
+      "WebFetch(domain:medium.com)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -1,0 +1,232 @@
+{
+  "main": {
+    "id": "becfb8fe9314ca82",
+    "type": "split",
+    "children": [
+      {
+        "id": "a0f144216ab43c81",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "49aca58f2a24fd7c",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "design_mockups/agent_reviews/J_desk.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "J_desk"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "e2e9a3de46a83608",
+    "type": "split",
+    "children": [
+      {
+        "id": "e41f5b32f4a42235",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "bea15736236d473e",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "ef5cee46f3831146",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "4a79e88e9bf12765",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "09a76720ee74cd52",
+    "type": "split",
+    "children": [
+      {
+        "id": "008ec7789620d8ae",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "41d3ff14bff5c228",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "design_mockups/agent_reviews/J_desk.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for J_desk"
+            }
+          },
+          {
+            "id": "64da08e53beefc63",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "design_mockups/agent_reviews/J_desk.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from J_desk"
+            }
+          },
+          {
+            "id": "bc4769a0c984bc25",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "ebd585f721287458",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "1e4f6670f87b21d1",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "design_mockups/agent_reviews/J_desk.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of J_desk"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "49aca58f2a24fd7c",
+  "lastOpenFiles": [
+    "doxyedit/window.py.tmp.59924.1776931080613",
+    "doxyedit/window.py.tmp.59924.1776931075055",
+    "doxyedit/__pycache__/window.cpython-311.pyc.2436929243040",
+    "doxyedit/window.py.tmp.59924.1776930634985",
+    "doxyedit/window.py.tmp.59924.1776930596014",
+    "doxyedit/window.py.tmp.59924.1776930581902",
+    "doxyedit/window.py.tmp.59924.1776930565919",
+    "doxyedit/__pycache__/canvas_skia.cpython-311.pyc.2190953736880",
+    "doxyedit/canvas_skia.py.tmp.59924.1776930336485",
+    "doxyedit/canvas_skia.py.tmp.59924.1776930324903",
+    "doxyedit/__pycache__/canvas_skia.cpython-311.pyc.2004478716592",
+    "docs/gl-canvas-plan.md",
+    "docs/e3-benchmark.md",
+    "docs/canvas-architecture-deep-dive.md",
+    "docs/canvas-architecture-investigation.md",
+    "docs/brush-system-plan.md",
+    "design_mockups/agent_reviews/H_moodboard.png",
+    "design_mockups/agent_reviews/I_daw.png",
+    "design_mockups/agent_reviews/J_desk.md",
+    "design_mockups/agent_reviews/J_desk.png",
+    "design_mockups/agent_reviews/D_toy_indie.png",
+    "design_mockups/agent_reviews/E_no_gui.png",
+    "design_mockups/agent_reviews/B_power_tool.png",
+    "design_mockups/agent_reviews/A_minimalist.png",
+    "design_mockups/agent_reviews/G_longform.png",
+    "design_mockups/agent_reviews/G_longform.md",
+    "design_mockups/agent_reviews/F_kanban.md",
+    "design_mockups/agent_reviews/F_kanban.png",
+    "design_mockups/agent_reviews/I_daw.md",
+    "design_mockups/agent_reviews/H_moodboard.md",
+    "design_mockups/agent_reviews/C_ai_native.png",
+    "design_mockups/agent_reviews/E_no_gui.md",
+    "design_mockups/agent_reviews/D_toy_indie.md",
+    "design_mockups/agent_reviews/C_ai_native.md",
+    "design_mockups/agent_reviews/B_power_tool.md",
+    "design_mockups/agent_reviews/A_minimalist.md",
+    "docs/ui-redesign-plan.md",
+    "docs/studio-v2-spec.md",
+    "docs/studio-ui-redesign.md",
+    "docs/state-machine-posts.md",
+    "docs/asset-review-tool-brief.md",
+    "docs/BACKLOG.md",
+    "review.md"
+  ]
+}
