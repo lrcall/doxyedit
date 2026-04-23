@@ -1156,7 +1156,7 @@ class OverlayShapeItem(QGraphicsItem):
         self._render_in_flight = False
         if token != self._render_token:
             return  # superseded by a later schedule
-        current = self._shape_params_tuple()
+        current = self._shape_render_params_tuple()
         if params != current:
             # User changed something after we kicked off — re-schedule
             # instead of adopting stale pixels.
@@ -1174,7 +1174,7 @@ class OverlayShapeItem(QGraphicsItem):
         if self._render_in_flight:
             return
         self._ensure_render_signals()
-        params = self._shape_params_tuple()
+        params = self._shape_render_params_tuple()
         if params == self._cached_render_key and self._cached_render is not None:
             return  # cache already valid for these params
         w = int(max(1, getattr(self.overlay, "shape_w", 0) or 0))
@@ -1223,6 +1223,33 @@ class OverlayShapeItem(QGraphicsItem):
             getattr(ov, "star_points", 0),
             getattr(ov, "inner_ratio", 0.0),
             getattr(ov, "polygon_vertices", 0),
+        )
+
+    def _shape_render_params_tuple(self) -> tuple:
+        """Like _shape_params_tuple but includes every attribute the
+        rendered bitmap depends on: fill / stroke colors, opacity,
+        stroke_width, line_style, gradient endpoints, stroke_align.
+
+        Used ONLY as the E3 off-thread cache key — the path cache
+        still uses the geometry-only tuple so a color change doesn't
+        need to rebuild the QPainterPath.
+
+        Keys NOT in this tuple: x, y (position applied at draw time),
+        rotation (applied via painter.rotate), blend_mode (applied
+        at draw time; also the fast-blit path is skipped for non-
+        normal blend modes anyway)."""
+        ov = self.overlay
+        return self._shape_params_tuple() + (
+            getattr(ov, "fill_color", "") or "",
+            getattr(ov, "stroke_color", "") or "",
+            getattr(ov, "color", "") or "",
+            float(getattr(ov, "opacity", 1.0) or 1.0),
+            float(getattr(ov, "stroke_width", 0) or 0),
+            getattr(ov, "line_style", "solid") or "solid",
+            getattr(ov, "stroke_align", "center") or "center",
+            getattr(ov, "gradient_start_color", "") or "",
+            getattr(ov, "gradient_end_color", "") or "",
+            float(getattr(ov, "gradient_angle", 0) or 0),
         )
 
     def hoverMoveEvent(self, event):
@@ -1675,7 +1702,7 @@ class OverlayShapeItem(QGraphicsItem):
         # off-thread so this path ONLY hits after the worker completes.
         # Selected state + handles are always drawn live (below) since
         # they change frequently with selection toggles.
-        cache_key = self._shape_params_tuple()
+        cache_key = self._shape_render_params_tuple()
         fast_blit_ok = (
             self._cached_render is not None
             and self._cached_render_key == cache_key
