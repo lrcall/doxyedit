@@ -29,7 +29,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import (
     Qt, QRectF, QPointF, QLineF, Signal, QSettings, QSize,
-    QEvent, QMimeData,
+    QEvent, QMimeData, QObject, QRunnable, QThreadPool,
+    QMetaObject, Q_ARG, Slot,
 )
 from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
@@ -857,6 +858,146 @@ class OverlayImageItem(QGraphicsPixmapItem):
         super().mouseDoubleClickEvent(event)
 
 
+def _render_shape_to_image(overlay_snapshot, pad: int):
+    """Return a closure that renders a shape snapshot into a QImage.
+
+    The closure runs on a worker thread (no Qt event loop). It uses a
+    local QPainter on the provided image — QPainter is documented as
+    safe to use off the GUI thread as long as each QPaintDevice is
+    owned by a single thread for the duration.
+
+    Coordinates: the shape's body rect is drawn at origin (pad, pad).
+    When the GUI thread adopts the image, it translates by (x-pad, y-pad)
+    so the shape lands at the overlay's scene position.
+    """
+    from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
+    import math as _math
+
+    def _run(img, params):
+        p = QPainter(img)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        ov = overlay_snapshot
+        kind = getattr(ov, "shape_kind", "rect") or "rect"
+        w = float(getattr(ov, "shape_w", 100) or 100)
+        h = float(getattr(ov, "shape_h", 100) or 100)
+        # Local rect at (pad, pad)
+        body = QRectF(pad, pad, w, h)
+        # Build path in local coords
+        path = QPainterPath()
+        if kind == "rect":
+            radius = float(getattr(ov, "corner_radius", 0) or 0)
+            if radius > 0:
+                path.addRoundedRect(body, radius, radius)
+            else:
+                path.addRect(body)
+        elif kind == "ellipse":
+            path.addEllipse(body)
+        elif kind == "speech_bubble":
+            # Simple speech bubble: rounded rect + triangular tail
+            roundness = max(0.0, min(1.0,
+                getattr(ov, "bubble_roundness", 0.0) or 0.0))
+            inner_pad = min(w, h) * 0.18
+            eff_pad = inner_pad + (min(w, h) / 2 - inner_pad) * roundness
+            path.addRoundedRect(body, eff_pad, eff_pad)
+            # Tail — default pointing down-left
+            tx = getattr(ov, "tail_x", 0) or 0
+            ty = getattr(ov, "tail_y", 0) or 0
+            if tx == 0 and ty == 0:
+                tip_x = pad - w * 0.15
+                tip_y = pad + h + h * 0.35
+            else:
+                tip_x = pad + (float(tx) - float(ov.x))
+                tip_y = pad + (float(ty) - float(ov.y))
+            base_len = min(w, h) * 0.25
+            tail = QPainterPath()
+            tail.moveTo(pad, pad + h * 0.5)
+            tail.lineTo(tip_x, tip_y)
+            tail.lineTo(pad, pad + h * 0.5 + base_len)
+            tail.closeSubpath()
+            path = path.united(tail)
+        else:
+            path.addRect(body)
+        # Fill
+        fill_hex = getattr(ov, "fill_color", "") or ""
+        if fill_hex:
+            c = QColor(fill_hex)
+            c.setAlphaF(float(getattr(ov, "opacity", 1.0) or 1.0))
+            p.setBrush(QBrush(c))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawPath(path)
+        # Stroke
+        stroke_w = float(getattr(ov, "stroke_width", 0) or 0)
+        stroke_hex = (getattr(ov, "stroke_color", "")
+                      or getattr(ov, "color", "") or "")
+        if stroke_w > 0 and stroke_hex:
+            sc = QColor(stroke_hex)
+            sc.setAlphaF(float(getattr(ov, "opacity", 1.0) or 1.0))
+            pen = QPen(sc, stroke_w)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawPath(path)
+        p.end()
+
+    return _run
+
+
+class _OverlayCacheSignals(QObject):
+    """Signal object for the overlay cache worker — QObject so the
+    signal can marshal back to the GUI thread via Qt::QueuedConnection.
+    Carries the output QImage + the parameter snapshot that produced
+    it so the item can reject stale results (e.g. another rebuild
+    scheduled mid-flight won the race)."""
+    done = Signal(int, object, QImage)   # (token, params_tuple, qimage)
+
+
+class OverlayCacheBuilder(QRunnable):
+    """Off-thread overlay pre-render (E3 from the deep-dive).
+
+    Takes a render callable + parameter snapshot, executes on the
+    QThreadPool, posts the resulting QImage back to the item via
+    signal. The GUI thread's slot compares the snapshot against the
+    item's current parameters; if they still match, the cached QImage
+    is adopted. If they don't (user moved another slider during the
+    build), the result is discarded and a fresh build is scheduled.
+
+    Usage:
+        signals = _OverlayCacheSignals()
+        signals.done.connect(item._adopt_cached_render)
+        builder = OverlayCacheBuilder(token, params, size, render_fn, signals)
+        QThreadPool.globalInstance().start(builder)
+
+    render_fn signature: (QImage, params_tuple) -> None
+    It should paint into the provided QImage using a local QPainter.
+    Running on a worker thread — MUST NOT touch scene items, only
+    the image buffer and the params it was given.
+    """
+
+    def __init__(self, token: int, params: tuple, size: QSize,
+                 render_fn, signals: _OverlayCacheSignals):
+        super().__init__()
+        self._token = token
+        self._params = params
+        self._size = size
+        self._render_fn = render_fn
+        self._signals = signals
+        self.setAutoDelete(True)
+
+    def run(self):
+        try:
+            img = QImage(
+                max(1, self._size.width()),
+                max(1, self._size.height()),
+                QImage.Format.Format_ARGB32_Premultiplied,
+            )
+            img.fill(Qt.GlobalColor.transparent)
+            self._render_fn(img, self._params)
+            self._signals.done.emit(self._token, self._params, img)
+        except Exception:
+            # Swallow — caller will fall back to live render.
+            pass
+
+
 class OverlayShapeItem(QGraphicsItem):
     """Non-destructive shape overlay (rectangle or ellipse).
 
@@ -890,6 +1031,17 @@ class OverlayShapeItem(QGraphicsItem):
         # invalidated by the _shape_params_tuple() check inside paint.
         self._cached_path_key = None
         self._cached_path = None
+        # E3: off-thread render cache. _cached_render is an ARGB32
+        # QImage of the fully-rendered shape (fill + stroke) produced
+        # on a worker thread; paint() blits it instead of re-running
+        # drawPath. Invalidated by the _shape_params_tuple() check.
+        # _render_token increments on every schedule so stale results
+        # can be rejected.
+        self._cached_render: QImage | None = None
+        self._cached_render_key: tuple | None = None
+        self._render_token: int = 0
+        self._render_in_flight: bool = False
+        self._render_signals: _OverlayCacheSignals | None = None
         # Apply persisted rotation. Transform origin is the rect center so
         # rotation pivots on the item.
         if getattr(overlay, "rotation", 0):
@@ -897,6 +1049,58 @@ class OverlayShapeItem(QGraphicsItem):
                 overlay.x + overlay.shape_w / 2,
                 overlay.y + overlay.shape_h / 2)
             self.setRotation(overlay.rotation)
+
+    def _ensure_render_signals(self):
+        """Lazy-create the signals object + wire the adopt slot."""
+        if self._render_signals is None:
+            self._render_signals = _OverlayCacheSignals()
+            self._render_signals.done.connect(self._adopt_cached_render)
+
+    @Slot(int, object, QImage)
+    def _adopt_cached_render(self, token: int, params: tuple,
+                              qimage: QImage):
+        """Worker thread finished. Adopt the QImage iff the params
+        still match the current ones (user didn't change anything
+        while we were rendering)."""
+        self._render_in_flight = False
+        if token != self._render_token:
+            return  # superseded by a later schedule
+        current = self._shape_params_tuple()
+        if params != current:
+            # User changed something after we kicked off — re-schedule
+            # instead of adopting stale pixels.
+            self._schedule_cached_render()
+            return
+        self._cached_render = qimage
+        self._cached_render_key = params
+        self.update()
+
+    def _schedule_cached_render(self):
+        """Queue an off-thread rebuild of the full-shape QImage cache.
+        Safe to call repeatedly — if a build is already in flight a
+        fresh one isn't queued until it completes; the completion
+        handler re-checks params and re-schedules if needed."""
+        if self._render_in_flight:
+            return
+        self._ensure_render_signals()
+        params = self._shape_params_tuple()
+        if params == self._cached_render_key and self._cached_render is not None:
+            return  # cache already valid for these params
+        w = int(max(1, getattr(self.overlay, "shape_w", 0) or 0))
+        h = int(max(1, getattr(self.overlay, "shape_h", 0) or 0))
+        # Include stroke pad so the render doesn't clip thick strokes.
+        pad = int(max(4, getattr(self.overlay, "stroke_width", 0) or 0) * 2)
+        size = QSize(w + pad * 2, h + pad * 2)
+        self._render_token += 1
+        token = self._render_token
+        self._render_in_flight = True
+        # Freeze a copy of the overlay so the worker doesn't see later
+        # mutations from the GUI thread.
+        snap = copy.copy(self.overlay)
+        render_fn = _render_shape_to_image(snap, pad)
+        QThreadPool.globalInstance().start(
+            OverlayCacheBuilder(token, params, size, render_fn,
+                                self._render_signals))
 
     def _shape_params_tuple(self) -> tuple:
         """Tuple of every parameter that affects the shape's painter path.
