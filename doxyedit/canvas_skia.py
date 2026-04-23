@@ -24,6 +24,7 @@ Default is "qgraphics". Fallback to QGraphicsView on any init failure.
 from __future__ import annotations
 
 from pathlib import Path
+import functools
 import math
 
 from PySide6.QtCore import Qt, QRectF, QPointF, Signal, QSize
@@ -59,6 +60,26 @@ def skia_available() -> bool:
 
 def skia_error() -> str:
     return _SKIA_ERR or ""
+
+
+@functools.lru_cache(maxsize=256)
+def _parse_hex_cached(s: str):
+    """Memoised #RRGGBB / #RRGGBBAA parser. Returns (r,g,b,a) or None on
+    bad input. Separate from CanvasSkia._parse_hex because lru_cache
+    can't wrap a staticmethod cleanly AND we want the cache shared
+    across every canvas instance (colors repeat — same palette used
+    on many overlays)."""
+    try:
+        h = (s or "").lstrip("#")
+        if len(h) == 6:
+            return (int(h[0:2], 16), int(h[2:4], 16),
+                    int(h[4:6], 16), 255)
+        if len(h) == 8:
+            return (int(h[0:2], 16), int(h[2:4], 16),
+                    int(h[4:6], 16), int(h[6:8], 16))
+    except Exception:
+        pass
+    return None
 
 
 class CanvasSkia(QWidget):
@@ -936,17 +957,16 @@ class CanvasSkia(QWidget):
 
     @staticmethod
     def _parse_hex(s: str, default: tuple) -> tuple:
-        """Parse #RRGGBB / #RRGGBBAA -> (r,g,b,a). Returns default on error."""
-        try:
-            h = (s or "").lstrip("#")
-            if len(h) == 6:
-                return (int(h[0:2], 16), int(h[2:4], 16),
-                        int(h[4:6], 16), 255)
-            if len(h) == 8:
-                return (int(h[0:2], 16), int(h[2:4], 16),
-                        int(h[4:6], 16), int(h[6:8], 16))
-        except Exception:
-            pass
+        """Parse #RRGGBB / #RRGGBBAA -> (r,g,b,a). Returns default on error.
+
+        Hot path: every overlay paint resolves 1-3 hex colors. A scene
+        with 20 overlays at 60fps = 1200-3600 parses/sec. lru_cache
+        memoises against the string alone, so repeat colors (most of a
+        palette) return the pre-parsed tuple without int() calls.
+        """
+        cached = _parse_hex_cached(s)
+        if cached is not None:
+            return cached
         return default
 
     # ------------------------------------------------------------------
