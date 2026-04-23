@@ -136,6 +136,10 @@ class CanvasSkia(QWidget):
         # hold the overlay alive (the overlay is owned by the Asset
         # model which owns the canvas).
         self._skia_path_cache: dict = {}
+        # Dash-effect cache: key = intervals tuple -> SkDashPathEffect.
+        # Pre-allocated here so _get_dash_effect can skip the first-call
+        # getattr-or-create path on every paint.
+        self._skia_dash_cache: dict = {}
         # Day 6: censor regions. List of CensorRegion dataclasses.
         # Drawn after overlays so they mask / blur the base image.
         self._censors: list = []
@@ -1358,11 +1362,9 @@ class CanvasSkia(QWidget):
         """Return a cached SkDashPathEffect for the given intervals.
         Path effects are immutable; caching one per pattern means N
         selected overlays share a single effect instance instead of
-        each allocating their own."""
-        cache = getattr(self, "_skia_dash_cache", None)
-        if cache is None:
-            cache = {}
-            self._skia_dash_cache = cache
+        each allocating their own. _skia_dash_cache is pre-allocated
+        in __init__ so no getattr guard is needed here."""
+        cache = self._skia_dash_cache
         eff = cache.get(intervals_tuple)
         if eff is None:
             try:
@@ -1958,6 +1960,7 @@ if _QOGW_OK and _SKIA_OK:
             self._skia_typeface_cache: dict = {}
             self._skia_font_cache: dict = {}
             self._skia_path_cache: dict = {}
+            self._skia_dash_cache: dict = {}
             self._zoom = 1.0
             self._pan_x = 0.0
             self._pan_y = 0.0
