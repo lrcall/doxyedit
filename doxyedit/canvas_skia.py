@@ -457,6 +457,20 @@ class CanvasSkia(QWidget):
                 k: v for k, v in self._skia_path_cache.items()
                 if k in live_ids
             }
+        # Prune the overlay-image cache for paths that are no longer
+        # referenced by any overlay. A decoded skia.Image for a multi-MB
+        # watermark carries the full decoded pixel buffer, so stale
+        # entries aren't free. Keep the entry if ANY overlay still uses
+        # that path so repeat decodes are avoided.
+        if self._overlay_image_cache:
+            live_paths = {
+                getattr(ov, "image_path", "") for ov in new_list
+                if getattr(ov, "image_path", "")
+            }
+            self._overlay_image_cache = {
+                p: img for p, img in self._overlay_image_cache.items()
+                if p in live_paths
+            }
         self._overlays = new_list
         self.update()
 
@@ -2227,14 +2241,25 @@ if _QOGW_OK and _SKIA_OK:
 
         def set_overlays(self, overlays):
             new_list = list(overlays)
-            # Mirror CanvasSkia.set_overlays' path cache prune — the GL
+            # Mirror CanvasSkia.set_overlays' cache prunes — the GL
             # subclass uses the same _build_shape_path helper (bound as
-            # a method in __init__) which writes into _skia_path_cache.
+            # a method in __init__) which writes into _skia_path_cache,
+            # and the same _skia_image_for_overlay helper which writes
+            # into _overlay_image_cache.
             if self._skia_path_cache:
                 live_ids = {id(ov) for ov in new_list}
                 self._skia_path_cache = {
                     k: v for k, v in self._skia_path_cache.items()
                     if k in live_ids
+                }
+            if self._overlay_image_cache:
+                live_paths = {
+                    getattr(ov, "image_path", "") for ov in new_list
+                    if getattr(ov, "image_path", "")
+                }
+                self._overlay_image_cache = {
+                    p: img for p, img in self._overlay_image_cache.items()
+                    if p in live_paths
                 }
             self._overlays = new_list
             self.update()
