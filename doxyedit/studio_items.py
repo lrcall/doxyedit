@@ -1036,6 +1036,46 @@ def _render_shape_to_image(overlay_snapshot, pad: int):
             p.setPen(pen)
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawPath(path)
+        # thought_bubble: 3 trailing puff circles along the tail
+        # direction (matches live _paint_thought_bubble).
+        if kind == "thought_bubble":
+            cx, cy = pad + w / 2, pad + h / 2
+            rx, ry = w / 2, h / 2
+            tx = float(getattr(ov, "tail_x", 0) or 0)
+            ty = float(getattr(ov, "tail_y", 0) or 0)
+            if tx == 0 and ty == 0:
+                tip_x = pad - w * 0.15
+                tip_y = pad + h + h * 0.35
+            else:
+                tip_x = pad + (tx - float(ov.x))
+                tip_y = pad + (ty - float(ov.y))
+            dx = tip_x - cx
+            dy = tip_y - cy
+            length = _math.hypot(dx, dy)
+            if length > 4:
+                puff_r = min(rx, ry) * 0.28
+                ux, uy = dx / length, dy / length
+                start_off = min(rx, ry) * 0.85
+                # Re-establish fill/stroke for the puffs.
+                fill_hex = getattr(ov, "fill_color", "") or ""
+                op = float(getattr(ov, "opacity", 1.0) or 1.0)
+                if fill_hex:
+                    fc = QColor(fill_hex)
+                    fc.setAlphaF(op)
+                    p.setBrush(QBrush(fc))
+                else:
+                    p.setBrush(Qt.BrushStyle.NoBrush)
+                if stroke_w > 0 and stroke_hex:
+                    sc = QColor(stroke_hex)
+                    sc.setAlphaF(op)
+                    p.setPen(QPen(sc, stroke_w))
+                else:
+                    p.setPen(Qt.PenStyle.NoPen)
+                for i, frac in enumerate((0.25, 0.55, 0.85)):
+                    pr = puff_r * (0.55 - i * 0.15)
+                    px = cx + ux * (start_off + length * frac * 0.6)
+                    py = cy + uy * (start_off + length * frac * 0.6)
+                    p.drawEllipse(QPointF(px, py), pr, pr)
         p.end()
 
     return _run
