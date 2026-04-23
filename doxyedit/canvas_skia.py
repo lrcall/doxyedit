@@ -342,8 +342,8 @@ class CanvasSkia(QWidget):
             return self._dist_to_segment(x, y, x1, y1, x2, y2) <= \
                 max(6.0, float(getattr(ov, "stroke_width", 4) or 4))
         if ov_type == "shape":
-            w = float(getattr(ov, "shape_w", 0) or 0)
-            h = float(getattr(ov, "shape_h", 0) or 0)
+            w = float(ov.shape_w or 0)
+            h = float(ov.shape_h or 0)
             ox = float(ov.x)
             oy = float(ov.y)
             # Quick bbox reject in local coords (account for rotation
@@ -377,10 +377,10 @@ class CanvasSkia(QWidget):
             size = float(ov.font_size or 14)
             text = ov.text
             lines = text.split("\n")
-            lh = float(getattr(ov, "line_height", 1.2) or 1.2)
+            lh = float(ov.line_height or 1.2)
             # Rough width: longest line × avg char width (0.6 × size)
             widest = max((len(l) for l in lines), default=0)
-            w = float(getattr(ov, "text_width", 0) or 0) or \
+            w = float(ov.text_width or 0) or \
                 widest * size * 0.6
             h = len(lines) * size * lh
             ox = float(ov.x)
@@ -822,8 +822,8 @@ class CanvasSkia(QWidget):
             return
         family = (ov.font_family or "Segoe UI")
         size = float(ov.font_size or 14)
-        bold = bool(getattr(ov, "bold", False))
-        italic = bool(getattr(ov, "italic", False))
+        bold = ov.bold
+        italic = ov.italic
         # Typeface cache: OS font lookup runs once per (family, bold,
         # italic) combo for the lifetime of the canvas. Prior code was
         # calling skia.Typeface() every paint for every text overlay
@@ -853,7 +853,7 @@ class CanvasSkia(QWidget):
         # breaks manually matching QTextDocument's block layout.
         lines = text.split("\n")
         metrics = font.getMetrics()
-        line_h = float(getattr(ov, "line_height", 1.2) or 1.2)
+        line_h = float(ov.line_height or 1.2)
         ascent = -metrics.fAscent       # SkFontMetrics ascent is negative
         descent = metrics.fDescent
         line_step = (ascent + descent) * line_h
@@ -862,7 +862,7 @@ class CanvasSkia(QWidget):
         # text_width clamp — if > 0, treat as pinned line width for
         # alignment math. Otherwise each line is left-aligned relative
         # to overlay.x.
-        pinned_w = float(getattr(ov, "text_width", 0) or 0)
+        pinned_w = float(ov.text_width or 0)
         canvas.save()
         # Position + transform (rotation around text center for parity
         # with OverlayTextItem).
@@ -1027,21 +1027,21 @@ class CanvasSkia(QWidget):
         # Build a fingerprint of every attribute that affects path
         # geometry. Kept in sync with the SHAPE_PATH_KEYS set below.
         kind = (ov.shape_kind or "rect")
-        w = float(getattr(ov, "shape_w", 100) or 100)
-        h = float(getattr(ov, "shape_h", 100) or 100)
+        w = float(ov.shape_w or 100)
+        h = float(ov.shape_h or 100)
         # tail_x / tail_y only matter for bubble kinds; for everything
         # else skip them (less cache churn when a user toggles between
         # bubble tail positions on unrelated shapes).
         tail_dx = tail_dy = 0.0
         if kind in ("speech_bubble", "thought_bubble"):
-            tx = float(getattr(ov, "tail_x", 0) or 0)
-            ty = float(getattr(ov, "tail_y", 0) or 0)
+            tx = float(ov.tail_x or 0)
+            ty = float(ov.tail_y or 0)
             if tx != 0 or ty != 0:
                 tail_dx = tx - float(ov.x)
                 tail_dy = ty - float(ov.y)
         fingerprint = (
             kind, w, h,
-            float(getattr(ov, "corner_radius", 0) or 0),
+            float(ov.corner_radius or 0),
             int(getattr(ov, "star_points", 5) or 5),
             float(getattr(ov, "inner_ratio", 0.5) or 0.5),
             tail_dx, tail_dy,
@@ -1054,7 +1054,7 @@ class CanvasSkia(QWidget):
         rect = skia.Rect.MakeXYWH(0, 0, w, h)
         path = skia.Path()
         if kind == "rect":
-            radius = float(getattr(ov, "corner_radius", 0) or 0)
+            radius = float(ov.corner_radius or 0)
             if radius > 0:
                 path.addRoundRect(rect, radius, radius)
             else:
@@ -1230,8 +1230,8 @@ class CanvasSkia(QWidget):
         """
         if not ov.enabled:
             return
-        w = float(getattr(ov, "shape_w", 100) or 100)
-        h = float(getattr(ov, "shape_h", 100) or 100)
+        w = float(ov.shape_w or 100)
+        h = float(ov.shape_h or 100)
         if w <= 0 or h <= 0:
             return
         path = self._build_shape_path(ov)
@@ -1340,8 +1340,8 @@ class CanvasSkia(QWidget):
         t = ov.type
         if t == "shape":
             return (float(ov.x), float(ov.y),
-                    float(getattr(ov, "shape_w", 0) or 0),
-                    float(getattr(ov, "shape_h", 0) or 0))
+                    float(ov.shape_w or 0),
+                    float(ov.shape_h or 0))
         if t == "arrow":
             x1 = float(ov.x)
             y1 = float(ov.y)
@@ -1354,8 +1354,8 @@ class CanvasSkia(QWidget):
             text = ov.text
             lines = text.split("\n")
             widest = max((len(l) for l in lines), default=0)
-            lh = float(getattr(ov, "line_height", 1.2) or 1.2)
-            w = float(getattr(ov, "text_width", 0) or 0) or \
+            lh = float(ov.line_height or 1.2)
+            w = float(ov.text_width or 0) or \
                 max(20, widest * size * 0.6)
             h = max(size, len(lines) * size * lh)
             return (float(ov.x), float(ov.y), w, h)
@@ -1458,8 +1458,8 @@ class CanvasSkia(QWidget):
                               rot_border)
             # Tail handle for bubbles
             if ov.shape_kind in ("speech_bubble", "thought_bubble"):
-                tx = float(getattr(ov, "tail_x", 0) or 0)
-                ty = float(getattr(ov, "tail_y", 0) or 0)
+                tx = float(ov.tail_x or 0)
+                ty = float(ov.tail_y or 0)
                 if tx or ty:
                     tp = skia.Paint()
                     tp.setAntiAlias(True)
