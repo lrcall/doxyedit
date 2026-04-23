@@ -4603,9 +4603,9 @@ class StudioEditor(QWidget):
                    if getattr(it, "overlay", None) is not None]
             if sel:
                 ov = sel[0].overlay
-                hex_c = (getattr(ov, "fill_color", "")
-                          or getattr(ov, "color", "")
-                          or getattr(ov, "stroke_color", ""))
+                hex_c = (ov.fill_color
+                          or ov.color
+                          or ov.stroke_color)
                 if hex_c:
                     QApplication.clipboard().setText(hex_c)
                     self.info_label.setText(f"Copied color: {hex_c}")
@@ -9020,9 +9020,9 @@ class StudioEditor(QWidget):
         # Brightness / contrast / saturation via PIL ImageEnhance. Skip
         # the round-trip entirely when all three are zero so simple
         # overlays don't pay for the conversion cost.
-        _br = float(getattr(ov, "img_brightness", 0.0) or 0.0)
-        _ct = float(getattr(ov, "img_contrast", 0.0) or 0.0)
-        _st = float(getattr(ov, "img_saturation", 0.0) or 0.0)
+        _br = float(ov.img_brightness or 0.0)
+        _ct = float(ov.img_contrast or 0.0)
+        _st = float(ov.img_saturation or 0.0)
         if _br or _ct or _st:
             from PIL import ImageEnhance
             pil_img = qimage_to_pil(src.toImage())
@@ -9933,12 +9933,12 @@ class StudioEditor(QWidget):
         self.btn_bold.setChecked(ov.bold)
         self.btn_italic.setChecked(ov.italic)
         if hasattr(self, "btn_underline"):
-            self.btn_underline.setChecked(bool(getattr(ov, "underline", False)))
+            self.btn_underline.setChecked(ov.underline)
         if hasattr(self, "btn_strikethrough"):
             self.btn_strikethrough.setChecked(
-                bool(getattr(ov, "strikethrough", False)))
+                ov.strikethrough)
         if hasattr(self, "btn_align_left"):
-            ta = getattr(ov, "text_align", "left")
+            ta = ov.text_align
             self.btn_align_left.setChecked(ta == "left")
             self.btn_align_center.setChecked(ta == "center")
             self.btn_align_right.setChecked(ta == "right")
@@ -10500,9 +10500,9 @@ class StudioEditor(QWidget):
         for it in sel:
             ov = it.overlay
             if axis == "h":
-                ov.flip_h = not bool(getattr(ov, "flip_h", False))
+                ov.flip_h = not ov.flip_h
             else:
-                ov.flip_v = not bool(getattr(ov, "flip_v", False))
+                ov.flip_v = not ov.flip_v
             if hasattr(it, "_apply_flip"):
                 it._apply_flip()
             elif hasattr(it, "_apply_flip_text"):
@@ -10511,10 +10511,10 @@ class StudioEditor(QWidget):
                 cx = ov.x + ov.shape_w / 2
                 cy = ov.y + ov.shape_h / 2
                 it.setTransformOriginPoint(cx, cy)
-                sx = -1.0 if getattr(ov, "flip_h", False) else 1.0
-                sy = -1.0 if getattr(ov, "flip_v", False) else 1.0
+                sx = -1.0 if ov.flip_h else 1.0
+                sy = -1.0 if ov.flip_v else 1.0
                 t = QTransform()
-                if getattr(ov, "skew_x", 0.0) or getattr(ov, "skew_y", 0.0):
+                if ov.skew_x or ov.skew_y:
                     t.shear(math.tan(math.radians(ov.skew_x)),
                              math.tan(math.radians(ov.skew_y)))
                 t.scale(sx, sy)
@@ -11182,7 +11182,7 @@ class StudioEditor(QWidget):
             # Prepend visibility / lock indicators so layer state is
             # readable at a glance
             prefix = ""
-            _tag = getattr(ov, "tag_color", "") or ""
+            _tag = ov.tag_color
             if _tag:
                 # Colored disc character for the tag. Unicode 'medium
                 # circle' renders fine on most platforms; the color is
@@ -11213,7 +11213,7 @@ class StudioEditor(QWidget):
                 tip_lines.append(f"Label: {ov.label}")
             tip_lines.append(f"Opacity: {int(ov.opacity * 100)}%")
             tip_lines.append(f"Position: {ov.x}, {ov.y}")
-            if getattr(ov, "rotation", 0):
+            if ov.rotation:
                 tip_lines.append(f"Rotation: {int(ov.rotation)}°")
             if ov.platforms:
                 tip_lines.append(f"Platforms: {', '.join(ov.platforms)}")
@@ -11288,8 +11288,8 @@ class StudioEditor(QWidget):
                 painter.setPen(QPen(QColor(ov.color or _t.studio_icon_fg),
                                     _t.studio_thumb_pen_width))
                 font = painter.font()
-                font.setBold(bool(getattr(ov, "bold", False)))
-                font.setItalic(bool(getattr(ov, "italic", False)))
+                font.setBold(ov.bold)
+                font.setItalic(ov.italic)
                 font.setPixelSize(18)
                 painter.setFont(font)
                 painter.drawText(pm.rect(), Qt.AlignmentFlag.AlignCenter, "T")
@@ -11558,7 +11558,7 @@ class StudioEditor(QWidget):
             # sessions and survives rebuild_layer_panel.
             tag_sub = prefix.addMenu("Tag Color")
             tag_acts = {}
-            _cur_tag = getattr(ov, "tag_color", "") or ""
+            _cur_tag = ov.tag_color
             _tag_opts = [("None", "")] + [(lbl, tid) for tid, lbl, _, _ in TAG_COLORS]
             for tag_label, tag_val in _tag_opts:
                 act = tag_sub.addAction(tag_label)
@@ -12957,21 +12957,21 @@ class StudioEditor(QWidget):
         form.addRow("Rotation", sr)
         skew_x = QDoubleSpinBox()
         skew_x.setRange(-85.0, 85.0); skew_x.setSuffix("°")
-        skew_x.setValue(float(getattr(ov, "skew_x", 0.0)))
+        skew_x.setValue(float(ov.skew_x))
         skew_x.setToolTip("Horizontal skew in degrees (-85 to 85)")
         form.addRow("Skew X", skew_x)
         skew_y = QDoubleSpinBox()
         skew_y.setRange(-85.0, 85.0); skew_y.setSuffix("°")
-        skew_y.setValue(float(getattr(ov, "skew_y", 0.0)))
+        skew_y.setValue(float(ov.skew_y))
         skew_y.setToolTip("Vertical skew in degrees (-85 to 85)")
         form.addRow("Skew Y", skew_y)
 
         form.addRow(QLabel("<b>Flip</b>"))
         flip_row = QHBoxLayout()
         flip_h = QCheckBox("Horizontal")
-        flip_h.setChecked(bool(getattr(ov, "flip_h", False)))
+        flip_h.setChecked(bool(ov.flip_h))
         flip_v = QCheckBox("Vertical")
-        flip_v.setChecked(bool(getattr(ov, "flip_v", False)))
+        flip_v.setChecked(bool(ov.flip_v))
         flip_row.addWidget(flip_h); flip_row.addWidget(flip_v); flip_row.addStretch()
         _fw = QWidget()
         _fw.setLayout(flip_row)
@@ -13033,7 +13033,7 @@ class StudioEditor(QWidget):
         cy = ov.y + ov.shape_h / 2
         item.setTransformOriginPoint(cx, cy)
         t = QTransform()
-        if getattr(ov, "skew_x", 0.0) or getattr(ov, "skew_y", 0.0):
+        if ov.skew_x or ov.skew_y:
             t.shear(math.tan(math.radians(ov.skew_x)),
                     math.tan(math.radians(ov.skew_y)))
         item.setTransform(t)
@@ -13048,7 +13048,7 @@ class StudioEditor(QWidget):
             ov = getattr(item, "overlay", None)
             if ov is None:
                 continue
-            ov.rotation = (getattr(ov, "rotation", 0) + step) % 360
+            ov.rotation = (ov.rotation + step) % 360
             if hasattr(item, "_apply_flip"):
                 item._apply_flip()
             elif hasattr(item, "_apply_flip_text"):
@@ -13242,7 +13242,7 @@ class StudioEditor(QWidget):
         # active without having to glance at the layer panel.
         ov = getattr(target, "overlay", None)
         label = (
-            (ov and (getattr(ov, "label", "") or getattr(ov, "text", "")))
+            (ov and (ov.label or ov.text))
             or target.__class__.__name__
                 .replace("Overlay", "").replace("Item", "")
         )
