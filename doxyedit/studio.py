@@ -3763,8 +3763,8 @@ class _StudioCanvas(QWidget):
         self._corner.setPalette(_pal)
         self._h_ruler.set_theme(theme)
         self._v_ruler.set_theme(theme)
-        if hasattr(self, "_minimap"):
-            self._minimap.set_theme(theme)
+        # _minimap is always created in __init__; direct access is safe.
+        self._minimap.set_theme(theme)
 
     def update_cursor(self, scene_pos: QPointF):
         self._h_ruler.set_cursor_scene(scene_pos.x())
@@ -3773,17 +3773,15 @@ class _StudioCanvas(QWidget):
     def refresh(self):
         self._h_ruler.update()
         self._v_ruler.update()
-        if hasattr(self, "_minimap"):
-            self._minimap.update()
+        self._minimap.update()
 
     def _wrap_view_resize(self, orig):
         def _resize(event):
             orig(event)
-            if hasattr(self, "_minimap"):
-                v = self._view
-                self._minimap.move(
-                    v.width() - self._minimap.width() - 12,
-                    v.height() - self._minimap.height() - 12)
+            v = self._view
+            self._minimap.move(
+                v.width() - self._minimap.width() - 12,
+                v.height() - self._minimap.height() - 12)
         return _resize
 
     def set_minimap_visible(self, on: bool):
