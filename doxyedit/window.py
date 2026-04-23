@@ -3468,13 +3468,15 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         screenshot layout.
         """
         tb = getattr(self.browser, "_toolbar_widget", None)
-        tabs = getattr(self, "_proj_bar_widget", None)
+        proj_tabs = getattr(self, "_proj_bar_widget", None)
+        main_tabs = getattr(self, "_tab_toolbar", None)
         any_visible = (
             self.tag_panel.isVisible()
             or self._tray_open
             or self._file_browser.isVisible()
             or (tb is not None and tb.isVisible())
-            or (tabs is not None and tabs.isVisible())
+            or (proj_tabs is not None and proj_tabs.isVisible())
+            or (main_tabs is not None and main_tabs.isVisible())
         )
         if any_visible:
             # Snapshot what's up now; restore on re-toggle.
@@ -3483,7 +3485,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 'tray': self._tray_open,
                 'files': self._file_browser.isVisible(),
                 'toolbar': tb.isVisible() if tb is not None else False,
-                'tabs': tabs.isVisible() if tabs is not None else True,
+                'proj_tabs': (proj_tabs.isVisible() if proj_tabs is not None
+                              else True),
+                'main_tabs': (main_tabs.isVisible() if main_tabs is not None
+                              else True),
             }
             if self.tag_panel.isVisible():
                 self._toggle_tag_panel()
@@ -3493,12 +3498,15 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 self._toggle_file_browser()
             if tb is not None and tb.isVisible():
                 self._toggle_browser_toolbar()
-            if tabs is not None and tabs.isVisible():
-                tabs.setVisible(False)
+            if proj_tabs is not None and proj_tabs.isVisible():
+                proj_tabs.setVisible(False)
+            if main_tabs is not None and main_tabs.isVisible():
+                main_tabs.setVisible(False)
         else:
             prev = getattr(self, '_minimal_mode_prev',
                            {'tags': True, 'tray': False, 'files': False,
-                            'toolbar': True, 'tabs': True})
+                            'toolbar': True, 'proj_tabs': True,
+                            'main_tabs': True})
             if prev.get('tags') and not self.tag_panel.isVisible():
                 self._toggle_tag_panel()
             if prev.get('tray') and not self._tray_open:
@@ -3508,9 +3516,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             if (prev.get('toolbar') and tb is not None
                     and not tb.isVisible()):
                 self._toggle_browser_toolbar()
-            if (prev.get('tabs', True) and tabs is not None
-                    and not tabs.isVisible()):
-                tabs.setVisible(True)
+            if (prev.get('proj_tabs', True) and proj_tabs is not None
+                    and not proj_tabs.isVisible()):
+                proj_tabs.setVisible(True)
+            if (prev.get('main_tabs', True) and main_tabs is not None
+                    and not main_tabs.isVisible()):
+                main_tabs.setVisible(True)
 
     def _toggle_file_browser(self):
         vis = not self._file_browser.isVisible()

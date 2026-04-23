@@ -301,6 +301,10 @@ class ImagePreviewDialog(QDialog):
 
     DIALOG_MIN_WIDTH_RATIO = 66.7      # preview dialog minimum width
     DIALOG_MIN_HEIGHT_RATIO = 50.0     # preview dialog minimum height
+    # Tiny mode lower-bound: ~3x3 cm on a typical 96 DPI display. Small
+    # enough to tuck into a corner as a passive reference image.
+    DIALOG_MIN_WIDTH_TINY = 120
+    DIALOG_MIN_HEIGHT_TINY = 80
 
     def __init__(self, image_path: str, asset=None, parent=None,
                  assets: list = None, current_index: int = 0):
@@ -317,8 +321,16 @@ class ImagePreviewDialog(QDialog):
         self.setWindowTitle(f"Preview — {Path(image_path).name}")
         settings = QSettings("DoxyEdit", "DoxyEdit")
         _f = settings.value("font_size", 12, type=int)
-        self.setMinimumSize(int(_f * self.DIALOG_MIN_WIDTH_RATIO),
-                            int(_f * self.DIALOG_MIN_HEIGHT_RATIO))
+        # "Tiny mode" preference — when on, the dialog can shrink to a
+        # thumbnail-sized reference tile. Persisted so the user's choice
+        # survives sessions. Right-click anywhere inside the dialog to
+        # flip the toggle.
+        self._preview_tiny_mode = settings.value(
+            "preview_tiny_mode", False, type=bool)
+        self._apply_preview_min_size(_f)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(
+            self._on_preview_context_menu)
         _cb = max(14, _f + 2)
         w_size = settings.value("preview_width", 1100, type=int)
         h_size = settings.value("preview_height", 800, type=int)
