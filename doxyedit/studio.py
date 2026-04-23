@@ -3602,6 +3602,11 @@ class _StudioMinimap(QWidget):
         self.setFixedSize(self.MINI_SIZE, self.MINI_SIZE)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         self._dragging = False
+        # Downsampled-thumbnail cache for the minimap paint. Pre-init so
+        # paintEvent's per-paint comparison can read the attribute
+        # directly instead of via getattr-with-default.
+        self._scaled_pm = None
+        self._scaled_key = None
         self.setMouseTracking(True)
         # Refresh on any scroll/zoom
         view.horizontalScrollBar().valueChanged.connect(self.update)
@@ -3651,7 +3656,7 @@ class _StudioMinimap(QWidget):
         # includes the pixmap cacheKey + target size so invalidation
         # happens when either changes.
         key = (pm.cacheKey(), int(ir.width()), int(ir.height()))
-        if getattr(self, "_scaled_key", None) != key:
+        if self._scaled_key != key:
             self._scaled_pm = pm.scaled(
                 int(ir.width()), int(ir.height()),
                 Qt.AspectRatioMode.KeepAspectRatio,
