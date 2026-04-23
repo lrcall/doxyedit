@@ -332,7 +332,7 @@ class CanvasSkia(QWidget):
         """Point-in-overlay hit test. Uses the overlay's bounding rect
         for quick rejection; shape overlays use SkPath.contains() for
         accurate hit tests on curved shapes."""
-        ov_type = getattr(ov, "type", "")
+        ov_type = ov.type
         if ov_type == "arrow":
             # Stroke-based hit test: close to the line segment.
             x1 = float(getattr(ov, "x", 0) or 0)
@@ -562,7 +562,7 @@ class CanvasSkia(QWidget):
             if base is not None:
                 canvas.drawImage(base, 0, 0)
             for ov in self._overlays:
-                t = getattr(ov, "type", "")
+                t = ov.type
                 if t in ("watermark", "logo"):
                     self._draw_overlay_image(canvas, ov)
                 elif t == "text":
@@ -617,7 +617,7 @@ class CanvasSkia(QWidget):
             if base is not None:
                 canvas.drawImage(base, 0, 0)
             for ov in self._overlays:
-                t = getattr(ov, "type", "")
+                t = ov.type
                 if t in ("watermark", "logo"):
                     self._draw_overlay_image(canvas, ov)
                 elif t == "text":
@@ -1337,7 +1337,7 @@ class CanvasSkia(QWidget):
     def _selection_bbox_local(self, ov) -> tuple:
         """Return (ox, oy, w, h) in scene coords for a selection bbox.
         Skips rotation — decorators drawn in scene coords, not rotated."""
-        t = getattr(ov, "type", "")
+        t = ov.type
         if t == "shape":
             return (float(ov.x), float(ov.y),
                     float(getattr(ov, "shape_w", 0) or 0),
@@ -1394,7 +1394,7 @@ class CanvasSkia(QWidget):
         """Dashed bounding rect + corner handles + rotate handle on
         top-center for shapes/texts/images. Arrows get endpoint dots."""
         ox, oy, w, h = self._selection_bbox_local(ov)
-        ov_type = getattr(ov, "type", "")
+        ov_type = ov.type
         # Dashed outline. Paint rebuilt per call (stroke width is zoom-
         # dependent so reusing one would require pre-draw mutation);
         # DashPathEffect is cached since it's pattern-keyed and immutable.
@@ -1791,7 +1791,7 @@ class CanvasSkia(QWidget):
         # Draw in list order — caller is responsible for z-order via
         # the order it passes to set_overlays().
         for ov in self._overlays:
-            ov_type = getattr(ov, "type", "")
+            ov_type = ov.type
             if ov_type in ("watermark", "logo"):
                 self._draw_overlay_image(canvas, ov)
             elif ov_type == "text":
@@ -2157,7 +2157,7 @@ if _QOGW_OK and _SKIA_OK:
                 if self._base_image is not None:
                     canvas.drawImage(self._base_image, 0, 0)
                 for ov in self._overlays:
-                    t = getattr(ov, "type", "")
+                    t = ov.type
                     if t in ("watermark", "logo"):
                         self._draw_overlay_image(canvas, ov)
                     elif t == "text":
