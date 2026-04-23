@@ -1256,13 +1256,11 @@ class CanvasSkia(QWidget):
             # Line style
             style = getattr(ov, "line_style", "solid") or "solid"
             if style in ("dash", "dot"):
-                intervals = ([stroke_w * 3, stroke_w * 2] if style == "dash"
-                             else [stroke_w, stroke_w])
-                try:
-                    sp.setPathEffect(
-                        skia.DashPathEffect.Make(intervals, 0.0))
-                except Exception:
-                    pass
+                intervals = ((stroke_w * 3, stroke_w * 2) if style == "dash"
+                             else (stroke_w, stroke_w))
+                dash = self._get_dash_effect(intervals)
+                if dash is not None:
+                    sp.setPathEffect(dash)
             if blend_mode is not None:
                 sp.setBlendMode(blend_mode)
             canvas.drawPath(path, sp)
@@ -1355,22 +1353,40 @@ class CanvasSkia(QWidget):
         return (float(getattr(ov, "x", 0) or 0),
                 float(getattr(ov, "y", 0) or 0), 20, 20)
 
+    def _get_dash_effect(self, intervals_tuple):
+        """Return a cached SkDashPathEffect for the given intervals.
+        Path effects are immutable; caching one per pattern means N
+        selected overlays share a single effect instance instead of
+        each allocating their own."""
+        cache = getattr(self, "_skia_dash_cache", None)
+        if cache is None:
+            cache = {}
+            self._skia_dash_cache = cache
+        eff = cache.get(intervals_tuple)
+        if eff is None:
+            try:
+                eff = skia.DashPathEffect.Make(list(intervals_tuple), 0.0)
+            except Exception:
+                eff = None
+            cache[intervals_tuple] = eff
+        return eff
+
     def _draw_selection_decor(self, canvas, ov):
         """Dashed bounding rect + corner handles + rotate handle on
         top-center for shapes/texts/images. Arrows get endpoint dots."""
         ox, oy, w, h = self._selection_bbox_local(ov)
         ov_type = getattr(ov, "type", "")
-        # Dashed outline
+        # Dashed outline. Paint rebuilt per call (stroke width is zoom-
+        # dependent so reusing one would require pre-draw mutation);
+        # DashPathEffect is cached since it's pattern-keyed and immutable.
         outline = skia.Paint()
         outline.setAntiAlias(True)
         outline.setStyle(skia.Paint.kStroke_Style)
         outline.setColor(skia.Color(*self._SEL_LINE_COLOR))
         outline.setStrokeWidth(max(1.0, 1.2 / max(0.01, self._zoom)))
-        try:
-            outline.setPathEffect(
-                skia.DashPathEffect.Make([6.0, 4.0], 0.0))
-        except Exception:
-            pass
+        dash = self._get_dash_effect((6.0, 4.0))
+        if dash is not None:
+            outline.setPathEffect(dash)
         canvas.drawRect(skia.Rect.MakeXYWH(ox, oy, w, h), outline)
         if ov_type == "arrow":
             # Endpoint dots (start + end)
@@ -1401,11 +1417,9 @@ class CanvasSkia(QWidget):
             conn.setStyle(skia.Paint.kStroke_Style)
             conn.setColor(skia.Color(*self._SEL_LINE_COLOR))
             conn.setStrokeWidth(max(1.0, 1.0 / max(0.01, self._zoom)))
-            try:
-                conn.setPathEffect(
-                    skia.DashPathEffect.Make([3.0, 3.0], 0.0))
-            except Exception:
-                pass
+            conn_dash = self._get_dash_effect((3.0, 3.0))
+            if conn_dash is not None:
+                conn.setPathEffect(conn_dash)
             canvas.drawLine(rhx, oy, rhx, rhy, conn)
             # Rotate handle circle
             rot_fill = skia.Paint()
@@ -1463,11 +1477,9 @@ class CanvasSkia(QWidget):
         paint.setStyle(skia.Paint.kStroke_Style)
         paint.setColor(skia.Color(*rgba))
         paint.setStrokeWidth(max(1.0, sw / max(0.01, self._zoom)))
-        try:
-            paint.setPathEffect(
-                skia.DashPathEffect.Make([6.0, 4.0], 0.0))
-        except Exception:
-            pass
+        dash = self._get_dash_effect((6.0, 4.0))
+        if dash is not None:
+            paint.setPathEffect(dash)
         if kind == "rect":
             x = float(draft.get("x", 0))
             y = float(draft.get("y", 0))
@@ -1496,11 +1508,9 @@ class CanvasSkia(QWidget):
         gp.setStyle(skia.Paint.kStroke_Style)
         gp.setColor(skia.Color(*self._SNAP_COLOR))
         gp.setStrokeWidth(max(1.0, 1.0 / max(0.01, self._zoom)))
-        try:
-            gp.setPathEffect(
-                skia.DashPathEffect.Make([4.0, 3.0], 0.0))
-        except Exception:
-            pass
+        dash = self._get_dash_effect((4.0, 3.0))
+        if dash is not None:
+            gp.setPathEffect(dash)
         for seg in self._snap_guides:
             try:
                 x1, y1, x2, y2 = seg
@@ -1540,12 +1550,11 @@ class CanvasSkia(QWidget):
         lp.setStrokeCap(skia.Paint.kRound_Cap)
         style = getattr(ov, "line_style", "solid") or "solid"
         if style in ("dash", "dot"):
-            intervals = ([stroke_w * 3, stroke_w * 2] if style == "dash"
-                         else [stroke_w, stroke_w])
-            try:
-                lp.setPathEffect(skia.DashPathEffect.Make(intervals, 0.0))
-            except Exception:
-                pass
+            intervals = ((stroke_w * 3, stroke_w * 2) if style == "dash"
+                         else (stroke_w, stroke_w))
+            dash = self._get_dash_effect(intervals)
+            if dash is not None:
+                lp.setPathEffect(dash)
         canvas.drawLine(x1, y1, x2, y2, lp)
         # Arrowhead
         head_style = getattr(ov, "arrowhead_style", "filled") or "filled"
