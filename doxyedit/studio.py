@@ -8279,13 +8279,26 @@ class StudioEditor(QWidget):
     def _refresh_skia_preview(self):
         """Pull current asset state into the Skia preview canvas.
         Called by the 500ms auto-follow timer and the manual Refresh
-        button. Cheap when the asset hasn't changed — set_overlays /
-        set_censors just swap list references + schedule a repaint."""
+        button.
+
+        Cheap when the asset hasn't changed — set_overlays / set_censors
+        just swap list references + schedule a repaint. Correctness-first:
+        always re-push; in-place mutation of overlay fields (text, color,
+        font size) wouldn't change a geometry-only fingerprint, so we
+        don't fingerprint. Skia re-render of an unchanged scene is ~2ms.
+        """
         dlg = getattr(self, "_skia_preview_dlg", None)
         if dlg is None or self._asset is None:
             return
+        # Gate work on window visibility — if the user hid the preview
+        # (Alt+Tab away, minimize, close-then-timer-ticks-once-more) don't
+        # spin Skia CPU cycles into the void. The timer callback in
+        # _open_skia_preview also guards on isVisible, but a minimized
+        # window can be "visible" per Qt semantics; isActiveWindow /
+        # isMinimized is the tighter check.
+        if dlg.isMinimized():
+            return
         canvas = dlg._canvas
-        # If the asset changed (different source_path), reload base.
         cur_path = getattr(canvas, "_loaded_path", None)
         new_path = self._asset.source_path
         if cur_path != new_path:
@@ -12311,12 +12324,14 @@ class StudioEditor(QWidget):
             "on LCD monitors, worse on rotated / non-native-DPI screens.")
         rend_form.addRow("", lossless_cb)
 
-        gl_cb = QCheckBox("GPU viewport (OpenGL)")
-        gl_cb.setChecked(qs.value("studio_use_gl_viewport", True, type=bool))
+        gl_cb = QCheckBox("GPU viewport (OpenGL) [experimental]")
+        gl_cb.setChecked(qs.value("studio_use_gl_viewport", False, type=bool))
         gl_cb.setToolTip(
             "Render Studio canvas through OpenGL instead of CPU raster. "
-            "Typically 3-5x faster. Requires app restart after toggle. "
-            "Turn off if you see rendering glitches on your GPU.")
+            "EXPERIMENTAL: currently slower than the raster path for most "
+            "scenes because GL forces FullViewportUpdate while raster can "
+            "repaint only the moving item. Enable to stress-test large "
+            "scenes on very high-end GPUs. Requires app restart.")
         rend_form.addRow("", gl_cb)
 
         canvas_bg_combo = QComboBox()
