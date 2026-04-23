@@ -10640,7 +10640,9 @@ class StudioEditor(QWidget):
         has_sel = bool(sel)
         for it in self._overlay_items + list(self._censor_items):
             ov = getattr(it, "overlay", None)
-            base_op = getattr(ov, "opacity", 1.0) if ov is not None else 1.0
+            # Censor items don't carry an overlay, so ov can be None;
+            # default their baseline opacity to 1.0 (no transparency).
+            base_op = ov.opacity if ov is not None else 1.0
             if enabled and has_sel and it not in sel:
                 it.setOpacity(base_op * 0.4)
             else:
