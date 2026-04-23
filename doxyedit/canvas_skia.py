@@ -540,7 +540,7 @@ class CanvasSkia(QWidget):
             canvas.clear(skia.Color(0, 0, 0, 0))
             # No pan / zoom for export — render at native coords.
             if base is not None:
-                canvas.drawImage(base, 0, 0, paint=skia.Paint())
+                canvas.drawImage(base, 0, 0)
             for ov in self._overlays:
                 t = getattr(ov, "type", "")
                 if t in ("watermark", "logo"):
@@ -595,7 +595,7 @@ class CanvasSkia(QWidget):
             canvas = surface.getCanvas()
             canvas.clear(skia.Color(0, 0, 0, 0))
             if base is not None:
-                canvas.drawImage(base, 0, 0, paint=skia.Paint())
+                canvas.drawImage(base, 0, 0)
             for ov in self._overlays:
                 t = getattr(ov, "type", "")
                 if t in ("watermark", "logo"):
@@ -1764,10 +1764,11 @@ class CanvasSkia(QWidget):
         # Apply pan + zoom.
         canvas.translate(self._pan_x, self._pan_y)
         canvas.scale(self._zoom, self._zoom)
-        # Base image.
+        # Base image. paint omitted so Skia uses its internal default —
+        # prior code allocated a fresh default skia.Paint every frame
+        # for no configuration.
         if self._base_image is not None:
-            paint = skia.Paint()
-            canvas.drawImage(self._base_image, 0, 0, paint=paint)
+            canvas.drawImage(self._base_image, 0, 0)
         # Overlays (Day 3: image overlays only; text + shapes come Day 4/5).
         # Draw in list order — caller is responsible for z-order via
         # the order it passes to set_overlays().
@@ -2133,9 +2134,9 @@ if _QOGW_OK and _SKIA_OK:
                 canvas.translate(self._pan_x, self._pan_y)
                 canvas.scale(self._zoom, self._zoom)
                 # Base + overlays (reuses CanvasSkia helpers bound in __init__)
+                # paint omitted — Skia uses an internal default when absent.
                 if self._base_image is not None:
-                    paint = skia.Paint()
-                    canvas.drawImage(self._base_image, 0, 0, paint=paint)
+                    canvas.drawImage(self._base_image, 0, 0)
                 for ov in self._overlays:
                     t = getattr(ov, "type", "")
                     if t in ("watermark", "logo"):
