@@ -4419,6 +4419,12 @@ class StudioEditor(QWidget):
         # None-check instead of hasattr probes.
         self._layer_panel = None
         self._layer_rebuild_timer = None
+        # Build-created widgets pre-declared as None sentinels so the
+        # ubiquitous `self.info_label is not None` / "_canvas_wrap"
+        # probes can be converted to `is not None` — cheaper per call
+        # and makes the widget lifecycle explicit.
+        self.info_label = None
+        self._canvas_wrap = None
         # Undo stack must exist before _build() because the toolbar wires
         # the undo/redo buttons to it.
         self._undo_stack = QUndoStack(self)
@@ -4779,7 +4785,7 @@ class StudioEditor(QWidget):
             cur = getattr(self, "_preview_sticky", False)
             self._set_overlays_preview_hidden(not cur)
             self._preview_sticky = not cur
-            if hasattr(self, "info_label"):
+            if self.info_label is not None:
                 self.info_label.setText(
                     "Preview mode ON (Ctrl+Alt+P to exit)"
                     if self._preview_sticky else "Preview mode OFF")
@@ -4854,7 +4860,7 @@ class StudioEditor(QWidget):
                 if hasattr(self, "_zoom_label"):
                     self._zoom_label.setText(
                         f"{int(self._view.transform().m11() * 100)}%")
-                if hasattr(self, "_canvas_wrap"):
+                if self._canvas_wrap is not None:
                     self._canvas_wrap.refresh()
             return
         # Shift+H / Shift+V drops a horizontal / vertical guide at the
@@ -5293,7 +5299,7 @@ class StudioEditor(QWidget):
                 self._view.fitInView(bounds, Qt.AspectRatioMode.KeepAspectRatio)
                 self._zoom_label.setText(
                     f"{int(self._view.transform().m11() * 100)}%")
-                if hasattr(self, "_canvas_wrap"):
+                if self._canvas_wrap is not None:
                     self._canvas_wrap.refresh()
             return
         if ctrl and key == Qt.Key.Key_0:
@@ -5302,7 +5308,7 @@ class StudioEditor(QWidget):
                 self._view.fitInView(self._scene.sceneRect(),
                                       Qt.AspectRatioMode.KeepAspectRatio)
                 self._zoom_label.setText("Fit")
-                if hasattr(self, "_canvas_wrap"):
+                if self._canvas_wrap is not None:
                     self._canvas_wrap.refresh()
             return
         if ctrl and key == Qt.Key.Key_1:
@@ -5322,13 +5328,13 @@ class StudioEditor(QWidget):
         if ctrl and key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
             self._view.scale(1.25, 1.25)
             self._zoom_label.setText(f"{int(self._view.transform().m11() * 100)}%")
-            if hasattr(self, "_canvas_wrap"):
+            if self._canvas_wrap is not None:
                 self._canvas_wrap.refresh()
             return
         if ctrl and key == Qt.Key.Key_Minus:
             self._view.scale(0.8, 0.8)
             self._zoom_label.setText(f"{int(self._view.transform().m11() * 100)}%")
-            if hasattr(self, "_canvas_wrap"):
+            if self._canvas_wrap is not None:
                 self._canvas_wrap.refresh()
             return
         # Numpad + / - zoom too (no Ctrl). The main-keyboard +/- keys
@@ -5337,13 +5343,13 @@ class StudioEditor(QWidget):
         if key == Qt.Key.Key_Plus and not ctrl and not shift:
             self._view.scale(1.2, 1.2)
             self._zoom_label.setText(f"{int(self._view.transform().m11() * 100)}%")
-            if hasattr(self, "_canvas_wrap"):
+            if self._canvas_wrap is not None:
                 self._canvas_wrap.refresh()
             return
         if key == Qt.Key.Key_Minus and not ctrl and not shift:
             self._view.scale(1 / 1.2, 1 / 1.2)
             self._zoom_label.setText(f"{int(self._view.transform().m11() * 100)}%")
-            if hasattr(self, "_canvas_wrap"):
+            if self._canvas_wrap is not None:
                 self._canvas_wrap.refresh()
             return
 
@@ -6962,7 +6968,7 @@ class StudioEditor(QWidget):
             sel = [it for it in self._scene.selectedItems()
                    if isinstance(it, OverlayTextItem)]
             if not sel:
-                if hasattr(self, "info_label"):
+                if self.info_label is not None:
                     self.info_label.setText(
                         "Select a text overlay to save as default")
                 return
@@ -7103,7 +7109,7 @@ class StudioEditor(QWidget):
         self.chk_rulers.blockSignals(True)
         self.chk_rulers.setChecked(_rv)
         self.chk_rulers.blockSignals(False)
-        if hasattr(self, "_canvas_wrap"):
+        if self._canvas_wrap is not None:
             self._canvas_wrap._h_ruler.setVisible(_rv)
             self._canvas_wrap._v_ruler.setVisible(_rv)
             self._canvas_wrap._corner.setVisible(_rv)
@@ -7111,7 +7117,7 @@ class StudioEditor(QWidget):
         self.chk_minimap.blockSignals(True)
         self.chk_minimap.setChecked(_mv)
         self.chk_minimap.blockSignals(False)
-        if hasattr(self, "_canvas_wrap") and _mv:
+        if self._canvas_wrap is not None and _mv:
             self._canvas_wrap.set_minimap_visible(True)
         _nv = _qs.value("studio_notes_visible", True, type=bool)
         self.chk_notes.blockSignals(True)
@@ -7434,7 +7440,7 @@ class StudioEditor(QWidget):
                     self._view.fitInView(self._scene.sceneRect(),
                                           Qt.AspectRatioMode.KeepAspectRatio)
                     self._zoom_label.setText("Fit")
-                    if hasattr(self, "_canvas_wrap"):
+                    if self._canvas_wrap is not None:
                         self._canvas_wrap.refresh()
                 btn.clicked.connect(_do_fit)
             else:
@@ -7582,7 +7588,7 @@ class StudioEditor(QWidget):
         """Update scene background to match current theme."""
         self._theme = theme
         self._scene.set_theme(theme)
-        if hasattr(self, "_canvas_wrap"):
+        if self._canvas_wrap is not None:
             self._canvas_wrap.set_theme(theme)
 
     def _preview_guide(self, orientation: str, pos: float):
@@ -7646,7 +7652,7 @@ class StudioEditor(QWidget):
             self._guide_items = []
         self._guide_items.append(line)
         self._save_guides_to_asset()
-        if hasattr(self, "_canvas_wrap"):
+        if self._canvas_wrap is not None:
             self._canvas_wrap.refresh()
         self.info_label.setText(
             f"Added {'horizontal' if orientation == 'h' else 'vertical'} guide")
@@ -7665,14 +7671,14 @@ class StudioEditor(QWidget):
                 y = line.line().y1()
                 if not (rect.top() <= y <= rect.bottom()):
                     self._scene.removeItem(line)
-                    if hasattr(self, "_canvas_wrap"):
+                    if self._canvas_wrap is not None:
                         self._canvas_wrap.refresh()
                     return
             else:
                 x = line.line().x1()
                 if not (rect.left() <= x <= rect.right()):
                     self._scene.removeItem(line)
-                    if hasattr(self, "_canvas_wrap"):
+                    if self._canvas_wrap is not None:
                         self._canvas_wrap.refresh()
                     return
         # Track it so load_asset can clean up next time
@@ -7682,7 +7688,7 @@ class StudioEditor(QWidget):
         # Persist onto the asset so guides survive save/load
         self._save_guides_to_asset()
         # Refresh rulers so the tick marker appears
-        if hasattr(self, "_canvas_wrap"):
+        if self._canvas_wrap is not None:
             self._canvas_wrap.refresh()
 
     def _save_guides_to_asset(self):
@@ -7785,7 +7791,7 @@ class StudioEditor(QWidget):
             # dropping a horizontal at center as a visual approximation.
             _place('h', rect.top() + h / 2)
             _place('v', rect.left() + w / 2)
-            if hasattr(self, "info_label"):
+            if self.info_label is not None:
                 self.info_label.setText(
                     "Diagonal guides need overlay lines; added cross instead")
         elif preset == "safe":
@@ -7796,9 +7802,9 @@ class StudioEditor(QWidget):
             _place('v', rect.left() + inset_w)
             _place('v', rect.right() - inset_w)
         self._save_guides_to_asset()
-        if hasattr(self, "_canvas_wrap"):
+        if self._canvas_wrap is not None:
             self._canvas_wrap.refresh()
-        if hasattr(self, "info_label"):
+        if self.info_label is not None:
             self.info_label.setText(
                 f"Applied '{preset}' guide preset")
 
@@ -7811,7 +7817,7 @@ class StudioEditor(QWidget):
         self._pending_guide = None
         if self._asset:
             self._asset.guides = []
-        if hasattr(self, "_canvas_wrap"):
+        if self._canvas_wrap is not None:
             self._canvas_wrap.refresh()
 
     def _set_overlays_preview_hidden(self, hidden: bool):
@@ -7833,7 +7839,7 @@ class StudioEditor(QWidget):
                 it.setVisible(not hidden)
             elif note is not None:
                 it.setVisible(not hidden)
-        if hasattr(self, "info_label"):
+        if self.info_label is not None:
             self.info_label.setText(
                 "Previewing base art" if hidden else "Overlays restored")
 
@@ -7859,7 +7865,7 @@ class StudioEditor(QWidget):
             for g in self._guide_items:
                 g.setVisible(False)
             self._helpers_hidden_state = state
-            if hasattr(self, "info_label"):
+            if self.info_label is not None:
                 self.info_label.setText("Helpers hidden (Ctrl+H to restore)")
         else:
             # Restore
@@ -7870,7 +7876,7 @@ class StudioEditor(QWidget):
             for g in self._guide_items:
                 g.setVisible(True)
             self._helpers_hidden_state = None
-            if hasattr(self, "info_label"):
+            if self.info_label is not None:
                 self.info_label.setText("Helpers restored")
 
     def _toggle_guides_visibility(self):
@@ -8006,7 +8012,7 @@ class StudioEditor(QWidget):
         self._view.resetTransform()
         self._view.scale(factor, factor)
         self._zoom_label.setText(f"{int(factor * 100)}%")
-        if hasattr(self, "_canvas_wrap"):
+        if self._canvas_wrap is not None:
             self._canvas_wrap.refresh()
 
     def _save_view_bookmark(self, slot: int):
@@ -8044,7 +8050,7 @@ class StudioEditor(QWidget):
         self._view.horizontalScrollBar().setValue(h_sb)
         self._view.verticalScrollBar().setValue(v_sb)
         self._zoom_label.setText(f"{int(factor * 100)}%")
-        if hasattr(self, "_canvas_wrap"):
+        if self._canvas_wrap is not None:
             self._canvas_wrap.refresh()
         self.info_label.setText(
             f"Recalled view bookmark {slot} "
@@ -8237,7 +8243,7 @@ class StudioEditor(QWidget):
         censor at native resolution.
         """
         if self._asset is None:
-            if hasattr(self, "info_label"):
+            if self.info_label is not None:
                 self.info_label.setText("Load an asset first")
             return
         try:
@@ -8246,11 +8252,11 @@ class StudioEditor(QWidget):
                 skia_available, skia_error, canvas_skia_gl_available,
             )
         except Exception as e:
-            if hasattr(self, "info_label"):
+            if self.info_label is not None:
                 self.info_label.setText(f"Skia import failed: {e}")
             return
         if not skia_available():
-            if hasattr(self, "info_label"):
+            if self.info_label is not None:
                 self.info_label.setText(
                     f"Skia unavailable: {skia_error()}")
             return
@@ -10489,7 +10495,7 @@ class StudioEditor(QWidget):
         if hasattr(self, "_zoom_label"):
             self._zoom_label.setText(
                 f"{int(self._view.transform().m11() * 100)}%")
-        if hasattr(self, "_canvas_wrap"):
+        if self._canvas_wrap is not None:
             self._canvas_wrap.refresh()
 
     def _qp_group_selection(self):
@@ -11062,7 +11068,7 @@ class StudioEditor(QWidget):
 
     def _on_rulers_toggled(self, on: bool):
         """Show or hide the ruler widgets."""
-        if hasattr(self, "_canvas_wrap"):
+        if self._canvas_wrap is not None:
             self._canvas_wrap._h_ruler.setVisible(on)
             self._canvas_wrap._v_ruler.setVisible(on)
             self._canvas_wrap._corner.setVisible(on)
@@ -11085,7 +11091,7 @@ class StudioEditor(QWidget):
 
     def _on_minimap_toggled(self, on: bool):
         """Show or hide the navigator minimap."""
-        if hasattr(self, "_canvas_wrap"):
+        if self._canvas_wrap is not None:
             self._canvas_wrap.set_minimap_visible(on)
             if on:
                 # Position in bottom-right
@@ -11112,7 +11118,7 @@ class StudioEditor(QWidget):
                             t.dx(), t.dy()))
             # Scene remains in the same place; refresh rulers so
             # numbers still read the cursor correctly.
-            if hasattr(self, "_canvas_wrap"):
+            if self._canvas_wrap is not None:
                 self._canvas_wrap.refresh()
 
     def _persist_canvas_split(self, *_):
@@ -11514,7 +11520,7 @@ class StudioEditor(QWidget):
                 count = len(self._asset.overlays) + len(self._asset.censors) \
                     + len(self._asset.crops) + len(self._notes)
                 if count == 0:
-                    if hasattr(self, "info_label"):
+                    if self.info_label is not None:
                         self.info_label.setText("Nothing to clear")
                     return
                 resp = QMessageBox.warning(
@@ -11538,7 +11544,7 @@ class StudioEditor(QWidget):
                 for it in self._notes:
                     it.setSelected(True)
                 self._delete_selected()
-                if hasattr(self, "info_label"):
+                if self.info_label is not None:
                     self.info_label.setText(f"Cleared {count} layers")
             return
         data = list_item.data(Qt.ItemDataRole.UserRole)
@@ -11667,7 +11673,7 @@ class StudioEditor(QWidget):
                 if hasattr(self, "_zoom_label"):
                     self._zoom_label.setText(
                         f"{int(self._view.transform().m11() * 100)}%")
-                if hasattr(self, "_canvas_wrap"):
+                if self._canvas_wrap is not None:
                     self._canvas_wrap.refresh()
                 return
             if chosen is act_dup_n:
@@ -11794,7 +11800,7 @@ class StudioEditor(QWidget):
         except Exception as exc:
             # Silent fallback - worst case the layer-specific prefix
             # menu already ran, so user loses the 'More' branch only.
-            if hasattr(self, "info_label"):
+            if self.info_label is not None:
                 self.info_label.setText(
                     f"Layer context menu dispatch failed: {exc}")
 
@@ -12207,7 +12213,7 @@ class StudioEditor(QWidget):
                 if item in self._guide_items:
                     self._guide_items.remove(item)
                 self._save_guides_to_asset()
-                if hasattr(self, "_canvas_wrap"):
+                if self._canvas_wrap is not None:
                     self._canvas_wrap.refresh()
             elif isinstance(item, (AnnotationTextItem, QGraphicsRectItem, QGraphicsLineItem)):
                 self._scene.removeItem(item)
@@ -12641,7 +12647,7 @@ class StudioEditor(QWidget):
         qs.setValue("studio_grid_spacing_pct", grid_pct_spin.value())
         qs.setValue("studio_rulers_visible", rulers_cb.isChecked())
         qs.setValue("studio_ruler_unit", ruler_unit_combo.currentData())
-        if hasattr(self, "_canvas_wrap"):
+        if self._canvas_wrap is not None:
             self._canvas_wrap._h_ruler.reload_unit()
             self._canvas_wrap._v_ruler.reload_unit()
         qs.setValue("studio_thirds_visible", thirds_cb.isChecked())
