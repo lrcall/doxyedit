@@ -269,17 +269,23 @@ class StudioScene(QGraphicsScene):
 
         # Click on empty space — clear everything (same as F10)
         if self.current_tool == StudioTool.SELECT:
-            item_under = self.itemAt(pos, self.views()[0].transform() if self.views() else QTransform())
+            # Cache self.views() — Qt allocates a fresh list each call
+            # and we were calling it up to 5 times in this block.
+            views = self.views()
+            view0 = views[0] if views else None
+            item_under = self.itemAt(
+                pos,
+                view0.transform() if view0 is not None else QTransform())
             if item_under is None:
-                if self.views() and hasattr(self.views()[0], '_studio_editor'):
-                    self.views()[0]._studio_editor._nuclear_clear()
+                if view0 is not None and hasattr(view0, '_studio_editor'):
+                    view0._studio_editor._nuclear_clear()
             # Alt+click on a draggable item — duplicate it in place, then
             # Qt will drag the duplicate (Photoshop / Figma convention).
             if (item_under is not None
                     and (event.modifiers() & Qt.KeyboardModifier.AltModifier)
-                    and self.views()
-                    and hasattr(self.views()[0], "_studio_editor")):
-                editor = self.views()[0]._studio_editor
+                    and view0 is not None
+                    and hasattr(view0, "_studio_editor")):
+                editor = view0._studio_editor
                 # Walk up to the top-level item (resize handles are children)
                 top = item_under
                 while top.parentItem() is not None:
