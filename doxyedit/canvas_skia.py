@@ -95,6 +95,9 @@ class CanvasSkia(QWidget):
         # decoding the file on every paint.
         self._overlays: list = []
         self._overlay_image_cache: dict = {}  # path -> skia.Image
+        # Day 6: censor regions. List of CensorRegion dataclasses.
+        # Drawn after overlays so they mask / blur the base image.
+        self._censors: list = []
         self._resize_buffers(self.size())
         # Record whether Skia is live; surfacing this to the editor lets
         # the FPS HUD show which backend is active.
@@ -190,6 +193,21 @@ class CanvasSkia(QWidget):
 
     def add_overlay(self, ov):
         self._overlays.append(ov)
+        self.update()
+
+    def set_censors(self, censors: list):
+        self._censors = list(censors)
+        self.update()
+
+    def add_censor(self, cr):
+        self._censors.append(cr)
+        self.update()
+
+    def remove_censor(self, cr):
+        try:
+            self._censors.remove(cr)
+        except ValueError:
+            pass
         self.update()
 
     def remove_overlay(self, ov):
@@ -719,6 +737,149 @@ class CanvasSkia(QWidget):
             gp.setBlendMode(blend_mode)
         canvas.drawPath(path, gp)
 
+    # ------------------------------------------------------------------
+    # Day 6 — arrow + censor overlays
+    # ------------------------------------------------------------------
+
+    def _draw_overlay_arrow(self, canvas, ov):
+        """Render an arrow overlay. Line from (x, y) to (end_x, end_y)
+        with an arrowhead at the tip. Optional double-heading."""
+        if not getattr(ov, "enabled", True):
+            return
+        x1 = float(getattr(ov, "x", 0) or 0)
+        y1 = float(getattr(ov, "y", 0) or 0)
+        x2 = float(getattr(ov, "end_x", 0) or 0)
+        y2 = float(getattr(ov, "end_y", 0) or 0)
+        dx, dy = x2 - x1, y2 - y1
+        length = math.hypot(dx, dy)
+        if length < 1:
+            return
+        color_hex = getattr(ov, "color", "#000000") or "#000000"
+        rgba = self._parse_hex(color_hex, (0, 0, 0, 255))
+        opacity = float(getattr(ov, "opacity", 1.0) or 1.0)
+        stroke_w = max(1.0, float(getattr(ov, "stroke_width", 4) or 4))
+        # Line paint
+        lp = skia.Paint()
+        lp.setAntiAlias(True)
+        lp.setStyle(skia.Paint.kStroke_Style)
+        lp.setColor(skia.Color(*rgba))
+        lp.setAlphaf(opacity)
+        lp.setStrokeWidth(stroke_w)
+        lp.setStrokeCap(skia.Paint.kRound_Cap)
+        style = getattr(ov, "line_style", "solid") or "solid"
+        if style in ("dash", "dot"):
+            intervals = ([stroke_w * 3, stroke_w * 2] if style == "dash"
+                         else [stroke_w, stroke_w])
+            try:
+                lp.setPathEffect(skia.DashPathEffect.Make(intervals, 0.0))
+            except Exception:
+                pass
+        canvas.drawLine(x1, y1, x2, y2, lp)
+        # Arrowhead
+        head_style = getattr(ov, "arrowhead_style", "filled") or "filled"
+        if head_style == "none":
+            return
+        ux, uy = dx / length, dy / length
+        hs = max(6.0, float(getattr(ov, "arrowhead_size", 12) or 12))
+        px, py = -uy, ux
+
+        def _head(tip_x, tip_y, direction):
+            base_x = tip_x - direction * ux * hs
+            base_y = tip_y - direction * uy * hs
+            p1 = (base_x + px * hs * 0.5, base_y + py * hs * 0.5)
+            p2 = (base_x - px * hs * 0.5, base_y - py * hs * 0.5)
+            path = skia.Path()
+            path.moveTo(tip_x, tip_y)
+            path.lineTo(*p1)
+            path.lineTo(*p2)
+            path.close()
+            hp = skia.Paint()
+            hp.setAntiAlias(True)
+            if head_style == "outline":
+                hp.setStyle(skia.Paint.kStroke_Style)
+                hp.setStrokeWidth(max(1.0, stroke_w * 0.5))
+            else:
+                hp.setStyle(skia.Paint.kFill_Style)
+            hp.setColor(skia.Color(*rgba))
+            hp.setAlphaf(opacity)
+            canvas.drawPath(path, hp)
+
+        _head(x2, y2, 1)
+        if getattr(ov, "double_headed", False):
+            _head(x1, y1, -1)
+
+    def _draw_censor(self, canvas, censor, base_image):
+        """Render a censor region. style='black'/'white' is a solid
+        fill; style='blur' uses SkImageFilters.Blur on a crop of the
+        base image. style='pixelate' scales down-then-up via nearest
+        to produce the blocky pixelate effect.
+        """
+        x = float(getattr(censor, "x", 0) or 0)
+        y = float(getattr(censor, "y", 0) or 0)
+        w = float(getattr(censor, "w", 0) or 0)
+        h = float(getattr(censor, "h", 0) or 0)
+        if w <= 0 or h <= 0:
+            return
+        rect = skia.Rect.MakeXYWH(x, y, w, h)
+        style = getattr(censor, "style", "black") or "black"
+        if style == "black":
+            p = skia.Paint()
+            p.setColor(skia.Color(0, 0, 0, 255))
+            p.setStyle(skia.Paint.kFill_Style)
+            canvas.drawRect(rect, p)
+            return
+        if style == "white":
+            p = skia.Paint()
+            p.setColor(skia.Color(255, 255, 255, 255))
+            p.setStyle(skia.Paint.kFill_Style)
+            canvas.drawRect(rect, p)
+            return
+        if style == "blur":
+            if base_image is None:
+                return
+            radius = float(getattr(censor, "blur_radius", 20) or 20)
+            # Crop the base image to the censor rect, blur, draw back.
+            src_rect = skia.Rect.MakeXYWH(x, y, w, h)
+            paint = skia.Paint()
+            paint.setImageFilter(
+                skia.ImageFilters.Blur(radius, radius, None))
+            # saveLayer bounds the blur's effective area to the rect.
+            canvas.saveLayer(src_rect, paint)
+            canvas.drawImageRect(base_image, src_rect, src_rect)
+            canvas.restore()
+            return
+        if style == "pixelate":
+            if base_image is None:
+                return
+            ratio = max(2, int(getattr(censor, "pixelate_ratio", 10) or 10))
+            # Downscale-upscale via drawImageRect with nearest sampling.
+            small_w = max(1, int(w / ratio))
+            small_h = max(1, int(h / ratio))
+            sampling = skia.SamplingOptions(
+                skia.FilterMode.kNearest, skia.MipmapMode.kNone)
+            small_info = skia.ImageInfo.Make(
+                small_w, small_h,
+                skia.ColorType.kRGBA_8888_ColorType,
+                skia.AlphaType.kPremul_AlphaType)
+            tmp = skia.Surface.MakeRaster(small_info)
+            if tmp is None:
+                return
+            tmp_canvas = tmp.getCanvas()
+            tmp_canvas.drawImageRect(
+                base_image,
+                skia.Rect.MakeXYWH(x, y, w, h),
+                skia.Rect.MakeXYWH(0, 0, small_w, small_h),
+                sampling, skia.Paint())
+            try:
+                tmp_canvas.flush()
+            except AttributeError:
+                pass
+            small_img = tmp.makeImageSnapshot()
+            canvas.drawImageRect(
+                small_img,
+                skia.Rect.MakeXYWH(0, 0, small_w, small_h),
+                rect, sampling, skia.Paint())
+
     def _draw_overlay_image(self, canvas, ov):
         """Render an image overlay (watermark / logo). Day-3 scope:
         position, scale, opacity, rotation, flip, blend mode. No
@@ -815,7 +976,11 @@ class CanvasSkia(QWidget):
                 self._draw_overlay_text(canvas, ov)
             elif ov_type == "shape":
                 self._draw_overlay_shape(canvas, ov)
-            # arrow, censor come in Day 6
+            elif ov_type == "arrow":
+                self._draw_overlay_arrow(canvas, ov)
+        # Censors draw after overlays so they cover / blur content.
+        for cr in self._censors:
+            self._draw_censor(canvas, cr, self._base_image)
         canvas.restore()
         # HUD — always at screen pixels (no transform).
         hud_paint = skia.Paint()
