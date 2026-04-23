@@ -106,6 +106,13 @@ class CanvasSkia(QWidget):
         self._skia_typeface_cache: dict = {}
         # Key: (typeface_id, size) -> skia.Font
         self._skia_font_cache: dict = {}
+        # Shape path cache: key id(overlay) -> (fingerprint, skia.Path).
+        # _build_shape_path compares the overlay's current geometry
+        # fingerprint against the cached one; hit on match, rebuild on
+        # miss. Keyed on id() not the overlay itself so dict doesn't
+        # hold the overlay alive (the overlay is owned by the Asset
+        # model which owns the canvas).
+        self._skia_path_cache: dict = {}
         # Day 6: censor regions. List of CensorRegion dataclasses.
         # Drawn after overlays so they mask / blur the base image.
         self._censors: list = []
@@ -408,7 +415,17 @@ class CanvasSkia(QWidget):
         needed; Skia reads type / image_path / x / y / opacity /
         rotation / blend_mode / enabled directly off the overlay.
         """
-        self._overlays = list(overlays)
+        new_list = list(overlays)
+        # Prune stale path-cache entries. Keys are id(overlay); once an
+        # overlay is removed from the list the entry can't be hit again
+        # but continues to consume memory until the canvas is destroyed.
+        if self._skia_path_cache:
+            live_ids = {id(ov) for ov in new_list}
+            self._skia_path_cache = {
+                k: v for k, v in self._skia_path_cache.items()
+                if k in live_ids
+            }
+        self._overlays = new_list
         self.update()
 
     def add_overlay(self, ov):
@@ -943,10 +960,40 @@ class CanvasSkia(QWidget):
 
         Mirrors the shape_kind dispatch in studio_items.py so the
         Skia path matches OverlayShapeItem.paint visually.
+
+        Path cache: built paths are stored per-overlay keyed on a
+        geometry fingerprint. Speech / thought bubbles run path.united()
+        plus up to 72 wobble samples, rebuilding per frame during drag
+        dominates paintGL time. Position (overlay.x / y) is NOT in the
+        key because the path is in local coords; the caller translates.
         """
+        # Build a fingerprint of every attribute that affects path
+        # geometry. Kept in sync with the SHAPE_PATH_KEYS set below.
         kind = getattr(ov, "shape_kind", "rect") or "rect"
         w = float(getattr(ov, "shape_w", 100) or 100)
         h = float(getattr(ov, "shape_h", 100) or 100)
+        # tail_x / tail_y only matter for bubble kinds; for everything
+        # else skip them (less cache churn when a user toggles between
+        # bubble tail positions on unrelated shapes).
+        tail_dx = tail_dy = 0.0
+        if kind in ("speech_bubble", "thought_bubble"):
+            tx = float(getattr(ov, "tail_x", 0) or 0)
+            ty = float(getattr(ov, "tail_y", 0) or 0)
+            if tx != 0 or ty != 0:
+                tail_dx = tx - float(getattr(ov, "x", 0) or 0)
+                tail_dy = ty - float(getattr(ov, "y", 0) or 0)
+        fingerprint = (
+            kind, w, h,
+            float(getattr(ov, "corner_radius", 0) or 0),
+            int(getattr(ov, "star_points", 5) or 5),
+            float(getattr(ov, "inner_ratio", 0.5) or 0.5),
+            tail_dx, tail_dy,
+        )
+        key = id(ov)
+        cached = self._skia_path_cache.get(key)
+        if cached is not None and cached[0] == fingerprint:
+            return cached[1]
+
         rect = skia.Rect.MakeXYWH(0, 0, w, h)
         path = skia.Path()
         if kind == "rect":
@@ -973,6 +1020,7 @@ class CanvasSkia(QWidget):
                 self._append_thought_bubble_path(path, w, h, ov)
         else:
             path.addRect(rect)
+        self._skia_path_cache[key] = (fingerprint, path)
         return path
 
     def _append_star_path(self, path, w, h, ov):
@@ -1827,6 +1875,7 @@ if _QOGW_OK and _SKIA_OK:
             # paintGL would rebuild every typeface/font from scratch.
             self._skia_typeface_cache: dict = {}
             self._skia_font_cache: dict = {}
+            self._skia_path_cache: dict = {}
             self._zoom = 1.0
             self._pan_x = 0.0
             self._pan_y = 0.0
