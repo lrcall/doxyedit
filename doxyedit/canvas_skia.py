@@ -432,7 +432,10 @@ class CanvasSkia(QWidget):
         return QPointF(x, y)
 
     def set_zoom(self, z: float):
-        self._zoom = max(0.05, min(32.0, z))
+        new_z = max(0.05, min(32.0, z))
+        if new_z == self._zoom:
+            return
+        self._zoom = new_z
         self.update()
 
     def zoom(self) -> float:
@@ -2286,7 +2289,10 @@ if _QOGW_OK and _SKIA_OK:
             return QSize(self._base_image.width(), self._base_image.height())
 
         def set_zoom(self, z: float):
-            self._zoom = max(0.05, min(32.0, z))
+            new_z = max(0.05, min(32.0, z))
+            if new_z == self._zoom:
+                return
+            self._zoom = new_z
             self.update()
 
 
