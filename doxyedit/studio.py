@@ -4134,8 +4134,14 @@ class StudioView(QGraphicsView):
         # plain-wheel-zooms behavior; "pan" flips it so plain wheel
         # scrolls vertically (common for long comic pages) and Ctrl+
         # wheel zooms. Either way, Ctrl+wheel is always a zoom path.
-        _ws = QSettings("DoxyEdit", "DoxyEdit").value(
-            "studio_wheel_scheme", "zoom", type=str)
+        # Cached to avoid QSettings-read per wheel tick (60+ Hz on
+        # precision trackpads). Reload via reload_wheel_scheme() from
+        # the settings dialog.
+        _ws = getattr(self, "_wheel_scheme_cached", None)
+        if _ws is None:
+            _ws = QSettings("DoxyEdit", "DoxyEdit").value(
+                "studio_wheel_scheme", "zoom", type=str)
+            self._wheel_scheme_cached = _ws
         _is_ctrl = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
         if _ws == "pan" and not _is_ctrl:
             # Plain wheel = vertical pan
@@ -12555,6 +12561,10 @@ class StudioEditor(QWidget):
         qs.setValue("studio_nudge_step", nudge_spin.value())
         qs.setValue("studio_nudge_shift_mult", shift_mult_spin.value())
         qs.setValue("studio_wheel_scheme", wheel_zoom_combo.currentData())
+        # Invalidate the per-view wheel-scheme cache so the next wheel
+        # event re-reads the just-saved value.
+        if hasattr(self, "_view") and hasattr(self._view, "_wheel_scheme_cached"):
+            self._view._wheel_scheme_cached = None
         qs.setValue("studio_pan_accel", pan_accel_spin.value())
         # Reflect the check-state in the matching toolbar toggles so the
         # UI stays in sync without a restart.
