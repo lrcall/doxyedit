@@ -813,6 +813,12 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         # thumbnail real-estate when browsing.
         QShortcut(QKeySequence("Ctrl+Shift+M"), self).activated.connect(
             self._toggle_browser_toolbar)
+        # Ctrl+Shift+F — minimal/focus mode. Hides all side panels
+        # (tags, tray, file browser) AND both browser toolbar rows in
+        # one action, so only the main menu + tabs + thumbnail grid
+        # remain visible. Re-press restores whatever was visible before.
+        QShortcut(QKeySequence("Ctrl+Shift+F"), self).activated.connect(
+            self._toggle_minimal_mode)
         # Ctrl+W closes the current project tab. Standard close-tab
         # shortcut across browsers, editors, etc.
         QShortcut(QKeySequence("Ctrl+W"), self).activated.connect(
@@ -3446,6 +3452,55 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if row2 is not None:
             row2.setVisible(vis)
         self._settings.setValue("browser_toolbar_visible", vis)
+
+    def _toggle_minimal_mode(self):
+        """Ctrl+Shift+F — toggle minimal / focus mode.
+
+        Hides every side panel AND both browser toolbar rows so only
+        the main menu, project tabs, folder headers, and thumbnail grid
+        remain. Re-pressing restores whatever was visible before entry.
+
+        Distinct from _toggle_all_panels (which only affects the side
+        panels) and _toggle_browser_toolbar (which only affects the
+        toolbar rows); this is the one-shot 'give me the thumbnails'
+        shortcut matching the user's screenshot layout.
+        """
+        tb = getattr(self.browser, "_toolbar_widget", None)
+        any_visible = (
+            self.tag_panel.isVisible()
+            or self._tray_open
+            or self._file_browser.isVisible()
+            or (tb is not None and tb.isVisible())
+        )
+        if any_visible:
+            # Snapshot what's up now; restore on re-toggle.
+            self._minimal_mode_prev = {
+                'tags': self.tag_panel.isVisible(),
+                'tray': self._tray_open,
+                'files': self._file_browser.isVisible(),
+                'toolbar': tb.isVisible() if tb is not None else False,
+            }
+            if self.tag_panel.isVisible():
+                self._toggle_tag_panel()
+            if self._tray_open:
+                self._toggle_work_tray()
+            if self._file_browser.isVisible():
+                self._toggle_file_browser()
+            if tb is not None and tb.isVisible():
+                self._toggle_browser_toolbar()
+        else:
+            prev = getattr(self, '_minimal_mode_prev',
+                           {'tags': True, 'tray': False, 'files': False,
+                            'toolbar': True})
+            if prev.get('tags') and not self.tag_panel.isVisible():
+                self._toggle_tag_panel()
+            if prev.get('tray') and not self._tray_open:
+                self._toggle_work_tray()
+            if prev.get('files') and not self._file_browser.isVisible():
+                self._toggle_file_browser()
+            if (prev.get('toolbar') and tb is not None
+                    and not tb.isVisible()):
+                self._toggle_browser_toolbar()
 
     def _toggle_file_browser(self):
         vis = not self._file_browser.isVisible()
