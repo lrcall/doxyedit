@@ -9448,15 +9448,21 @@ class StudioEditor(QWidget):
                 target = it
                 break
         if target is not None:
+            # HARD EARLY-OUT: if popup already visible AND tracking the
+            # same target, do nothing. No rebuild_for, no setStyleSheet,
+            # no raise_. All of these cause visible flashing when fired
+            # on every selection sync during drag. The popup stays open
+            # and re-rebuilds ONLY when the target changes to a different
+            # item, which is a structural change — not per-drag-frame.
+            prev_target = getattr(dlg, "_last_target_id", None)
+            if dlg.isVisible() and prev_target == id(target):
+                return
             dlg.rebuild_for(target)
+            dlg._last_target_id = id(target)
             win = self.window()
             if win is not None:
                 current = win.styleSheet()
                 prev = getattr(dlg, "_cached_ss", None)
-                # Compare by value — PySide6 styleSheet() returns fresh
-                # str objects per call, so `is not` always evaluates True
-                # and setStyleSheet fires every call (hundreds of ms of
-                # re-polish work per dialog).
                 if prev != current:
                     dlg.setStyleSheet(current)
                     dlg._cached_ss = current
@@ -9466,10 +9472,6 @@ class StudioEditor(QWidget):
                     if not getattr(dlg, "_titlebar_themed", False):
                         win._theme_dialog_titlebar(dlg)
                         dlg._titlebar_themed = True
-                # First-show reposition: only land a default spot if we
-                # haven't positioned this session yet AND the saved
-                # geometry is unusable. After the first manual drag the
-                # user's position is sticky across hides and reshows.
                 if not getattr(dlg, "_positioned_once", False):
                     gv = self._view
                     if gv is not None and gv.isVisible():
@@ -9481,7 +9483,6 @@ class StudioEditor(QWidget):
                                 gp.x() - max(dlg.width(), 340) - 12,
                                 gp.y() + 460)
                     dlg._positioned_once = True
-            dlg.raise_()
         else:
             if dlg.isVisible():
                 dlg.hide()
@@ -9521,36 +9522,29 @@ class StudioEditor(QWidget):
                     break
         dlg = self._text_controls_dlg
         if has_text_tool or has_text_selected:
+            # HARD EARLY-OUT: if the popup is already visible, do NOTHING.
+            # No setStyleSheet, no theme_dialog_titlebar, no move, no
+            # raise, no activateWindow. Every one of those ops was firing
+            # on every selection sync and causing the popup to flash/re-
+            # focus/re-lay-out while the user was trying to work with it.
+            # The popup stays open once shown, styled, and positioned;
+            # user dismisses it via its own close button.
+            if dlg.isVisible():
+                return
             win = self.window()
-            # Compare stylesheet by VALUE (!=) not identity (is not) —
-            # PySide6 returns a fresh str object from styleSheet() on
-            # every call, so `is not` evaluated True every time, firing
-            # a full setStyleSheet on every selection sync. That re-
-            # parses + re-polishes every child widget in the dialog —
-            # on a dialog with ~40 sliders/buttons it takes hundreds of
-            # ms. During bubble drag with a linked text, selection
-            # cascades caused this to fire 60x per second = visible
-            # flashing + main-thread backlog.
             if win is not None:
                 current = win.styleSheet()
                 prev = getattr(dlg, "_cached_ss", None)
                 if prev != current:
                     dlg.setStyleSheet(current)
                     dlg._cached_ss = current
-            if not dlg.isVisible():
-                dlg.show()
+            dlg.show()
             if win is not None and hasattr(win, "_theme_dialog_titlebar"):
-                if (not getattr(dlg, "_titlebar_themed", False)
-                        or getattr(dlg, "_titlebar_ss", None) != current):
+                if not getattr(dlg, "_titlebar_themed", False):
                     win._theme_dialog_titlebar(dlg)
                     dlg._titlebar_themed = True
-                    dlg._titlebar_ss = current
-            # Clamp to the primary screen so a stale saved geometry
-            # can never park the dialog off-screen. Only auto-position
-            # the FIRST time the dialog is shown in this session, and
-            # only if the saved geometry is actually unusable - otherwise
-            # the sync handler was overriding the user's drag position
-            # on every selection change.
+            # First-show reposition only — once positioned this session,
+            # never override the user's drag of the window.
             screen = QApplication.primaryScreen()
             if screen is not None and not getattr(
                     dlg, "_positioned_once", False):
@@ -9575,9 +9569,7 @@ class StudioEditor(QWidget):
                                     min(avail.bottom() - 200, target_y))
                     dlg.move(target_x, target_y)
                 dlg._positioned_once = True
-            # Bring to front in case user had something else on top.
             dlg.raise_()
-            dlg.activateWindow()
         else:
             if dlg.isVisible():
                 dlg.hide()
