@@ -13,10 +13,20 @@ from doxyedit.panel_mixin import LazyRefreshMixin
 
 class _DiskSizeThread(QThread):
     """Compute total disk size of a list of asset paths off the UI thread."""
-    done = Signal(int, int)  # (total_bytes, asset_count — identifies which refresh)
+    # total_bytes is Python int (unbounded). Signal(int, ...) maps to
+    # C++ int (32-bit) and overflows once a project exceeds 2 GB — users
+    # with ~85 GB of assets triggered libshiboken overflow warnings and
+    # the cascading "Cannot create children" cross-thread error. Using
+    # "qlonglong" (int64) carries 9 exabytes before overflowing.
+    done = Signal("qlonglong", int)  # (total_bytes, token)
 
-    def __init__(self, paths: list[str], token: int, parent=None):
-        super().__init__(parent)
+    def __init__(self, paths: list[str], token: int):
+        # No Qt parent — QThread parent would be on the main thread and
+        # any cross-thread object creation during emit (side effect of
+        # an overflow on the legacy int signal) tried to create children
+        # in the worker thread under the main-thread parent. Owner keeps
+        # a Python-level ref via _size_thread for lifetime.
+        super().__init__()
         self._paths = paths
         self._token = token
 
@@ -96,7 +106,7 @@ class StatsPanel(LazyRefreshMixin, QWidget):
             self._size_token += 1
             token = self._size_token
             paths = [a.source_path for a in assets]
-            thread = _DiskSizeThread(paths, token, self)
+            thread = _DiskSizeThread(paths, token)
             self._size_thread = thread
 
             def _on_done(total_bytes: int, tok: int):
