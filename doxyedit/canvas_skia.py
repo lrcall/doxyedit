@@ -24,6 +24,7 @@ Default is "qgraphics". Fallback to QGraphicsView on any init failure.
 from __future__ import annotations
 
 from pathlib import Path
+import math
 
 from PySide6.QtCore import Qt, QRectF, QPointF, Signal, QSize
 from PySide6.QtGui import QPainter, QImage, QColor, QFont
@@ -433,6 +434,291 @@ class CanvasSkia(QWidget):
             pass
         return default
 
+    # ------------------------------------------------------------------
+    # Day 5 — shape overlays (OverlayShapeItem port)
+    # ------------------------------------------------------------------
+
+    def _build_shape_path(self, ov) -> "skia.Path":
+        """Return a SkPath for the shape's kind. Geometry is in the
+        shape's local coord system (top-left at origin); the caller
+        translates the canvas to overlay.x/y before drawing.
+
+        Mirrors the shape_kind dispatch in studio_items.py so the
+        Skia path matches OverlayShapeItem.paint visually.
+        """
+        kind = getattr(ov, "shape_kind", "rect") or "rect"
+        w = float(getattr(ov, "shape_w", 100) or 100)
+        h = float(getattr(ov, "shape_h", 100) or 100)
+        rect = skia.Rect.MakeXYWH(0, 0, w, h)
+        path = skia.Path()
+        if kind == "rect":
+            radius = float(getattr(ov, "corner_radius", 0) or 0)
+            if radius > 0:
+                path.addRoundRect(rect, radius, radius)
+            else:
+                path.addRect(rect)
+        elif kind == "ellipse":
+            path.addOval(rect)
+        elif kind == "star":
+            self._append_star_path(path, w, h, ov)
+        elif kind == "polygon":
+            self._append_polygon_path(path, w, h, ov)
+        elif kind == "burst":
+            self._append_burst_path(path, w, h)
+        elif kind in ("speech_bubble", "thought_bubble"):
+            # Bubble geometry needs the overlay's scene-coord tail_tip
+            # projected into local space. Compute relative-to-origin
+            # here so the path is local-coord just like the other kinds.
+            if kind == "speech_bubble":
+                self._append_speech_bubble_path(path, w, h, ov)
+            else:
+                self._append_thought_bubble_path(path, w, h, ov)
+        else:
+            path.addRect(rect)
+        return path
+
+    def _append_star_path(self, path, w, h, ov):
+        n = max(3, int(getattr(ov, "star_points", 5) or 5))
+        inner = max(0.1, min(0.95,
+            float(getattr(ov, "inner_ratio", 0.4) or 0.4)))
+        cx, cy = w / 2, h / 2
+        rx, ry = w / 2, h / 2
+        pts = []
+        for i in range(n * 2):
+            frac = (2 * math.pi * i) / (n * 2) - math.pi / 2
+            s = 1.0 if i % 2 == 0 else inner
+            pts.append((cx + math.cos(frac) * rx * s,
+                        cy + math.sin(frac) * ry * s))
+        path.moveTo(*pts[0])
+        for p in pts[1:]:
+            path.lineTo(*p)
+        path.close()
+
+    def _append_polygon_path(self, path, w, h, ov):
+        n = max(3, int(getattr(ov, "star_points", 6) or 6))
+        cx, cy = w / 2, h / 2
+        rx, ry = w / 2, h / 2
+        pts = []
+        for i in range(n):
+            frac = (2 * math.pi * i) / n - math.pi / 2
+            pts.append((cx + math.cos(frac) * rx,
+                        cy + math.sin(frac) * ry))
+        path.moveTo(*pts[0])
+        for p in pts[1:]:
+            path.lineTo(*p)
+        path.close()
+
+    def _append_burst_path(self, path, w, h):
+        cx, cy = w / 2, h / 2
+        rx, ry = w / 2, h / 2
+        n = 14
+        inner = 0.62
+        pts = []
+        for i in range(n * 2):
+            frac = (2 * math.pi * i) / (n * 2)
+            s = 1.0 if i % 2 == 0 else inner
+            pts.append((cx + math.cos(frac - math.pi / 2) * rx * s,
+                        cy + math.sin(frac - math.pi / 2) * ry * s))
+        path.moveTo(*pts[0])
+        for p in pts[1:]:
+            path.lineTo(*p)
+        path.close()
+
+    def _append_speech_bubble_path(self, path, w, h, ov):
+        """Rounded-rect body + triangular tail, unioned. Tail tip is
+        stored in scene coords on the overlay; convert to local by
+        subtracting overlay.x/y."""
+        # Body
+        roundness = max(0.0, min(1.0,
+            getattr(ov, "bubble_roundness", 0.0) or 0.0))
+        pad = min(w, h) * 0.18
+        effective_pad = pad + (min(w, h) / 2 - pad) * roundness
+        body = skia.Path()
+        if roundness >= 0.99:
+            body.addOval(skia.Rect.MakeXYWH(0, 0, w, h))
+        else:
+            body.addRoundRect(skia.Rect.MakeXYWH(0, 0, w, h),
+                              effective_pad, effective_pad)
+        # Tail — tip in local coords
+        tip_sx = getattr(ov, "tail_x", 0) or 0
+        tip_sy = getattr(ov, "tail_y", 0) or 0
+        if tip_sx == 0 and tip_sy == 0:
+            tip_x, tip_y = -w * 0.15, h + h * 0.35
+        else:
+            tip_x = float(tip_sx) - float(ov.x)
+            tip_y = float(tip_sy) - float(ov.y)
+        cx, cy = w / 2, h / 2
+        dx, dy = tip_x - cx, tip_y - cy
+        horiz = abs(dx) > abs(dy)
+        base_len = min(w, h) * 0.25
+        overlap = max(4.0, min(w, h) * 0.08)
+        if horiz:
+            edge_x = (w - overlap) if dx > 0 else overlap
+            mid_y = max(pad, min(h - pad, tip_y * 0.5 + cy * 0.5))
+            b1 = (edge_x, mid_y - base_len / 2)
+            b2 = (edge_x, mid_y + base_len / 2)
+        else:
+            edge_y = (h - overlap) if dy > 0 else overlap
+            mid_x = max(pad, min(w - pad, tip_x * 0.5 + cx * 0.5))
+            b1 = (mid_x - base_len / 2, edge_y)
+            b2 = (mid_x + base_len / 2, edge_y)
+        tail = skia.Path()
+        tail.moveTo(*b1)
+        tail_curve = max(-1.0, min(1.0,
+            float(getattr(ov, "tail_curve", 0.0) or 0.0)))
+        if abs(tail_curve) > 0.02:
+            amt = tail_curve * base_len * 1.2
+            def _perp(src, dst, a):
+                mx = (src[0] + dst[0]) / 2
+                my = (src[1] + dst[1]) / 2
+                vdx = dst[0] - src[0]
+                vdy = dst[1] - src[1]
+                ln = math.hypot(vdx, vdy) or 1.0
+                nx, ny = -vdy / ln, vdx / ln
+                return (mx + nx * a, my + ny * a)
+            c1 = _perp(b1, (tip_x, tip_y), amt)
+            c2 = _perp((tip_x, tip_y), b2, amt)
+            tail.quadTo(c1[0], c1[1], tip_x, tip_y)
+            tail.quadTo(c2[0], c2[1], b2[0], b2[1])
+        else:
+            tail.lineTo(tip_x, tip_y)
+            tail.lineTo(*b2)
+        tail.close()
+        # Union body + tail
+        try:
+            merged = body.op(tail, skia.PathOp.kUnion_PathOp)
+            if merged is not None:
+                path.addPath(merged)
+            else:
+                path.addPath(body)
+                path.addPath(tail)
+        except Exception:
+            path.addPath(body)
+            path.addPath(tail)
+
+    def _append_thought_bubble_path(self, path, w, h, ov):
+        """Cloud body via ellipse + 10 peripheral puffs unioned."""
+        cx, cy = w / 2, h / 2
+        rx, ry = w / 2, h / 2
+        base = skia.Path()
+        base.addOval(skia.Rect.MakeXYWH(rx * 0.22, ry * 0.22,
+                                          w - rx * 0.44, h - ry * 0.44))
+        n_puffs = 10
+        puff_r = min(rx, ry) * 0.28
+        cloud = base
+        for i in range(n_puffs):
+            ang = (2 * math.pi * i) / n_puffs
+            px = cx + math.cos(ang) * (rx - puff_r * 0.4)
+            py = cy + math.sin(ang) * (ry - puff_r * 0.4)
+            sub = skia.Path()
+            sub.addOval(skia.Rect.MakeLTRB(
+                px - puff_r, py - puff_r,
+                px + puff_r, py + puff_r))
+            try:
+                cloud = cloud.op(sub, skia.PathOp.kUnion_PathOp) or cloud
+            except Exception:
+                pass
+        path.addPath(cloud)
+
+    def _draw_overlay_shape(self, canvas, ov):
+        """Render a shape overlay. Day-5 scope: all shape_kind variants
+        (rect/ellipse/star/polygon/burst/bubbles), stroke, fill,
+        gradient fills (linear/radial), rotation, opacity, blend mode.
+        """
+        if not getattr(ov, "enabled", True):
+            return
+        w = float(getattr(ov, "shape_w", 100) or 100)
+        h = float(getattr(ov, "shape_h", 100) or 100)
+        if w <= 0 or h <= 0:
+            return
+        path = self._build_shape_path(ov)
+        canvas.save()
+        canvas.translate(float(ov.x), float(ov.y))
+        rot = float(getattr(ov, "rotation", 0) or 0)
+        if rot:
+            canvas.translate(w / 2, h / 2)
+            canvas.rotate(rot)
+            canvas.translate(-w / 2, -h / 2)
+        opacity = float(getattr(ov, "opacity", 1.0) or 1.0)
+        kind = getattr(ov, "shape_kind", "rect") or "rect"
+        blend_mode = self._blend_mode_for(
+            getattr(ov, "blend_mode", "normal") or "normal")
+        # Fill
+        if kind in ("gradient_linear", "gradient_radial"):
+            self._fill_gradient(canvas, path, ov, w, h, blend_mode, opacity)
+        else:
+            fill_hex = getattr(ov, "fill_color", "") or ""
+            if fill_hex:
+                fill_rgba = self._parse_hex(fill_hex, (0, 0, 0, 255))
+                fp = skia.Paint()
+                fp.setAntiAlias(True)
+                fp.setStyle(skia.Paint.kFill_Style)
+                fp.setColor(skia.Color(*fill_rgba))
+                fp.setAlphaf(opacity * (fill_rgba[3] / 255.0))
+                if blend_mode is not None:
+                    fp.setBlendMode(blend_mode)
+                canvas.drawPath(path, fp)
+        # Stroke
+        stroke_w = float(getattr(ov, "stroke_width", 0) or 0)
+        stroke_hex = (getattr(ov, "stroke_color", "") or
+                      getattr(ov, "color", "") or "")
+        if stroke_w > 0 and stroke_hex:
+            stroke_rgba = self._parse_hex(stroke_hex, (0, 0, 0, 255))
+            sp = skia.Paint()
+            sp.setAntiAlias(True)
+            sp.setStyle(skia.Paint.kStroke_Style)
+            sp.setColor(skia.Color(*stroke_rgba))
+            sp.setStrokeWidth(stroke_w)
+            sp.setStrokeJoin(skia.Paint.kRound_Join)
+            sp.setAlphaf(opacity * (stroke_rgba[3] / 255.0))
+            # Line style
+            style = getattr(ov, "line_style", "solid") or "solid"
+            if style in ("dash", "dot"):
+                intervals = ([stroke_w * 3, stroke_w * 2] if style == "dash"
+                             else [stroke_w, stroke_w])
+                try:
+                    sp.setPathEffect(
+                        skia.DashPathEffect.Make(intervals, 0.0))
+                except Exception:
+                    pass
+            if blend_mode is not None:
+                sp.setBlendMode(blend_mode)
+            canvas.drawPath(path, sp)
+        canvas.restore()
+
+    def _fill_gradient(self, canvas, path, ov, w, h, blend_mode, opacity):
+        start_hex = getattr(ov, "gradient_start_color", "") or "#000000"
+        end_hex = getattr(ov, "gradient_end_color", "") or "#ffffff"
+        c0 = self._parse_hex(start_hex, (0, 0, 0, 255))
+        c1 = self._parse_hex(end_hex, (255, 255, 255, 255))
+        kind = getattr(ov, "shape_kind", "")
+        colors = [skia.Color(*c0), skia.Color(*c1)]
+        try:
+            if kind == "gradient_linear":
+                ang = math.radians(getattr(ov, "gradient_angle", 0) or 0)
+                cx, cy = w / 2, h / 2
+                half = w / 2
+                p0 = skia.Point(cx - math.cos(ang) * half,
+                                 cy - math.sin(ang) * half)
+                p1 = skia.Point(cx + math.cos(ang) * half,
+                                 cy + math.sin(ang) * half)
+                shader = skia.GradientShader.MakeLinear([p0, p1], colors)
+            else:
+                shader = skia.GradientShader.MakeRadial(
+                    skia.Point(w / 2, h / 2),
+                    max(w, h) / 2, colors)
+        except Exception:
+            shader = None
+        gp = skia.Paint()
+        gp.setAntiAlias(True)
+        gp.setStyle(skia.Paint.kFill_Style)
+        gp.setAlphaf(opacity)
+        if shader is not None:
+            gp.setShader(shader)
+        if blend_mode is not None:
+            gp.setBlendMode(blend_mode)
+        canvas.drawPath(path, gp)
+
     def _draw_overlay_image(self, canvas, ov):
         """Render an image overlay (watermark / logo). Day-3 scope:
         position, scale, opacity, rotation, flip, blend mode. No
@@ -527,7 +813,9 @@ class CanvasSkia(QWidget):
                 self._draw_overlay_image(canvas, ov)
             elif ov_type == "text":
                 self._draw_overlay_text(canvas, ov)
-            # shape/arrow come in Day 5
+            elif ov_type == "shape":
+                self._draw_overlay_shape(canvas, ov)
+            # arrow, censor come in Day 6
         canvas.restore()
         # HUD — always at screen pixels (no transform).
         hud_paint = skia.Paint()
