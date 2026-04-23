@@ -104,6 +104,13 @@ class CanvasSkia(QWidget):
         # in scene coords, drawn as dashed overlay above everything.
         self._selected_ids: set = set()
         self._snap_guides: list = []
+        # Day 13: FPS HUD timing state.
+        import time as _t
+        self._fps_time = _t
+        self._fps_last_ms: float = 0.0
+        self._fps_rolling_ms: float = 0.0
+        self._fps_samples: list = []  # (timestamp, paint_ms)
+        self._fps_perf_log = None    # optional file handle
         self._resize_buffers(self.size())
         # Record whether Skia is live; surfacing this to the editor lets
         # the FPS HUD show which backend is active.
@@ -479,6 +486,11 @@ class CanvasSkia(QWidget):
         dashed-cyan over everything while active during drag."""
         self._snap_guides = list(guides)
         self.update()
+
+    def attach_perf_log(self, file_handle):
+        """Attach a writable file handle (e.g. open('path','w')) to
+        receive per-paint JSONL events. Pass None to detach."""
+        self._fps_perf_log = file_handle
 
     def remove_overlay(self, ov):
         try:
@@ -1395,6 +1407,7 @@ class CanvasSkia(QWidget):
         """Draw the scene via Skia into self._qimg. Content order:
         background fill → base image → overlays in z-order → HUD.
         """
+        t0 = self._fps_time.perf_counter()
         canvas = self._surface.getCanvas()
         canvas.save()
         canvas.clear(skia.Color(32, 32, 40))
@@ -1443,10 +1456,13 @@ class CanvasSkia(QWidget):
         hud_paint.setAntiAlias(True)
         font = skia.Font(skia.Typeface("Consolas"), 11)
         dpr = getattr(self, "_dpr", 1.0)
-        text = (f"SKIA backend  zoom={self._zoom:.2f}  "
+        # Use paint_ms from the PREVIOUS frame; current frame's ms isn't
+        # known until after drawString returns.
+        prev_ms = self._fps_last_ms
+        text = (f"SKIA  zoom={self._zoom:.2f}  "
                 f"pan=({int(self._pan_x)},{int(self._pan_y)})  "
-                f"overlays={len(self._overlays)}  "
-                f"dpr={dpr:.2f}")
+                f"ovl={len(self._overlays)}  dpr={dpr:.1f}  "
+                f"paint={prev_ms:.1f}ms")
         # HUD drawn at physical px — so position adjusts by DPR too so
         # it still lands in the top-left corner of the widget.
         canvas.drawString(text, 12 * dpr, 20 * dpr, font, hud_paint)
@@ -1458,6 +1474,33 @@ class CanvasSkia(QWidget):
         except AttributeError:
             pass
         self._copy_skia_to_qimage()
+        # Day 13: record paint time, update rolling average, emit perf
+        # log sample if a log file is wired up.
+        t1 = self._fps_time.perf_counter()
+        self._fps_last_ms = (t1 - t0) * 1000.0
+        self._fps_rolling_ms = (0.9 * self._fps_rolling_ms
+                                 + 0.1 * self._fps_last_ms)
+        self._fps_samples.append(t1)
+        cutoff = t1 - 2.0
+        while self._fps_samples and self._fps_samples[0] < cutoff:
+            self._fps_samples.pop(0)
+        if self._fps_perf_log is not None:
+            try:
+                import json as _json
+                fps = sum(1 for ts in self._fps_samples if ts > t1 - 1.0)
+                self._fps_perf_log.write(_json.dumps({
+                    "t": round(t1, 4),
+                    "type": "skia_paint",
+                    "fps": fps,
+                    "paint_ms": round(self._fps_last_ms, 2),
+                    "avg_ms": round(self._fps_rolling_ms, 2),
+                    "overlays": len(self._overlays),
+                    "censors": len(self._censors),
+                    "zoom": round(self._zoom, 3),
+                }) + "\n")
+                self._fps_perf_log.flush()
+            except Exception:
+                pass
 
     def _copy_skia_to_qimage(self):
         """Readback Skia's rendered pixels into self._qimg."""
