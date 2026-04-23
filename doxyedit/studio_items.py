@@ -1578,6 +1578,40 @@ class OverlayShapeItem(QGraphicsItem):
     }
 
     def paint(self, painter, option, widget=None):
+        # E3: fast path — if we have a cached QImage for the current
+        # parameter set, blit it and skip the expensive drawPath +
+        # gradient / selection-handle reconstruction. Cache is built
+        # off-thread so this path ONLY hits after the worker completes.
+        # Selected state + handles are always drawn live (below) since
+        # they change frequently with selection toggles.
+        cache_key = self._shape_params_tuple()
+        fast_blit_ok = (
+            self._cached_render is not None
+            and self._cached_render_key == cache_key
+            # Blit fast-path only works when the overlay has a normal
+            # blend mode; composite modes still need the live path to
+            # avoid cached-image blending artifacts.
+            and (getattr(self.overlay, "blend_mode", "normal") or "normal")
+                == "normal"
+        )
+        if fast_blit_ok:
+            painter.save()
+            painter.setOpacity(1.0)  # cache already has alpha baked in
+            # Cache was rendered at (pad, pad) origin; translate scene
+            # coords (overlay.x - pad, overlay.y - pad) to place it.
+            pad = int(max(4,
+                (getattr(self.overlay, "stroke_width", 0) or 0)) * 2)
+            painter.drawImage(
+                QPointF(self.overlay.x - pad, self.overlay.y - pad),
+                self._cached_render)
+            painter.restore()
+            # Fall through to the live path's selection-handle drawing.
+            # Skip the expensive drawPath by early-returning from the
+            # shape dispatch below.
+        elif self._cached_render_key != cache_key:
+            # Cache miss — schedule a rebuild so the NEXT paint hits
+            # the fast path. Current frame renders live.
+            self._schedule_cached_render()
         r = QRectF(self.overlay.x, self.overlay.y,
                     self.overlay.shape_w, self.overlay.shape_h)
         # Apply the overlay's blend mode so shapes / bubbles can layer
@@ -1615,7 +1649,11 @@ class OverlayShapeItem(QGraphicsItem):
             _half = _sw / 2.0
             r = r.adjusted(-_half, -_half, _half, _half)
         kind = self.overlay.shape_kind
-        if kind == "speech_bubble":
+        if fast_blit_ok:
+            # Already blitted from cache above. Skip the live shape
+            # dispatch but let the selection-handle block below run.
+            pass
+        elif kind == "speech_bubble":
             self._paint_speech_bubble(painter, r)
         elif kind == "thought_bubble":
             self._paint_thought_bubble(painter, r)
@@ -1658,7 +1696,7 @@ class OverlayShapeItem(QGraphicsItem):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(grad))
             painter.drawRect(r)
-        else:
+        elif not fast_blit_ok:
             radius = getattr(self.overlay, "corner_radius", 0)
             if radius > 0:
                 painter.drawRoundedRect(r, radius, radius)
