@@ -97,6 +97,15 @@ class CanvasSkia(QWidget):
         # decoding the file on every paint.
         self._overlays: list = []
         self._overlay_image_cache: dict = {}  # path -> skia.Image
+        # Typeface / Font caches — the OS font lookup + Skia typeface
+        # creation is 50-500us per call depending on the font. Without
+        # caching, every paint builds a fresh Typeface + Font for EACH
+        # text overlay, scaling linearly with overlay count. With a cache
+        # it's a dict lookup after warm-up.
+        # Key: (family, bold, italic) -> skia.Typeface
+        self._skia_typeface_cache: dict = {}
+        # Key: (typeface_id, size) -> skia.Font
+        self._skia_font_cache: dict = {}
         # Day 6: censor regions. List of CensorRegion dataclasses.
         # Drawn after overlays so they mask / blur the base image.
         self._censors: list = []
@@ -740,16 +749,30 @@ class CanvasSkia(QWidget):
         size = float(getattr(ov, "font_size", 14) or 14)
         bold = bool(getattr(ov, "bold", False))
         italic = bool(getattr(ov, "italic", False))
-        # Skia Typeface — matches QFont's family + weight + italic.
-        style = skia.FontStyle(
-            skia.FontStyle.kBold_Weight if bold
-            else skia.FontStyle.kNormal_Weight,
-            skia.FontStyle.kNormal_Width,
-            (skia.FontStyle.kItalic_Slant if italic
-             else skia.FontStyle.kUpright_Slant),
-        )
-        typeface = skia.Typeface(family, style)
-        font = skia.Font(typeface, size)
+        # Typeface cache: OS font lookup runs once per (family, bold,
+        # italic) combo for the lifetime of the canvas. Prior code was
+        # calling skia.Typeface() every paint for every text overlay
+        # which is a 50-500us system call each time.
+        tf_key = (family, bold, italic)
+        typeface = self._skia_typeface_cache.get(tf_key)
+        if typeface is None:
+            style = skia.FontStyle(
+                skia.FontStyle.kBold_Weight if bold
+                else skia.FontStyle.kNormal_Weight,
+                skia.FontStyle.kNormal_Width,
+                (skia.FontStyle.kItalic_Slant if italic
+                 else skia.FontStyle.kUpright_Slant),
+            )
+            typeface = skia.Typeface(family, style)
+            self._skia_typeface_cache[tf_key] = typeface
+        # Font cache: (typeface identity, size) is stable across frames.
+        # Key on id(typeface) so different typeface objects with same
+        # family+style (shouldn't happen post-cache) don't collide.
+        font_key = (id(typeface), size)
+        font = self._skia_font_cache.get(font_key)
+        if font is None:
+            font = skia.Font(typeface, size)
+            self._skia_font_cache[font_key] = font
         # Layout lines with line_height spacing. Skia doesn't have a
         # built-in paragraph layout at this scope; we handle line
         # breaks manually matching QTextDocument's block layout.
@@ -1798,6 +1821,12 @@ if _QOGW_OK and _SKIA_OK:
             self._snap_guides: list = []
             self._draft_shape: dict | None = None
             self._overlay_image_cache: dict = {}
+            # Shared with CanvasSkia's _draw_overlay_text path — the
+            # helpers are bound methods on this instance (see below), so
+            # they read these attrs directly. Without these caches every
+            # paintGL would rebuild every typeface/font from scratch.
+            self._skia_typeface_cache: dict = {}
+            self._skia_font_cache: dict = {}
             self._zoom = 1.0
             self._pan_x = 0.0
             self._pan_y = 0.0
