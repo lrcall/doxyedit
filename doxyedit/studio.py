@@ -87,6 +87,11 @@ class StudioScene(QGraphicsScene):
             "DoxyEdit", "DoxyEdit").value(
                 "studio_snap_threshold_px", 0, type=int)
         self._grid_visible = False
+        # Thirds-grid overlay; toggled from the Studio settings dialog
+        # via setter on the scene. Pre-initialized so drawForeground's
+        # per-paint `_thirds_visible` read is direct attribute access
+        # instead of getattr-with-default.
+        self._thirds_visible = False
         self._grid_spacing = STUDIO_GRID_SPACING
         self._theme = THEMES[DEFAULT_THEME]
         self.setBackgroundBrush(QBrush(QColor(self._theme.bg_deep)))
@@ -179,7 +184,7 @@ class StudioScene(QGraphicsScene):
         common case where the user isn't showing any guides.
         """
         if (not self._grid_visible
-                and not getattr(self, "_thirds_visible", False)
+                and not self._thirds_visible
                 and not self._snap_guides):
             return
         super().drawForeground(painter, rect)
@@ -204,7 +209,7 @@ class StudioScene(QGraphicsScene):
                 y += gs
         # Rule-of-thirds grid — only drawn when enabled AND a pixmap is
         # present so the thirds reflect the image bounds, not the full scene.
-        if getattr(self, "_thirds_visible", False):
+        if self._thirds_visible:
             img_rect = None
             for it in self.items():
                 if isinstance(it, QGraphicsPixmapItem):
