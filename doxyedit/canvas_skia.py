@@ -1905,11 +1905,20 @@ if _QOGW_OK and _SKIA_OK:
             pw = max(1, int(w * dpr))
             ph = max(1, int(h * dpr))
             try:
-                # 0 == default FBO (current widget's backing store).
+                # QOpenGLWidget composites into its OWN FBO, not GL FBO 0.
+                # The default framebuffer ID must be queried every resize
+                # because Qt may recreate the compositing FBO when the
+                # widget is shown/hidden or the surface format changes.
+                # Passing 0 here worked only when QOpenGLWidget happened
+                # to be the sole top-level GL widget (fbo 0 = window fb);
+                # in a layout with other widgets Qt allocates a non-zero
+                # fbo for composition and drawing to 0 would write to
+                # the wrong surface, producing blank or garbled output.
+                fbo_id = int(self.defaultFramebufferObject() or 0)
                 # 0 stencil, kRGBA8 format.
                 backend_rt = skia.GrBackendRenderTarget(
                     pw, ph, 0, 8, skia.GrGLFramebufferInfo(
-                        0, 0x8058  # GL_RGBA8
+                        fbo_id, 0x8058  # GL_RGBA8
                     ))
                 self._surface = skia.Surface.MakeFromBackendRenderTarget(
                     self._gr_context,
@@ -1919,7 +1928,14 @@ if _QOGW_OK and _SKIA_OK:
                     None, None,
                 )
                 if self._surface is None:
-                    self._last_init_error = "MakeFromBackendRenderTarget returned None"
+                    self._last_init_error = (
+                        f"MakeFromBackendRenderTarget returned None "
+                        f"(fbo={fbo_id} {pw}x{ph})")
+                else:
+                    # Remember which FBO this surface was built for so
+                    # paintGL can rebuild if Qt swaps the backing FBO
+                    # out from under us.
+                    self._surface_fbo = fbo_id
             except Exception as e:
                 self._surface = None
                 self._last_init_error = str(e)
@@ -1932,6 +1948,15 @@ if _QOGW_OK and _SKIA_OK:
             # we're back here, rebuild. Happens on hybrid-GPU laptops
             # when the OS switches between integrated + discrete GPUs.
             if self._surface is None and self._gr_context is not None:
+                self.resizeGL(self.width(), self.height())
+            # FBO-ID drift: Qt can re-allocate the QOpenGLWidget's
+            # composition FBO between paintGL calls (e.g. when the
+            # widget is hidden+reshown, or the surface format changes).
+            # The Skia surface was built against the old FBO; if we
+            # don't rebuild, paintGL draws to the wrong target.
+            cur_fbo = int(self.defaultFramebufferObject() or 0)
+            if (self._surface is not None
+                    and getattr(self, "_surface_fbo", -1) != cur_fbo):
                 self.resizeGL(self.width(), self.height())
             if self._surface is None or self._gr_context is None:
                 # Fell through re-init — paint nothing; hopefully next
