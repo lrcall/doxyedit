@@ -1306,6 +1306,12 @@ class OverlayShapeItem(QGraphicsItem):
         self._editor = None
         self._dragging_handle = None  # 'tl', 'tr', 'bl', 'br', or None
         self.setZValue(200)
+        # Pre-initialize drag / linked-text caches so itemChange
+        # (which fires on every drag frame at 60+Hz) can skip the
+        # getattr-with-default fallback.
+        self._drag_prev_value = QPointF(0, 0)
+        self._linked_text_cache = None
+        self._linked_text_cache_id = None
         # Path cache — (params_tuple, QPainterPath). Bubble paths go
         # through path.united() + a 72-sample wobble loop on every paint,
         # so rebuilding per frame murders perf during drag. Cache is
@@ -2444,7 +2450,7 @@ class OverlayShapeItem(QGraphicsItem):
             # double-offset by Qt's transform. Apply only the incremental
             # delta since the last itemChange to overlay.x/y so repeated
             # mouseMoves don't cumulatively multiply the motion.
-            prev = getattr(self, "_drag_prev_value", QPointF(0, 0))
+            prev = self._drag_prev_value
             # Shift-lock drag axis: read modifiers live from
             # QApplication since itemChange isn't an event. Lock to the
             # axis with the larger cumulative delta from drag start.
@@ -2468,8 +2474,8 @@ class OverlayShapeItem(QGraphicsItem):
                 # whenever the linked_text_id changes.
                 linked_id = self.overlay.linked_text_id
                 if linked_id and self._editor is not None:
-                    cached = getattr(self, "_linked_text_cache", None)
-                    cached_for = getattr(self, "_linked_text_cache_id", None)
+                    cached = self._linked_text_cache
+                    cached_for = self._linked_text_cache_id
                     if cached is None or cached_for != linked_id:
                         cached = None
                         for it in self._editor._overlay_items:
@@ -2821,6 +2827,9 @@ class OverlayArrowItem(QGraphicsItem):
         self.setAcceptHoverEvents(True)
         self._editor = None
         self._dragging_endpoint = None  # 'start', 'end', or None
+        # Pre-init the drag delta anchor so itemChange doesn't need
+        # getattr-with-default on its 60+Hz hot path.
+        self._drag_prev_value = QPointF(0, 0)
         self.setZValue(200)
 
     def hoverMoveEvent(self, event):
@@ -2973,7 +2982,7 @@ class OverlayArrowItem(QGraphicsItem):
             # and apply only the incremental delta to overlay endpoints,
             # so repeated ItemPositionChange deliveries during a single
             # drag don't multiply the motion (cumulative pressPos bug).
-            prev = getattr(self, "_drag_prev_value", QPointF(0, 0))
+            prev = self._drag_prev_value
             dx = int(value.x() - prev.x())
             dy = int(value.y() - prev.y())
             if dx or dy:
