@@ -340,7 +340,7 @@ class CanvasSkia(QWidget):
             x2 = float(ov.end_x)
             y2 = float(ov.end_y)
             return self._dist_to_segment(x, y, x1, y1, x2, y2) <= \
-                max(6.0, float(getattr(ov, "stroke_width", 4) or 4))
+                max(6.0, float(ov.stroke_width or 4))
         if ov_type == "shape":
             w = float(ov.shape_w or 0)
             h = float(ov.shape_h or 0)
@@ -887,12 +887,12 @@ class CanvasSkia(QWidget):
             canvas.scale(sx, sy)
             canvas.translate(-widest / 2, -total_h / 2)
         # Build the base paint (fill).
-        color_hex = getattr(ov, "color", "#ffffff") or "#ffffff"
+        color_hex = (ov.color or "#ffffff")
         fill_color = self._parse_hex(color_hex, (255, 255, 255, 255))
         opacity = float(getattr(ov, "opacity", 1.0) or 1.0)
         alpha = int(max(0.0, min(1.0, opacity)) * 255)
         # Background pill if configured.
-        bg_hex = getattr(ov, "background_color", "") or ""
+        bg_hex = ov.background_color
         if bg_hex:
             bg_paint = skia.Paint()
             bg_paint.setColor(skia.Color(*self._parse_hex(bg_hex, (0, 0, 0, 200))))
@@ -906,9 +906,9 @@ class CanvasSkia(QWidget):
             canvas.drawRoundRect(rect, pad, pad, bg_paint)
         # Drop shadow — one paint with SkImageFilters.DropShadow handles
         # it in a single glyph draw, no second document pass.
-        shadow_off = float(getattr(ov, "shadow_offset", 0) or 0)
-        shadow_hex = getattr(ov, "shadow_color", "") or ""
-        shadow_blur = float(getattr(ov, "shadow_blur", 0) or 0)
+        shadow_off = float(ov.shadow_offset or 0)
+        shadow_hex = ov.shadow_color
+        shadow_blur = float(ov.shadow_blur or 0)
         stroke_w = float(ov.stroke_width or 0)
         stroke_hex = ov.stroke_color
         # Build a reusable image filter for shadow+stroke combined
@@ -941,7 +941,7 @@ class CanvasSkia(QWidget):
         # Letter spacing — Skia Font supports ScaleX / SkewX but not
         # direct letter_spacing in older versions. Emulate by drawing
         # each character advanced manually; cheap for short text.
-        letter_spacing = float(getattr(ov, "letter_spacing", 0) or 0)
+        letter_spacing = float(ov.letter_spacing or 0)
 
         def _draw_line(line_str, base_y, paint):
             if letter_spacing == 0:
@@ -1042,8 +1042,8 @@ class CanvasSkia(QWidget):
         fingerprint = (
             kind, w, h,
             float(ov.corner_radius or 0),
-            int(getattr(ov, "star_points", 5) or 5),
-            float(getattr(ov, "inner_ratio", 0.5) or 0.5),
+            int(ov.star_points or 5),
+            float(ov.inner_ratio or 0.5),
             tail_dx, tail_dy,
         )
         key = id(ov)
@@ -1081,9 +1081,9 @@ class CanvasSkia(QWidget):
         return path
 
     def _append_star_path(self, path, w, h, ov):
-        n = max(3, int(getattr(ov, "star_points", 5) or 5))
+        n = max(3, int(ov.star_points or 5))
         inner = max(0.1, min(0.95,
-            float(getattr(ov, "inner_ratio", 0.4) or 0.4)))
+            float(ov.inner_ratio or 0.4)))
         cx, cy = w / 2, h / 2
         rx, ry = w / 2, h / 2
         pts = []
@@ -1098,7 +1098,7 @@ class CanvasSkia(QWidget):
         path.close()
 
     def _append_polygon_path(self, path, w, h, ov):
-        n = max(3, int(getattr(ov, "star_points", 6) or 6))
+        n = max(3, int(ov.star_points or 6))
         cx, cy = w / 2, h / 2
         rx, ry = w / 2, h / 2
         pts = []
@@ -1133,7 +1133,7 @@ class CanvasSkia(QWidget):
         subtracting overlay.x/y."""
         # Body
         roundness = max(0.0, min(1.0,
-            getattr(ov, "bubble_roundness", 0.0) or 0.0))
+            (ov.bubble_roundness or 0.0)))
         pad = min(w, h) * 0.18
         effective_pad = pad + (min(w, h) / 2 - pad) * roundness
         body = skia.Path()
@@ -1143,8 +1143,8 @@ class CanvasSkia(QWidget):
             body.addRoundRect(skia.Rect.MakeXYWH(0, 0, w, h),
                               effective_pad, effective_pad)
         # Tail — tip in local coords
-        tip_sx = getattr(ov, "tail_x", 0) or 0
-        tip_sy = getattr(ov, "tail_y", 0) or 0
+        tip_sx = (ov.tail_x or 0)
+        tip_sy = (ov.tail_y or 0)
         if tip_sx == 0 and tip_sy == 0:
             tip_x, tip_y = -w * 0.15, h + h * 0.35
         else:
@@ -1168,7 +1168,7 @@ class CanvasSkia(QWidget):
         tail = skia.Path()
         tail.moveTo(*b1)
         tail_curve = max(-1.0, min(1.0,
-            float(getattr(ov, "tail_curve", 0.0) or 0.0)))
+            float(ov.tail_curve or 0.0)))
         if abs(tail_curve) > 0.02:
             amt = tail_curve * base_len * 1.2
             def _perp(src, dst, a):
@@ -1263,8 +1263,7 @@ class CanvasSkia(QWidget):
                 canvas.drawPath(path, fp)
         # Stroke
         stroke_w = float(ov.stroke_width or 0)
-        stroke_hex = (getattr(ov, "stroke_color", "") or
-                      getattr(ov, "color", "") or "")
+        stroke_hex = ov.stroke_color or ov.color or ""
         if stroke_w > 0 and stroke_hex:
             stroke_rgba = self._parse_hex(stroke_hex, (0, 0, 0, 255))
             sp = skia.Paint()
@@ -1275,7 +1274,7 @@ class CanvasSkia(QWidget):
             sp.setStrokeJoin(skia.Paint.kRound_Join)
             sp.setAlphaf(opacity * (stroke_rgba[3] / 255.0))
             # Line style
-            style = getattr(ov, "line_style", "solid") or "solid"
+            style = (ov.line_style or "solid")
             if style in ("dash", "dot"):
                 intervals = ((stroke_w * 3, stroke_w * 2) if style == "dash"
                              else (stroke_w, stroke_w))
@@ -1288,15 +1287,15 @@ class CanvasSkia(QWidget):
         canvas.restore()
 
     def _fill_gradient(self, canvas, path, ov, w, h, blend_mode, opacity):
-        start_hex = getattr(ov, "gradient_start_color", "") or "#000000"
-        end_hex = getattr(ov, "gradient_end_color", "") or "#ffffff"
+        start_hex = (ov.gradient_start_color or "#000000")
+        end_hex = (ov.gradient_end_color or "#ffffff")
         c0 = self._parse_hex(start_hex, (0, 0, 0, 255))
         c1 = self._parse_hex(end_hex, (255, 255, 255, 255))
         kind = ov.shape_kind
         colors = [skia.Color(*c0), skia.Color(*c1)]
         try:
             if kind == "gradient_linear":
-                ang = math.radians(getattr(ov, "gradient_angle", 0) or 0)
+                ang = math.radians((ov.gradient_angle or 0))
                 cx, cy = w / 2, h / 2
                 half = w / 2
                 p0 = skia.Point(cx - math.cos(ang) * half,
@@ -1555,10 +1554,10 @@ class CanvasSkia(QWidget):
         length = math.hypot(dx, dy)
         if length < 1:
             return
-        color_hex = getattr(ov, "color", "#000000") or "#000000"
+        color_hex = (ov.color or "#000000")
         rgba = self._parse_hex(color_hex, (0, 0, 0, 255))
         opacity = float(getattr(ov, "opacity", 1.0) or 1.0)
-        stroke_w = max(1.0, float(getattr(ov, "stroke_width", 4) or 4))
+        stroke_w = max(1.0, float(ov.stroke_width or 4))
         # Line paint
         lp = skia.Paint()
         lp.setAntiAlias(True)
@@ -1567,7 +1566,7 @@ class CanvasSkia(QWidget):
         lp.setAlphaf(opacity)
         lp.setStrokeWidth(stroke_w)
         lp.setStrokeCap(skia.Paint.kRound_Cap)
-        style = getattr(ov, "line_style", "solid") or "solid"
+        style = (ov.line_style or "solid")
         if style in ("dash", "dot"):
             intervals = ((stroke_w * 3, stroke_w * 2) if style == "dash"
                          else (stroke_w, stroke_w))
@@ -1576,11 +1575,11 @@ class CanvasSkia(QWidget):
                 lp.setPathEffect(dash)
         canvas.drawLine(x1, y1, x2, y2, lp)
         # Arrowhead
-        head_style = getattr(ov, "arrowhead_style", "filled") or "filled"
+        head_style = (ov.arrowhead_style or "filled")
         if head_style == "none":
             return
         ux, uy = dx / length, dy / length
-        hs = max(6.0, float(getattr(ov, "arrowhead_size", 12) or 12))
+        hs = max(6.0, float(ov.arrowhead_size or 12))
         px, py = -uy, ux
 
         def _head(tip_x, tip_y, direction):
@@ -1605,7 +1604,7 @@ class CanvasSkia(QWidget):
             canvas.drawPath(path, hp)
 
         _head(x2, y2, 1)
-        if getattr(ov, "double_headed", False):
+        if ov.double_headed:
             _head(x1, y1, -1)
 
     def _draw_censor(self, canvas, censor, base_image):
