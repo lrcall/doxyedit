@@ -6210,6 +6210,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             ("Right-click empty canvas", "Grid / thirds / copy menu"),
             ("Drag ruler into canvas", "Place guide"),
             ("Drag guide", "Move; double-click to delete"),
+            ("Shift+F", "Toggle FPS HUD + perf log"),
+            ("Shift+S", "Open Skia backend preview (beta)"),
         ]
         tray_entries = [
             ("Ctrl+Shift+W", "Toggle Work Tray visibility"),
