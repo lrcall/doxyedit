@@ -4396,6 +4396,20 @@ class StudioEditor(QWidget):
         self._notes: list[NoteRectItem] = []
         self._note_start: QPointF | None = None
         self._note_temp: NoteRectItem | None = None
+        # Pre-init flags that handlers / shortcuts currently read via
+        # getattr-with-default. Hot-path reads (key/mouse/escape handlers,
+        # _on_selection_changed, drawForeground's helper-hide check) now
+        # resolve via direct attribute lookup.
+        self._isolation_active = False
+        self._space_panning = False
+        self._space_prev_drag_mode = None
+        self._propagating_group_sel = False
+        self._last_cursor_scene_pos = None
+        self._tc_content_syncing = False
+        self._qp_syncing = False
+        self._qp_scale_base_map = {}
+        self._helpers_hidden_state = None
+        self._guide_items = []
         # Undo stack must exist before _build() because the toolbar wires
         # the undo/redo buttons to it.
         self._undo_stack = QUndoStack(self)
@@ -4426,7 +4440,7 @@ class StudioEditor(QWidget):
 
         # Spacebar — temporary hand/pan tool (Photoshop convention)
         if key == Qt.Key.Key_Space and not ctrl and not shift and not event.isAutoRepeat():
-            if not getattr(self, "_space_panning", False):
+            if not self._space_panning:
                 self._space_panning = True
                 self._space_prev_drag_mode = self._view.dragMode()
                 self._view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
@@ -4516,7 +4530,7 @@ class StudioEditor(QWidget):
         # tracked yet). Mirrors the 'new note / new asset' family of
         # shortcuts without reaching for the T tool.
         if ctrl and shift and key == Qt.Key.Key_N:
-            last = getattr(self, "_last_cursor_scene_pos", None)
+            last = self._last_cursor_scene_pos
             if last is not None:
                 x, y = int(last.x()), int(last.y())
             elif self._pixmap_item is not None:
@@ -4654,7 +4668,7 @@ class StudioEditor(QWidget):
         # on, restores all layers to their stored enabled state. Matches
         # Illustrator's Enter-on-layer workflow with a keyboard-only path.
         if alt and not ctrl and not shift and key == Qt.Key.Key_I:
-            if getattr(self, "_isolation_active", False):
+            if self._isolation_active:
                 self._exit_isolation()
             else:
                 sel = [it for it in self._scene.selectedItems()
@@ -5344,10 +5358,11 @@ class StudioEditor(QWidget):
         # Release spacebar pan — restore previous drag mode
         if (event.key() == Qt.Key.Key_Space
                 and not event.isAutoRepeat()
-                and getattr(self, "_space_panning", False)):
+                and self._space_panning):
             self._space_panning = False
-            prev = getattr(self, "_space_prev_drag_mode",
-                           QGraphicsView.DragMode.RubberBandDrag)
+            prev = self._space_prev_drag_mode
+            if prev is None:
+                prev = QGraphicsView.DragMode.RubberBandDrag
             self._view.setDragMode(prev)
             self._view.setCursor(Qt.CursorShape.ArrowCursor)
             return
@@ -7596,7 +7611,7 @@ class StudioEditor(QWidget):
         (vertical) for rapid guide placement without dragging the ruler."""
         if not self._pixmap_item:
             return
-        last = getattr(self, "_last_cursor_scene_pos", None)
+        last = self._last_cursor_scene_pos
         if last is None:
             pm = self._pixmap_item.pixmap()
             pos = pm.height() / 2 if orientation == 'h' else pm.width() / 2
@@ -7666,7 +7681,7 @@ class StudioEditor(QWidget):
         if not self._asset:
             return
         serialized = []
-        for gl in getattr(self, "_guide_items", []):
+        for gl in self._guide_items:
             if gl.scene() is None:
                 continue
             orient = getattr(gl, "_guide_orientation", 'h')
@@ -7780,7 +7795,7 @@ class StudioEditor(QWidget):
 
     def _clear_guides(self):
         """Remove all guide lines — called when the user selects Clear All."""
-        for line in getattr(self, "_guide_items", []):
+        for line in self._guide_items:
             if line.scene() is self._scene:
                 self._scene.removeItem(line)
         self._guide_items = []
@@ -7818,7 +7833,7 @@ class StudioEditor(QWidget):
         rule-of-thirds, rulers, guides, snap indicators. Press again to
         restore each back to its pre-hide state. Store the state in
         _helpers_hidden_state so the restore knows which flags were on."""
-        hidden = getattr(self, "_helpers_hidden_state", None)
+        hidden = self._helpers_hidden_state
         if hidden is None:
             # Capture current state and hide everything
             state = {
@@ -7832,7 +7847,7 @@ class StudioEditor(QWidget):
                 if state[k] and hasattr(self, w_attr):
                     getattr(self, w_attr).setChecked(False)
             # Hide guides
-            for g in getattr(self, "_guide_items", []):
+            for g in self._guide_items:
                 g.setVisible(False)
             self._helpers_hidden_state = state
             if hasattr(self, "info_label"):
@@ -7843,7 +7858,7 @@ class StudioEditor(QWidget):
                                ("rulers", "chk_rulers"), ("notes", "chk_notes")):
                 if hidden.get(k) and hasattr(self, w_attr):
                     getattr(self, w_attr).setChecked(True)
-            for g in getattr(self, "_guide_items", []):
+            for g in self._guide_items:
                 g.setVisible(True)
             self._helpers_hidden_state = None
             if hasattr(self, "info_label"):
@@ -7853,7 +7868,7 @@ class StudioEditor(QWidget):
         """Hide / show existing guides without deleting them. Ctrl+; keymap.
         Preserves the guide list so the user can flip visibility during a
         tight-layout pass without redoing the drag-out work."""
-        guides = getattr(self, "_guide_items", [])
+        guides = self._guide_items
         if not guides:
             self.info_label.setText("No guides to toggle")
             return
@@ -8386,7 +8401,7 @@ class StudioEditor(QWidget):
         panel right-click."""
         if not self.isVisible():
             return
-        if getattr(self, "_isolation_active", False):
+        if self._isolation_active:
             self._exit_isolation()
             return
         if self._scene is not None:
@@ -8436,7 +8451,7 @@ class StudioEditor(QWidget):
         # Studio), the view stays in ScrollHandDrag and a left-drag becomes
         # a pan that slides the canvas off-screen. Clear the flag and
         # restore RubberBandDrag before reconfiguring for the new tool.
-        if getattr(self, "_space_panning", False):
+        if self._space_panning:
             self._space_panning = False
         self._view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         # Translate the generic SHAPE tool into rect/ellipse based on combo
@@ -9440,7 +9455,7 @@ class StudioEditor(QWidget):
         """
         if not self._asset or not self._pixmap_item:
             return
-        last = getattr(self, "_last_cursor_scene_pos", None)
+        last = self._last_cursor_scene_pos
         if last is None:
             pm = self._pixmap_item.pixmap()
             cx, cy = pm.width() / 2, pm.height() / 2
@@ -9844,7 +9859,7 @@ class StudioEditor(QWidget):
         # grouped overlay, auto-select every sibling in the same group.
         # Guard against re-entry by tracking a sentinel so our own
         # setSelected calls don't re-trigger this handler.
-        if not getattr(self, "_propagating_group_sel", False):
+        if not self._propagating_group_sel:
             try:
                 self._propagating_group_sel = True
                 sel = self._scene.selectedItems()
@@ -10406,7 +10421,7 @@ class StudioEditor(QWidget):
         editor in the Text Controls popup. Blocks re-entry so our own
         programmatic setPlainText during selection-change doesn't echo
         back into the selected overlay."""
-        if getattr(self, "_tc_content_syncing", False):
+        if self._tc_content_syncing:
             return
         sel = [it for it in self._scene.selectedItems()
                if isinstance(it, OverlayTextItem)]
@@ -10778,7 +10793,7 @@ class StudioEditor(QWidget):
 
     def _qp_apply_rotation(self, value: int):
         """Quickbar rotation spinbox -> rotate every selected overlay."""
-        if getattr(self, "_qp_syncing", False):
+        if self._qp_syncing:
             return
         sel = self._scene.selectedItems()
         if not sel:
@@ -10806,7 +10821,7 @@ class StudioEditor(QWidget):
 
     def _qp_apply_opacity(self, value: int):
         """Quickbar opacity slider -> apply to every selected overlay."""
-        if getattr(self, "_qp_syncing", False):
+        if self._qp_syncing:
             return
         self._qp_opacity_lbl.setText(str(value))
         opacity = value / 100.0
@@ -10830,12 +10845,12 @@ class StudioEditor(QWidget):
         each item's current size at the moment of last sync, so the spin
         is additive via delta: we store _qp_scale_base_map on selection
         change and apply new_value / base."""
-        if getattr(self, "_qp_syncing", False):
+        if self._qp_syncing:
             return
         sel = self._scene.selectedItems()
         if not sel:
             return
-        base_map = getattr(self, "_qp_scale_base_map", {})
+        base_map = self._qp_scale_base_map
         factor = value / 100.0
         touched = False
         for it in sel:
@@ -11554,7 +11569,7 @@ class StudioEditor(QWidget):
             act_lock = prefix.addAction(
                 "Unlock" if ov.locked else "Lock")
             act_isolate = prefix.addAction(
-                "Exit Isolation" if getattr(self, "_isolation_active", False)
+                "Exit Isolation" if self._isolation_active
                 else "Isolate (solo)")
             act_rename = prefix.addAction("Rename...")
             act_opacity = prefix.addAction("Opacity...")
@@ -11600,7 +11615,7 @@ class StudioEditor(QWidget):
                 self._rebuild_layer_panel()
                 return
             if chosen is act_isolate:
-                if getattr(self, "_isolation_active", False):
+                if self._isolation_active:
                     self._exit_isolation()
                 else:
                     self._enter_isolation(ov)
@@ -12177,7 +12192,7 @@ class StudioEditor(QWidget):
                 self._save_notes_to_asset()
             elif isinstance(item, _GuideLineItem):
                 self._scene.removeItem(item)
-                if item in getattr(self, "_guide_items", []):
+                if item in self._guide_items:
                     self._guide_items.remove(item)
                 self._save_guides_to_asset()
                 if hasattr(self, "_canvas_wrap"):
@@ -12625,7 +12640,7 @@ class StudioEditor(QWidget):
         qs.setValue("studio_lock_guides", lock_guides_cb.isChecked())
         qs.setValue("studio_dim_nonselected", dim_nonsel_cb.isChecked())
         # Propagate guide lock to existing guide items immediately
-        for _g in getattr(self, "_guide_items", []):
+        for _g in self._guide_items:
             _g.setFlag(
                 QGraphicsItem.GraphicsItemFlag.ItemIsMovable,
                 not lock_guides_cb.isChecked())
@@ -13520,7 +13535,7 @@ class StudioEditor(QWidget):
             # Drop at the last known cursor position, centered on the
             # clipboard image's natural size (scaled). Falls back to 60,60
             # if the user hasn't hovered the canvas yet.
-            last = getattr(self, "_last_cursor_scene_pos", None)
+            last = self._last_cursor_scene_pos
             if last is not None:
                 drop_x = max(0, int(last.x() - img.width() * 0.15))
                 drop_y = max(0, int(last.y() - img.height() * 0.15))
