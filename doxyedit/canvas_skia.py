@@ -623,13 +623,23 @@ class CanvasSkia(QWidget):
 
     def set_snap_guides(self, guides: list):
         """List of (x1, y1, x2, y2) tuples in scene coords. Drawn
-        dashed-cyan over everything while active during drag."""
-        self._snap_guides = list(guides)
+        dashed-cyan over everything while active during drag. Early-out
+        when the guide list is identical — prevents a full Skia re-render
+        on every mouse move of a drag where no new snap target fired."""
+        new_list = list(guides)
+        if self._snap_guides == new_list:
+            return
+        self._snap_guides = new_list
         self.update()
 
     def set_draft_shape(self, draft: dict | None):
         """Set the in-progress shape being drawn (tool modes). Pass a
-        dict with keys kind/x/y/w/h/... or None to clear. Re-renders."""
+        dict with keys kind/x/y/w/h/... or None to clear. Re-renders.
+        Early-out when the draft dict hasn't changed — tool-drag fires
+        on every mouse move and often the draft is identical to the
+        prior frame's (Ctrl held, tool-drag without movement)."""
+        if self._draft_shape == draft:
+            return
         self._draft_shape = draft
         self.update()
 
