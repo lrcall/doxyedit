@@ -335,17 +335,17 @@ class CanvasSkia(QWidget):
         ov_type = ov.type
         if ov_type == "arrow":
             # Stroke-based hit test: close to the line segment.
-            x1 = float(getattr(ov, "x", 0) or 0)
-            y1 = float(getattr(ov, "y", 0) or 0)
-            x2 = float(getattr(ov, "end_x", 0) or 0)
-            y2 = float(getattr(ov, "end_y", 0) or 0)
+            x1 = float(ov.x)
+            y1 = float(ov.y)
+            x2 = float(ov.end_x)
+            y2 = float(ov.end_y)
             return self._dist_to_segment(x, y, x1, y1, x2, y2) <= \
                 max(6.0, float(getattr(ov, "stroke_width", 4) or 4))
         if ov_type == "shape":
             w = float(getattr(ov, "shape_w", 0) or 0)
             h = float(getattr(ov, "shape_h", 0) or 0)
-            ox = float(getattr(ov, "x", 0) or 0)
-            oy = float(getattr(ov, "y", 0) or 0)
+            ox = float(ov.x)
+            oy = float(ov.y)
             # Quick bbox reject in local coords (account for rotation
             # with a generous padding equal to half the diagonal).
             if w <= 0 or h <= 0:
@@ -383,8 +383,8 @@ class CanvasSkia(QWidget):
             w = float(getattr(ov, "text_width", 0) or 0) or \
                 widest * size * 0.6
             h = len(lines) * size * lh
-            ox = float(getattr(ov, "x", 0) or 0)
-            oy = float(getattr(ov, "y", 0) or 0)
+            ox = float(ov.x)
+            oy = float(ov.y)
             return ox <= x <= ox + w and oy <= y <= oy + h
         if ov_type in ("watermark", "logo"):
             img = self._skia_image_for_overlay(ov)
@@ -399,8 +399,8 @@ class CanvasSkia(QWidget):
                 s = target_w / max(1, w)
                 w *= s
                 h *= s
-            ox = float(getattr(ov, "x", 0) or 0)
-            oy = float(getattr(ov, "y", 0) or 0)
+            ox = float(ov.x)
+            oy = float(ov.y)
             return ox <= x <= ox + w and oy <= y <= oy + h
         return False
 
@@ -1037,8 +1037,8 @@ class CanvasSkia(QWidget):
             tx = float(getattr(ov, "tail_x", 0) or 0)
             ty = float(getattr(ov, "tail_y", 0) or 0)
             if tx != 0 or ty != 0:
-                tail_dx = tx - float(getattr(ov, "x", 0) or 0)
-                tail_dy = ty - float(getattr(ov, "y", 0) or 0)
+                tail_dx = tx - float(ov.x)
+                tail_dy = ty - float(ov.y)
         fingerprint = (
             kind, w, h,
             float(getattr(ov, "corner_radius", 0) or 0),
@@ -1343,10 +1343,10 @@ class CanvasSkia(QWidget):
                     float(getattr(ov, "shape_w", 0) or 0),
                     float(getattr(ov, "shape_h", 0) or 0))
         if t == "arrow":
-            x1 = float(getattr(ov, "x", 0) or 0)
-            y1 = float(getattr(ov, "y", 0) or 0)
-            x2 = float(getattr(ov, "end_x", 0) or 0)
-            y2 = float(getattr(ov, "end_y", 0) or 0)
+            x1 = float(ov.x)
+            y1 = float(ov.y)
+            x2 = float(ov.end_x)
+            y2 = float(ov.end_y)
             return (min(x1, x2), min(y1, y2),
                     abs(x2 - x1), abs(y2 - y1))
         if t == "text":
@@ -1371,8 +1371,8 @@ class CanvasSkia(QWidget):
                 w *= s
                 h *= s
             return (float(ov.x), float(ov.y), w, h)
-        return (float(getattr(ov, "x", 0) or 0),
-                float(getattr(ov, "y", 0) or 0), 20, 20)
+        return (float(ov.x),
+                float(ov.y), 20, 20)
 
     def _get_dash_effect(self, intervals_tuple):
         """Return a cached SkDashPathEffect for the given intervals.
@@ -1409,10 +1409,10 @@ class CanvasSkia(QWidget):
         canvas.drawRect(skia.Rect.MakeXYWH(ox, oy, w, h), outline)
         if ov_type == "arrow":
             # Endpoint dots (start + end)
-            x1 = float(getattr(ov, "x", 0) or 0)
-            y1 = float(getattr(ov, "y", 0) or 0)
-            x2 = float(getattr(ov, "end_x", 0) or 0)
-            y2 = float(getattr(ov, "end_y", 0) or 0)
+            x1 = float(ov.x)
+            y1 = float(ov.y)
+            x2 = float(ov.end_x)
+            y2 = float(ov.end_y)
             r = max(3.0, 5.0 / max(0.01, self._zoom))
             for px, py in ((x1, y1), (x2, y2)):
                 self._draw_handle_dot(canvas, px, py, r)
@@ -1547,10 +1547,10 @@ class CanvasSkia(QWidget):
         with an arrowhead at the tip. Optional double-heading."""
         if not ov.enabled:
             return
-        x1 = float(getattr(ov, "x", 0) or 0)
-        y1 = float(getattr(ov, "y", 0) or 0)
-        x2 = float(getattr(ov, "end_x", 0) or 0)
-        y2 = float(getattr(ov, "end_y", 0) or 0)
+        x1 = float(ov.x)
+        y1 = float(ov.y)
+        x2 = float(ov.end_x)
+        y2 = float(ov.end_y)
         dx, dy = x2 - x1, y2 - y1
         length = math.hypot(dx, dy)
         if length < 1:
