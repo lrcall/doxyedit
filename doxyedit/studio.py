@@ -9453,7 +9453,11 @@ class StudioEditor(QWidget):
             if win is not None:
                 current = win.styleSheet()
                 prev = getattr(dlg, "_cached_ss", None)
-                if prev is not current:
+                # Compare by value — PySide6 styleSheet() returns fresh
+                # str objects per call, so `is not` always evaluates True
+                # and setStyleSheet fires every call (hundreds of ms of
+                # re-polish work per dialog).
+                if prev != current:
                     dlg.setStyleSheet(current)
                     dlg._cached_ss = current
             if not dlg.isVisible():
@@ -9518,23 +9522,26 @@ class StudioEditor(QWidget):
         dlg = self._text_controls_dlg
         if has_text_tool or has_text_selected:
             win = self.window()
-            # Cache the stylesheet hash on the dialog - re-applying an
-            # identical sheet on every visibility sync was causing the
-            # ~1s white flash each time the popup appeared (setStyleSheet
-            # forces Qt to reparse and re-polish every child widget).
+            # Compare stylesheet by VALUE (!=) not identity (is not) —
+            # PySide6 returns a fresh str object from styleSheet() on
+            # every call, so `is not` evaluated True every time, firing
+            # a full setStyleSheet on every selection sync. That re-
+            # parses + re-polishes every child widget in the dialog —
+            # on a dialog with ~40 sliders/buttons it takes hundreds of
+            # ms. During bubble drag with a linked text, selection
+            # cascades caused this to fire 60x per second = visible
+            # flashing + main-thread backlog.
             if win is not None:
                 current = win.styleSheet()
                 prev = getattr(dlg, "_cached_ss", None)
-                if prev is not current:
+                if prev != current:
                     dlg.setStyleSheet(current)
                     dlg._cached_ss = current
             if not dlg.isVisible():
                 dlg.show()
             if win is not None and hasattr(win, "_theme_dialog_titlebar"):
-                # Only re-tint the titlebar when the dialog is being
-                # shown for the first time or the theme actually changed.
-                if not getattr(dlg, "_titlebar_themed", False) or \
-                        getattr(dlg, "_titlebar_ss", None) is not current:
+                if (not getattr(dlg, "_titlebar_themed", False)
+                        or getattr(dlg, "_titlebar_ss", None) != current):
                     win._theme_dialog_titlebar(dlg)
                     dlg._titlebar_themed = True
                     dlg._titlebar_ss = current
