@@ -11088,11 +11088,31 @@ class StudioEditor(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         try:
             if ov.type in ("watermark", "logo") and ov.image_path:
+                # Thumb cache on the editor: (image_path, size) → QPixmap.
+                # Prior code called QPixmap(path) + SmoothTransformation
+                # scale on every layer-panel rebuild, so N watermarks ×
+                # rebuild = N disk reads + N smooth scales per rebuild.
+                if not hasattr(self, "_thumb_cache"):
+                    self._thumb_cache = {}
+                key = (ov.image_path, size)
+                cached = self._thumb_cache.get(key)
+                if cached is not None and not cached.isNull():
+                    x = (size - cached.width()) // 2
+                    y = (size - cached.height()) // 2
+                    painter.drawPixmap(x, y, cached)
+                    return pm
                 src = QPixmap(ov.image_path)
                 if not src.isNull():
                     scaled = src.scaled(size, size,
                                          Qt.AspectRatioMode.KeepAspectRatio,
                                          Qt.TransformationMode.SmoothTransformation)
+                    # Keep cache small — limit to ~50 entries.
+                    if len(self._thumb_cache) > 50:
+                        # Drop an arbitrary oldest entry (dict preserves
+                        # insertion order in Python 3.7+).
+                        self._thumb_cache.pop(
+                            next(iter(self._thumb_cache)), None)
+                    self._thumb_cache[key] = scaled
                     x = (size - scaled.width()) // 2
                     y = (size - scaled.height()) // 2
                     painter.drawPixmap(x, y, scaled)
