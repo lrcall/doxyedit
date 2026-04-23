@@ -1907,9 +1907,15 @@ class OverlayShapeItem(QGraphicsItem):
                 QPointF(self.overlay.x - pad, self.overlay.y - pad),
                 self._cached_render)
             painter.restore()
+            # Hot path: fast-blit + not selected is the "idle shape in
+            # a drag-heavy scene" case. Return before touching pen /
+            # brush / blend-mode setup — none of that ends up on the
+            # painter since the shape dispatch below is already skipped
+            # when fast_blit_ok is True. Only the selection block would
+            # use `r`, and only when isSelected() is True.
+            if not self.isSelected():
+                return
             # Fall through to the live path's selection-handle drawing.
-            # Skip the expensive drawPath by early-returning from the
-            # shape dispatch below.
         elif self._cached_render_key != cache_key:
             # Cache miss — schedule a rebuild so the NEXT paint hits
             # the fast path. Current frame renders live.
