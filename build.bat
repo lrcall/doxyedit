@@ -40,6 +40,7 @@ echo Building...
     --output-filename=DoxyEdit.exe ^
     --output-dir=dist ^
     --include-package=doxyedit ^
+    --include-package=skia ^
     --include-module=PIL ^
     --include-module=psd_tools ^
     --include-module=numpy ^
