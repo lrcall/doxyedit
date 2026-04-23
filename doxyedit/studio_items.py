@@ -681,7 +681,7 @@ class OverlayImageItem(QGraphicsPixmapItem):
 
     def paint(self, painter, option, widget=None):
         mode = self._BLEND_MODE_MAP.get(
-            getattr(self.overlay, "blend_mode", "normal"),
+            self.overlay.blend_mode,
             QPainter.CompositionMode.CompositionMode_SourceOver)
         if mode != QPainter.CompositionMode.CompositionMode_SourceOver:
             painter.setCompositionMode(mode)
@@ -705,7 +705,7 @@ class OverlayImageItem(QGraphicsPixmapItem):
         filter_invert_act = filter_menu.addAction("Invert Colors")
         filter_blur_act = filter_menu.addAction("Blur (soft)")
         filter_blur_hard_act = filter_menu.addAction("Blur (heavy)")
-        current_filter = getattr(self.overlay, "filter_mode", "") or ""
+        current_filter = self.overlay.filter_mode
         for a, v in ((filter_none_act, ""),
                       (filter_gray_act, "grayscale"),
                       (filter_invert_act, "invert"),
@@ -719,7 +719,7 @@ class OverlayImageItem(QGraphicsPixmapItem):
         for bm in ("normal", "multiply", "screen", "overlay", "darken", "lighten"):
             a = blend_menu.addAction(bm.title())
             a.setCheckable(True)
-            a.setChecked(getattr(self.overlay, "blend_mode", "normal") == bm)
+            a.setChecked(self.overlay.blend_mode == bm)
             blend_acts[a] = bm
         select_same_blend_act = menu.addAction(
             f"Select All with {getattr(self.overlay, 'blend_mode', 'normal').title()} Blend")
@@ -787,18 +787,18 @@ class OverlayImageItem(QGraphicsPixmapItem):
                 self._editor._refresh_overlay_image(self)
                 self._editor._sync_overlays_to_asset()
         elif chosen is select_same_blend_act and self._editor:
-            bm = getattr(self.overlay, "blend_mode", "normal")
+            bm = self.overlay.blend_mode
             self._editor._scene.clearSelection()
             for it in self._editor._overlay_items:
                 if getattr(getattr(it, "overlay", None), "blend_mode", "normal") == bm:
                     it.setSelected(True)
         elif chosen is flip_h_act:
-            self.overlay.flip_h = not getattr(self.overlay, "flip_h", False)
+            self.overlay.flip_h = not self.overlay.flip_h
             self._apply_flip()
             if self._editor:
                 self._editor._sync_overlays_to_asset()
         elif chosen is flip_v_act:
-            self.overlay.flip_v = not getattr(self.overlay, "flip_v", False)
+            self.overlay.flip_v = not self.overlay.flip_v
             self._apply_flip()
             if self._editor:
                 self._editor._sync_overlays_to_asset()
@@ -870,8 +870,8 @@ class OverlayImageItem(QGraphicsPixmapItem):
     def _apply_flip(self):
         """Apply flip_h / flip_v via negative scale around item center."""
         self.setTransformOriginPoint(self.boundingRect().center())
-        sx = -1.0 if getattr(self.overlay, "flip_h", False) else 1.0
-        sy = -1.0 if getattr(self.overlay, "flip_v", False) else 1.0
+        sx = -1.0 if self.overlay.flip_h else 1.0
+        sy = -1.0 if self.overlay.flip_v else 1.0
         # Compose flip + existing rotation
         t = QTransform()
         t.scale(sx, sy)
@@ -1939,12 +1939,12 @@ class OverlayShapeItem(QGraphicsItem):
             # Blit fast-path only works when the overlay has a normal
             # blend mode; composite modes still need the live path to
             # avoid cached-image blending artifacts.
-            and (getattr(self.overlay, "blend_mode", "normal") or "normal")
+            and (self.overlay.blend_mode or "normal")
                 == "normal"
             # Non-center stroke_align shifts the rect geometry — the
             # render helper doesn't apply that adjustment, so fall
             # through to the live path for inside/outside strokes.
-            and (getattr(self.overlay, "stroke_align", "center") or "center")
+            and (self.overlay.stroke_align or "center")
                 == "center"
         )
         if fast_blit_ok:
@@ -1976,14 +1976,14 @@ class OverlayShapeItem(QGraphicsItem):
         # Apply the overlay's blend mode so shapes / bubbles can layer
         # on top of the base art like image overlays already do.
         mode = self._BLEND_MODE_MAP.get(
-            getattr(self.overlay, "blend_mode", "normal"),
+            self.overlay.blend_mode,
             QPainter.CompositionMode.CompositionMode_SourceOver)
         if mode != QPainter.CompositionMode.CompositionMode_SourceOver:
             painter.setCompositionMode(mode)
         stroke = QColor(self.overlay.stroke_color or self.overlay.color)
         stroke.setAlphaF(self.overlay.opacity)
         pen = QPen(stroke, max(1, self.overlay.stroke_width or 2))
-        style = getattr(self.overlay, "line_style", "solid")
+        style = self.overlay.line_style
         if style == "dash":
             pen.setStyle(Qt.PenStyle.DashLine)
         elif style == "dot":
@@ -1999,7 +1999,7 @@ class OverlayShapeItem(QGraphicsItem):
         # edge). 'inside' shrinks the draw rect by half a stroke so the
         # stroke sits entirely inside the user-drawn bounds; 'outside'
         # grows it. Matches Illustrator / Photoshop semantics.
-        _align = getattr(self.overlay, "stroke_align", "center")
+        _align = self.overlay.stroke_align
         _sw = self.overlay.stroke_width or 0
         if _align == "inside" and _sw > 0:
             _half = _sw / 2.0
@@ -2056,7 +2056,7 @@ class OverlayShapeItem(QGraphicsItem):
             painter.setBrush(QBrush(grad))
             painter.drawRect(r)
         elif not fast_blit_ok:
-            radius = getattr(self.overlay, "corner_radius", 0)
+            radius = self.overlay.corner_radius
             if radius > 0:
                 painter.drawRoundedRect(r, radius, radius)
             else:
@@ -2534,7 +2534,7 @@ class OverlayShapeItem(QGraphicsItem):
         dot_act = style_menu.addAction("Dotted")
         for a, s in ((solid_act, "solid"), (dash_act, "dash"), (dot_act, "dot")):
             a.setCheckable(True)
-            a.setChecked(getattr(self.overlay, "line_style", "solid") == s)
+            a.setChecked(self.overlay.line_style == s)
         # Bubble-only actions, kept grouped so the menu reads as one
         # logical block for comic workflows.
         fit_text_act = None
@@ -2641,9 +2641,9 @@ class OverlayShapeItem(QGraphicsItem):
             qs.setValue("studio_shape_fill_color", self.overlay.fill_color or "")
             qs.setValue("studio_shape_stroke_width", self.overlay.stroke_width or 2)
             qs.setValue("studio_shape_corner_radius",
-                         getattr(self.overlay, "corner_radius", 0))
+                         self.overlay.corner_radius)
             qs.setValue("studio_shape_line_style",
-                         getattr(self.overlay, "line_style", "solid"))
+                         self.overlay.line_style)
             self._editor.info_label.setText("Saved default shape style")
         elif chosen is reset_default_act and self._editor:
             qs = QSettings("DoxyEdit", "DoxyEdit")
@@ -2656,7 +2656,7 @@ class OverlayShapeItem(QGraphicsItem):
             value, ok = QInputDialog.getInt(
                 self._editor, "Corner radius",
                 "Radius (px, 0 = sharp corners):",
-                value=max(0, getattr(self.overlay, "corner_radius", 0)),
+                value=max(0, self.overlay.corner_radius),
                 minValue=0, maxValue=500)
             if ok:
                 self.overlay.corner_radius = value
@@ -2858,7 +2858,7 @@ class OverlayArrowItem(QGraphicsItem):
         color.setAlphaF(self.overlay.opacity)
         pen = QPen(color, max(1, self.overlay.stroke_width or 4))
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        style = getattr(self.overlay, "line_style", "solid")
+        style = self.overlay.line_style
         if style == "dash":
             pen.setStyle(Qt.PenStyle.DashLine)
         elif style == "dot":
@@ -2996,7 +2996,7 @@ class OverlayArrowItem(QGraphicsItem):
         dot_act = style_menu.addAction("Dotted")
         for a, s in ((solid_act, "solid"), (dash_act, "dash"), (dot_act, "dot")):
             a.setCheckable(True)
-            a.setChecked(getattr(self.overlay, "line_style", "solid") == s)
+            a.setChecked(self.overlay.line_style == s)
         head_menu = menu.addMenu("Arrow Head")
         head_filled_act = head_menu.addAction("Filled")
         head_outline_act = head_menu.addAction("Outline")
@@ -3232,7 +3232,7 @@ class OverlayTextItem(QGraphicsTextItem):
 
     def paint(self, painter, option, widget=None):
         mode = self._BLEND_MODE_MAP.get(
-            getattr(self.overlay, "blend_mode", "normal"),
+            self.overlay.blend_mode,
             QPainter.CompositionMode.CompositionMode_SourceOver)
         if mode != QPainter.CompositionMode.CompositionMode_SourceOver:
             painter.setCompositionMode(mode)
@@ -3284,8 +3284,8 @@ class OverlayTextItem(QGraphicsTextItem):
     def _apply_flip_text(self):
         """Apply flip_h/flip_v to a text item via negative QTransform scale."""
         self.setTransformOriginPoint(self.boundingRect().center())
-        sx = -1.0 if getattr(self.overlay, "flip_h", False) else 1.0
-        sy = -1.0 if getattr(self.overlay, "flip_v", False) else 1.0
+        sx = -1.0 if self.overlay.flip_h else 1.0
+        sy = -1.0 if self.overlay.flip_v else 1.0
         t = QTransform()
         t.scale(sx, sy)
         self.setTransform(t)
@@ -3503,12 +3503,12 @@ class OverlayTextItem(QGraphicsTextItem):
         elif chosen is dup_act and self._editor:
             self._editor._duplicate_overlay_item(self)
         elif chosen is flip_h_act:
-            self.overlay.flip_h = not getattr(self.overlay, "flip_h", False)
+            self.overlay.flip_h = not self.overlay.flip_h
             self._apply_flip_text()
             if self._editor:
                 self._editor._sync_overlays_to_asset()
         elif chosen is flip_v_act:
-            self.overlay.flip_v = not getattr(self.overlay, "flip_v", False)
+            self.overlay.flip_v = not self.overlay.flip_v
             self._apply_flip_text()
             if self._editor:
                 self._editor._sync_overlays_to_asset()
