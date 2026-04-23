@@ -211,6 +211,11 @@ class CensorRectItem(QGraphicsRectItem):
         self.style = style
         self.platforms: list[str] = platforms or []
         self._editor = None  # set by StudioEditor after creation
+        # CensorRegion backing reference — set externally after the
+        # scene adds us; pre-initialized None so per-frame reads in
+        # rotate, resize, paste, and context-menu handlers can use
+        # direct access instead of getattr-with-default.
+        self._censor_region = None
         self.setFlags(
             QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable
@@ -316,7 +321,7 @@ class CensorRectItem(QGraphicsRectItem):
         self.setTransformOriginPoint(self.rect().center())
         self.setRotation(angle)
         # Persist to CensorRegion (add rotation field if present; fall back silently)
-        cr = getattr(self, "_censor_region", None)
+        cr = self._censor_region
         if cr is not None and hasattr(cr, "rotation"):
             cr.rotation = float(angle)
 
@@ -521,7 +526,7 @@ class CensorRectItem(QGraphicsRectItem):
             if self._editor:
                 self._editor._remove_censor_item(self)
         elif chosen is blur_radius_act and self._editor:
-            cr = getattr(self, "_censor_region", None)
+            cr = self._censor_region
             cur = cr.blur_radius if cr else 20
             value, ok = QInputDialog.getInt(
                 self._editor, "Blur radius",
@@ -532,7 +537,7 @@ class CensorRectItem(QGraphicsRectItem):
                 self._editor.info_label.setText(
                     f"Blur radius set to {value}px")
         elif chosen is pixelate_ratio_act and self._editor:
-            cr = getattr(self, "_censor_region", None)
+            cr = self._censor_region
             cur = cr.pixelate_ratio if cr else 10
             value, ok = QInputDialog.getInt(
                 self._editor, "Pixelate ratio",
@@ -544,7 +549,7 @@ class CensorRectItem(QGraphicsRectItem):
                     f"Pixelate ratio set to {value}")
         elif chosen is dup_act and self._editor:
             # Duplicate: clone region with 20px offset; reuse existing append + scene add pattern
-            cr_src = getattr(self, "_censor_region", None)
+            cr_src = self._censor_region
             if cr_src is not None:
                 new_cr = CensorRegion(
                     x=cr_src.x + 20, y=cr_src.y + 20,
@@ -567,7 +572,7 @@ class CensorRectItem(QGraphicsRectItem):
                 self._editor._censor_items.append(new_item)
                 self._editor._refresh_layer_panel()
         elif chosen is save_default_act and self._editor:
-            cr = getattr(self, "_censor_region", None)
+            cr = self._censor_region
             qs = QSettings("DoxyEdit", "DoxyEdit")
             qs.setValue("studio_censor_default_style", self.style)
             if cr is not None:
@@ -591,7 +596,7 @@ class CensorRectItem(QGraphicsRectItem):
         elif plat_actions and (chosen is all_act or chosen in plat_actions):
             new_plats = _resolve_platform_menu(chosen, all_act, plat_actions, self.platforms)
             if self._editor:
-                cr = getattr(self, "_censor_region", None)
+                cr = self._censor_region
                 if cr is not None:
                     cmd = SetAttrCmd(
                         cr, "platforms", list(cr.platforms), new_plats,
@@ -611,7 +616,7 @@ class CensorRectItem(QGraphicsRectItem):
         elif chosen.data():
             new_style = chosen.data()
             if self._editor:
-                cr = getattr(self, "_censor_region", None)
+                cr = self._censor_region
                 if cr is not None:
                     def _apply_style(t, v, _s=self):
                         _s.style = v
