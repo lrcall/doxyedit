@@ -784,6 +784,14 @@ class MainWindow(SaveLoadMixin, QMainWindow):
             self.browser._files_btn.blockSignals(False)
             self._file_browser.setVisible(files_vis)
 
+        # Restore the Assets tab top-toolbar visibility. Defaults to
+        # shown — power users can Ctrl+Shift+M to reclaim the vertical
+        # space when focusing on the thumbnail grid.
+        if hasattr(self.browser, '_toolbar_widget'):
+            tb_vis = self._settings.value(
+                "browser_toolbar_visible", True, type=bool)
+            self.browser._toolbar_widget.setVisible(tb_vis)
+
         # Tab / Shift+Tab cycle top tabs forward / backward. Installed
         # as an event filter on the QApplication so they work even when
         # focus is inside a non-editable widget (the Qt default uses
@@ -791,6 +799,16 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         # _toggle_all_panels moved to Ctrl+Shift+P to free Tab up.
         QShortcut(QKeySequence("Ctrl+Shift+P"), self).activated.connect(
             self._toggle_all_panels)
+        # Ctrl+` (backtick) — alias for "hide all trays/panels". More
+        # natural focus-mode binding than Ctrl+Shift+P (which also
+        # happens to be IDE cmd-palette in some apps).
+        QShortcut(QKeySequence("Ctrl+`"), self).activated.connect(
+            self._toggle_all_panels)
+        # Ctrl+Shift+M — toggle the Assets tab top toolbar (Files /
+        # Tags / Tray / + Folder / filters). Gives user full
+        # thumbnail real-estate when browsing.
+        QShortcut(QKeySequence("Ctrl+Shift+M"), self).activated.connect(
+            self._toggle_browser_toolbar)
         # Ctrl+W closes the current project tab. Standard close-tab
         # shortcut across browsers, editors, etc.
         QShortcut(QKeySequence("Ctrl+W"), self).activated.connect(
@@ -3408,6 +3426,17 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         """Ctrl+I — toggle info panel visibility in the sidebar."""
         vis = not self._info_panel.isVisible()
         self._info_panel.setVisible(vis)
+
+    def _toggle_browser_toolbar(self):
+        """Show/hide the Assets tab's top toolbar (Files/Tags/Tray
+        toggles + Folder/Files/Filter buttons). Gives the user full
+        thumbnail real-estate when browsing a large asset grid."""
+        tb = getattr(self.browser, "_toolbar_widget", None)
+        if tb is None:
+            return
+        vis = not tb.isVisible()
+        tb.setVisible(vis)
+        self._settings.setValue("browser_toolbar_visible", vis)
 
     def _toggle_file_browser(self):
         vis = not self._file_browser.isVisible()
@@ -6169,6 +6198,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             ("F2", "Rename file on disk"),
             ("Ctrl+Scroll", "Zoom thumbnails"),
             ("Ctrl+Click tag", "Search by tag"),
+            ("Ctrl+Shift+P  or  Ctrl+`", "Hide / restore all side panels"),
+            ("Ctrl+Shift+M", "Hide / show Assets top toolbar"),
+            ("Ctrl+Shift+W", "Toggle Work Tray visibility"),
+            ("Ctrl+B", "Toggle File Browser panel"),
         ]
         studio_entries = [
             ("Q", "Select tool"),
