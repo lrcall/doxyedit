@@ -1081,6 +1081,119 @@ def _render_shape_to_image(overlay_snapshot, pad: int):
     return _run
 
 
+def _render_text_to_image(overlay_snapshot, pad: int):
+    """Return a closure that renders a text overlay snapshot into a
+    QImage. Mirrors OverlayTextItem.paint's layout (multi-line with
+    alignment + line-height + letter-spacing + stroke + shadow) but
+    WITHOUT QTextDocument — uses QFont + QPainter.drawText directly
+    so it's safe to run off the GUI thread.
+
+    Coordinates: text block's top-left lands at (pad, pad).
+    """
+    from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont
+    import math as _math
+
+    def _run(img, params):
+        ov = overlay_snapshot
+        text = getattr(ov, "text", "") or ""
+        if not text:
+            return
+        p = QPainter(img)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        # Font
+        family = getattr(ov, "font_family", "Segoe UI") or "Segoe UI"
+        size = int(getattr(ov, "font_size", 14) or 14)
+        font = QFont(family, size)
+        if getattr(ov, "bold", False):
+            font.setBold(True)
+        if getattr(ov, "italic", False):
+            font.setItalic(True)
+        if getattr(ov, "underline", False):
+            font.setUnderline(True)
+        if getattr(ov, "strikethrough", False):
+            font.setStrikeOut(True)
+        ls = float(getattr(ov, "letter_spacing", 0) or 0)
+        if ls:
+            font.setLetterSpacing(
+                QFont.SpacingType.AbsoluteSpacing, ls)
+        p.setFont(font)
+        fm = p.fontMetrics()
+        ascent = fm.ascent()
+        descent = fm.descent()
+        line_height_mult = float(getattr(ov, "line_height", 1.2) or 1.2)
+        line_step = (ascent + descent) * line_height_mult
+        # Layout lines
+        lines = text.split("\n")
+        pinned_w = float(getattr(ov, "text_width", 0) or 0)
+        widest = max((fm.horizontalAdvance(l) for l in lines), default=0)
+        block_w = pinned_w if pinned_w > 0 else widest
+        align = getattr(ov, "text_align", "left") or "left"
+
+        def _line_x(line):
+            w = fm.horizontalAdvance(line)
+            if align == "center":
+                return pad + (block_w - w) / 2
+            if align == "right":
+                return pad + block_w - w
+            return pad
+
+        # Background pill
+        bg_hex = getattr(ov, "background_color", "") or ""
+        if bg_hex:
+            bg_color = QColor(bg_hex)
+            if bg_color.isValid():
+                _pad = max(4.0, size * 0.2)
+                total_h = line_step * len(lines)
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(QBrush(bg_color))
+                p.drawRoundedRect(
+                    QRectF(pad - _pad, pad - _pad,
+                            block_w + _pad * 2,
+                            total_h + _pad * 2),
+                    _pad, _pad)
+
+        opacity = float(getattr(ov, "opacity", 1.0) or 1.0)
+        # Shadow pass — single offset copy of each line in shadow color.
+        shadow_off = float(getattr(ov, "shadow_offset", 0) or 0)
+        shadow_hex = getattr(ov, "shadow_color", "") or ""
+        if shadow_off > 0 and shadow_hex:
+            sc = QColor(shadow_hex)
+            sc.setAlphaF(opacity * (sc.alphaF() or 1.0))
+            p.setPen(QPen(sc))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            for i, line in enumerate(lines):
+                y = pad + ascent + i * line_step + shadow_off
+                p.drawText(QPointF(_line_x(line) + shadow_off, y), line)
+        # Stroke pass — 8 offset draws in stroke color.
+        stroke_w = float(getattr(ov, "stroke_width", 0) or 0)
+        stroke_hex = getattr(ov, "stroke_color", "") or ""
+        if stroke_w > 0 and stroke_hex:
+            sc = QColor(stroke_hex)
+            sc.setAlphaF(opacity * (sc.alphaF() or 1.0))
+            p.setPen(QPen(sc))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            offsets = ((-stroke_w, -stroke_w), (0, -stroke_w), (stroke_w, -stroke_w),
+                       (-stroke_w, 0),                             (stroke_w, 0),
+                       (-stroke_w, stroke_w), (0, stroke_w), (stroke_w, stroke_w))
+            for i, line in enumerate(lines):
+                y = pad + ascent + i * line_step
+                x = _line_x(line)
+                for ox, oy in offsets:
+                    p.drawText(QPointF(x + ox, y + oy), line)
+        # Main fill
+        color_hex = getattr(ov, "color", "#ffffff") or "#ffffff"
+        fc = QColor(color_hex)
+        fc.setAlphaF(opacity * (fc.alphaF() or 1.0))
+        p.setPen(QPen(fc))
+        for i, line in enumerate(lines):
+            y = pad + ascent + i * line_step
+            p.drawText(QPointF(_line_x(line), y), line)
+        p.end()
+
+    return _run
+
+
 class _OverlayCacheSignals(QObject):
     """Signal object for the overlay cache worker — QObject so the
     signal can marshal back to the GUI thread via Qt::QueuedConnection.
