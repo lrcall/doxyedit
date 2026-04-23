@@ -1427,20 +1427,28 @@ class OverlayShapeItem(QGraphicsItem):
         )
 
     def hoverMoveEvent(self, event):
-        # Swap cursor when hovering a handle so users know they can resize
+        # Swap cursor when hovering a handle so users know they can resize.
+        # Hover events fire at 60+Hz; gate the shape-kind-specific handle
+        # checks on overlay.shape_kind so a rect overlay doesn't run the
+        # star / polygon hit tests on every mouse move.
         if self.isSelected():
-            if self._rotate_handle_under(event.scenePos()):
+            scene_pos = event.scenePos()
+            kind = self.overlay.shape_kind
+            is_bubble = kind in ("speech_bubble", "thought_bubble")
+            if self._rotate_handle_under(scene_pos):
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
-            elif self._tail_handle_under(event.scenePos()):
+            elif is_bubble and self._tail_handle_under(scene_pos):
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
-            elif self._corner_radius_handle_under(event.scenePos()):
+            elif kind == "rect" and self._corner_radius_handle_under(
+                    scene_pos):
                 self.setCursor(Qt.CursorShape.SizeHorCursor)
-            elif self._star_inner_handle_under(event.scenePos()):
+            elif kind == "star" and self._star_inner_handle_under(scene_pos):
                 self.setCursor(Qt.CursorShape.SizeVerCursor)
-            elif self._polygon_vertex_handle_under(event.scenePos()):
+            elif kind == "polygon" and self._polygon_vertex_handle_under(
+                    scene_pos):
                 self.setCursor(Qt.CursorShape.SizeHorCursor)
             else:
-                h = self._handle_under(event.scenePos())
+                h = self._handle_under(scene_pos)
                 if h in ('tl', 'br'):
                     self.setCursor(Qt.CursorShape.SizeFDiagCursor)
                 elif h in ('tr', 'bl'):
