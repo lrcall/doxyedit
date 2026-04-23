@@ -1730,3 +1730,229 @@ class CanvasSkia(QWidget):
                 info, buf, self._qimg.bytesPerLine(), 0, 0)
         except Exception:
             pass
+
+
+# ----------------------------------------------------------------------
+# GL plan Tier 2 Day 1 — Skia Ganesh GPU backend via QOpenGLWidget
+# ----------------------------------------------------------------------
+
+try:
+    from PySide6.QtOpenGLWidgets import QOpenGLWidget
+    _QOGW_OK = True
+except Exception:  # pragma: no cover
+    _QOGW_OK = False
+
+
+class CanvasSkiaGL(CanvasSkia if False else object):
+    """Skia GPU-backed canvas. Wraps Qt's GL context via
+    skia.GrDirectContext.MakeGL() and renders into a backend render
+    target bound to the QOpenGLWidget's default FBO.
+
+    Shares the overlay / censor / selection / hit-test API with
+    CanvasSkia — only the render surface differs. This is the Tier 2
+    target from docs/gl-canvas-plan.md: all the per-shape paths we
+    wrote for CanvasSkia become shader-accelerated batches inside
+    Ganesh's atlas/path cache.
+
+    Tier 2 Day 1 scope: class exists, initializes GrDirectContext,
+    allocates a backend-bound Surface on resize, wires paintGL to
+    the same _render_to_skia() used by the raster path. No overlays,
+    no hit-test integration yet — that arrives Day 2 when we prove
+    the context round-trips correctly on the target hardware.
+
+    Inherits at runtime from QOpenGLWidget if available, else refuses
+    instantiation. Use canvas_skia_gl_available() before constructing.
+    """
+
+    # Placeholder for the real runtime class definition below. This
+    # outer class body exists only so `from canvas_skia import
+    # CanvasSkiaGL` always resolves (static references in other
+    # modules don't crash at import time when QtOpenGLWidgets is
+    # missing on the platform).
+
+
+if _QOGW_OK and _SKIA_OK:
+    class CanvasSkiaGL(QOpenGLWidget):  # type: ignore[no-redef]
+        """Real CanvasSkiaGL — only defined when QOpenGLWidget and
+        skia are both importable. See the placeholder above for the
+        full intent."""
+
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.setObjectName("studio_canvas_skia_gl")
+            self._gr_context = None           # skia.GrDirectContext
+            self._surface = None              # skia.Surface
+            self._base_image = None           # skia.Image | None
+            self._overlays: list = []
+            self._censors: list = []
+            self._selected_ids: set = set()
+            self._snap_guides: list = []
+            self._draft_shape: dict | None = None
+            self._overlay_image_cache: dict = {}
+            self._zoom = 1.0
+            self._pan_x = 0.0
+            self._pan_y = 0.0
+            self._panning = False
+            self._pan_start = QPointF(0, 0)
+            self._dpr = float(self.devicePixelRatioF() or 1.0)
+            self.backend_name = "skia_gl"
+            # Perf timing — same shape as CanvasSkia so the same perf
+            # log consumer works.
+            import time as _t
+            self._fps_time = _t
+            self._fps_last_ms = 0.0
+            self._fps_rolling_ms = 0.0
+            self._fps_samples: list = []
+            self._fps_perf_log = None
+            # Shared drawing helpers from CanvasSkia — mirror as
+            # unbound methods so we don't reimplement the per-shape
+            # render paths.
+            self._draw_overlay_image = CanvasSkia._draw_overlay_image.__get__(self)
+            self._draw_overlay_text = CanvasSkia._draw_overlay_text.__get__(self)
+            self._draw_overlay_shape = CanvasSkia._draw_overlay_shape.__get__(self)
+            self._draw_overlay_arrow = CanvasSkia._draw_overlay_arrow.__get__(self)
+            self._draw_censor = CanvasSkia._draw_censor.__get__(self)
+            self._draw_selection_decor = CanvasSkia._draw_selection_decor.__get__(self)
+            self._draw_snap_guides = CanvasSkia._draw_snap_guides.__get__(self)
+            self._draw_draft_shape = CanvasSkia._draw_draft_shape.__get__(self)
+            self._selection_bbox_local = CanvasSkia._selection_bbox_local.__get__(self)
+            self._skia_image_for_overlay = CanvasSkia._skia_image_for_overlay.__get__(self)
+            self._build_shape_path = CanvasSkia._build_shape_path.__get__(self)
+            self._append_star_path = CanvasSkia._append_star_path.__get__(self)
+            self._append_polygon_path = CanvasSkia._append_polygon_path.__get__(self)
+            self._append_burst_path = CanvasSkia._append_burst_path.__get__(self)
+            self._append_speech_bubble_path = CanvasSkia._append_speech_bubble_path.__get__(self)
+            self._append_thought_bubble_path = CanvasSkia._append_thought_bubble_path.__get__(self)
+            self._fill_gradient = CanvasSkia._fill_gradient.__get__(self)
+            self._blend_mode_for = CanvasSkia._blend_mode_for.__get__(self)
+            self._parse_hex = CanvasSkia._parse_hex  # staticmethod
+            # Constants
+            for k in ("_SEL_LINE_COLOR", "_HANDLE_FILL", "_HANDLE_BORDER",
+                      "_ROTATE_FILL", "_TAIL_FILL", "_SNAP_COLOR",
+                      "_BLEND_MODE_SKIA"):
+                if hasattr(CanvasSkia, k):
+                    setattr(self, k, getattr(CanvasSkia, k))
+            self._draw_handle_dot = CanvasSkia._draw_handle_dot.__get__(self)
+
+        # ---- GL lifecycle ----
+
+        def initializeGL(self):
+            """Called once after the GL context is current. Build the
+            Ganesh direct context wrapping this widget's GL context."""
+            try:
+                self._gr_context = skia.GrDirectContext.MakeGL()
+            except Exception:
+                self._gr_context = None
+
+        def resizeGL(self, w: int, h: int):
+            """Rebuild the backend render target + Surface whenever
+            the widget resizes (framebuffer changes)."""
+            if self._gr_context is None:
+                return
+            dpr = float(self.devicePixelRatioF() or 1.0)
+            self._dpr = dpr
+            pw = max(1, int(w * dpr))
+            ph = max(1, int(h * dpr))
+            try:
+                # 0 == default FBO (current widget's backing store).
+                # 0 stencil, kRGBA8 format.
+                backend_rt = skia.GrBackendRenderTarget(
+                    pw, ph, 0, 8, skia.GrGLFramebufferInfo(
+                        0, 0x8058  # GL_RGBA8
+                    ))
+                self._surface = skia.Surface.MakeFromBackendRenderTarget(
+                    self._gr_context,
+                    backend_rt,
+                    skia.kBottomLeft_GrSurfaceOrigin,
+                    skia.ColorType.kRGBA_8888_ColorType,
+                    None, None,
+                )
+            except Exception:
+                self._surface = None
+
+        def paintGL(self):
+            """Draw the scene via Skia into the GL surface. paintGL
+            fires whenever the widget needs redraw; Qt has already
+            made our GL context current."""
+            if self._surface is None or self._gr_context is None:
+                return
+            t0 = self._fps_time.perf_counter()
+            try:
+                canvas = self._surface.getCanvas()
+                canvas.save()
+                canvas.clear(skia.Color(32, 32, 40))
+                # DPR scale for high-DPI
+                if self._dpr != 1.0:
+                    canvas.scale(self._dpr, self._dpr)
+                # Pan + zoom
+                canvas.translate(self._pan_x, self._pan_y)
+                canvas.scale(self._zoom, self._zoom)
+                # Base + overlays (reuses CanvasSkia helpers bound in __init__)
+                if self._base_image is not None:
+                    paint = skia.Paint()
+                    canvas.drawImage(self._base_image, 0, 0, paint=paint)
+                for ov in self._overlays:
+                    t = getattr(ov, "type", "")
+                    if t in ("watermark", "logo"):
+                        self._draw_overlay_image(canvas, ov)
+                    elif t == "text":
+                        self._draw_overlay_text(canvas, ov)
+                    elif t == "shape":
+                        self._draw_overlay_shape(canvas, ov)
+                    elif t == "arrow":
+                        self._draw_overlay_arrow(canvas, ov)
+                for cr in self._censors:
+                    self._draw_censor(canvas, cr, self._base_image)
+                for ov in self._overlays:
+                    if id(ov) in self._selected_ids:
+                        self._draw_selection_decor(canvas, ov)
+                if self._draft_shape is not None:
+                    self._draw_draft_shape(canvas, self._draft_shape)
+                if self._snap_guides:
+                    self._draw_snap_guides(canvas)
+                canvas.restore()
+                self._surface.flushAndSubmit()
+            except Exception:
+                pass
+            t1 = self._fps_time.perf_counter()
+            self._fps_last_ms = (t1 - t0) * 1000.0
+            self._fps_rolling_ms = (0.9 * self._fps_rolling_ms
+                                     + 0.1 * self._fps_last_ms)
+            self._fps_samples.append(t1)
+            cutoff = t1 - 2.0
+            while self._fps_samples and self._fps_samples[0] < cutoff:
+                self._fps_samples.pop(0)
+
+        # Minimal overlay API — enough for the preview to render data.
+        def set_base_image_path(self, path: str):
+            try:
+                data = skia.Data.MakeFromFileName(str(path))
+                if data is None:
+                    return
+                self._base_image = skia.Image.MakeFromEncoded(data)
+            except Exception:
+                self._base_image = None
+            self.update()
+
+        def set_overlays(self, overlays):
+            self._overlays = list(overlays)
+            self.update()
+
+        def set_censors(self, censors):
+            self._censors = list(censors)
+            self.update()
+
+        def base_size(self) -> QSize:
+            if self._base_image is None:
+                return QSize(0, 0)
+            return QSize(self._base_image.width(), self._base_image.height())
+
+        def set_zoom(self, z: float):
+            self._zoom = max(0.05, min(32.0, z))
+            self.update()
+
+
+def canvas_skia_gl_available() -> bool:
+    """Return True if CanvasSkiaGL can be instantiated on this platform.
+    Gate construction on this; falls back to CPU CanvasSkia otherwise."""
+    return _QOGW_OK and _SKIA_OK
