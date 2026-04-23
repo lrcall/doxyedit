@@ -13,7 +13,6 @@ from doxyedit.studio_items import (
     STUDIO_ZOOM_LABEL_WIDTH_RATIO, STUDIO_LAYER_PANEL_WIDTH,
     TAG_COLORS, TAG_COLOR_HEX, TAG_COLOR_ORDER,
     StudioTool,
-    _ResizeHandle, _RotateHandle,
     CensorRectItem, OverlayImageItem, OverlayShapeItem, OverlayArrowItem,
     OverlayTextItem, AnnotationTextItem,
     AddCensorCmd, SetAttrCmd, SetZValueCmd, DeleteItemCmd,

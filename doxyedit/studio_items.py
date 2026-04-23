@@ -186,52 +186,23 @@ class StudioTool(Enum):
 # Graphics items
 # ---------------------------------------------------------------------------
 
-class _ResizeHandle(QGraphicsRectItem):
-    """Small square handle for resizing a CensorRectItem."""
-
-    def __init__(self, parent_censor, position: str):
-        super().__init__(-3, -3, 6, 6, parent_censor)
-        self._parent = parent_censor
-        self._position = position  # "tl", "tr", "bl", "br", "t", "b", "l", "r"
-        _dt = THEMES[DEFAULT_THEME]
-        self.setBrush(QBrush(QColor(_dt.studio_resize_handle_fill)))
-        self.setPen(QPen(QColor(_dt.studio_overlay_handle_border),
-                         _dt.studio_overlay_handle_pen_width))
-        self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable, True)
-        self.setCursor(Qt.CursorShape.SizeFDiagCursor if position in ("tl", "br")
-                       else Qt.CursorShape.SizeBDiagCursor if position in ("tr", "bl")
-                       else Qt.CursorShape.SizeVerCursor if position in ("t", "b")
-                       else Qt.CursorShape.SizeHorCursor)
-        self.setZValue(1000)
-        self.setVisible(False)
-
-    def mouseMoveEvent(self, event):
-        self._parent._on_handle_moved(self._position, event.scenePos())
-        super().mouseMoveEvent(event)
-
-
-class _RotateHandle(QGraphicsRectItem):
-    """Small circular handle rendered above the top edge for rotating a censor."""
-
-    def __init__(self, parent_censor):
-        super().__init__(-4, -4, 8, 8, parent_censor)
-        self._parent = parent_censor
-        _dt = THEMES[DEFAULT_THEME]
-        self.setBrush(QBrush(QColor(_dt.studio_rotate_handle_fill)))
-        self.setPen(QPen(QColor(_dt.studio_overlay_handle_border),
-                         _dt.studio_overlay_handle_pen_width))
-        self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable, True)
-        self.setCursor(Qt.CursorShape.CrossCursor)
-        self.setZValue(1001)
-        self.setVisible(False)
-
-    def mouseMoveEvent(self, event):
-        self._parent._on_rotate_handle_moved(event.scenePos())
-        super().mouseMoveEvent(event)
+# E1 from canvas-architecture-deep-dive.md: _ResizeHandle and
+# _RotateHandle are GONE. Handles are now drawn inline in
+# CensorRectItem.paint when isSelected(), hit-tested via
+# _handle_at_pos, and dragged through CensorRectItem's own mouse
+# events. This drops 9 scene items per selected censor and removes
+# the prepareGeometryChange / position-update cascade to each child
+# on every parent move.
 
 
 class CensorRectItem(QGraphicsRectItem):
     """Draggable censor rectangle — overlay exception: hardcoded colors OK."""
+
+    # Handle geometry constants (local coords, rendered in paint)
+    _HANDLE_HALF = 4      # half-side of resize-handle square (screen px)
+    _ROTATE_RADIUS = 5    # radius of rotate circle (screen px)
+    _ROTATE_OFFSET = 20   # scene-px above top edge
+    _HIT_PAD = 3          # extra px around handle for easier click hits
 
     def __init__(self, rect: QRectF, style: str = "black", platforms: list[str] | None = None):
         super().__init__(rect)
@@ -243,17 +214,13 @@ class CensorRectItem(QGraphicsRectItem):
             | QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsRectItem.GraphicsItemFlag.ItemSendsGeometryChanges
         )
+        self.setAcceptHoverEvents(True)
         # Rotate around rect center from the start; resize handlers keep
         # this invariant by re-centering after every setRect.
         self.setTransformOriginPoint(rect.center())
         self._apply_style()
-        # Resize handles (8-point) + rotate handle (above top edge)
-        self._handles = {}
-        for pos in ("tl", "t", "tr", "l", "r", "bl", "b", "br"):
-            h = _ResizeHandle(self, pos)
-            self._handles[pos] = h
-        self._rotate_handle = _RotateHandle(self)
-        self._update_handle_positions()
+        # Active handle drag state (None = dragging body / not dragging)
+        self._active_handle: str | None = None  # "tl","t",...,"rotate"
 
     def _apply_style(self):
         _dt = THEMES[DEFAULT_THEME]
@@ -277,23 +244,34 @@ class CensorRectItem(QGraphicsRectItem):
             self.setPen(QPen(QColor(_dt.studio_censor_pixelate_pen), pen_w,
                              Qt.PenStyle.DashLine))
 
-    def _update_handle_positions(self):
+    def _handle_points_local(self) -> dict:
+        """Return {handle_key: QPointF} for every handle in LOCAL coords.
+        Used by both paint (to draw) and _handle_at_pos (to hit-test)."""
         r = self.rect()
-        positions = {
-            "tl": (r.left(), r.top()),
-            "t": (r.center().x(), r.top()),
-            "tr": (r.right(), r.top()),
-            "l": (r.left(), r.center().y()),
-            "r": (r.right(), r.center().y()),
-            "bl": (r.left(), r.bottom()),
-            "b": (r.center().x(), r.bottom()),
-            "br": (r.right(), r.bottom()),
+        return {
+            "tl": QPointF(r.left(), r.top()),
+            "t":  QPointF(r.center().x(), r.top()),
+            "tr": QPointF(r.right(), r.top()),
+            "l":  QPointF(r.left(), r.center().y()),
+            "r":  QPointF(r.right(), r.center().y()),
+            "bl": QPointF(r.left(), r.bottom()),
+            "b":  QPointF(r.center().x(), r.bottom()),
+            "br": QPointF(r.right(), r.bottom()),
+            "rotate": QPointF(r.center().x(),
+                               r.top() - self._ROTATE_OFFSET),
         }
-        for pos, (x, y) in positions.items():
-            self._handles[pos].setPos(x, y)
-        # Rotate handle: 20px above top-center
-        if hasattr(self, "_rotate_handle"):
-            self._rotate_handle.setPos(r.center().x(), r.top() - 20)
+
+    def _handle_at_pos(self, local_pos: QPointF) -> str | None:
+        """Hit-test against handles in local coords. Returns the handle
+        key if hit, otherwise None."""
+        pts = self._handle_points_local()
+        hit_r = self._HANDLE_HALF + self._HIT_PAD
+        for key, pt in pts.items():
+            rr = self._ROTATE_RADIUS + self._HIT_PAD if key == "rotate" else hit_r
+            if (abs(local_pos.x() - pt.x()) <= rr
+                    and abs(local_pos.y() - pt.y()) <= rr):
+                return key
+        return None
 
     def _on_rotate_handle_moved(self, scene_pos):
         """Compute angle from rect center to the handle position and apply setRotation."""
@@ -352,18 +330,129 @@ class CensorRectItem(QGraphicsRectItem):
         new_anchor_scene = self.mapToScene(
             self._opposite_anchor_local(position, r))
         self.setPos(self.pos() + (anchor_scene - new_anchor_scene))
-        self._update_handle_positions()
-        # Update model
+        # No _update_handle_positions — handles are drawn inline from
+        # the current rect, so a simple update() schedules a repaint.
+        self.update()
         if self._editor:
             self._editor._sync_censors_to_asset()
 
     def itemChange(self, change, value):
         if change == QGraphicsRectItem.GraphicsItemChange.ItemSelectedHasChanged:
-            for h in self._handles.values():
-                h.setVisible(bool(value))
-            if hasattr(self, "_rotate_handle"):
-                self._rotate_handle.setVisible(bool(value))
+            # Tell Qt the paint region is about to change (handles
+            # appear when selected, disappear when deselected) and
+            # schedule a repaint.
+            self.prepareGeometryChange()
+            self.update()
         return super().itemChange(change, value)
+
+    def boundingRect(self) -> QRectF:
+        """Expand the default rect bounds to include the rotate handle
+        when selected, so Qt allocates paint space for it."""
+        r = super().boundingRect()
+        if self.isSelected():
+            # Include rotate handle offset above top edge + half radius
+            # + hit padding so nothing gets clipped during hover.
+            pad = self._HANDLE_HALF + self._HIT_PAD
+            r = r.adjusted(
+                -pad, -(self._ROTATE_OFFSET + self._ROTATE_RADIUS + pad),
+                pad, pad)
+        return r
+
+    def paint(self, painter, option, widget=None):
+        """Paint the censor rect (via super) then inline handles."""
+        # Suppress Qt's default selection rectangle — we draw our own
+        # selection decor to match QGraphicsShapeItem's look.
+        from PySide6.QtWidgets import QStyle
+        opt = option
+        try:
+            opt.state &= ~QStyle.StateFlag.State_Selected
+        except Exception:
+            pass
+        super().paint(painter, opt, widget)
+        if not self.isSelected():
+            return
+        _dt = THEMES[DEFAULT_THEME]
+        # 8-point resize handles — square with dark border.
+        fill = QBrush(QColor(_dt.studio_resize_handle_fill))
+        border = QPen(QColor(_dt.studio_overlay_handle_border),
+                      _dt.studio_overlay_handle_pen_width)
+        painter.setBrush(fill)
+        painter.setPen(border)
+        pts = self._handle_points_local()
+        hh = self._HANDLE_HALF
+        for key, pt in pts.items():
+            if key == "rotate":
+                continue
+            painter.drawRect(QRectF(
+                pt.x() - hh, pt.y() - hh, hh * 2, hh * 2))
+        # Connector line from top-center to the rotate handle.
+        rot_pt = pts["rotate"]
+        r = self.rect()
+        top_mid = QPointF(r.center().x(), r.top())
+        painter.setPen(QPen(
+            QColor(_dt.studio_rotate_connector or
+                   _dt.studio_overlay_handle_border),
+            _dt.studio_overlay_handle_pen_width,
+            Qt.PenStyle.DashLine))
+        painter.drawLine(top_mid, rot_pt)
+        # Rotate handle — green filled circle.
+        painter.setBrush(QBrush(QColor(_dt.studio_rotate_handle_fill)))
+        painter.setPen(border)
+        painter.drawEllipse(rot_pt, self._ROTATE_RADIUS, self._ROTATE_RADIUS)
+
+    def mousePressEvent(self, event):
+        """Detect handle click when selected; fall back to body drag."""
+        if self.isSelected() and event.button() == Qt.MouseButton.LeftButton:
+            key = self._handle_at_pos(event.pos())
+            if key is not None:
+                self._active_handle = key
+                # Disable ItemIsMovable so Qt doesn't translate the
+                # item while we're sizing/rotating it.
+                self.setFlag(
+                    QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable,
+                    False)
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._active_handle is not None:
+            if self._active_handle == "rotate":
+                self._on_rotate_handle_moved(event.scenePos())
+            else:
+                self._on_handle_moved(self._active_handle,
+                                       event.scenePos())
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._active_handle is not None:
+            self._active_handle = None
+            self.setFlag(
+                QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable, True)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def hoverMoveEvent(self, event):
+        """Swap cursor when hovering a handle so the affordance matches
+        the old child-handle behavior."""
+        if self.isSelected():
+            key = self._handle_at_pos(event.pos())
+            if key == "rotate":
+                self.setCursor(Qt.CursorShape.CrossCursor)
+            elif key in ("tl", "br"):
+                self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+            elif key in ("tr", "bl"):
+                self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+            elif key in ("t", "b"):
+                self.setCursor(Qt.CursorShape.SizeVerCursor)
+            elif key in ("l", "r"):
+                self.setCursor(Qt.CursorShape.SizeHorCursor)
+            else:
+                self.setCursor(Qt.CursorShape.SizeAllCursor)
+        super().hoverMoveEvent(event)
 
     def contextMenuEvent(self, event):
         _parent = self._editor._view if self._editor else None
