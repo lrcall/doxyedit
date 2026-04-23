@@ -898,6 +898,40 @@ class ImagePreviewDialog(QDialog):
         if hasattr(self, '_hint_lbl'):
             self._hint_lbl.setVisible(self.width() >= 820)
 
+    def _apply_preview_min_size(self, font_size: int | None = None):
+        """Set minimum window size based on the tiny-mode preference.
+
+        Normal mode: width = font_size * DIALOG_MIN_WIDTH_RATIO, similar
+        for height — roughly 800x600 at 12pt.
+        Tiny mode: 120x80 absolute — small enough to tuck into a corner
+        as a passive reference image while working elsewhere.
+        """
+        if font_size is None:
+            font_size = QSettings("DoxyEdit", "DoxyEdit").value(
+                "font_size", 12, type=int)
+        if getattr(self, "_preview_tiny_mode", False):
+            self.setMinimumSize(self.DIALOG_MIN_WIDTH_TINY,
+                                self.DIALOG_MIN_HEIGHT_TINY)
+        else:
+            self.setMinimumSize(
+                int(font_size * self.DIALOG_MIN_WIDTH_RATIO),
+                int(font_size * self.DIALOG_MIN_HEIGHT_RATIO))
+
+    def _on_preview_context_menu(self, pos):
+        """Right-click anywhere in the preview dialog — offer a Tiny-mode
+        toggle. Persists via QSettings so the choice survives restarts."""
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(self)
+        tiny_act = menu.addAction("Tiny mode (allow very small size)")
+        tiny_act.setCheckable(True)
+        tiny_act.setChecked(bool(getattr(self, "_preview_tiny_mode", False)))
+        chosen = menu.exec(self.mapToGlobal(pos))
+        if chosen is tiny_act:
+            self._preview_tiny_mode = not self._preview_tiny_mode
+            QSettings("DoxyEdit", "DoxyEdit").setValue(
+                "preview_tiny_mode", self._preview_tiny_mode)
+            self._apply_preview_min_size()
+
     def _toggle_fullscreen(self):
         if self._is_fullscreen:
             self.showNormal()
