@@ -1796,6 +1796,10 @@ if _QOGW_OK and _SKIA_OK:
             self._pan_start = QPointF(0, 0)
             self._dpr = float(self.devicePixelRatioF() or 1.0)
             self.backend_name = "skia_gl"
+            # Error trail for context loss / init failure. Surfaced
+            # to the perf log's session_start event and shown in the
+            # HUD if present.
+            self._last_init_error: str = ""
             # Perf timing — same shape as CanvasSkia so the same perf
             # log consumer works.
             import time as _t
@@ -1838,15 +1842,53 @@ if _QOGW_OK and _SKIA_OK:
 
         def initializeGL(self):
             """Called once after the GL context is current. Build the
-            Ganesh direct context wrapping this widget's GL context."""
+            Ganesh direct context wrapping this widget's GL context.
+
+            Also hook aboutToBeDestroyed so we can release Skia's GL
+            resources (textures, programs) BEFORE the context goes
+            away — otherwise Skia dereferences a dead context on its
+            next cleanup cycle and segfaults."""
             try:
                 self._gr_context = skia.GrDirectContext.MakeGL()
-            except Exception:
+                self._last_init_error = ""
+            except Exception as e:
                 self._gr_context = None
+                self._last_init_error = str(e)
+            # Context-loss hook: QOpenGLContext emits aboutToBeDestroyed
+            # on hybrid-GPU switch or widget teardown. We release the
+            # GrDirectContext there; the next paint will re-init.
+            try:
+                ctx = self.context()
+                if ctx is not None:
+                    ctx.aboutToBeDestroyed.connect(self._release_gl)
+            except Exception:
+                pass
+
+        def _release_gl(self):
+            """Called when the GL context is about to die (hybrid GPU
+            switch, widget teardown). Release Skia's GL resources so
+            they don't dangle. Next paint kicks off re-init."""
+            try:
+                if self._gr_context is not None:
+                    self._gr_context.abandonContext()
+            except Exception:
+                pass
+            self._gr_context = None
+            self._surface = None
 
         def resizeGL(self, w: int, h: int):
             """Rebuild the backend render target + Surface whenever
             the widget resizes (framebuffer changes)."""
+            if self._gr_context is None:
+                # Context might have been released by _release_gl on a
+                # GPU switch. Attempt to re-init; if it still fails,
+                # paintGL will early-return until next resize.
+                try:
+                    self._gr_context = skia.GrDirectContext.MakeGL()
+                except Exception as e:
+                    self._last_init_error = str(e)
+                    self._gr_context = None
+                    return
             if self._gr_context is None:
                 return
             dpr = float(self.devicePixelRatioF() or 1.0)
@@ -1867,14 +1909,24 @@ if _QOGW_OK and _SKIA_OK:
                     skia.ColorType.kRGBA_8888_ColorType,
                     None, None,
                 )
-            except Exception:
+                if self._surface is None:
+                    self._last_init_error = "MakeFromBackendRenderTarget returned None"
+            except Exception as e:
                 self._surface = None
+                self._last_init_error = str(e)
 
         def paintGL(self):
             """Draw the scene via Skia into the GL surface. paintGL
             fires whenever the widget needs redraw; Qt has already
             made our GL context current."""
+            # Lazy re-init: if the surface is gone (context loss) but
+            # we're back here, rebuild. Happens on hybrid-GPU laptops
+            # when the OS switches between integrated + discrete GPUs.
+            if self._surface is None and self._gr_context is not None:
+                self.resizeGL(self.width(), self.height())
             if self._surface is None or self._gr_context is None:
+                # Fell through re-init — paint nothing; hopefully next
+                # resize event will succeed.
                 return
             t0 = self._fps_time.perf_counter()
             try:
