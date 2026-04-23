@@ -98,6 +98,12 @@ class CanvasSkia(QWidget):
         # Day 6: censor regions. List of CensorRegion dataclasses.
         # Drawn after overlays so they mask / blur the base image.
         self._censors: list = []
+        # Day 7: selection + snap guides. Selection stored as a set of
+        # id(overlay) — using object identity not label so duplicate
+        # labels don't collide. Snap guides are 4-tuple line segments
+        # in scene coords, drawn as dashed overlay above everything.
+        self._selected_ids: set = set()
+        self._snap_guides: list = []
         self._resize_buffers(self.size())
         # Record whether Skia is live; surfacing this to the editor lets
         # the FPS HUD show which backend is active.
@@ -323,6 +329,35 @@ class CanvasSkia(QWidget):
             self._censors.remove(cr)
         except ValueError:
             pass
+        self.update()
+
+    # ------------------------------------------------------------------
+    # Day 7 — selection state + snap guides
+    # ------------------------------------------------------------------
+
+    def set_selected(self, overlays: list):
+        """Mark which overlays are selected. Accepts the SAME overlay
+        objects held in self._overlays; identity comparison."""
+        self._selected_ids = set(id(ov) for ov in overlays)
+        self.update()
+
+    def select(self, ov):
+        if ov is not None:
+            self._selected_ids.add(id(ov))
+            self.update()
+
+    def deselect_all(self):
+        if self._selected_ids:
+            self._selected_ids.clear()
+            self.update()
+
+    def is_selected(self, ov) -> bool:
+        return id(ov) in self._selected_ids
+
+    def set_snap_guides(self, guides: list):
+        """List of (x1, y1, x2, y2) tuples in scene coords. Drawn
+        dashed-cyan over everything while active during drag."""
+        self._snap_guides = list(guides)
         self.update()
 
     def remove_overlay(self, ov):
@@ -853,6 +888,176 @@ class CanvasSkia(QWidget):
         canvas.drawPath(path, gp)
 
     # ------------------------------------------------------------------
+    # Day 7 — selection decorators + snap guides
+    # ------------------------------------------------------------------
+
+    # Visual constants for selection decorators. Match the values used
+    # in OverlayShapeItem.paint when self.isSelected() so switching
+    # between QGraphicsView and Skia compositors is visually stable.
+    _SEL_LINE_COLOR = (0x55, 0xaa, 0xff, 0xcc)   # dashed bbox
+    _HANDLE_FILL = (0xff, 0xff, 0xff, 0xff)
+    _HANDLE_BORDER = (0x22, 0x22, 0x22, 0xff)
+    _ROTATE_FILL = (0x33, 0xcc, 0x77, 0xff)
+    _TAIL_FILL = (0x00, 0xdd, 0xdd, 0xff)
+    _SNAP_COLOR = (0x00, 0xdd, 0xdd, 0xcc)
+
+    def _selection_bbox_local(self, ov) -> tuple:
+        """Return (ox, oy, w, h) in scene coords for a selection bbox.
+        Skips rotation — decorators drawn in scene coords, not rotated."""
+        t = getattr(ov, "type", "")
+        if t == "shape":
+            return (float(ov.x), float(ov.y),
+                    float(getattr(ov, "shape_w", 0) or 0),
+                    float(getattr(ov, "shape_h", 0) or 0))
+        if t == "arrow":
+            x1 = float(getattr(ov, "x", 0) or 0)
+            y1 = float(getattr(ov, "y", 0) or 0)
+            x2 = float(getattr(ov, "end_x", 0) or 0)
+            y2 = float(getattr(ov, "end_y", 0) or 0)
+            return (min(x1, x2), min(y1, y2),
+                    abs(x2 - x1), abs(y2 - y1))
+        if t == "text":
+            size = float(getattr(ov, "font_size", 14) or 14)
+            text = getattr(ov, "text", "") or ""
+            lines = text.split("\n")
+            widest = max((len(l) for l in lines), default=0)
+            lh = float(getattr(ov, "line_height", 1.2) or 1.2)
+            w = float(getattr(ov, "text_width", 0) or 0) or \
+                max(20, widest * size * 0.6)
+            h = max(size, len(lines) * size * lh)
+            return (float(ov.x), float(ov.y), w, h)
+        if t in ("watermark", "logo"):
+            img = self._skia_image_for_overlay(ov)
+            if img is None:
+                return (float(ov.x), float(ov.y), 20, 20)
+            w = img.width()
+            h = img.height()
+            scale = float(getattr(ov, "scale", 1.0) or 1.0)
+            if scale != 1.0 and self._base_image is not None:
+                s = (self._base_image.width() * scale) / max(1, w)
+                w *= s
+                h *= s
+            return (float(ov.x), float(ov.y), w, h)
+        return (float(getattr(ov, "x", 0) or 0),
+                float(getattr(ov, "y", 0) or 0), 20, 20)
+
+    def _draw_selection_decor(self, canvas, ov):
+        """Dashed bounding rect + corner handles + rotate handle on
+        top-center for shapes/texts/images. Arrows get endpoint dots."""
+        ox, oy, w, h = self._selection_bbox_local(ov)
+        ov_type = getattr(ov, "type", "")
+        # Dashed outline
+        outline = skia.Paint()
+        outline.setAntiAlias(True)
+        outline.setStyle(skia.Paint.kStroke_Style)
+        outline.setColor(skia.Color(*self._SEL_LINE_COLOR))
+        outline.setStrokeWidth(max(1.0, 1.2 / max(0.01, self._zoom)))
+        try:
+            outline.setPathEffect(
+                skia.DashPathEffect.Make([6.0, 4.0], 0.0))
+        except Exception:
+            pass
+        canvas.drawRect(skia.Rect.MakeXYWH(ox, oy, w, h), outline)
+        if ov_type == "arrow":
+            # Endpoint dots (start + end)
+            x1 = float(getattr(ov, "x", 0) or 0)
+            y1 = float(getattr(ov, "y", 0) or 0)
+            x2 = float(getattr(ov, "end_x", 0) or 0)
+            y2 = float(getattr(ov, "end_y", 0) or 0)
+            r = max(3.0, 5.0 / max(0.01, self._zoom))
+            for px, py in ((x1, y1), (x2, y2)):
+                self._draw_handle_dot(canvas, px, py, r)
+            return
+        # Corner + edge handles (up to 8) plus rotate handle for shapes
+        r = max(3.0, 4.0 / max(0.01, self._zoom))
+        corners = [
+            (ox, oy), (ox + w, oy),
+            (ox, oy + h), (ox + w, oy + h),
+        ]
+        for px, py in corners:
+            self._draw_handle_dot(canvas, px, py, r)
+        if ov_type == "shape":
+            # Rotate handle ~20 screen-px above the top edge
+            rh_off = 20.0 / max(0.01, self._zoom)
+            rhx = ox + w / 2
+            rhy = oy - rh_off
+            # Connector line (dashed)
+            conn = skia.Paint()
+            conn.setAntiAlias(True)
+            conn.setStyle(skia.Paint.kStroke_Style)
+            conn.setColor(skia.Color(*self._SEL_LINE_COLOR))
+            conn.setStrokeWidth(max(1.0, 1.0 / max(0.01, self._zoom)))
+            try:
+                conn.setPathEffect(
+                    skia.DashPathEffect.Make([3.0, 3.0], 0.0))
+            except Exception:
+                pass
+            canvas.drawLine(rhx, oy, rhx, rhy, conn)
+            # Rotate handle circle
+            rot_fill = skia.Paint()
+            rot_fill.setAntiAlias(True)
+            rot_fill.setStyle(skia.Paint.kFill_Style)
+            rot_fill.setColor(skia.Color(*self._ROTATE_FILL))
+            canvas.drawCircle(rhx, rhy,
+                              max(4.0, 6.0 / max(0.01, self._zoom)),
+                              rot_fill)
+            rot_border = skia.Paint()
+            rot_border.setAntiAlias(True)
+            rot_border.setStyle(skia.Paint.kStroke_Style)
+            rot_border.setStrokeWidth(max(1.0, 1.0 / max(0.01, self._zoom)))
+            rot_border.setColor(skia.Color(*self._HANDLE_BORDER))
+            canvas.drawCircle(rhx, rhy,
+                              max(4.0, 6.0 / max(0.01, self._zoom)),
+                              rot_border)
+            # Tail handle for bubbles
+            if getattr(ov, "shape_kind", "") in ("speech_bubble", "thought_bubble"):
+                tx = float(getattr(ov, "tail_x", 0) or 0)
+                ty = float(getattr(ov, "tail_y", 0) or 0)
+                if tx or ty:
+                    tp = skia.Paint()
+                    tp.setAntiAlias(True)
+                    tp.setStyle(skia.Paint.kFill_Style)
+                    tp.setColor(skia.Color(*self._TAIL_FILL))
+                    canvas.drawCircle(tx, ty,
+                                      max(4.0, 6.0 / max(0.01, self._zoom)),
+                                      tp)
+
+    def _draw_handle_dot(self, canvas, cx, cy, r):
+        """Filled white square with dark border — standard corner handle."""
+        rect = skia.Rect.MakeLTRB(cx - r, cy - r, cx + r, cy + r)
+        fp = skia.Paint()
+        fp.setAntiAlias(True)
+        fp.setStyle(skia.Paint.kFill_Style)
+        fp.setColor(skia.Color(*self._HANDLE_FILL))
+        canvas.drawRect(rect, fp)
+        bp = skia.Paint()
+        bp.setAntiAlias(True)
+        bp.setStyle(skia.Paint.kStroke_Style)
+        bp.setStrokeWidth(max(1.0, 1.0 / max(0.01, self._zoom)))
+        bp.setColor(skia.Color(*self._HANDLE_BORDER))
+        canvas.drawRect(rect, bp)
+
+    def _draw_snap_guides(self, canvas):
+        """Dashed cyan lines over the canvas for snap-alignment feedback."""
+        gp = skia.Paint()
+        gp.setAntiAlias(True)
+        gp.setStyle(skia.Paint.kStroke_Style)
+        gp.setColor(skia.Color(*self._SNAP_COLOR))
+        gp.setStrokeWidth(max(1.0, 1.0 / max(0.01, self._zoom)))
+        try:
+            gp.setPathEffect(
+                skia.DashPathEffect.Make([4.0, 3.0], 0.0))
+        except Exception:
+            pass
+        for seg in self._snap_guides:
+            try:
+                x1, y1, x2, y2 = seg
+                canvas.drawLine(float(x1), float(y1),
+                                 float(x2), float(y2), gp)
+            except Exception:
+                continue
+
+    # ------------------------------------------------------------------
     # Day 6 — arrow + censor overlays
     # ------------------------------------------------------------------
 
@@ -1096,6 +1301,15 @@ class CanvasSkia(QWidget):
         # Censors draw after overlays so they cover / blur content.
         for cr in self._censors:
             self._draw_censor(canvas, cr, self._base_image)
+        # Day 7: selection decorators (dashed bbox + corner handles +
+        # rotate handle) drawn above everything so they're visible
+        # even when the selected overlay is under another.
+        for ov in self._overlays:
+            if id(ov) in self._selected_ids:
+                self._draw_selection_decor(canvas, ov)
+        # Snap guides drawn last, cyan dashed lines.
+        if self._snap_guides:
+            self._draw_snap_guides(canvas)
         canvas.restore()
         # HUD — always at screen pixels (no transform).
         hud_paint = skia.Paint()
