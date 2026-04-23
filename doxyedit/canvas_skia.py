@@ -1963,6 +1963,10 @@ if _QOGW_OK and _SKIA_OK:
                 if self._snap_guides:
                     self._draw_snap_guides(canvas)
                 canvas.restore()
+                # HUD (screen-space, outside the pan/zoom transform).
+                # Shows backend + perf-ms so GPU vs CPU comparison is
+                # visible in-app without flipping to the perf log.
+                self._draw_gl_hud(canvas)
                 self._surface.flushAndSubmit()
             except Exception:
                 pass
@@ -1974,6 +1978,27 @@ if _QOGW_OK and _SKIA_OK:
             cutoff = t1 - 2.0
             while self._fps_samples and self._fps_samples[0] < cutoff:
                 self._fps_samples.pop(0)
+
+        def _draw_gl_hud(self, canvas):
+            """Draw the Skia-GL HUD line: backend + zoom + paint-ms.
+            Matches the style of the CanvasSkia CPU HUD so visual
+            comparison across the Shift+S backend picker is immediate."""
+            try:
+                paint = skia.Paint()
+                paint.setColor(skia.Color(220, 220, 220, 210))
+                paint.setAntiAlias(True)
+                font = skia.Font(skia.Typeface("Consolas"), 11)
+                prev = self._fps_last_ms
+                fps = sum(1 for ts in self._fps_samples
+                          if ts > self._fps_time.perf_counter() - 1.0)
+                dpr = getattr(self, "_dpr", 1.0)
+                err = f"  err={self._last_init_error}" if self._last_init_error else ""
+                txt = (f"SKIA-GL  zoom={self._zoom:.2f}  "
+                       f"ovl={len(self._overlays)}  dpr={dpr:.1f}  "
+                       f"paint={prev:.2f}ms  fps={fps}{err}")
+                canvas.drawString(txt, 12 * dpr, 20 * dpr, font, paint)
+            except Exception:
+                pass
 
         # Minimal overlay API — enough for the preview to render data.
         def set_base_image_path(self, path: str):
