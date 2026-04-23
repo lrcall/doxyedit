@@ -7648,8 +7648,7 @@ class StudioEditor(QWidget):
         line.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         line.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
         self._scene.addItem(line)
-        if not hasattr(self, "_guide_items"):
-            self._guide_items = []
+        # _guide_items initialized to [] in __init__; direct append.
         self._guide_items.append(line)
         self._save_guides_to_asset()
         if self._canvas_wrap is not None:
@@ -7681,9 +7680,8 @@ class StudioEditor(QWidget):
                     if self._canvas_wrap is not None:
                         self._canvas_wrap.refresh()
                     return
-        # Track it so load_asset can clean up next time
-        if not hasattr(self, "_guide_items"):
-            self._guide_items = []
+        # Track it so load_asset can clean up next time —
+        # _guide_items initialized to [] in __init__.
         self._guide_items.append(line)
         # Persist onto the asset so guides survive save/load
         self._save_guides_to_asset()
@@ -7766,8 +7764,7 @@ class StudioEditor(QWidget):
             line.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
             line.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
             self._scene.addItem(line)
-            if not hasattr(self, "_guide_items"):
-                self._guide_items = []
+            # _guide_items initialized to [] in __init__.
             self._guide_items.append(line)
         if preset == "cross":
             _place('h', rect.top() + h / 2)
