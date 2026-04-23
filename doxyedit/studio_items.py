@@ -1736,14 +1736,25 @@ class OverlayShapeItem(QGraphicsItem):
 
     def _handle_under(self, scene_pos: QPointF):
         # Map scene -> local so rotation / skew don't shift the hotspots
-        # away from the handles the user actually sees. _handle_positions
-        # returns local-space coords (overlay.x/y is local since item
-        # itself lives at pos() == 0,0).
+        # away from the handles the user actually sees. Inline tests
+        # against the 4 corner positions — hoverMoveEvent fires at 60+Hz
+        # and the prior dict-based loop allocated 4 fresh QPointFs per
+        # hover frame just to pick the cursor shape.
         local = self.mapFromScene(scene_pos)
+        lx, ly = local.x(), local.y()
         r = self.HANDLE_HIT_RADIUS
-        for key, pt in self._handle_positions().items():
-            if abs(local.x() - pt.x()) <= r and abs(local.y() - pt.y()) <= r:
-                return key
+        x, y = self.overlay.x, self.overlay.y
+        w, h = self.overlay.shape_w, self.overlay.shape_h
+        # Order preserved from _handle_positions so a multi-hit ambiguity
+        # resolves to the same corner as before.
+        if abs(lx - x) <= r and abs(ly - y) <= r:
+            return 'tl'
+        if abs(lx - (x + w)) <= r and abs(ly - y) <= r:
+            return 'tr'
+        if abs(lx - x) <= r and abs(ly - (y + h)) <= r:
+            return 'bl'
+        if abs(lx - (x + w)) <= r and abs(ly - (y + h)) <= r:
+            return 'br'
         return None
 
     def _zoom_adaptive_radius(self, screen_px: int = 16) -> float:
