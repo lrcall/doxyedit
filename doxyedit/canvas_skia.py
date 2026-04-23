@@ -115,9 +115,19 @@ class CanvasSkia(QWidget):
     # ------------------------------------------------------------------
 
     def _resize_buffers(self, size: QSize):
-        w = max(1, int(size.width()))
-        h = max(1, int(size.height()))
-        self._qimg = QImage(w, h, QImage.Format.Format_RGBA8888_Premultiplied)
+        # Day 11: high-DPI. Scale the backing store by devicePixelRatio
+        # so Skia renders at native display resolution on 125%/150%/200%
+        # screens. The QImage carries the same DPR so QPainter blits 1:1
+        # at device pixels without resampling.
+        dpr = float(self.devicePixelRatioF() or 1.0)
+        self._dpr = dpr
+        logical_w = max(1, int(size.width()))
+        logical_h = max(1, int(size.height()))
+        phys_w = max(1, int(round(logical_w * dpr)))
+        phys_h = max(1, int(round(logical_h * dpr)))
+        self._qimg = QImage(
+            phys_w, phys_h, QImage.Format.Format_RGBA8888_Premultiplied)
+        self._qimg.setDevicePixelRatio(dpr)
         self._qimg.fill(Qt.GlobalColor.transparent)
         self._surface = None
         self._surface_is_direct = False
@@ -125,17 +135,12 @@ class CanvasSkia(QWidget):
             return
         try:
             info = skia.ImageInfo.Make(
-                w, h,
+                phys_w, phys_h,
                 skia.ColorType.kRGBA_8888_ColorType,
                 skia.AlphaType.kPremul_AlphaType,
             )
             # Allocated raster surface — Skia owns the backing store.
-            # At paint time we snapshot + copy pixels into the QImage.
-            # MakeRasterDirect into PySide6's QImage.bits() buffer is
-            # viable but requires ctypes gymnastics around PySide's
-            # PyVoid pointer; allocated surface is simpler and the
-            # extra copy is 1-2ms for a 1080p viewport — dwarfed by
-            # the 10-20x GPU composite win we're building toward.
+            # At paint time we readPixels into the QImage buffer.
             self._surface = skia.Surface.MakeRaster(info)
         except Exception:
             self._surface = None
@@ -1393,6 +1398,12 @@ class CanvasSkia(QWidget):
         canvas = self._surface.getCanvas()
         canvas.save()
         canvas.clear(skia.Color(32, 32, 40))
+        # Day 11: apply devicePixelRatio scale so logical-pixel coords
+        # (what the rest of the code uses) render at physical resolution
+        # on high-DPI screens. pan_x/pan_y are in logical pixels too.
+        dpr = getattr(self, "_dpr", 1.0)
+        if dpr != 1.0:
+            canvas.scale(dpr, dpr)
         # Apply pan + zoom.
         canvas.translate(self._pan_x, self._pan_y)
         canvas.scale(self._zoom, self._zoom)
@@ -1431,10 +1442,14 @@ class CanvasSkia(QWidget):
         hud_paint.setColor(skia.Color(220, 220, 220, 200))
         hud_paint.setAntiAlias(True)
         font = skia.Font(skia.Typeface("Consolas"), 11)
+        dpr = getattr(self, "_dpr", 1.0)
         text = (f"SKIA backend  zoom={self._zoom:.2f}  "
                 f"pan=({int(self._pan_x)},{int(self._pan_y)})  "
-                f"overlays={len(self._overlays)}")
-        canvas.drawString(text, 12, 20, font, hud_paint)
+                f"overlays={len(self._overlays)}  "
+                f"dpr={dpr:.2f}")
+        # HUD drawn at physical px — so position adjusts by DPR too so
+        # it still lands in the top-left corner of the widget.
+        canvas.drawString(text, 12 * dpr, 20 * dpr, font, hud_paint)
         # Copy Skia's backing store into the QImage so Qt can blit it.
         # Skia's Surface.MakeRaster allocates its own buffer; we pull
         # it into Qt's buffer via readPixels.
