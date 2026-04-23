@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox, QTabWidget, QTextBrowser, QMessageBox,
     QWidgetAction, QDoubleSpinBox, QPlainTextEdit,
     QGraphicsDropShadowEffect, QGraphicsPathItem, QProgressDialog,
+    QStyle,
 )
 from PySide6.QtCore import (
     Qt, QRectF, QPointF, QLineF, Signal, QSettings, QSize,
@@ -362,8 +363,8 @@ class CensorRectItem(QGraphicsRectItem):
     def paint(self, painter, option, widget=None):
         """Paint the censor rect (via super) then inline handles."""
         # Suppress Qt's default selection rectangle — we draw our own
-        # selection decor to match QGraphicsShapeItem's look.
-        from PySide6.QtWidgets import QStyle
+        # selection decor to match QGraphicsShapeItem's look. QStyle is
+        # module-imported (see top of file) so no per-paint import.
         opt = option
         try:
             opt.state &= ~QStyle.StateFlag.State_Selected
