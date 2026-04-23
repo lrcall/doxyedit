@@ -42,6 +42,25 @@ expensive the live path is.
 Biggest win: `thought_bubble` at **93x**. 10 cloud-puff `path.united()`
 CSG ops per paint collapsed into one blit.
 
+### Drag benchmark (fix `52f667a`)
+
+User-facing metric: how fast is **dragging** a bubble? The render-params
+key previously included `tail_dx = tail_x - ov.x`, which for bubbles
+with the default unset tail (`tail_x=0`) evaluates to `-ov.x` and
+changes on every drag frame. That invalidated the cache on every
+mousemove.
+
+| State | Per-drag-frame |
+|---|---|
+| Before `52f667a` | 0.820 ms |
+| After `52f667a` | **0.039 ms** |
+| **Drag speedup** | **21x** |
+
+Matches the static cache-hit benchmark, which was the intent — drag
+should not invalidate the render cache because only x/y change, and
+x/y don't affect the rendered pixels (they're applied via painter.translate
+at draw time).
+
 ## What the fast path skips
 
 The live path per paint:
