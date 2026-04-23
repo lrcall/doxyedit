@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import functools
+import json
 import math
 
 from PySide6.QtCore import Qt, QRectF, QPointF, Signal, QSize
@@ -1821,9 +1822,8 @@ class CanvasSkia(QWidget):
             self._fps_samples.pop(0)
         if self._fps_perf_log is not None:
             try:
-                import json as _json
                 fps = sum(1 for ts in self._fps_samples if ts > t1 - 1.0)
-                self._fps_perf_log.write(_json.dumps({
+                self._fps_perf_log.write(json.dumps({
                     "t": round(t1, 4),
                     "type": "skia_paint",
                     "fps": fps,
