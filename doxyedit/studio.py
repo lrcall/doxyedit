@@ -12008,11 +12008,12 @@ class StudioEditor(QWidget):
         single censor resize triggered a full QListWidget clear +
         rebuild on every mousemove.
 
-        Also fingerprints the new list against the existing one and
-        skips the rebuild + layer-panel reschedule when they match.
-        Idle syncs (e.g. triggered by a shared mouseMoveEvent path that
-        also handles overlay drags) no longer allocate N fresh
-        CensorRegion dataclasses when nothing actually changed.
+        Fingerprints the new list and skips the rebuild when nothing
+        changed. When rebuild is needed, mutates an existing linked
+        CensorRegion in place (via item._censor_region) so non-geometry
+        fields — blur_radius, pixelate_ratio, rotation — survive the
+        sync. Previously the rebuild allocated a fresh CensorRegion
+        with defaults, clobbering any user-set blur_radius on drag.
         """
         if not self._asset:
             return
@@ -12025,25 +12026,47 @@ class StudioEditor(QWidget):
                 int(r.width()), int(r.height()),
                 item.style,
                 tuple(item.platforms),
+                float(item.rotation()),
             ))
         existing = self._asset.censors
         unchanged = (
             len(existing) == len(new_fingerprints)
             and all(
-                (c.x, c.y, c.w, c.h, c.style, tuple(c.platforms))
+                (c.x, c.y, c.w, c.h, c.style, tuple(c.platforms),
+                 float(getattr(c, "rotation", 0.0) or 0.0))
                 == fp
                 for c, fp in zip(existing, new_fingerprints)
             )
         )
         if unchanged:
             return
+        new_censors = []
+        for item, fp in zip(self._censor_items, new_fingerprints):
+            x, y, w, h, style, platforms, rotation = fp
+            linked = getattr(item, "_censor_region", None)
+            if linked is not None:
+                # Mutate the existing region so blur_radius /
+                # pixelate_ratio / future fields aren't lost.
+                linked.x = x
+                linked.y = y
+                linked.w = w
+                linked.h = h
+                linked.style = style
+                linked.platforms = list(platforms)
+                if hasattr(linked, "rotation"):
+                    linked.rotation = rotation
+                new_censors.append(linked)
+            else:
+                cr = CensorRegion(
+                    x=x, y=y, w=w, h=h,
+                    style=style, platforms=list(platforms),
+                )
+                if hasattr(cr, "rotation"):
+                    cr.rotation = rotation
+                item._censor_region = cr
+                new_censors.append(cr)
         self._asset.censors.clear()
-        for fp in new_fingerprints:
-            x, y, w, h, style, platforms = fp
-            self._asset.censors.append(CensorRegion(
-                x=x, y=y, w=w, h=h,
-                style=style, platforms=list(platforms),
-            ))
+        self._asset.censors.extend(new_censors)
         if hasattr(self, '_layer_panel'):
             if not hasattr(self, '_layer_rebuild_timer'):
                 self._layer_rebuild_timer = QTimer(self)
