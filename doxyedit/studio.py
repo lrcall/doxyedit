@@ -2000,16 +2000,28 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
         self._positioned_once = True
 
     def _save_geom(self):
+        """Persist window geometry. Debounced via a 200ms singleshot so
+        a resize/move drag doesn't slam QSettings (registry on Windows)
+        with 60+ writes per second. Immediate flush paths (close/hide)
+        call _save_geom_now directly."""
+        if not hasattr(self, "_save_geom_timer"):
+            self._save_geom_timer = QTimer(self)
+            self._save_geom_timer.setSingleShot(True)
+            self._save_geom_timer.setInterval(200)
+            self._save_geom_timer.timeout.connect(self._save_geom_now)
+        self._save_geom_timer.start()
+
+    def _save_geom_now(self):
         try:
             self._qs.setValue(self._GEOM_KEY, self.saveGeometry())
         except Exception:
             pass
 
     def closeEvent(self, ev):
-        self._save_geom(); super().closeEvent(ev)
+        self._save_geom_now(); super().closeEvent(ev)
 
     def hideEvent(self, ev):
-        self._save_geom(); super().hideEvent(ev)
+        self._save_geom_now(); super().hideEvent(ev)
 
     def moveEvent(self, ev):
         super().moveEvent(ev); self._save_geom()
@@ -3066,19 +3078,30 @@ class _TextControlsDialog(QtWidgets.QDialog):
         self._positioned_once = True
 
     def _save_geom(self):
+        """Debounced 200ms singleshot — matches _ShapeControlsDialog.
+        Drag events fire at 60+Hz; without the debounce this slams the
+        Windows registry on every pixel."""
+        if not hasattr(self, "_save_geom_timer"):
+            self._save_geom_timer = QTimer(self)
+            self._save_geom_timer.setSingleShot(True)
+            self._save_geom_timer.setInterval(200)
+            self._save_geom_timer.timeout.connect(self._save_geom_now)
+        self._save_geom_timer.start()
+
+    def _save_geom_now(self):
         try:
             self._qs.setValue(self._GEOM_KEY, self.saveGeometry())
         except Exception:
             pass
 
     def closeEvent(self, ev):
-        self._save_geom()
+        self._save_geom_now()
         super().closeEvent(ev)
 
     def hideEvent(self, ev):
         # Catches not-just-close dismissals (e.g. when the Studio tab
         # loses focus and the app hides us programmatically).
-        self._save_geom()
+        self._save_geom_now()
         super().hideEvent(ev)
 
     def moveEvent(self, ev):
