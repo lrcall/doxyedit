@@ -1849,15 +1849,21 @@ class OverlayShapeItem(QGraphicsItem):
             max_x = max(r.right(), tip.x() + tail_pad)
             max_y = max(r.bottom(), tip.y() + tail_pad)
             r = QRectF(min_x, min_y, max_x - min_x, max_y - min_y)
-        # Expand upward so the rotate-handle circle is inside the paint
-        # region when selected (otherwise dragging it leaves artifacts).
-        rh = self._rotate_handle_pos()
-        rh_pad = 10
-        min_x = min(r.left(), rh.x() - rh_pad)
-        min_y = min(r.top(), rh.y() - rh_pad)
-        max_x = max(r.right(), rh.x() + rh_pad)
-        max_y = max(r.bottom(), rh.y() + rh_pad)
-        return QRectF(min_x, min_y, max_x - min_x, max_y - min_y)
+        # Rotate-handle padding is only needed when the handle is
+        # actually drawn (selection-only). For non-selected shapes the
+        # extra ~10px inflated the scene-bounding rect, which skewed
+        # snap-guide target points off the true shape edge. The
+        # ItemSelectedHasChanged handler below calls prepareGeometryChange
+        # so Qt picks up the new rect on select / deselect.
+        if self.isSelected():
+            rh = self._rotate_handle_pos()
+            rh_pad = 10
+            min_x = min(r.left(), rh.x() - rh_pad)
+            min_y = min(r.top(), rh.y() - rh_pad)
+            max_x = max(r.right(), rh.x() + rh_pad)
+            max_y = max(r.bottom(), rh.y() + rh_pad)
+            r = QRectF(min_x, min_y, max_x - min_x, max_y - min_y)
+        return r
 
     _BLEND_MODE_MAP = {
         "normal": QPainter.CompositionMode.CompositionMode_SourceOver,
@@ -2367,6 +2373,14 @@ class OverlayShapeItem(QGraphicsItem):
         super().mouseDoubleClickEvent(event)
 
     def itemChange(self, change, value):
+        if change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
+            # Selection toggles the rotate-handle padding in
+            # boundingRect; tell Qt the geometry changed so the scene
+            # invalidates the right region and snap calculations use
+            # the new rect on the next frame.
+            self.prepareGeometryChange()
+            self.update()
+            return super().itemChange(change, value)
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
             # Feedback-loop fix: keep the item anchored at (0,0) so
             # painting (which uses absolute overlay.x/y) never gets
