@@ -427,14 +427,23 @@ class CanvasSkia(QWidget):
 
     def set_selected(self, overlays: list):
         """Mark which overlays are selected. Accepts the SAME overlay
-        objects held in self._overlays; identity comparison."""
-        self._selected_ids = set(id(ov) for ov in overlays)
+        objects held in self._overlays; identity comparison. Early-out
+        when the selection set is unchanged — an unnecessary update()
+        here schedules a full Skia re-render."""
+        new_ids = set(id(ov) for ov in overlays)
+        if new_ids == self._selected_ids:
+            return
+        self._selected_ids = new_ids
         self.update()
 
     def select(self, ov):
-        if ov is not None:
-            self._selected_ids.add(id(ov))
-            self.update()
+        if ov is None:
+            return
+        _id = id(ov)
+        if _id in self._selected_ids:
+            return
+        self._selected_ids.add(_id)
+        self.update()
 
     def deselect_all(self):
         if self._selected_ids:
