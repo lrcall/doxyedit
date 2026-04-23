@@ -164,6 +164,121 @@ class CanvasSkia(QWidget):
     # View transform (panning / zooming)
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Day 8 — hit testing
+    # ------------------------------------------------------------------
+
+    def hit_test_image(self, image_pos: QPointF):
+        """Return the topmost overlay whose shape contains image_pos.
+        image_pos is in image (scene) coordinates, not widget pixels.
+        Mirrors the behavior of QGraphicsScene.itemAt()."""
+        x = image_pos.x()
+        y = image_pos.y()
+        # Walk overlays in reverse so the topmost (last-drawn) wins.
+        for ov in reversed(self._overlays):
+            if not getattr(ov, "enabled", True):
+                continue
+            if self._overlay_contains(ov, x, y):
+                return ov
+        return None
+
+    def _overlay_contains(self, ov, x: float, y: float) -> bool:
+        """Point-in-overlay hit test. Uses the overlay's bounding rect
+        for quick rejection; shape overlays use SkPath.contains() for
+        accurate hit tests on curved shapes."""
+        ov_type = getattr(ov, "type", "")
+        if ov_type == "arrow":
+            # Stroke-based hit test: close to the line segment.
+            x1 = float(getattr(ov, "x", 0) or 0)
+            y1 = float(getattr(ov, "y", 0) or 0)
+            x2 = float(getattr(ov, "end_x", 0) or 0)
+            y2 = float(getattr(ov, "end_y", 0) or 0)
+            return self._dist_to_segment(x, y, x1, y1, x2, y2) <= \
+                max(6.0, float(getattr(ov, "stroke_width", 4) or 4))
+        if ov_type == "shape":
+            w = float(getattr(ov, "shape_w", 0) or 0)
+            h = float(getattr(ov, "shape_h", 0) or 0)
+            ox = float(getattr(ov, "x", 0) or 0)
+            oy = float(getattr(ov, "y", 0) or 0)
+            # Quick bbox reject in local coords (account for rotation
+            # with a generous padding equal to half the diagonal).
+            if w <= 0 or h <= 0:
+                return False
+            # Transform point into local shape coords (undo rotation)
+            rot = float(getattr(ov, "rotation", 0) or 0)
+            lx = x - ox
+            ly = y - oy
+            if rot:
+                rad = -math.radians(rot)
+                cx, cy = w / 2, h / 2
+                dx = lx - cx
+                dy = ly - cy
+                c, s = math.cos(rad), math.sin(rad)
+                lx = cx + dx * c - dy * s
+                ly = cy + dx * s + dy * c
+            if lx < 0 or ly < 0 or lx > w or ly > h:
+                return False
+            try:
+                path = self._build_shape_path(ov)
+                return path.contains(lx, ly)
+            except Exception:
+                return True  # bbox hit, accept
+        # Text + image overlays: bounding-rect hit test.
+        if ov_type == "text":
+            # Approximate bounds from text metrics — good enough for
+            # click routing; exact layout bounds would require a Skia
+            # text blob measure pass, deferred to Day 9.
+            size = float(getattr(ov, "font_size", 14) or 14)
+            text = getattr(ov, "text", "") or ""
+            lines = text.split("\n")
+            lh = float(getattr(ov, "line_height", 1.2) or 1.2)
+            # Rough width: longest line × avg char width (0.6 × size)
+            widest = max((len(l) for l in lines), default=0)
+            w = float(getattr(ov, "text_width", 0) or 0) or \
+                widest * size * 0.6
+            h = len(lines) * size * lh
+            ox = float(getattr(ov, "x", 0) or 0)
+            oy = float(getattr(ov, "y", 0) or 0)
+            return ox <= x <= ox + w and oy <= y <= oy + h
+        if ov_type in ("watermark", "logo"):
+            img = self._skia_image_for_overlay(ov)
+            if img is None:
+                return False
+            w = img.width()
+            h = img.height()
+            scale = float(getattr(ov, "scale", 1.0) or 1.0)
+            if scale != 1.0 and self._base_image is not None:
+                base_w = self._base_image.width()
+                target_w = max(10, base_w * scale)
+                s = target_w / max(1, w)
+                w *= s
+                h *= s
+            ox = float(getattr(ov, "x", 0) or 0)
+            oy = float(getattr(ov, "y", 0) or 0)
+            return ox <= x <= ox + w and oy <= y <= oy + h
+        return False
+
+    @staticmethod
+    def _dist_to_segment(px: float, py: float,
+                          x1: float, y1: float,
+                          x2: float, y2: float) -> float:
+        dx = x2 - x1
+        dy = y2 - y1
+        if dx == 0 and dy == 0:
+            return math.hypot(px - x1, py - y1)
+        t = max(0.0, min(1.0,
+            ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)))
+        proj_x = x1 + t * dx
+        proj_y = y1 + t * dy
+        return math.hypot(px - proj_x, py - proj_y)
+
+    def widget_to_image_pos(self, widget_pos: QPointF) -> QPointF:
+        """Map a widget-space position (mouse event) into image (scene)
+        coordinates, undoing the pan + zoom transforms."""
+        x = (widget_pos.x() - self._pan_x) / max(0.01, self._zoom)
+        y = (widget_pos.y() - self._pan_y) / max(0.01, self._zoom)
+        return QPointF(x, y)
+
     def set_zoom(self, z: float):
         self._zoom = max(0.05, min(32.0, z))
         self.update()
