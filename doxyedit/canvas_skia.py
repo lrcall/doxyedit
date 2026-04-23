@@ -392,7 +392,7 @@ class CanvasSkia(QWidget):
                 return False
             w = img.width()
             h = img.height()
-            scale = float(getattr(ov, "scale", 1.0) or 1.0)
+            scale = float(ov.scale or 1.0)
             if scale != 1.0 and self._base_image is not None:
                 base_w = self._base_image.width()
                 target_w = max(10, base_w * scale)
@@ -466,8 +466,8 @@ class CanvasSkia(QWidget):
         # that path so repeat decodes are avoided.
         if self._overlay_image_cache:
             live_paths = {
-                getattr(ov, "image_path", "") for ov in new_list
-                if getattr(ov, "image_path", "")
+                ov.image_path for ov in new_list
+                if ov.image_path
             }
             self._overlay_image_cache = {
                 p: img for p, img in self._overlay_image_cache.items()
@@ -756,12 +756,12 @@ class CanvasSkia(QWidget):
             self._overlays.remove(ov)
         except ValueError:
             pass
-        self._overlay_image_cache.pop(getattr(ov, "image_path", ""), None)
+        self._overlay_image_cache.pop(ov.image_path, None)
         self.update()
 
     def _skia_image_for_overlay(self, ov):
         """Lazy-load and cache the skia.Image for an overlay's image_path."""
-        path = getattr(ov, "image_path", "")
+        path = ov.image_path
         if not path:
             return None
         img = self._overlay_image_cache.get(path)
@@ -878,8 +878,8 @@ class CanvasSkia(QWidget):
             canvas.rotate(rot)
             canvas.translate(-cx, -cy)
         # Flip
-        sx = -1.0 if getattr(ov, "flip_h", False) else 1.0
-        sy = -1.0 if getattr(ov, "flip_v", False) else 1.0
+        sx = -1.0 if ov.flip_h else 1.0
+        sy = -1.0 if ov.flip_v else 1.0
         if sx < 0 or sy < 0:
             widest = max((font.measureText(l) for l in lines), default=0)
             total_h = line_step * len(lines)
@@ -1365,7 +1365,7 @@ class CanvasSkia(QWidget):
                 return (float(ov.x), float(ov.y), 20, 20)
             w = img.width()
             h = img.height()
-            scale = float(getattr(ov, "scale", 1.0) or 1.0)
+            scale = float(ov.scale or 1.0)
             if scale != 1.0 and self._base_image is not None:
                 s = (self._base_image.width() * scale) / max(1, w)
                 w *= s
@@ -1716,8 +1716,8 @@ class CanvasSkia(QWidget):
             canvas.rotate(rot)
             canvas.translate(-w / 2, -h / 2)
         # Flip via negative scale.
-        sx = -1.0 if getattr(ov, "flip_h", False) else 1.0
-        sy = -1.0 if getattr(ov, "flip_v", False) else 1.0
+        sx = -1.0 if ov.flip_h else 1.0
+        sy = -1.0 if ov.flip_v else 1.0
         if sx < 0 or sy < 0:
             canvas.translate(w / 2, h / 2)
             canvas.scale(sx, sy)
@@ -1726,7 +1726,7 @@ class CanvasSkia(QWidget):
         # here we scale the canvas at draw time so the source image
         # stays un-mutated and the cache stays valid regardless of
         # scale slider changes.
-        scale = float(getattr(ov, "scale", 1.0) or 1.0)
+        scale = float(ov.scale or 1.0)
         if scale != 1.0 and self._base_image is not None:
             base_w = self._base_image.width()
             target_w = max(10, base_w * scale)
@@ -2256,8 +2256,8 @@ if _QOGW_OK and _SKIA_OK:
                 }
             if self._overlay_image_cache:
                 live_paths = {
-                    getattr(ov, "image_path", "") for ov in new_list
-                    if getattr(ov, "image_path", "")
+                    ov.image_path for ov in new_list
+                    if ov.image_path
                 }
                 self._overlay_image_cache = {
                     p: img for p, img in self._overlay_image_cache.items()
