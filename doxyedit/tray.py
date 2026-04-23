@@ -1129,16 +1129,35 @@ class WorkTray(QWidget):
     def _on_zoom_changed(self, value: int):
         """Thumbnail zoom slider — rescale existing icons from cached
         pixmaps, persist the preference, update the list widget's
-        icon-size hint for grid-mode layout."""
+        icon-size hint for grid-mode layout.
+
+        QSettings write and grid-mode layout re-apply are debounced
+        (150ms singleshot); a slider drag of 100 ticks previously fired
+        100 registry writes and 100 full layout passes. Visual icon
+        re-scale still runs live so the user sees the size change
+        immediately.
+        """
         self._icon_size = max(40, min(200, value))
-        QSettings("DoxyEdit", "DoxyEdit").setValue(
-            "tray_icon_size", self._icon_size)
-        # Reapply view mode so grid cell size tracks the new icon size
-        # (prevents overlap/cropping when zooming in grid modes).
+        # Grid modes need cell-size refit; list/compact modes only need
+        # setIconSize. Only the grid re-layout is debounced (the visual
+        # cost comes from the grid re-flow, not from setIconSize itself).
         if getattr(self, "_view_mode", 0) >= 2:
-            self._set_view_mode(self._view_mode)
+            if not hasattr(self, "_zoom_commit_timer"):
+                self._zoom_commit_timer = QTimer(self)
+                self._zoom_commit_timer.setSingleShot(True)
+                self._zoom_commit_timer.setInterval(150)
+                self._zoom_commit_timer.timeout.connect(
+                    self._on_zoom_commit)
+            # Approximate cell size immediately so item layout doesn't
+            # look frozen during the debounce window.
+            self._list.setIconSize(QSize(self._icon_size, self._icon_size))
+            self._zoom_commit_timer.start()
         else:
             self._list.setIconSize(QSize(self._icon_size, self._icon_size))
+            # List/compact — persist immediately since there's no costly
+            # re-layout pass that needed the debounce.
+            QSettings("DoxyEdit", "DoxyEdit").setValue(
+                "tray_icon_size", self._icon_size)
         # Recompose every item's icon from its source pixmap cache so
         # the new size takes effect immediately.
         for aid, pm in self._pixmaps.items():
@@ -1152,6 +1171,15 @@ class WorkTray(QWidget):
             item = self._list.item(row)
             if item:
                 item.setIcon(QIcon(scaled))
+
+    def _on_zoom_commit(self):
+        """Debounced commit: persist the tray_icon_size preference and
+        (grid modes only) reapply the full view mode so the grid cell
+        size tracks the new icon size without overlap/cropping."""
+        QSettings("DoxyEdit", "DoxyEdit").setValue(
+            "tray_icon_size", self._icon_size)
+        if getattr(self, "_view_mode", 0) >= 2:
+            self._set_view_mode(self._view_mode)
 
     def _cycle_view_mode(self):
         # 4 modes now: 0 list, 1 compact, 2 2-col grid, 3 3-col grid
