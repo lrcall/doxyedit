@@ -1880,16 +1880,19 @@ class OverlayShapeItem(QGraphicsItem):
         return self.overlay.shape_kind in ("speech_bubble", "thought_bubble")
 
     def boundingRect(self) -> QRectF:
-        x, y = self.overlay.x, self.overlay.y
-        w, h = self.overlay.shape_w, self.overlay.shape_h
-        pad = max(4, (self.overlay.stroke_width or 1))
+        ov = self.overlay
+        x, y = ov.x, ov.y
+        w, h = ov.shape_w, ov.shape_h
+        pad = max(4, (ov.stroke_width or 1))
         r = QRectF(x - pad, y - pad, w + 2 * pad, h + 2 * pad)
         # Bubbles: extend bounding rect so the tail tip is part of the
         # paint region. Without this, dragging the tail outside the body
-        # bounds leaves paint artifacts when the tail is cut off.
-        if self._is_bubble():
-            body = QRectF(self.overlay.x, self.overlay.y,
-                          self.overlay.shape_w, self.overlay.shape_h)
+        # bounds leaves paint artifacts when the tail is cut off. Inline
+        # the shape_kind check (formerly _is_bubble) and reuse the x/y/w/h
+        # locals already read above instead of re-reading them through
+        # self.overlay.*.
+        if ov.shape_kind in ("speech_bubble", "thought_bubble"):
+            body = QRectF(x, y, w, h)
             tip = self._tail_tip(body)
             tail_pad = 12
             min_x = min(r.left(), tip.x() - tail_pad)
