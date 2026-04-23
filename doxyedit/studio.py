@@ -11984,18 +11984,42 @@ class StudioEditor(QWidget):
         the same 80ms singleshot timer used for overlays — otherwise a
         single censor resize triggered a full QListWidget clear +
         rebuild on every mousemove.
+
+        Also fingerprints the new list against the existing one and
+        skips the rebuild + layer-panel reschedule when they match.
+        Idle syncs (e.g. triggered by a shared mouseMoveEvent path that
+        also handles overlay drags) no longer allocate N fresh
+        CensorRegion dataclasses when nothing actually changed.
         """
         if not self._asset:
             return
-        self._asset.censors.clear()
+        new_fingerprints = []
         for item in self._censor_items:
             r = item.rect()
             pos = item.pos()
+            new_fingerprints.append((
+                int(pos.x() + r.x()), int(pos.y() + r.y()),
+                int(r.width()), int(r.height()),
+                item.style,
+                tuple(item.platforms),
+            ))
+        existing = self._asset.censors
+        unchanged = (
+            len(existing) == len(new_fingerprints)
+            and all(
+                (c.x, c.y, c.w, c.h, c.style, tuple(c.platforms))
+                == fp
+                for c, fp in zip(existing, new_fingerprints)
+            )
+        )
+        if unchanged:
+            return
+        self._asset.censors.clear()
+        for fp in new_fingerprints:
+            x, y, w, h, style, platforms = fp
             self._asset.censors.append(CensorRegion(
-                x=int(pos.x() + r.x()), y=int(pos.y() + r.y()),
-                w=int(r.width()), h=int(r.height()),
-                style=item.style,
-                platforms=list(item.platforms),
+                x=x, y=y, w=w, h=h,
+                style=style, platforms=list(platforms),
             ))
         if hasattr(self, '_layer_panel'):
             if not hasattr(self, '_layer_rebuild_timer'):
