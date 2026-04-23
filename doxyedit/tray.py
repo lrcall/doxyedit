@@ -1212,6 +1212,14 @@ class WorkTray(QWidget):
                     if not item.data(NAME_ROLE):
                         item.setData(NAME_ROLE, item.text())
                     item.setText("")
+        # Re-assert drag flags after setViewMode. Qt implicitly resets
+        # Movement on view-mode switch (Static for ListMode, Snap for
+        # IconMode); on some Qt builds the reset can also drop drag flags
+        # set before the first setViewMode ran. Re-setting them here
+        # guarantees out-drag (tray -> Studio, tray -> tab, tray -> file
+        # manager) keeps working across mode toggles.
+        self._list.setDragEnabled(True)
+        self._list.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
 
     def _nudge_zoom(self, delta: int):
         """Incremental zoom for +/- buttons — routes through the slider
