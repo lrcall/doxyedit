@@ -286,6 +286,11 @@ class CanvasSkia(QWidget):
             self._base_image = skia.Image.MakeFromEncoded(data)
         except Exception:
             self._base_image = None
+        # Pixelate censors cache the down-sampled intermediate keyed
+        # on id(base_image); a fresh load invalidates all entries.
+        pc = getattr(self, "_pixelate_cache", None)
+        if pc:
+            pc.clear()
         self.update()
 
     def base_size(self) -> QSize:
@@ -1613,24 +1618,38 @@ class CanvasSkia(QWidget):
             small_h = max(1, int(h / ratio))
             sampling = skia.SamplingOptions(
                 skia.FilterMode.kNearest, skia.MipmapMode.kNone)
-            small_info = skia.ImageInfo.Make(
-                small_w, small_h,
-                skia.ColorType.kRGBA_8888_ColorType,
-                skia.AlphaType.kPremul_AlphaType)
-            tmp = skia.Surface.MakeRaster(small_info)
-            if tmp is None:
-                return
-            tmp_canvas = tmp.getCanvas()
-            tmp_canvas.drawImageRect(
-                base_image,
-                skia.Rect.MakeXYWH(x, y, w, h),
-                skia.Rect.MakeXYWH(0, 0, small_w, small_h),
-                sampling, skia.Paint())
-            try:
-                tmp_canvas.flush()
-            except AttributeError:
-                pass
-            small_img = tmp.makeImageSnapshot()
+            # Cache the down-sampled intermediate. Invalidates naturally
+            # when the base image is reloaded (_pixelate_cache is cleared
+            # in set_base_image_path). Without the cache, every paint
+            # allocates a fresh SkSurface + copies pixels — tens of MB
+            # per frame for a full-canvas pixelate censor.
+            cache = getattr(self, "_pixelate_cache", None)
+            if cache is None:
+                cache = {}
+                self._pixelate_cache = cache
+            key = (id(base_image), int(x), int(y), int(w), int(h),
+                   ratio, small_w, small_h)
+            small_img = cache.get(key)
+            if small_img is None:
+                small_info = skia.ImageInfo.Make(
+                    small_w, small_h,
+                    skia.ColorType.kRGBA_8888_ColorType,
+                    skia.AlphaType.kPremul_AlphaType)
+                tmp = skia.Surface.MakeRaster(small_info)
+                if tmp is None:
+                    return
+                tmp_canvas = tmp.getCanvas()
+                tmp_canvas.drawImageRect(
+                    base_image,
+                    skia.Rect.MakeXYWH(x, y, w, h),
+                    skia.Rect.MakeXYWH(0, 0, small_w, small_h),
+                    sampling, skia.Paint())
+                try:
+                    tmp_canvas.flush()
+                except AttributeError:
+                    pass
+                small_img = tmp.makeImageSnapshot()
+                cache[key] = small_img
             canvas.drawImageRect(
                 small_img,
                 skia.Rect.MakeXYWH(0, 0, small_w, small_h),
@@ -2160,6 +2179,9 @@ if _QOGW_OK and _SKIA_OK:
                 self._base_image = skia.Image.MakeFromEncoded(data)
             except Exception:
                 self._base_image = None
+            pc = getattr(self, "_pixelate_cache", None)
+            if pc:
+                pc.clear()
             self.update()
 
         def set_overlays(self, overlays):
