@@ -883,7 +883,9 @@ def _render_shape_to_image(overlay_snapshot, pad: int):
         kind = getattr(ov, "shape_kind", "rect") or "rect"
         w = float(getattr(ov, "shape_w", 100) or 100)
         h = float(getattr(ov, "shape_h", 100) or 100)
-        # Local rect at (pad, pad)
+        # Local rect at (pad, pad). stroke_align adjustment is NOT
+        # applied here — overlays with non-center stroke_align take
+        # the live path (fast-blit skipped in OverlayShapeItem.paint).
         body = QRectF(pad, pad, w, h)
         # Build path in local coords
         path = QPainterPath()
@@ -1723,6 +1725,11 @@ class OverlayShapeItem(QGraphicsItem):
             # avoid cached-image blending artifacts.
             and (getattr(self.overlay, "blend_mode", "normal") or "normal")
                 == "normal"
+            # Non-center stroke_align shifts the rect geometry — the
+            # render helper doesn't apply that adjustment, so fall
+            # through to the live path for inside/outside strokes.
+            and (getattr(self.overlay, "stroke_align", "center") or "center")
+                == "center"
         )
         if fast_blit_ok:
             painter.save()
