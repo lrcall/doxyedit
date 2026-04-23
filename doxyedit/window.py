@@ -343,13 +343,14 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         self._new_tab_btn.setToolTip("New tab — open project, folder, or new project")
         self._new_tab_btn.clicked.connect(self._add_folder_preset_dialog)
 
-        _proj_bar_widget = QWidget()
-        _proj_bar_widget.setObjectName("proj_tab_bar_row")
-        _proj_bar_row = QHBoxLayout(_proj_bar_widget)
+        self._proj_bar_widget = QWidget()
+        self._proj_bar_widget.setObjectName("proj_tab_bar_row")
+        _proj_bar_row = QHBoxLayout(self._proj_bar_widget)
         _proj_bar_row.setContentsMargins(0, 0, 0, 0)
         _proj_bar_row.setSpacing(max(2, self._ui_padding // 2))
         _proj_bar_row.addWidget(self._proj_tab_bar, 1)
         _proj_bar_row.addWidget(self._new_tab_btn)
+        _proj_bar_widget = self._proj_bar_widget  # keep the local for below
 
         # --- Main layout: tabs + tray splitter ---
         self.tabs = _NarrowTabWidget()
@@ -3456,21 +3457,24 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _toggle_minimal_mode(self):
         """Ctrl+Shift+F — toggle minimal / focus mode.
 
-        Hides every side panel AND both browser toolbar rows so only
-        the main menu, project tabs, folder headers, and thumbnail grid
-        remain. Re-pressing restores whatever was visible before entry.
+        Hides every side panel, both browser toolbar rows, the project
+        tab bar, and the work tray so only the main menu + folder
+        headers + thumbnail grid remain. Re-pressing restores whatever
+        was visible before entry.
 
-        Distinct from _toggle_all_panels (which only affects the side
-        panels) and _toggle_browser_toolbar (which only affects the
-        toolbar rows); this is the one-shot 'give me the thumbnails'
-        shortcut matching the user's screenshot layout.
+        Distinct from _toggle_all_panels (side panels only) and
+        _toggle_browser_toolbar (toolbar rows only); this is the
+        one-shot 'give me the thumbnails' shortcut matching the
+        screenshot layout.
         """
         tb = getattr(self.browser, "_toolbar_widget", None)
+        tabs = getattr(self, "_proj_bar_widget", None)
         any_visible = (
             self.tag_panel.isVisible()
             or self._tray_open
             or self._file_browser.isVisible()
             or (tb is not None and tb.isVisible())
+            or (tabs is not None and tabs.isVisible())
         )
         if any_visible:
             # Snapshot what's up now; restore on re-toggle.
@@ -3479,6 +3483,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 'tray': self._tray_open,
                 'files': self._file_browser.isVisible(),
                 'toolbar': tb.isVisible() if tb is not None else False,
+                'tabs': tabs.isVisible() if tabs is not None else True,
             }
             if self.tag_panel.isVisible():
                 self._toggle_tag_panel()
@@ -3488,10 +3493,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 self._toggle_file_browser()
             if tb is not None and tb.isVisible():
                 self._toggle_browser_toolbar()
+            if tabs is not None and tabs.isVisible():
+                tabs.setVisible(False)
         else:
             prev = getattr(self, '_minimal_mode_prev',
                            {'tags': True, 'tray': False, 'files': False,
-                            'toolbar': True})
+                            'toolbar': True, 'tabs': True})
             if prev.get('tags') and not self.tag_panel.isVisible():
                 self._toggle_tag_panel()
             if prev.get('tray') and not self._tray_open:
@@ -3501,6 +3508,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             if (prev.get('toolbar') and tb is not None
                     and not tb.isVisible()):
                 self._toggle_browser_toolbar()
+            if (prev.get('tabs', True) and tabs is not None
+                    and not tabs.isVisible()):
+                tabs.setVisible(True)
 
     def _toggle_file_browser(self):
         vis = not self._file_browser.isVisible()
