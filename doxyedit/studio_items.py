@@ -3122,6 +3122,30 @@ class OverlayTextItem(QGraphicsTextItem):
         "lighten": QPainter.CompositionMode.CompositionMode_Lighten,
     }
 
+    def boundingRect(self) -> QRectF:
+        """Extend the default document rect so the 8-dir stroke pass,
+        drop shadow, and optional background pill are inside the paint
+        region. Without this, moving a text overlay with stroke/shadow
+        leaves visual artifacts (the old stroke pixels sit outside the
+        rect Qt invalidates and don't get cleared).
+
+        Stroke and bg pill extend on all four sides; shadow is a single
+        positive-offset copy so it only extends right/bottom.
+        """
+        r = super().boundingRect()
+        pad_stroke = int(self.overlay.stroke_width or 0)
+        pad_shadow = int(self.overlay.shadow_offset or 0)
+        pad_bg = 0
+        if getattr(self.overlay, "background_color", ""):
+            pad_bg = max(4, int(self.overlay.font_size * 0.2))
+        if pad_stroke == 0 and pad_shadow == 0 and pad_bg == 0:
+            return r
+        base_pad = max(pad_stroke, pad_bg)
+        return r.adjusted(
+            -base_pad, -base_pad,
+            base_pad + pad_shadow, base_pad + pad_shadow,
+        )
+
     def _draw_document(self, painter, color: QColor):
         """Draw the text document directly with an override color.
 
