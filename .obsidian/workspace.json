@@ -185,6 +185,7 @@
   },
   "active": "49aca58f2a24fd7c",
   "lastOpenFiles": [
+    "doxyedit/canvas_skia.py.tmp.59924.1776965160629",
     "doxyedit/studio.py.tmp.59924.1776964546268",
     "doxyedit/studio.py.tmp.59924.1776964534560",
     "doxyedit/__pycache__/studio.cpython-311.pyc.2620789407792",
@@ -195,7 +196,6 @@
     "doxyedit/__pycache__/preview.cpython-311.pyc.1957553522480",
     "doxyedit/canvas_skia.py.tmp.59924.1776950384927",
     "doxyedit/canvas_skia.py.tmp.59924.1776950375034",
-    "doxyedit/canvas_skia.py.tmp.59924.1776950366791",
     "docs/gl-canvas-plan.md",
     "docs/e3-benchmark.md",
     "docs/canvas-architecture-deep-dive.md",

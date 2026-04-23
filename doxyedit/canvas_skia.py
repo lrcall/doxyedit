@@ -246,7 +246,10 @@ class CanvasSkia(QWidget):
             try:
                 self._pan_start = event.position()
             except AttributeError:
-                from PySide6.QtCore import QPointF
+                # PySide6 >= 6.0 always has event.position(); the older
+                # fallback path stayed for defensive coverage. QPointF
+                # is module-imported already (see top of file) so drop
+                # the redundant inline import.
                 self._pan_start = QPointF(event.pos())
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
             event.accept()
@@ -258,7 +261,6 @@ class CanvasSkia(QWidget):
             try:
                 pos = event.position()
             except AttributeError:
-                from PySide6.QtCore import QPointF
                 pos = QPointF(event.pos())
             delta = pos - self._pan_start
             self._pan_start = pos
