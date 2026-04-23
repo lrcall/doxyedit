@@ -351,7 +351,7 @@ class CanvasSkia(QWidget):
             if w <= 0 or h <= 0:
                 return False
             # Transform point into local shape coords (undo rotation)
-            rot = float(getattr(ov, "rotation", 0) or 0)
+            rot = float(ov.rotation)
             lx = x - ox
             ly = y - oy
             if rot:
@@ -867,7 +867,7 @@ class CanvasSkia(QWidget):
         # Position + transform (rotation around text center for parity
         # with OverlayTextItem).
         canvas.translate(float(ov.x), float(ov.y))
-        rot = float(getattr(ov, "rotation", 0) or 0)
+        rot = float(ov.rotation)
         if rot:
             # Pivot around the middle of the text block
             total_h = line_step * len(lines)
@@ -985,7 +985,7 @@ class CanvasSkia(QWidget):
         # Fill pass (with shadow if configured; otherwise plain).
         fill_paint = _mk_paint(
             fill_color, with_shadow=bool(shadow_off and shadow_hex))
-        mode = self._blend_mode_for(getattr(ov, "blend_mode", "normal") or "normal")
+        mode = self._blend_mode_for((ov.blend_mode or "normal"))
         if mode is not None:
             fill_paint.setBlendMode(mode)
         for i, line in enumerate(lines):
@@ -1237,7 +1237,7 @@ class CanvasSkia(QWidget):
         path = self._build_shape_path(ov)
         canvas.save()
         canvas.translate(float(ov.x), float(ov.y))
-        rot = float(getattr(ov, "rotation", 0) or 0)
+        rot = float(ov.rotation)
         if rot:
             canvas.translate(w / 2, h / 2)
             canvas.rotate(rot)
@@ -1245,7 +1245,7 @@ class CanvasSkia(QWidget):
         opacity = float(getattr(ov, "opacity", 1.0) or 1.0)
         kind = getattr(ov, "shape_kind", "rect") or "rect"
         blend_mode = self._blend_mode_for(
-            getattr(ov, "blend_mode", "normal") or "normal")
+            (ov.blend_mode or "normal"))
         # Fill
         if kind in ("gradient_linear", "gradient_radial"):
             self._fill_gradient(canvas, path, ov, w, h, blend_mode, opacity)
@@ -1710,7 +1710,7 @@ class CanvasSkia(QWidget):
         canvas.translate(float(ov.x), float(ov.y))
         # Rotate around center of the image rect.
         w, h = img.width(), img.height()
-        rot = float(getattr(ov, "rotation", 0) or 0)
+        rot = float(ov.rotation)
         if rot:
             canvas.translate(w / 2, h / 2)
             canvas.rotate(rot)
@@ -1736,7 +1736,7 @@ class CanvasSkia(QWidget):
         opacity = float(getattr(ov, "opacity", 1.0) or 1.0)
         # Skia takes alpha via paint.setAlpha(0..255).
         paint.setAlpha(max(0, min(255, int(opacity * 255))))
-        mode = self._blend_mode_for(getattr(ov, "blend_mode", "normal") or "normal")
+        mode = self._blend_mode_for((ov.blend_mode or "normal"))
         if mode is not None:
             paint.setBlendMode(mode)
         canvas.drawImage(img, 0, 0, paint=paint)
