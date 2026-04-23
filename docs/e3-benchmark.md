@@ -18,6 +18,30 @@ measurement after 3 warm-up paints + full threadpool drain.
 | Live (params invalidate every paint) | 0.787 ms |
 | **Speedup** | **22.6x** |
 
+### Per-shape-kind (200x120, 100 paints each)
+
+After commit `7c49984` extended the worker to cover all shape kinds:
+
+| Shape | Cached | Live | Speedup |
+|---|---|---|---|
+| rect | 0.036 ms | 0.107 ms | 3.0x |
+| ellipse | 0.031 ms | 0.117 ms | 3.7x |
+| rect (corner_radius=20) | 0.031 ms | 0.111 ms | 3.6x |
+| star | 0.029 ms | 0.143 ms | 4.9x |
+| polygon | 0.030 ms | 0.139 ms | 4.6x |
+| burst | 0.030 ms | 0.237 ms | 7.9x |
+| speech_bubble (wobble+tail_curve) | 0.031 ms | 0.768 ms | 24.8x |
+| **thought_bubble** | **0.031 ms** | **2.904 ms** | **92.9x** |
+| gradient_linear | 0.031 ms | 0.096 ms | 3.1x |
+| gradient_radial | 0.032 ms | 0.108 ms | 3.4x |
+
+Cache-hit paint time is flat at ~0.03ms regardless of shape complexity
+— it's just a `QImage.drawImage` blit. The speedup scales with how
+expensive the live path is.
+
+Biggest win: `thought_bubble` at **93x**. 10 cloud-puff `path.united()`
+CSG ops per paint collapsed into one blit.
+
 ## What the fast path skips
 
 The live path per paint:
