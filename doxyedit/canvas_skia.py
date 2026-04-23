@@ -89,6 +89,8 @@ class CanvasSkia(QWidget):
         self._zoom: float = 1.0
         self._pan_x: float = 0.0
         self._pan_y: float = 0.0
+        self._panning: bool = False
+        self._pan_start: QPointF = QPointF(0, 0)
         # Day 3: image overlays. List of CanvasOverlay data objects;
         # paint iterates these after the base image. Per-path Skia
         # image cache keyed on image_path + cacheKey() to avoid
@@ -164,6 +166,73 @@ class CanvasSkia(QWidget):
     def resizeEvent(self, event):
         self._resize_buffers(event.size())
         super().resizeEvent(event)
+
+    # ------------------------------------------------------------------
+    # Interactive pan + zoom (wheel + middle-drag)
+    # ------------------------------------------------------------------
+
+    def wheelEvent(self, event):
+        """Wheel zoom centered on cursor. Ctrl+wheel = larger step."""
+        is_ctrl = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        step = 1.25 if is_ctrl else 1.1
+        factor = step if event.angleDelta().y() > 0 else 1.0 / step
+        # Cursor-anchored zoom: translate so the scene point under the
+        # cursor stays put after the zoom.
+        try:
+            pos = event.position()
+        except AttributeError:
+            pos = event.pos()
+        wx, wy = float(pos.x()), float(pos.y())
+        old_zoom = self._zoom
+        new_zoom = max(0.05, min(32.0, old_zoom * factor))
+        if new_zoom == old_zoom:
+            return
+        # Scene point currently at cursor:
+        #   sx = (wx - pan_x) / old_zoom
+        # We want new pan such that (wx - new_pan_x) / new_zoom == sx.
+        sx = (wx - self._pan_x) / old_zoom
+        sy = (wy - self._pan_y) / old_zoom
+        self._zoom = new_zoom
+        self._pan_x = wx - sx * new_zoom
+        self._pan_y = wy - sy * new_zoom
+        self.update()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self._panning = True
+            try:
+                self._pan_start = event.position()
+            except AttributeError:
+                from PySide6.QtCore import QPointF
+                self._pan_start = QPointF(event.pos())
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if getattr(self, "_panning", False):
+            try:
+                pos = event.position()
+            except AttributeError:
+                from PySide6.QtCore import QPointF
+                pos = QPointF(event.pos())
+            delta = pos - self._pan_start
+            self._pan_start = pos
+            self._pan_x += delta.x()
+            self._pan_y += delta.y()
+            self.update()
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.MiddleButton and getattr(self, "_panning", False):
+            self._panning = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     # ------------------------------------------------------------------
     # Base image
