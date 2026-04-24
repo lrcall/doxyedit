@@ -849,17 +849,25 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         QShortcut(QKeySequence("Ctrl+Shift+C"), self).activated.connect(self._copy_full_path)
         # Shift+E notes overlay
         QShortcut(QKeySequence("Shift+E"), self).activated.connect(self._show_notes_overlay)
-        # F1-F6 = jump to main tab (F2 is free for Rename — Studio uses S).
+        # F1-F5 = jump to main tab. F6 is reserved for the CDP push
+        # action (see below) — Notes tab stays reachable via the tab
+        # bar click or Ctrl+tab-index. F2 is free for Rename; Studio
+        # uses S.
         self._fkey_tab_map = [
             (Qt.Key.Key_F1, self._browse_split),
             (Qt.Key.Key_F3, self._social_split),
             (Qt.Key.Key_F4, self._plat_full),
             (Qt.Key.Key_F5, self._overview_split),
-            (Qt.Key.Key_F6, self._notes_tabs),
         ]
         for fkey, target in self._fkey_tab_map:
             QShortcut(QKeySequence(fkey), self).activated.connect(
                 lambda t=target: self.tabs.setCurrentWidget(t))
+        # F6 = Push Identity+Posts to Browser (CDP). Single-tap
+        # re-injects window.__psyai_data on every page of the debug
+        # browser so the psyai userscript picks up composer edits
+        # without opening the Tools menu.
+        QShortcut(QKeySequence("F6"), self).activated.connect(
+            self._psyai_push_cdp)
         # S = send the current asset (browser selection, or whatever the
         # preview pane is showing) to Studio + switch to the Studio tab.
         # Falls back to just switching tabs when nothing is selected.
