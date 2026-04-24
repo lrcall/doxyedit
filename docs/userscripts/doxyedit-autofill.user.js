@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.13
+// @version      2.14
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -384,32 +384,50 @@ async function autoInject() {
     host.endsWith("threads.net")
   );
   if (pasteFriendly) {
-    const active = document.activeElement;
-    // Only paste onto a compose editor, not a search bar. Require
-    // contentEditable or TEXTAREA AND proximity to a compose container.
-    const isComposeish = active && (
-      active.isContentEditable || active.tagName === "TEXTAREA");
-    const inComposeContext = isComposeish && active.closest(
+    // Find a compose editor. First check if one is already focused;
+    // if not, look for contentEditable / textarea inside a compose
+    // container and focus it ourselves so the user doesn't have to
+    // click into the field before hitting the attach button.
+    const COMPOSE_PASTE_CONTEXT = (
       '[role="dialog"], [aria-modal="true"], ' +
       '[data-testid*="compos" i], [data-testid*="post" i], ' +
-      'form[class*="compose" i], form[id*="compose" i]');
-    if (inComposeContext) {
+      'form[class*="compose" i], form[id*="compose" i]'
+    );
+    const isComposeTarget = (el) => el && (
+      (el.isContentEditable || el.tagName === "TEXTAREA")
+      && el.closest(COMPOSE_PASTE_CONTEXT));
+    let target = document.activeElement;
+    if (!isComposeTarget(target)) {
+      target = null;
+      for (const ctx of document.querySelectorAll(COMPOSE_PASTE_CONTEXT)) {
+        const cand = ctx.querySelector(
+          '[contenteditable="true"], [contenteditable=""], textarea');
+        if (cand && cand.offsetParent !== null) {
+          target = cand;
+          break;
+        }
+      }
+    }
+    if (target) {
       try {
+        target.focus();
         const dt2 = new DataTransfer();
         for (const f of _pickedFiles) dt2.items.add(f);
         const pasteEv = new ClipboardEvent("paste", {
           clipboardData: dt2, bubbles: true, cancelable: true,
         });
-        active.dispatchEvent(pasteEv);
+        target.dispatchEvent(pasteEv);
         setUploadStatus(`✓ attached via paste (no dialog)`, true);
         return;
       } catch (e) { /* fall through to click strategy */ }
     }
-    // Paste-friendly host but compose not focused: don't fall through
-    // to Strategy 1 here, because the file-input route produces the
-    // same duplicate-attach bug. Tell the user what's needed instead.
+    // Paste-friendly host but no compose editor found anywhere on
+    // the page. Rare: the modal may have been closed or the page
+    // is not on a compose route. Don't fall through to Strategy 1
+    // because that causes dup-attach on these sites.
     setUploadStatus(
-      "click into the compose editor first, then retry", false);
+      "no compose editor found on this page; open a compose first",
+      false);
     return;
   }
   // Strategy 1: existing input[type=file]. Only runs on non-paste-
