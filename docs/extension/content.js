@@ -392,12 +392,25 @@ const HOST_TO_POST_KEY = {
 function currentHostPostKey() {
   const host = (location.host || "").toLowerCase();
   if (host.includes("mastodon")) return "mastodon";
-  // Reddit: pick the first reddit_<sub> caption the user has in their
-  // posts bag. User pre-navigates to the right subreddit's /submit
-  // page; we just fill and submit once they're there.
+  // Reddit: pick the reddit_<sub> caption that matches the current
+  // subreddit in the URL. When several reddit_* posts are in the
+  // payload (common - user targets half a dozen subs in one session)
+  // the previous "first key alphabetically" wins picked the wrong
+  // post. Now the URL's /r/<sub>/ segment steers which caption the
+  // POST NOW button + panel buttons expose; alphabetical first is
+  // just a fallback when nothing matches (e.g. user is on
+  // /submit with no sub context yet).
   if (host === "reddit.com" || host.endsWith(".reddit.com")) {
     const keys = Object.keys((currentData && currentData.posts) || {});
-    return keys.find((k) => k.startsWith("reddit_")) || null;
+    const redditKeys = keys.filter((k) => k.startsWith("reddit_"));
+    if (!redditKeys.length) return null;
+    const pathLower = location.pathname.toLowerCase();
+    const exact = redditKeys.find((k) => {
+      const sub = k.slice("reddit_".length).toLowerCase();
+      return sub && (pathLower.includes(`/r/${sub}/`)
+                      || pathLower.endsWith(`/r/${sub}`));
+    });
+    return exact || redditKeys[0];
   }
   for (const h in HOST_TO_POST_KEY) {
     if (host === h || host.endsWith("." + h)) return HOST_TO_POST_KEY[h];
