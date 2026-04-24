@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.28
+// @version      2.29
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -344,6 +344,15 @@ const HOST_TO_POST_KEY = {
   "x.com": "x",
   "twitter.com": "twitter",
   "threads.net": "threads",
+  // Game / art-promotion platforms. Selector stubs; these use the
+  // short-form POST NOW flow (attach first asset + fill single
+  // caption + click submit) which may or may not fit each
+  // platform's actual post shape. Fill fails surface as clear
+  // status messages per the cron stub-friendly principle.
+  "ko-fi.com": "kofi",
+  "newgrounds.com": "newgrounds",
+  "itch.io": "itch",
+  "indiedb.com": "indiedb",
 };
 function currentHostPostKey() {
   const host = (location.host || "").toLowerCase();
@@ -398,6 +407,30 @@ const POST_NOW_HOSTS = {
   "old.reddit.com": [
     'button.btn[name="submit"]',
     'button.submit-link',
+  ],
+  // Stub selectors - best-guess without live inspection. Any host
+  // in this group that matches nothing surfaces a clear "no submit
+  // button found, click manually" status, which is preferable to a
+  // silent fail per the cron rule.
+  "ko-fi.com": [
+    'button[aria-label*="Post" i]',
+    'button[type="submit"]',
+    'button.post-button',
+  ],
+  "newgrounds.com": [
+    'input[type="submit"][value*="Post" i]',
+    'input[type="submit"][value*="Submit" i]',
+    'button[type="submit"]',
+  ],
+  "itch.io": [
+    // Devlog / comment submit; itch.io uses named form buttons.
+    'button[name="commit"]',
+    'button.btn[type="submit"]',
+    'input[type="submit"]',
+  ],
+  "indiedb.com": [
+    'input[type="submit"][value*="Post" i]',
+    'button[type="submit"]',
   ],
 };
 function postNowSelectorsForHost() {
