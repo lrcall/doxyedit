@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.21
+// @version      2.22
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -303,6 +303,157 @@ function fillFocusedField(text) {
     copyToClipboard(text);
     alert("Field is not directly fillable - text copied to clipboard. Paste manually.");
   }
+}
+
+// ── ONE-CLICK POST ─────────────────────────────────────────────────────────
+// Fill image + fill caption + click the platform's submit button, all
+// in sequence. Per-host submit-button selectors live in POST_NOW_HOSTS
+// below. Missing selectors for a host degrade to a clear status
+// message rather than a silent failure; the user can still hit their
+// platform's native submit button manually.
+
+// Short keyword each host corresponds to in currentData.posts.
+// Same shape as HOST_POST_TAGS but narrower: 1:1 host->key, no
+// compound matching.
+const HOST_TO_POST_KEY = {
+  "bsky.app": "bluesky",
+  "x.com": "x",
+  "twitter.com": "twitter",
+  "threads.net": "threads",
+};
+function currentHostPostKey() {
+  const host = (location.host || "").toLowerCase();
+  if (host.includes("mastodon")) return "mastodon";
+  for (const h in HOST_TO_POST_KEY) {
+    if (host === h || host.endsWith("." + h)) return HOST_TO_POST_KEY[h];
+  }
+  return null;
+}
+
+// Ordered list of submit-button selectors per host. First visible
+// match wins. Empty list = not supported yet for one-click post.
+const POST_NOW_HOSTS = {
+  "bsky.app": [
+    '[data-testid="composerPublishBtn"]',
+    'button[aria-label="Publish post"]',
+    'div[role="dialog"] button[aria-label*="Post" i]',
+  ],
+  "x.com": [
+    '[data-testid="tweetButtonInline"]',
+    '[data-testid="tweetButton"]',
+  ],
+  "twitter.com": [
+    '[data-testid="tweetButtonInline"]',
+    '[data-testid="tweetButton"]',
+  ],
+  "threads.net": [
+    'div[role="dialog"] div[role="button"][tabindex="0"]',
+  ],
+  "mastodon": [
+    'button.compose-form__publish-button-wrapper button',
+    'button[type="submit"].button.button--block',
+  ],
+};
+function postNowSelectorsForHost() {
+  const host = (location.host || "").toLowerCase();
+  if (host.includes("mastodon")) return POST_NOW_HOSTS.mastodon;
+  for (const h in POST_NOW_HOSTS) {
+    if (host === h || host.endsWith("." + h)) return POST_NOW_HOSTS[h];
+  }
+  return null;
+}
+
+function _wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+async function postNowOnCurrentPlatform() {
+  const postKey = currentHostPostKey();
+  const selectors = postNowSelectorsForHost();
+  if (!postKey || !selectors) {
+    setUploadStatus(
+      `one-click post not supported on ${location.host} yet`, false);
+    return false;
+  }
+  const caption = (currentData.posts || {})[postKey];
+  if (!caption) {
+    setUploadStatus(
+      `no "${postKey}" post in DoxyEdit - tag a post for this platform`,
+      false);
+    return false;
+  }
+  // Step 1: attach the first asset if DoxyEdit pushed any. The
+  // cascade inside loadAssetFromBridge handles fetch fallbacks and
+  // paste-injection on our supported short-form hosts.
+  const asset = (currentData.assets || [])[0];
+  if (asset) {
+    setUploadStatus(`post 1/3: attaching ${asset.name}...`, true);
+    const ok = await loadAssetFromBridge(asset);
+    if (!ok) {
+      setUploadStatus(
+        `post 1/3 FAILED: image attach did not complete`, false);
+      return false;
+    }
+    await _wait(500);
+  }
+  // Step 2: fill the caption. For rich-text composers (Bluesky, X
+  // contentEditable, Threads) the image attach already focused the
+  // compose editor, so paste-style fill is safe. Plain text captions
+  // go straight in via insertText.
+  setUploadStatus(`post 2/3: filling caption...`, true);
+  const captionText = (typeof caption === "string")
+    ? caption : (caption.text || caption.body || caption.title || "");
+  const active = document.activeElement;
+  if (active && (active.isContentEditable || active.tagName === "TEXTAREA"
+                  || active.tagName === "INPUT")) {
+    if (active.isContentEditable) {
+      active.focus();
+      document.execCommand("insertText", false, captionText);
+    } else {
+      setReactValue(active, captionText);
+    }
+  } else {
+    // Try paste on the compose editor found via DOM scan.
+    const editor = document.querySelector(
+      '[role="dialog"] [contenteditable="true"], ' +
+      '[role="dialog"] textarea, ' +
+      'form.compose-form textarea');
+    if (editor) {
+      editor.focus();
+      if (editor.isContentEditable) {
+        document.execCommand("insertText", false, captionText);
+      } else {
+        setReactValue(editor, captionText);
+      }
+    } else {
+      setUploadStatus(
+        `post 2/3 FAILED: no compose editor found`, false);
+      return false;
+    }
+  }
+  await _wait(400);
+  // Step 3: click the submit button. Pick the first visible match
+  // from the host's selector list.
+  setUploadStatus(`post 3/3: clicking submit...`, true);
+  let btn = null;
+  for (const sel of selectors) {
+    try {
+      for (const el of document.querySelectorAll(sel)) {
+        if (el.offsetParent !== null && !el.disabled
+            && el.getAttribute("aria-disabled") !== "true") {
+          btn = el; break;
+        }
+      }
+    } catch (e) { /* bad selector, skip */ }
+    if (btn) break;
+  }
+  if (!btn) {
+    setUploadStatus(
+      `post 3/3 FAILED: no submit button found - click it manually`,
+      false);
+    return false;
+  }
+  btn.click();
+  setUploadStatus(`✓ posted to ${postKey}`, true);
+  return true;
 }
 
 // ── IMAGE INJECTION ──────────────────────────────────────────────────────
@@ -1280,6 +1431,19 @@ function rebuildPanel() {
     `  <button class="doxyedit-close" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:16px;">×</button>`,
     `</div>`,
     `<div class="doxyedit-source"><span class="dot" style="background:${sourceDotColor(currentSource)};"></span>source: ${currentSource}</div>`,
+    // One-click post button appears only on hosts with known
+    // submit-button selectors + a matching post key in the payload.
+    // Everywhere else it stays hidden so the user isn't promised a
+    // flow we can't actually deliver.
+    (() => {
+      const k = currentHostPostKey();
+      const sels = postNowSelectorsForHost();
+      if (!k || !sels || !d.posts || !d.posts[k]) return "";
+      return `<button class="doxyedit-btn primary doxyedit-post-now" ` +
+             `style="background:#1f3a1f;border-color:#6bff6b;">` +
+             `🚀 POST NOW to ${k}` +
+             `</button>`;
+    })(),
     `<button class="doxyedit-btn primary doxyedit-clipboard">📋 paste from DoxyEdit</button>`,
     // Asset buttons auto-attach in one click when DoxyEdit has
     // pushed composer_post.asset_ids. Falls through to the manual
@@ -1347,6 +1511,26 @@ function rebuildPanel() {
     panelEl.style.display = "none";
   });
   panelEl.querySelector(".doxyedit-clipboard").addEventListener("click", pasteFromClipboard);
+  // One-click post button: fill image + fill caption + click submit.
+  // Debounce so a second click while a post is mid-flight is ignored.
+  const postNowBtn = panelEl.querySelector(".doxyedit-post-now");
+  if (postNowBtn) {
+    let _postInFlight = false;
+    postNowBtn.addEventListener("click", async () => {
+      if (_postInFlight) {
+        setUploadStatus("post in flight, ignoring duplicate click", false);
+        return;
+      }
+      _postInFlight = true;
+      postNowBtn.disabled = true;
+      try {
+        await postNowOnCurrentPlatform();
+      } finally {
+        _postInFlight = false;
+        postNowBtn.disabled = false;
+      }
+    });
+  }
   // Pushed-asset buttons - one-click attach, no OS picker.
   // Variant buttons: each fires a different fetch strategy on the
   // same asset so the user can figure out which one survives their
