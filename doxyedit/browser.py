@@ -3872,6 +3872,16 @@ class AssetBrowser(QWidget):
                         else:
                             self.asset_preview.emit(aid)
                     return True
+                # Plain 'S' = send selected asset to Studio (mirrors the
+                # right-click "Open in Studio" menu item). Skipped when
+                # modifiers are held so Ctrl+S / Shift+S / Alt+S stay
+                # available as save / range-select / platform hooks.
+                if (event.key() == Qt.Key.Key_S
+                        and event.modifiers() == Qt.KeyboardModifier.NoModifier
+                        and self._selected_ids):
+                    aid = next(iter(self._selected_ids))
+                    self.asset_to_studio.emit(aid)
+                    return True
                 if event.key() == Qt.Key.Key_F3:
                     self._open_in_native_editor()
                     return True
@@ -3925,6 +3935,13 @@ class AssetBrowser(QWidget):
                 else:
                     self.asset_preview.emit(aid)
                 return
+        # Plain 'S' mirrors the right-click "Open in Studio" menu item.
+        if (event.key() == Qt.Key.Key_S
+                and event.modifiers() == Qt.KeyboardModifier.NoModifier
+                and self._selected_ids):
+            aid = next(iter(self._selected_ids))
+            self.asset_to_studio.emit(aid)
+            return
         if event.key() == Qt.Key.Key_Escape:
             if self._bar_tag_filters:
                 self.clear_bar_filters()
