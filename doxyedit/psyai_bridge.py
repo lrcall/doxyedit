@@ -925,3 +925,23 @@ def worker_upload_files(
                 pass
         if on_done:
             on_done(False, f"stdin write failed: {exc!r}")
+
+
+# Module-level exit hook: MainWindow.closeEvent already tears these
+# down, but it only runs on a clean Qt shutdown. Interpreter exits
+# via sys.exit(), unhandled exceptions, or QApplication.quit without
+# going through the main window all skip closeEvent and leave the
+# worker subprocess, HTTP server thread, and persistent session
+# running as zombies. Registering at the module level covers every
+# path Python can exit through short of a hard crash.
+import atexit as _atexit
+
+def _psyai_bridge_atexit() -> None:
+    for fn in (stop_worker_process, stop_persistent_session,
+               stop_http_server):
+        try:
+            fn()
+        except Exception:
+            pass
+
+_atexit.register(_psyai_bridge_atexit)
