@@ -2377,6 +2377,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         browser_menu.addAction(
             "Copy Identity+Posts to Clipboard (userscript)",
             self._psyai_copy_clipboard)
+        browser_menu.addAction(
+            "Upload Composer Images to Browser...",
+            self._psyai_upload_images)
 
         # — Project Info submenu —
         projinfo_menu = tools_menu.addMenu("Project Info")
@@ -5729,6 +5732,100 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.status.showMessage(
             f"psyai userscript bridge live at http://127.0.0.1:{port}/psyai.json",
             8000)
+
+    def _psyai_upload_images(self):
+        """Upload the composer's current post images (or a user-
+        picked file) into whichever debug-browser page has a file
+        input. Bluesky / Mastodon / ko-fi all use hidden
+        input[type=file] elements that Playwright can set files
+        on without needing to click any UI button.
+
+        Flow:
+        1. Gather file paths — composer post's asset_ids -> source_
+           path, fall back to a QFileDialog.
+        2. Ask the user which tab to target (URL substring) so a
+           Reddit upload doesn't hit Bluesky by accident.
+        3. Call worker_upload_files; status-bar on result."""
+        from doxyedit.psyai_bridge import worker_upload_files
+        from doxyedit.browserpost import is_chrome_running
+        if not is_chrome_running():
+            QMessageBox.warning(
+                self, "Debug Browser Not Running",
+                "Launch Debug Brave / Chrome first and open the "
+                "compose page of the platform you want to upload to.")
+            return
+        # Gather paths from the composer's current post.
+        paths: list[str] = []
+        try:
+            post = None
+            if hasattr(self, "_docked_composer") and self._docked_composer:
+                post = getattr(self._docked_composer, "_post", None)
+            if post and self.project:
+                for aid in (post.asset_ids or []):
+                    a = self.project.get_asset(aid)
+                    if a and a.source_path and Path(a.source_path).exists():
+                        paths.append(a.source_path)
+        except Exception:
+            pass
+        if not paths:
+            # Fall back: ask the user to pick one or more files.
+            picked, _ = QFileDialog.getOpenFileNames(
+                self, "Pick image(s) to upload", "",
+                "Images (*.png *.jpg *.jpeg *.webp *.gif)")
+            paths = list(picked)
+            if not paths:
+                return
+        # Ask which platform the target tab belongs to.
+        platform_options = [
+            "bsky.app (Bluesky)",
+            "mastodon",
+            "ko-fi.com (Ko-fi)",
+            "x.com (Twitter/X)",
+            "reddit.com",
+            "newgrounds.com",
+            "itch.io",
+            "any (first page with a file input)",
+        ]
+        label, ok = QInputDialog.getItem(
+            self, "Target tab",
+            f"Upload {len(paths)} file(s) to which debug-browser tab?",
+            platform_options, 0, False)
+        if not ok:
+            return
+        substring = {
+            "bsky.app (Bluesky)": "bsky.app",
+            "mastodon": "mastodon",
+            "ko-fi.com (Ko-fi)": "ko-fi.com",
+            "x.com (Twitter/X)": "x.com",
+            "reddit.com": "reddit.com",
+            "newgrounds.com": "newgrounds.com",
+            "itch.io": "itch.io",
+            "any (first page with a file input)": "",
+        }.get(label, "")
+        self.status.showMessage(
+            f"Uploading {len(paths)} file(s) to {label}...", 4000)
+        from PySide6.QtCore import QObject, Signal, Qt
+        if not hasattr(self, "_psyai_upload_signal"):
+            class _UpSig(QObject):
+                done = Signal(bool, str)
+            self._psyai_upload_signal = _UpSig()
+            self._psyai_upload_signal.done.connect(
+                self._psyai_upload_done,
+                Qt.ConnectionType.QueuedConnection)
+
+        def _cb(ok, err):
+            self._psyai_upload_signal.done.emit(ok, err or "")
+        worker_upload_files(paths, url_contains=substring, on_done=_cb)
+
+    def _psyai_upload_done(self, ok: bool, err: str):
+        if ok:
+            self.status.showMessage("Files uploaded to browser", 4000)
+        else:
+            from doxyedit.psyai_bridge import bridge_log_path
+            QMessageBox.warning(
+                self, "Upload Failed",
+                f"Could not upload files.\n\nError: {err}\n\n"
+                f"Full log: {bridge_log_path()}")
 
     def _psyai_copy_clipboard(self):
         """Track B — serialize identity + posts as JSON with the magic

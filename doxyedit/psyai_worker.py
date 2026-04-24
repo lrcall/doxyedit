@@ -109,6 +109,62 @@ async def _main():
                         "traceback": traceback.format_exc(),
                     })
                 continue
+            if ctype == "upload_files":
+                # Find the ACTIVE page (first page in its context
+                # that has a matching URL, or the last-focused page)
+                # and set files on the element matching `selector`.
+                # When url_contains is provided we pick the first
+                # page whose url contains that substring; otherwise
+                # the first page with the selector present wins.
+                try:
+                    if browser is None:
+                        cdp_url = cmd.get("cdp_url", "http://127.0.0.1:9222")
+                        browser = await pw.chromium.connect_over_cdp(cdp_url)
+                    selector = cmd.get("selector",
+                                       'input[type="file"]')
+                    files = cmd.get("files", []) or []
+                    url_contains = (cmd.get("url_contains") or "").lower()
+                    target_page = None
+                    candidates = []
+                    for context in browser.contexts:
+                        for page in context.pages:
+                            candidates.append(page)
+                    # Narrow by URL substring if provided.
+                    if url_contains:
+                        candidates = [p for p in candidates
+                                      if url_contains in (p.url or "").lower()]
+                    # Pick the first page that has the selector.
+                    for page in candidates:
+                        try:
+                            locator = page.locator(selector).first
+                            count = await locator.count()
+                            if count > 0:
+                                target_page = page
+                                break
+                        except Exception:
+                            continue
+                    if target_page is None:
+                        _emit({
+                            "ok": False,
+                            "err": (f"no page with selector "
+                                    f"{selector!r} (url_contains="
+                                    f"{url_contains!r})"),
+                        })
+                        continue
+                    await target_page.locator(selector).first.set_input_files(files)
+                    _emit({
+                        "ok": True,
+                        "url": target_page.url,
+                        "selector": selector,
+                        "files": files,
+                    })
+                except Exception as exc:
+                    _emit({
+                        "ok": False,
+                        "err": repr(exc),
+                        "traceback": traceback.format_exc(),
+                    })
+                continue
             _emit({"ok": False, "err": f"unknown cmd: {ctype!r}"})
         if browser is not None:
             try:

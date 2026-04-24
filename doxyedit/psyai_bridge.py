@@ -794,3 +794,51 @@ def stop_worker_process() -> None:
 
 def worker_process_connected() -> bool:
     return bool(_worker_process and _worker_process.connected)
+
+
+def worker_upload_files(
+        files: list,
+        selector: str = 'input[type="file"]',
+        url_contains: str = "",
+        on_done=None,
+        cdp_url: str = "http://127.0.0.1:9222") -> None:
+    """Upload local files into a file-input on one of the open
+    debug-browser pages. Auto-starts the worker subprocess.
+
+    files:        list of absolute paths to upload.
+    selector:     CSS selector for the target input[type=file].
+                  Default catches Bluesky, Mastodon, ko-fi and most
+                  other platforms that use a hidden file input.
+    url_contains: optional URL substring to narrow which page the
+                  upload lands on. e.g. 'bsky.app' ensures Bluesky
+                  gets the files even when reddit / twitter tabs
+                  are also open with their own file inputs.
+
+    on_done(ok: bool, err: str) fires when the worker replies."""
+    ensure_worker_process(cdp_url)
+    assert _worker_process is not None
+    proc = _worker_process._proc
+    if proc is None or proc.stdin is None or proc.poll() is not None:
+        if on_done:
+            on_done(False, "worker not running")
+        return
+    cmd = {
+        "cmd": "upload_files",
+        "cdp_url": cdp_url,
+        "selector": selector,
+        "files": list(files),
+        "url_contains": url_contains,
+    }
+    with _worker_process._pending_lock:
+        _worker_process._pending.append(on_done or (lambda ok, err: None))
+    try:
+        proc.stdin.write(json.dumps(cmd) + "\n")
+        proc.stdin.flush()
+    except Exception as exc:
+        with _worker_process._pending_lock:
+            try:
+                _worker_process._pending.pop()
+            except IndexError:
+                pass
+        if on_done:
+            on_done(False, f"stdin write failed: {exc!r}")
