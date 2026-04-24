@@ -5894,11 +5894,29 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 target.status = SocialPostStatus.PARTIAL
             target.updated_at = _t.strftime("%Y-%m-%dT%H:%M:%S")
             touched = True
-            summary.append(f"posted:{plat_key}->{target.id}")
+            url_tail = ""
+            if page_url:
+                # Trim to the last 50 chars so the status bar isn't
+                # dominated by long URLs while still giving enough of
+                # the path for the user to recognize.
+                url_tail = page_url
+                if len(url_tail) > 50:
+                    url_tail = "..." + url_tail[-47:]
+                summary.append(f"{plat_key}@{target.id[:8]} {url_tail}")
+            else:
+                summary.append(f"{plat_key}@{target.id[:8]}")
         if touched:
             self._dirty = True
+            # Repaint the timeline, calendar, gantt, browser overlay,
+            # and platform panel so the fresh POSTED / PARTIAL status
+            # + published_urls show up without the user switching
+            # tabs or hitting manual refresh.
+            try:
+                self._refresh_social_panels()
+            except Exception:
+                pass
             self.status.showMessage(
-                f"bridge feedback: {', '.join(summary)}", 4000)
+                f"posted: {' | '.join(summary)}", 8000)
 
     def _bridge_start_http(self):
         """Track C — run a tiny localhost HTTP server that the
