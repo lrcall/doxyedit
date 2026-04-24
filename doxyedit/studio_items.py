@@ -932,6 +932,46 @@ BUBBLE_TAIL_TAPER_FACTOR = 0.5
 BUBBLE_TAIL_CURVE_AMP_RATIO = 1.2
 
 
+# Thought-bubble cloud body ratios. Shared by the live path builder
+# (OverlayShapeItem._paint_thought_bubble) and the off-thread cache
+# renderer so the two can't drift — same class of bug we shipped for
+# speech_bubble.
+THOUGHT_BUBBLE_CENTER_INSET_RATIO = 0.22  # inset each side of the central ellipse
+THOUGHT_BUBBLE_PUFF_COUNT = 10
+THOUGHT_BUBBLE_PUFF_RADIUS_RATIO = 0.28   # fraction of min(rx, ry)
+THOUGHT_BUBBLE_PUFF_OFFSET_RATIO = 0.4    # puff_r * this pulls centers inward
+
+
+def _build_thought_bubble_body_path(body: QRectF) -> QPainterPath:
+    """Central ellipse + N peripheral puffs unioned into one cloud path.
+
+    Body rect is in any coord system; the returned path sits in that
+    same system. Tail puffs (the 3 trailing dots near the tip) are NOT
+    part of this path — they're drawn separately because they depend
+    on tail_tip which is per-call.
+    """
+    cx = body.center().x()
+    cy = body.center().y()
+    rx = body.width() / 2
+    ry = body.height() / 2
+    # Central ellipse shrunk on all four sides by the inset ratio, so
+    # the puffs protrude past the body edge.
+    inset_x = rx * THOUGHT_BUBBLE_CENTER_INSET_RATIO
+    inset_y = ry * THOUGHT_BUBBLE_CENTER_INSET_RATIO
+    path = QPainterPath()
+    path.addEllipse(body.adjusted(inset_x, inset_y, -inset_x, -inset_y))
+    puff_r = min(rx, ry) * THOUGHT_BUBBLE_PUFF_RADIUS_RATIO
+    puff_offset = puff_r * THOUGHT_BUBBLE_PUFF_OFFSET_RATIO
+    for i in range(THOUGHT_BUBBLE_PUFF_COUNT):
+        ang = (2 * math.pi * i) / THOUGHT_BUBBLE_PUFF_COUNT
+        px = cx + math.cos(ang) * (rx - puff_offset)
+        py = cy + math.sin(ang) * (ry - puff_offset)
+        sub = QPainterPath()
+        sub.addEllipse(QPointF(px, py), puff_r, puff_r)
+        path = path.united(sub)
+    return path
+
+
 def _build_speech_bubble_path(body: QRectF, tip: QPointF, ov) -> QPainterPath:
     """Construct the QPainterPath for a speech bubble, applying every
     bubble deformer (roundness, oval_stretch, wobble, tail_curve,
@@ -1184,21 +1224,9 @@ def _render_shape_to_image(overlay_snapshot, pad: int):
                     pad + (float(ty) - float(ov.y)))
             path = _build_speech_bubble_path(body, tip, ov)
         elif kind == "thought_bubble":
-            # Central ellipse + 10 peripheral puff unions.
-            cx, cy = pad + w / 2, pad + h / 2
-            rx, ry = w / 2, h / 2
-            path.addEllipse(QRectF(
-                cx - rx * 0.78, cy - ry * 0.78,
-                rx * 1.56, ry * 1.56))
-            n_puffs = 10
-            puff_r = min(rx, ry) * 0.28
-            for i in range(n_puffs):
-                ang = (2 * _math.pi * i) / n_puffs
-                px = cx + _math.cos(ang) * (rx - puff_r * 0.4)
-                py = cy + _math.sin(ang) * (ry - puff_r * 0.4)
-                sub = QPainterPath()
-                sub.addEllipse(QPointF(px, py), puff_r, puff_r)
-                path = path.united(sub)
+            # Delegate to the shared builder so cache and live paint
+            # produce the exact same cloud.
+            path = _build_thought_bubble_body_path(body)
         else:
             path.addRect(body)
         # Fill — gradient first (for gradient_linear/gradient_radial),
@@ -1279,7 +1307,7 @@ def _render_shape_to_image(overlay_snapshot, pad: int):
             dy = tip_y - cy
             length = _math.hypot(dx, dy)
             if length > 4:
-                puff_r = min(rx, ry) * 0.28
+                puff_r = min(rx, ry) * THOUGHT_BUBBLE_PUFF_RADIUS_RATIO
                 ux, uy = dx / length, dy / length
                 start_off = min(rx, ry) * 0.85
                 # Re-establish fill/stroke for the puffs.
@@ -1740,63 +1768,41 @@ class OverlayShapeItem(QGraphicsItem):
         painter.drawPath(path)
 
     def _paint_thought_bubble(self, painter, r: QRectF):
-        """Scalloped-cloud body + 2-3 trailing puff circles toward tail.
+        """Scalloped-cloud body + 3 trailing puff circles toward tail.
         Path cached per parameter-tuple in local coords — cloud puffs use
         path.united() in a loop which is the single most expensive path
-        op in Qt. Translate on draw so drag keeps the cache."""
+        op in Qt. Translate on draw so drag keeps the cache.
+
+        Cloud body construction is delegated to the module-level
+        _build_thought_bubble_body_path helper so the off-thread cache
+        renderer produces identical geometry."""
         key = ("thought", self._shape_params_tuple())
+        cx, cy = r.center().x(), r.center().y()
+        rx, ry = r.width() / 2, r.height() / 2
         if self._cached_path_key == key and self._cached_path is not None:
             painter.save()
             painter.translate(r.left(), r.top())
             painter.drawPath(self._cached_path)
             painter.restore()
-            # Trailing puff circles use tail_tip which is in scene coords —
-            # keep drawing in scene space (cheap, 3 drawEllipse calls).
-            tip = self._tail_tip(r)
-            cx, cy = r.center().x(), r.center().y()
-            dx, dy = tip.x() - cx, tip.y() - cy
-            length = math.hypot(dx, dy)
-            if length > 4:
-                rx, ry = r.width() / 2, r.height() / 2
-                puff_r = min(rx, ry) * 0.28
-                ux, uy = dx / length, dy / length
-                start_offset = min(rx, ry) * 0.85
-                for i, frac in enumerate((0.25, 0.55, 0.85)):
-                    pr = puff_r * (0.55 - i * 0.15)
-                    ppos = QPointF(
-                        cx + ux * (start_offset + length * frac * 0.6),
-                        cy + uy * (start_offset + length * frac * 0.6))
-                    painter.drawEllipse(ppos, pr, pr)
-            return
-        path = QPainterPath()
-        # Build the cloud by unioning a central ellipse with 8 edge puffs.
-        cx, cy = r.center().x(), r.center().y()
-        rx, ry = r.width() / 2, r.height() / 2
-        path.addEllipse(r.adjusted(rx * 0.22, ry * 0.22, -rx * 0.22, -ry * 0.22))
-        n_puffs = 10
-        puff_r = min(rx, ry) * 0.28
-        for i in range(n_puffs):
-            ang = (2 * math.pi * i) / n_puffs
-            px = cx + math.cos(ang) * (rx - puff_r * 0.4)
-            py = cy + math.sin(ang) * (ry - puff_r * 0.4)
-            sub = QPainterPath()
-            sub.addEllipse(QPointF(px, py), puff_r, puff_r)
-            path = path.united(sub)
-        # Store in local coords (translated to origin) so drag hits cache.
-        self._cached_path_key = key
-        self._cached_path = path.translated(-r.left(), -r.top())
-        painter.drawPath(path)
-        # Trailing small circles toward the tail
+        else:
+            path = _build_thought_bubble_body_path(r)
+            self._cached_path_key = key
+            self._cached_path = path.translated(-r.left(), -r.top())
+            painter.drawPath(path)
+        # Trailing puff circles use tail_tip which is in scene coords —
+        # keep drawing in scene space (cheap, 3 drawEllipse calls).
         tip = self._tail_tip(r)
         dx, dy = tip.x() - cx, tip.y() - cy
         length = math.hypot(dx, dy)
         if length > 4:
+            puff_r = min(rx, ry) * THOUGHT_BUBBLE_PUFF_RADIUS_RATIO
             ux, uy = dx / length, dy / length
             start_offset = min(rx, ry) * 0.85
             for i, frac in enumerate((0.25, 0.55, 0.85)):
                 pr = puff_r * (0.55 - i * 0.15)
-                ppos = QPointF(cx + ux * (start_offset + length * frac * 0.6),
-                                cy + uy * (start_offset + length * frac * 0.6))
+                ppos = QPointF(
+                    cx + ux * (start_offset + length * frac * 0.6),
+                    cy + uy * (start_offset + length * frac * 0.6))
                 painter.drawEllipse(ppos, pr, pr)
 
     def _paint_burst(self, painter, r: QRectF):
