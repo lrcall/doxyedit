@@ -107,7 +107,11 @@ def copy_to_clipboard(data: dict, kind: str = "full") -> bool:
 class _PsyaiHTTPState:
     """Module-level container for the running server and its current
     payload bytes. `update_http_snapshot` swaps atomically under a
-    lock so concurrent GETs never see a half-written JSON."""
+    lock so concurrent GETs never see a half-written JSON.
+
+    asset_registry maps asset_id -> (abs_path, mime) so the
+    /psyai-asset endpoint can stream image bytes the userscript
+    turns into Files for one-click attach."""
 
     def __init__(self):
         self.snapshot_bytes: bytes = b'{"' + PSYAI_PANEL_MARKER.encode() + b'": true, "kind": "empty", "payload": {}}'
@@ -115,9 +119,37 @@ class _PsyaiHTTPState:
         self.server: Optional[ThreadingHTTPServer] = None
         self.thread: Optional[threading.Thread] = None
         self.port: int = 0
+        self.asset_registry: dict = {}
 
 
 _HTTP_STATE = _PsyaiHTTPState()
+
+
+def register_asset(asset_id: str, path: str) -> dict:
+    """Whitelist a local file to be served via /psyai-asset?id=<id>.
+    Returns a descriptor {id, name, url, mime} the data builder can
+    embed in the payload so the userscript knows what to fetch."""
+    import mimetypes
+    mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
+    with _HTTP_STATE.lock:
+        _HTTP_STATE.asset_registry[asset_id] = (path, mime)
+    port = _HTTP_STATE.port or 8910
+    return {
+        "id": asset_id,
+        "name": os.path.basename(path),
+        "url": f"http://127.0.0.1:{port}/psyai-asset?id={asset_id}",
+        "mime": mime,
+    }
+
+
+def register_assets_bulk(items: list) -> list:
+    """items = [(asset_id, path), ...]. Skips missing files."""
+    out = []
+    for asset_id, path in items:
+        if not path or not os.path.exists(path):
+            continue
+        out.append(register_asset(asset_id, path))
+    return out
 
 
 def _userscript_path() -> Optional[str]:
@@ -155,6 +187,35 @@ class _PsyaiHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
             self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path.startswith("/psyai-asset"):
+            from urllib.parse import urlparse, parse_qs
+            qs = parse_qs(urlparse(self.path).query)
+            asset_id = (qs.get("id") or [""])[0]
+            with _HTTP_STATE.lock:
+                entry = _HTTP_STATE.asset_registry.get(asset_id)
+            if entry is None:
+                self.send_response(404)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                return
+            path, mime = entry
+            try:
+                with open(path, "rb") as f:
+                    body = f.read()
+            except Exception:
+                self.send_response(500)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", mime)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+            self.send_header("Cache-Control", "public, max-age=3600")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)

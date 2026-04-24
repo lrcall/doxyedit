@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         psyai autofill (DoxyEdit bridge)
 // @namespace    https://psyai.game
-// @version      2.5
+// @version      2.6
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard — with the old hardcoded library as last-resort fallback.
 // @author       psyai
 // @updateURL    http://127.0.0.1:8910/psyai-autofill.user.js
@@ -256,8 +256,8 @@ function fillFocusedField(text) {
 // Kept entirely inside the userscript — no DoxyEdit Qt drag, no
 // focus splintering.
 
-let _fileInputEl = null;       // hidden <input> for the "pick image" step
-let _pickedFiles = [];         // cached Files picked by the user
+let _fileInputEl = null;       // hidden <input> for the optional local pick
+let _pickedFiles = [];         // cached Files from either DoxyEdit push or local pick
 let _uploadStatusEl = null;    // status line under the upload buttons
 let _dragThumbEl = null;       // draggable preview <img>
 
@@ -278,6 +278,118 @@ function triggerFilePick() {
   const inp = ensureFileInput();
   inp.value = "";
   inp.click();
+}
+
+// Fetch a pushed-from-DoxyEdit asset URL, construct a File object,
+// stash it in _pickedFiles so the injection strategies run against
+// it. One-click: no OS picker, no typing a filename.
+async function loadAssetFromBridge(asset) {
+  if (!asset || !asset.url) return false;
+  try {
+    const resp = await fetch(asset.url, { cache: "no-store" });
+    if (!resp.ok) {
+      setUploadStatus(`✗ fetch ${asset.name} failed: ${resp.status}`, false);
+      return false;
+    }
+    const blob = await resp.blob();
+    const f = new File(
+      [blob], asset.name || "image.png",
+      { type: asset.mime || blob.type || "image/png" });
+    _pickedFiles = [f];
+    refreshPickedBadge();
+    renderDragThumb();
+    setUploadStatus(`loaded ${f.name} — auto-injecting...`, true);
+    // Auto-fire the best-guess strategy chain so the common case
+    // ends in "image attached" with a single click.
+    await autoInject();
+    return true;
+  } catch (e) {
+    setUploadStatus(`✗ fetch ${asset.name || "asset"} failed: ${e.message}`, false);
+    return false;
+  }
+}
+
+// Try strategies 1 -> 4 (2 needs explicit focus, not auto). Stops
+// on first success. Used by the click-an-asset-button flow.
+async function autoInject() {
+  if (!_pickedFiles.length) return;
+  // Strategy 1: existing input[type=file]
+  const candidates = Array.from(
+    document.querySelectorAll('input[type="file"]'));
+  let target = candidates.find((el) => {
+    const accept = (el.getAttribute("accept") || "").toLowerCase();
+    if (accept && !accept.includes("image") && accept !== "*/*") return false;
+    return el.closest('[role="dialog"], [aria-modal="true"], [data-testid*="compos" i], [data-testid*="post" i]');
+  }) || candidates.find((el) => {
+    const accept = (el.getAttribute("accept") || "").toLowerCase();
+    return !accept || accept.includes("image") || accept === "*/*";
+  });
+  if (target) {
+    try {
+      const dt = new DataTransfer();
+      for (const f of _pickedFiles) dt.items.add(f);
+      target.files = dt.files;
+      target.dispatchEvent(new Event("input", { bubbles: true }));
+      target.dispatchEvent(new Event("change", { bubbles: true }));
+      setUploadStatus(`✓ attached via file input`, true);
+      return;
+    } catch (e) { /* fall through */ }
+  }
+  // Strategy 4: click image/photo/attach button, retry input.
+  const btnPatterns = [
+    'button[aria-label*="image" i]',
+    'button[aria-label*="photo" i]',
+    'button[aria-label*="attach" i]',
+    'button[aria-label*="media" i]',
+    '[data-testid*="image" i][role="button"]',
+    '[data-testid*="photo" i][role="button"]',
+    '[data-testid*="attach" i]',
+  ];
+  let imgBtn = null;
+  for (const sel of btnPatterns) {
+    for (const el of document.querySelectorAll(sel)) {
+      if (el.closest('[role="dialog"], [aria-modal="true"], [data-testid*="compos" i]')) {
+        imgBtn = el; break;
+      }
+    }
+    if (imgBtn) break;
+  }
+  if (imgBtn) {
+    imgBtn.click();
+    await new Promise((r) => setTimeout(r, 200));
+    const inp = Array.from(
+      document.querySelectorAll('input[type="file"]')).find(
+      (el) => !el.closest('#psyai-autofill-panel'));
+    if (inp) {
+      try {
+        const dt = new DataTransfer();
+        for (const f of _pickedFiles) dt.items.add(f);
+        inp.files = dt.files;
+        inp.dispatchEvent(new Event("input", { bubbles: true }));
+        inp.dispatchEvent(new Event("change", { bubbles: true }));
+        setUploadStatus(`✓ attached via click+input`, true);
+        return;
+      } catch (e) { /* fall through */ }
+    }
+  }
+  // Strategy 2: paste on focused contenteditable.
+  const active = document.activeElement;
+  if (active && (active.isContentEditable
+                  || active.tagName === "TEXTAREA"
+                  || active.tagName === "INPUT")) {
+    try {
+      const dt = new DataTransfer();
+      for (const f of _pickedFiles) dt.items.add(f);
+      active.dispatchEvent(new ClipboardEvent("paste", {
+        clipboardData: dt, bubbles: true, cancelable: true,
+      }));
+      setUploadStatus(`✓ attached via paste`, true);
+      return;
+    } catch (e) { /* fall through */ }
+  }
+  setUploadStatus(
+    "⚠ all auto-inject strategies failed — click into compose + try the strategy buttons below",
+    false);
 }
 
 function onUploadFilesPicked(ev) {
@@ -650,10 +762,50 @@ function updateFab() {
     `margin-right:6px;vertical-align:middle;"></span>${name}`;
 }
 
+// Hostname -> list of substring tags. A post key matches the
+// current host when its lowercase form contains any of the tags.
+// Unknown hosts fall through to "show all keys" so a niche domain
+// still gets the full post list rather than a silent empty panel.
+const HOST_POST_TAGS = {
+  "bsky.app": ["bluesky", "bsky"],
+  "x.com": ["twitter", "_x_", "x_"],
+  "twitter.com": ["twitter"],
+  "reddit.com": ["reddit"],
+  "old.reddit.com": ["reddit"],
+  "ko-fi.com": ["kofi", "ko-fi"],
+  "newgrounds.com": ["newgrounds"],
+  "itch.io": ["itch"],
+  "gamejolt.com": ["gamejolt"],
+  "indiedb.com": ["indiedb"],
+  "buttondown.com": ["newsletter", "buttondown"],
+  "lemmasoft.renai.us": ["lemma"],
+};
+
+function currentHostTags() {
+  const host = (location.host || "").toLowerCase();
+  // Any mastodon instance matches 'mastodon'. Handles custom
+  // mastodon hosts like mastodon.gamedev.place.
+  if (host.includes("mastodon")) return ["mastodon"];
+  for (const h in HOST_POST_TAGS) {
+    if (host === h || host.endsWith("." + h)) return HOST_POST_TAGS[h];
+  }
+  return null;
+}
+
+function filterPostKeysForHost(keys) {
+  const tags = currentHostTags();
+  if (!tags) return keys;
+  return keys.filter((k) => {
+    const low = k.toLowerCase();
+    return tags.some((t) => low.includes(t));
+  });
+}
+
 function rebuildPanel() {
   if (!panelEl) return;
   const d = currentData;
-  const postKeys = Object.keys(d.posts || {});
+  const allPostKeys = Object.keys(d.posts || {});
+  const postKeys = filterPostKeysForHost(allPostKeys);
   const html = [
     `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">`,
     `  <b style="color:#ff6b6b;">${d.displayName || "psyai"} autofill</b>`,
@@ -661,8 +813,17 @@ function rebuildPanel() {
     `</div>`,
     `<div class="psyai-source"><span class="dot" style="background:${sourceDotColor(currentSource)};"></span>source: ${currentSource}</div>`,
     `<button class="psyai-btn primary psyai-clipboard">📋 paste from DoxyEdit</button>`,
-    `<div class="psyai-section">image injection</div>`,
-    `<button class="psyai-btn primary psyai-pick">📁 pick image file</button>`,
+    // Asset buttons auto-attach in one click when DoxyEdit has
+    // pushed composer_post.asset_ids. Falls through to the manual
+    // pick + strategy buttons when no assets were pushed.
+    (d.assets && d.assets.length)
+      ? `<div class="psyai-section">images (1-click attach)</div>` +
+        d.assets.map((a, i) =>
+          `<button class="psyai-btn primary psyai-asset" data-idx="${i}">📎 ${a.name || a.id}</button>`
+        ).join("\n")
+      : "",
+    `<div class="psyai-section">image injection (manual)</div>`,
+    `<button class="psyai-btn psyai-pick">📁 pick local image instead</button>`,
     `<div id="psyai-picked-name" style="font-size:10px;color:#aaa;margin:2px 0 4px 2px;">(no file picked)</div>`,
     `<div id="psyai-drag-thumb-holder" style="margin:2px 0;"></div>`,
     `<button class="psyai-btn psyai-s1">1. set input[type=file].files</button>`,
@@ -678,7 +839,11 @@ function rebuildPanel() {
     `<button class="psyai-btn" data-fill="bioShort">short bio</button>`,
     `<button class="psyai-btn" data-fill="bioMedium">medium bio</button>`,
     `<button class="psyai-btn" data-fill="bioLong">long bio</button>`,
-    postKeys.length ? `<div class="psyai-section">posts</div>` : "",
+    postKeys.length
+      ? `<div class="psyai-section">posts for ${location.host}</div>`
+      : (allPostKeys.length
+          ? `<div class="psyai-source" style="margin-top:6px;">no posts tagged for ${location.host} — ${allPostKeys.length} post(s) hidden for other platforms</div>`
+          : ""),
     ...postKeys.map(k => {
       const v = d.posts[k];
       const label = typeof v === "object"
@@ -696,6 +861,14 @@ function rebuildPanel() {
     panelEl.style.display = "none";
   });
   panelEl.querySelector(".psyai-clipboard").addEventListener("click", pasteFromClipboard);
+  // Pushed-asset buttons — one-click attach, no OS picker.
+  panelEl.querySelectorAll(".psyai-asset").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      const asset = (currentData.assets || [])[idx];
+      if (asset) loadAssetFromBridge(asset);
+    });
+  });
   const pickBtn = panelEl.querySelector(".psyai-pick");
   if (pickBtn) pickBtn.addEventListener("click", triggerFilePick);
   const s1 = panelEl.querySelector(".psyai-s1");

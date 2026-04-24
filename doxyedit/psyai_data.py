@@ -130,6 +130,24 @@ def build_psyai_data(project, composer_post=None) -> dict:
             if key.startswith("reddit_") or key.startswith("r/"):
                 data["posts"][_reddit_key(key)] = _split_title_body(text)
 
+    # Composer-post assets: expose as {id, name, url, mime} so the
+    # userscript panel can render one-click "attach this" buttons.
+    # DoxyEdit already knows which assets belong to which post —
+    # this skips the OS file picker entirely.
+    data["assets"] = []
+    if composer_post is not None:
+        try:
+            from doxyedit.psyai_bridge import register_assets_bulk
+            items = []
+            for aid in (getattr(composer_post, "asset_ids", []) or []):
+                asset = (project.get_asset(aid)
+                         if hasattr(project, "get_asset") else None)
+                if asset and getattr(asset, "source_path", None):
+                    items.append((aid, asset.source_path))
+            data["assets"] = register_assets_bulk(items)
+        except Exception:
+            data["assets"] = []
+
     return data
 
 
