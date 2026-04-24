@@ -2042,22 +2042,38 @@ class OverlayShapeItem(QGraphicsItem):
             # Every deformer's padding uses the same ratio as the path
             # builder so the bounding rect always covers the painted
             # extent. Tweaks to the ratios live at module top.
+            short_side = min(w, h)
             wobble = float(getattr(ov, "bubble_wobble", 0.0) or 0.0)
-            wobble_pad = wobble * min(w, h) * BUBBLE_WOBBLE_AMP_RATIO
+            wobble_pad = wobble * short_side * BUBBLE_WOBBLE_AMP_RATIO
             skew_x = float(getattr(ov, "bubble_skew_x", 0.0) or 0.0)
             skew_pad = abs(skew_x) * h * 0.5
             roundness = float(getattr(ov, "bubble_roundness", 0.0) or 0.0)
             round_overshoot = max(0.0, roundness - 1.0)
             round_pad_x = round_overshoot * w * BUBBLE_ROUNDNESS_OVERSHOOT_OFFSET
             round_pad_y = round_overshoot * h * BUBBLE_ROUNDNESS_OVERSHOOT_OFFSET
+            # Tail-curve bezier control points sit perpendicular to the
+            # linear tail axis at offset `amt = tail_curve * base_len *
+            # BUBBLE_TAIL_CURVE_AMP_RATIO`. The bezier curve's peak
+            # excursion from the straight line is roughly amt/2; pad
+            # the entire tail region by that plus wobble_pad so the
+            # curved tail can sway in any direction without clipping.
+            tail_curve = float(getattr(ov, "tail_curve", 0.0) or 0.0)
+            tail_width_scale = float(getattr(ov, "bubble_tail_width", 1.0) or 1.0)
+            tail_base_len = short_side * BUBBLE_TAIL_BASE_RATIO * tail_width_scale
+            tail_curve_pad = (abs(tail_curve) * tail_base_len
+                              * BUBBLE_TAIL_CURVE_AMP_RATIO * 0.5)
             # Combine: grow the body rect by the union of every
-            # deformer's worst-case extent, then union with the tail
-            # tip and a generous 12px tail_pad for stroke + anti-alias.
-            body_left = x - ext_w / 2 - wobble_pad - skew_pad - round_pad_x
-            body_top = y - ext_h / 2 - wobble_pad - round_pad_y
-            body_right = x + w + ext_w / 2 + wobble_pad + skew_pad + round_pad_x
-            body_bottom = y + h + ext_h / 2 + wobble_pad + round_pad_y
-            tail_pad = 12 + int(wobble_pad) + int(skew_pad)
+            # deformer's worst-case extent, then union with a tail
+            # region inflated by tail_curve_pad + wobble_pad + stroke.
+            # Stroke half-width bakes in so half-pen-width outlines
+            # don't get invalidated inconsistently.
+            stroke_half = max(2.0, (ov.stroke_width or 0) / 2.0)
+            body_left = x - ext_w / 2 - wobble_pad - skew_pad - round_pad_x - stroke_half
+            body_top = y - ext_h / 2 - wobble_pad - round_pad_y - stroke_half
+            body_right = x + w + ext_w / 2 + wobble_pad + skew_pad + round_pad_x + stroke_half
+            body_bottom = y + h + ext_h / 2 + wobble_pad + round_pad_y + stroke_half
+            tail_pad = (12 + int(wobble_pad) + int(skew_pad)
+                        + int(tail_curve_pad) + int(stroke_half))
             min_x = min(r.left(), body_left, tip.x() - tail_pad)
             min_y = min(r.top(), body_top, tip.y() - tail_pad)
             max_x = max(r.right(), body_right, tip.x() + tail_pad)
@@ -3513,9 +3529,45 @@ class OverlayTextItem(QGraphicsTextItem):
 
     def itemChange(self, change, value):
         if change == QGraphicsTextItem.GraphicsItemChange.ItemPositionHasChanged:
-            self.overlay.x = int(value.x())
-            self.overlay.y = int(value.y())
+            new_x = int(value.x())
+            new_y = int(value.y())
+            dx = new_x - self.overlay.x
+            dy = new_y - self.overlay.y
+            self.overlay.x = new_x
+            self.overlay.y = new_y
             self.overlay.position = "custom"
+            # If this text is the "linked text" of a speech / thought
+            # bubble, drag that bubble in lockstep so the two never
+            # decouple. The bubble's own itemChange handles the
+            # forward direction (bubble drag -> text follows); this
+            # handles the reverse (text drag -> bubble follows). Cache
+            # the bubble item reference the same way the bubble caches
+            # its linked text to avoid an O(N) scan every mousemove.
+            if (dx or dy) and self._editor is not None:
+                label = self.overlay.label
+                if label:
+                    linked_bubble = getattr(self, "_linked_bubble_cache", None)
+                    cached_label = getattr(
+                        self, "_linked_bubble_cache_label", None)
+                    if linked_bubble is None or cached_label != label:
+                        linked_bubble = None
+                        for it in self._editor._overlay_items:
+                            if (isinstance(it, OverlayShapeItem)
+                                    and it._is_bubble()
+                                    and it.overlay.linked_text_id == label):
+                                linked_bubble = it
+                                break
+                        self._linked_bubble_cache = linked_bubble
+                        self._linked_bubble_cache_label = label
+                    if linked_bubble is not None:
+                        b_ov = linked_bubble.overlay
+                        b_ov.x += dx
+                        b_ov.y += dy
+                        if b_ov.tail_x or b_ov.tail_y:
+                            b_ov.tail_x += dx
+                            b_ov.tail_y += dy
+                        linked_bubble.prepareGeometryChange()
+                        linked_bubble.update()
         return super().itemChange(change, value)
 
     def _apply_flip_text(self):
