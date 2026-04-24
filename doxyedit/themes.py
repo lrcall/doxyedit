@@ -1276,20 +1276,31 @@ def generate_stylesheet(theme: Theme) -> str:
         /* Studio property-row buttons (quickbar fill/outline/opacity
            row + bold/italic/etc.) — same padding so the property
            controls visually align with the top menu and zoom bar. */
-        QPushButton#studio_prop_btn {{
+        QPushButton#studio_prop_btn,
+        QPushButton#studio_btn_focus {{
             background: transparent;
             color: {theme.text_secondary};
-            border: none;
+            border: 1px solid transparent;
             padding: 3px 10px;
             font-size: {f}px;
         }}
-        QPushButton#studio_prop_btn:hover {{
+        QPushButton#studio_prop_btn:hover,
+        QPushButton#studio_btn_focus:hover {{
             color: {theme.text_primary};
             background: {theme.accent_dim};
         }}
-        QPushButton#studio_prop_btn:checked {{
+        QPushButton#studio_prop_btn:checked,
+        QPushButton#studio_btn_focus:checked {{
             color: {theme.text_primary};
             background: {theme.accent};
+        }}
+        /* Layer-panel properties: checkboxes in the property row
+           need a bit of horizontal padding so adjacent "On" / "Lock"
+           labels don't crowd the opacity slider or each other. */
+        QCheckBox#studio_layer_enabled_chk,
+        QCheckBox#studio_layer_locked_chk {{
+            padding: 0 6px 0 3px;
+            font-size: {f}px;
         }}
         QWidget#folder_section, QWidget#folder_container,
         QScrollArea#folder_scroll, QScrollArea#folder_scroll > QWidget,
