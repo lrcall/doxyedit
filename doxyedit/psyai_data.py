@@ -28,6 +28,22 @@ def _truncate(text: str, max_len: int) -> str:
     return (cut[0] if cut[0] else text[:max_len]).rstrip()
 
 
+def _slugify_handle(name: str) -> str:
+    """Collapse an arbitrary display name into a handle-safe slug.
+
+    Output contains only [a-z0-9_]. Runs of any other character
+    (spaces, slashes, dots, dashes, unicode) collapse to a single
+    underscore; leading/trailing underscores strip. "B.D. INC /
+    Yacky" becomes "b_d_inc_yacky", not "b.d._inc_/_yacky" which
+    would break URLs and @-style handles on most platforms."""
+    import re
+    if not name:
+        return ""
+    lowered = name.lower()
+    slug = re.sub(r"[^a-z0-9]+", "_", lowered).strip("_")
+    return slug
+
+
 def _split_title_body(caption: str) -> dict:
     """Split a Reddit caption into `{title, body}`. Convention: first
     non-empty line is the title, everything after the first blank line
@@ -78,7 +94,7 @@ def build_psyai_data(project, composer_post=None) -> dict:
         # userscript panel can keep separate buttons; if the source is
         # a single blob the short/medium variants are word-boundary
         # truncations of the long form.
-        "handle": name.lower().replace(" ", "_"),
+        "handle": _slugify_handle(name),
         "displayName": name,
         "taglineShort": _truncate(bio_blurb, 80),
         "oneLine": _truncate(bio_blurb, 120),
