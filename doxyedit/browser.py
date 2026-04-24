@@ -1329,6 +1329,19 @@ class AssetBrowser(QWidget):
         toolbar.addWidget(self._tray_btn)
         self._toolbar_plain_btns.append(self._tray_btn)
 
+        # Vertical divider between the panel-toggle group (Files /
+        # Tags / Tray) and the import group (+ Folder / + Files).
+        # Thin themed line so the logical grouping reads at a glance.
+        def _vdivider():
+            line = QFrame()
+            line.setObjectName("toolbar_vdivider")
+            line.setFrameShape(QFrame.Shape.VLine)
+            line.setFrameShadow(QFrame.Shadow.Plain)
+            line.setFixedWidth(1)
+            line.setMinimumHeight(int(ui_font_size() * 1.6))
+            return line
+        toolbar.addWidget(_vdivider())
+
         for label, handler in [("+ Folder", self.open_folder_dialog), ("+ Files", self.add_images_dialog)]:
             btn = QPushButton(label)
             btn.setStyleSheet(self._btn_style())
@@ -1371,6 +1384,7 @@ class AssetBrowser(QWidget):
             (self.filter_needs_censor, "Needs Censor"),
             (self.filter_show_ignored, "Show Ignored"),
         ]
+        toolbar.addWidget(_vdivider())
         self._filters_menu_btn = QPushButton("Filters ▼")
         self._filters_menu_btn.setToolTip(
             "Asset filters — check one or more to narrow the grid")

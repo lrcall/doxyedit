@@ -1352,6 +1352,12 @@ def generate_stylesheet(theme: Theme) -> str:
         QFrame#card_divider {{
             background: {theme.border}; max-height: 1px; margin: 4px 0;
         }}
+        /* Vertical divider used in toolbar rows to group buttons. */
+        QFrame#toolbar_vdivider {{
+            color: {theme.border};
+            background: {theme.border};
+            max-width: 1px;
+        }}
 
         /* Size badge in slot rows */
         QLabel#size_badge {{
