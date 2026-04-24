@@ -265,22 +265,56 @@ class FlowLayout(QLayout):
         return self._do_layout(QRect(0, 0, width, 0), dry_run=True)
 
     def _do_layout(self, rect, dry_run=False):
+        """Wrap items to rows; center each item vertically within its
+        row's height. Two-pass per row: first walk to collect the row
+        and measure max height, then position each item with y offset
+        so shorter widgets (checkbox, spinbox) vertically center
+        against taller neighbors (QPushButton) instead of sitting on
+        the top edge."""
         m = self.contentsMargins()
-        x = rect.x() + m.left()
-        y = rect.y() + m.top()
-        row_height = 0
+        left = rect.x() + m.left()
         max_width = rect.right() - m.right()
+        x = left
+        y = rect.y() + m.top()
+        row = []          # list of (item, w, h)
+        row_height = 0
+
+        def _flush_row():
+            nonlocal y, row_height
+            if dry_run or not row:
+                return
+            for it, iw, ih in row:
+                iy = y + (row_height - ih) // 2
+                # Recompute x from left so wrapping is deterministic.
+                pass  # positions set inline below
+
+        # We need two passes: collect row items, then place with
+        # y-centering. Do it inline.
         for item in self._items:
             w = item.sizeHint().width()
             h = item.sizeHint().height()
-            if x + w > max_width and x > rect.x() + m.left():
-                x = rect.x() + m.left()
+            if x + w > max_width and row:
+                # Flush current row with vertical centering.
+                if not dry_run:
+                    cx = left
+                    for it, iw, ih in row:
+                        iy = y + (row_height - ih) // 2
+                        it.setGeometry(QRect(cx, iy, iw, ih))
+                        cx += iw + self._hspacing
                 y += row_height + self._vspacing
+                row = []
                 row_height = 0
-            if not dry_run:
-                item.setGeometry(QRect(x, y, w, h))
+                x = left
+            row.append((item, w, h))
             x += w + self._hspacing
             row_height = max(row_height, h)
+        # Flush trailing row.
+        if row and not dry_run:
+            cx = left
+            for it, iw, ih in row:
+                iy = y + (row_height - ih) // 2
+                it.setGeometry(QRect(cx, iy, iw, ih))
+                cx += iw + self._hspacing
         return y + row_height - rect.y() + m.bottom()
 
 
