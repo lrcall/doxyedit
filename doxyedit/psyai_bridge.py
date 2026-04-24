@@ -369,38 +369,57 @@ class _PsyaiPersistentSession:
         })
 
     def _run(self):
+        """Worker-thread entry. Drives Playwright's ASYNC API via a
+        dedicated asyncio event loop owned by this thread. The sync
+        API would have been simpler but is hard-locked to the main
+        thread (greenlet signal-handler setup), so an off-thread
+        persistent session has to go through async_playwright."""
         _log("persistent_session.start", cdp_url=self._cdp_url)
         try:
-            from playwright.sync_api import sync_playwright
+            from playwright.async_api import async_playwright
         except Exception as exc:
             _log("persistent_session.no_playwright", error=repr(exc))
             self._drain_with_error(f"Playwright not installed: {exc!r}")
             return
+        import asyncio
+        loop = asyncio.new_event_loop()
         try:
-            with sync_playwright() as pw:
-                try:
-                    browser = pw.chromium.connect_over_cdp(self._cdp_url)
-                except Exception as exc:
-                    _log("persistent_session.connect_failed",
-                         error=repr(exc), traceback=traceback.format_exc())
-                    self._drain_with_error(f"CDP connect failed: {exc!r}")
-                    return
-                self._connected = True
-                _log("persistent_session.connected",
-                     contexts=len(browser.contexts))
-                try:
-                    self._event_loop(browser)
-                finally:
-                    try:
-                        browser.close()
-                    except Exception:
-                        pass
-                    self._connected = False
-                    _log("persistent_session.stop")
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(
+                self._async_main(async_playwright))
         except Exception as exc:
             _log("persistent_session.crashed",
                  error=repr(exc), traceback=traceback.format_exc())
             self._drain_with_error(f"Session crashed: {exc!r}")
+        finally:
+            try:
+                loop.close()
+            except Exception:
+                pass
+
+    async def _async_main(self, async_playwright):
+        """Own the Playwright lifecycle on this thread's loop."""
+        async with async_playwright() as pw:
+            try:
+                browser = await pw.chromium.connect_over_cdp(
+                    self._cdp_url)
+            except Exception as exc:
+                _log("persistent_session.connect_failed",
+                     error=repr(exc), traceback=traceback.format_exc())
+                self._drain_with_error(f"CDP connect failed: {exc!r}")
+                return
+            self._connected = True
+            _log("persistent_session.connected",
+                 contexts=len(browser.contexts))
+            try:
+                await self._async_event_loop(browser)
+            finally:
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
+                self._connected = False
+                _log("persistent_session.stop")
 
     def _drain_with_error(self, err: str):
         """Reply to every queued push with the same error so callers
@@ -416,19 +435,21 @@ class _PsyaiPersistentSession:
                 except Exception:
                     pass
 
-    def _event_loop(self, browser):
-        """Drain commands until stop. Each 'push' re-registers the
-        init-script on every context and pushes live to every open
-        page. Re-registering repeatedly IS wasteful — Playwright
-        doesn't expose removeScriptToEvaluateOnNewDocument in its
-        public sync API — but the duplicated scripts all set the
-        same window.__psyai_data so the last one wins; the cost is
-        memory per registered script, negligible for < 1000 pushes
-        per session."""
+    async def _async_event_loop(self, browser):
+        """Async drain of the command queue. Each 'push' re-registers
+        the init-script on every context + pushes live to every open
+        page. Re-registering repeatedly is wasteful but Playwright's
+        async API doesn't expose remove_init_script either; the
+        duplicated scripts all set the same window.__psyai_data so
+        the last registration wins, and registered scripts are
+        per-context memory only (<1KB each). Queue polled with a
+        short sleep so the asyncio loop stays responsive to stop."""
+        import asyncio
         while not self._stop_event.is_set():
             try:
-                cmd = self._cmd_queue.get(timeout=0.5)
+                cmd = self._cmd_queue.get_nowait()
             except Empty:
+                await asyncio.sleep(0.1)
                 continue
             ctype = cmd.get("type")
             if ctype == "stop":
@@ -448,10 +469,10 @@ class _PsyaiPersistentSession:
             err_msg = ""
             try:
                 for context in browser.contexts:
-                    context.add_init_script(init_script)
+                    await context.add_init_script(init_script)
                     for page in context.pages:
                         try:
-                            page.evaluate(init_script)
+                            await page.evaluate(init_script)
                             pages_touched += 1
                         except Exception:
                             continue
