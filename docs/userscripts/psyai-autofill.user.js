@@ -1,9 +1,11 @@
 // ==UserScript==
 // @name         psyai autofill (DoxyEdit bridge)
 // @namespace    https://psyai.game
-// @version      2.0
+// @version      2.1
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard — with the old hardcoded library as last-resort fallback.
 // @author       psyai
+// @updateURL    https://raw.githubusercontent.com/lrcall/doxyedit/main/docs/userscripts/psyai-autofill.user.js
+// @downloadURL  https://raw.githubusercontent.com/lrcall/doxyedit/main/docs/userscripts/psyai-autofill.user.js
 // @match        https://bsky.app/*
 // @match        https://mastodon.gamedev.place/*
 // @match        https://x.com/*
