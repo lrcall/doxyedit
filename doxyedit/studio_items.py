@@ -3252,6 +3252,19 @@ class OverlayTextItem(QGraphicsTextItem):
         self.document().documentLayout().draw(painter, ctx)
 
     def paint(self, painter, option, widget=None):
+        # Suppress Qt's default dashed selection rect — OverlayShapeItem
+        # draws its own selection outline around the parent bubble's body
+        # rect, and when a speech-bubble auto-selects its linked text
+        # Qt's default rect showed up as a second dashed box INSIDE the
+        # bubble. Strip the State_Selected flag before super().paint so
+        # QGraphicsTextItem's internal selection decoration is skipped;
+        # the outer bubble's outline (and the shape's corner handles)
+        # continue to visually mark the selection.
+        opt = option
+        try:
+            opt.state &= ~QStyle.StateFlag.State_Selected
+        except Exception:
+            pass
         mode = self._BLEND_MODE_MAP.get(
             self.overlay.blend_mode,
             QPainter.CompositionMode.CompositionMode_SourceOver)
