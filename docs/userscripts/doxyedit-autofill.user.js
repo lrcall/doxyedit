@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.24
+// @version      2.25
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -389,6 +389,26 @@ function postNowSelectorsForHost() {
 
 function _wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
+// Backchannel: POST an event to DoxyEdit's /doxyedit-feedback
+// endpoint. Used to tell DoxyEdit "I just posted on <platform>" so
+// the project can mark the post as POSTED and schedule engagement
+// follow-ups. Fire-and-forget; we don't block posting on whether the
+// bridge accepted the feedback (bridge may be down while the page is).
+function notifyFeedback(entry) {
+  const port = httpBridgePort || HTTP_BRIDGE_PORTS[0];
+  const url = `http://127.0.0.1:${port}/doxyedit-feedback`;
+  const body = JSON.stringify(Object.assign(
+    {host: location.host, pageUrl: location.href}, entry));
+  // Plain fetch works for the same reason v4 works for asset bytes.
+  try {
+    fetch(url, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body,
+    }).catch(() => { /* bridge down, not fatal */ });
+  } catch (e) { /* host blocks fetch, not fatal */ }
+}
+
 async function postNowOnCurrentPlatform() {
   const postKey = currentHostPostKey();
   const selectors = postNowSelectorsForHost();
@@ -490,6 +510,9 @@ async function postNowOnCurrentPlatform() {
   }
   btn.click();
   setUploadStatus(`✓ posted to ${postKey}`, true);
+  // Tell DoxyEdit we just submitted. Project-side this marks the
+  // post POSTED and schedules any engagement follow-ups.
+  notifyFeedback({type: "posted", platformKey: postKey});
   return true;
 }
 

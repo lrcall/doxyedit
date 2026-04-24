@@ -120,6 +120,12 @@ class _BridgeHTTPState:
         self.thread: Optional[threading.Thread] = None
         self.port: int = 0
         self.asset_registry: dict = {}
+        # Userscript feedback events queued for whatever's listening.
+        # Shape per entry: {"t": epoch, "type": str, "...": ...}. The
+        # in-DoxyEdit consumer (future Socials-tab reminder panel)
+        # drains this list via drain_feedback(). Keeping it at the
+        # HTTP state so browser POSTs and Python UI share one list.
+        self.feedback: list = []
 
 
 _HTTP_STATE = _BridgeHTTPState()
@@ -251,10 +257,41 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
 
+    def do_POST(self):  # noqa: N802
+        if self.path == "/doxyedit-feedback":
+            import time
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length else b""
+            try:
+                payload = json.loads(raw.decode("utf-8") or "{}")
+            except Exception:
+                payload = {"_raw": raw.decode("utf-8", errors="replace")[:500]}
+            entry = {"t": time.time(), **(payload if isinstance(payload, dict) else {"payload": payload})}
+            with _HTTP_STATE.lock:
+                _HTTP_STATE.feedback.append(entry)
+                # Bound the queue so a runaway userscript can't OOM us.
+                if len(_HTTP_STATE.feedback) > 1000:
+                    _HTTP_STATE.feedback = _HTTP_STATE.feedback[-1000:]
+            _log("feedback.received",
+                 type=entry.get("type"), host=entry.get("host"))
+            body = b'{"ok":true}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        self.send_response(404)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
     def do_OPTIONS(self):  # noqa: N802
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
     def log_message(self, format, *args):  # noqa: A002  (stdlib sig)
@@ -310,6 +347,24 @@ def update_http_snapshot(data: dict) -> None:
 def http_bridge_port() -> int:
     """Return the currently-running HTTP bridge port, 0 if not up."""
     return _HTTP_STATE.port
+
+
+def drain_feedback() -> list:
+    """Pop all userscript-feedback entries and return them. The
+    Socials-tab poller calls this to render reminders/engagement
+    updates from the browser side. Thread-safe."""
+    with _HTTP_STATE.lock:
+        events = _HTTP_STATE.feedback
+        _HTTP_STATE.feedback = []
+    return events
+
+
+def peek_feedback() -> list:
+    """Non-destructive read of the current feedback queue. Useful
+    for tests and for a 'how many pending?' indicator on the
+    Socials tab. Returns a shallow copy."""
+    with _HTTP_STATE.lock:
+        return list(_HTTP_STATE.feedback)
 
 
 # ──────────────────────────────────────────────────────────────────
