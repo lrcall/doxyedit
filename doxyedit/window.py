@@ -5710,10 +5710,45 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         posts = len((data.get("posts") or {}))
         self.status.showMessage(
             f"Pushing identity + {posts} post(s) to debug browser...", 4000)
+        # Modal progress dialog, same styling contract as claude_modal
+        # (QProgressDialog#claude_progress QSS selectors in themes.py
+        # pick this up). Close in _bridge_push_done regardless of the
+        # push's outcome so the UI never stalls behind it.
+        from PySide6.QtWidgets import QProgressDialog
+        from PySide6.QtCore import QObject, Signal, Qt
+        from doxyedit.themes import ui_font_size
+        dlg = QProgressDialog(
+            f"Pushing identity + {posts} post(s) to browser...",
+            None, 0, 0, self)
+        dlg.setObjectName("claude_progress")
+        dlg.setWindowTitle("DoxyEdit bridge")
+        dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
+        dlg.setCancelButton(None)
+        dlg.setMinimumDuration(0)
+        dlg.setMinimumWidth(int(ui_font_size() * 26.7))
+        dlg.show()
+        self._bridge_push_dialog = dlg
+        # Theme the title bar on Windows so the caption area matches
+        # the rest of the app instead of defaulting to system white.
+        try:
+            import ctypes
+            from PySide6.QtCore import QSettings
+            from doxyedit.themes import THEMES, DEFAULT_THEME
+            theme_id = QSettings("DoxyEdit", "DoxyEdit").value(
+                "theme", DEFAULT_THEME)
+            theme = THEMES.get(theme_id, THEMES[DEFAULT_THEME])
+            h = theme.bg_raised.lstrip("#")
+            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+            hwnd = int(dlg.winId())
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, 35,
+                ctypes.byref(ctypes.c_int(r | (g << 8) | (b << 16))),
+                ctypes.sizeof(ctypes.c_int))
+        except Exception:
+            pass
         # Signal hop back to the main thread to update UI safely from
         # the worker callback. Signal is held on the handler itself so
         # Qt can auto-route it via QueuedConnection.
-        from PySide6.QtCore import QObject, Signal, Qt
         if not hasattr(self, "_bridge_push_signal"):
             class _PushSig(QObject):
                 done = Signal(bool, str, int)
@@ -5726,6 +5761,16 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _bridge_push_done(self, ok: bool, err: str, posts: int):
         import sys as _sys
+        # Close the progress modal opened in _bridge_push_cdp. Guard
+        # against missing attr so this handler stays safe to call if
+        # the worker somehow replied twice.
+        dlg = getattr(self, "_bridge_push_dialog", None)
+        if dlg is not None:
+            try:
+                dlg.close()
+            except Exception:
+                pass
+            self._bridge_push_dialog = None
         if ok:
             self.status.showMessage(
                 f"Pushed identity + {posts} post(s) to debug browser", 4000)
