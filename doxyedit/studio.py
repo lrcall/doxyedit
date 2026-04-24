@@ -3451,6 +3451,139 @@ class _StudioIcons:
             p.drawEllipse(QPointF(4, s - 6), 1.5, 1.5)
         return _StudioIcons.make(d)
 
+    # ------------------------------------------------------------------
+    # Text-style icons (Weight + Align rows in the Text Controls dialog).
+    # These were rendered as raw glyphs ("B", "I", "U", "S", "≡", "≣")
+    # relying on the system font — on themes with thin UI fonts and on
+    # Windows installs that don't ship the unicode line-drawing glyphs
+    # the buttons read as blank squares. Painted icons are theme-aware
+    # and render identically everywhere.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def text_bold():
+        def d(p, s):
+            # Solid capital B using two stacked bumps for the right lobes.
+            p.setBrush(QBrush(QColor(_StudioIcons._fg())))
+            pen = QPen(QColor(_StudioIcons._fg()),
+                       3.0 if _StudioIcons._theme_is_light(
+                           THEMES.get(
+                               QSettings("DoxyEdit", "DoxyEdit").value(
+                                   "theme", DEFAULT_THEME),
+                               THEMES[DEFAULT_THEME]))
+                       else 2.6)
+            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+            p.setPen(pen)
+            # Vertical stem
+            p.drawLine(int(s * 0.3), int(s * 0.2),
+                       int(s * 0.3), int(s * 0.82))
+            # Upper bump
+            rect_u = QRectF(s * 0.3, s * 0.2, s * 0.35, s * 0.32)
+            p.drawArc(rect_u, 90 * 16, -180 * 16)
+            # Lower bump
+            rect_l = QRectF(s * 0.3, s * 0.5, s * 0.42, s * 0.32)
+            p.drawArc(rect_l, 90 * 16, -180 * 16)
+            # Top/bottom cross strokes so it reads as a B, not a D
+            p.drawLine(int(s * 0.3), int(s * 0.2),
+                       int(s * 0.6), int(s * 0.2))
+            p.drawLine(int(s * 0.3), int(s * 0.5),
+                       int(s * 0.65), int(s * 0.5))
+            p.drawLine(int(s * 0.3), int(s * 0.82),
+                       int(s * 0.68), int(s * 0.82))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def text_italic():
+        def d(p, s):
+            pen = _StudioIcons._pen(_StudioIcons._fg(), 2.4)
+            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+            p.setPen(pen)
+            # Slanted vertical stroke reading as an I
+            p.drawLine(int(s * 0.5), int(s * 0.2),
+                       int(s * 0.35), int(s * 0.82))
+            # Short caps top + bottom to cement the I-in-italic read
+            p.drawLine(int(s * 0.4), int(s * 0.2),
+                       int(s * 0.65), int(s * 0.2))
+            p.drawLine(int(s * 0.25), int(s * 0.82),
+                       int(s * 0.5), int(s * 0.82))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def text_underline():
+        def d(p, s):
+            pen = _StudioIcons._pen(_StudioIcons._fg(), 2.4)
+            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+            p.setPen(pen)
+            # Capital U: two verticals + bottom arc
+            p.drawLine(int(s * 0.28), int(s * 0.2),
+                       int(s * 0.28), int(s * 0.6))
+            p.drawLine(int(s * 0.72), int(s * 0.2),
+                       int(s * 0.72), int(s * 0.6))
+            rect = QRectF(s * 0.28, s * 0.4, s * 0.44, s * 0.4)
+            p.drawArc(rect, 180 * 16, 180 * 16)
+            # Underline bar below
+            p.drawLine(int(s * 0.2), int(s * 0.88),
+                       int(s * 0.8), int(s * 0.88))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def text_strike():
+        def d(p, s):
+            pen = _StudioIcons._pen(_StudioIcons._fg(), 2.4)
+            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+            p.setPen(pen)
+            # Capital S silhouette via two arcs
+            rect_u = QRectF(s * 0.28, s * 0.18, s * 0.48, s * 0.36)
+            p.drawArc(rect_u, 30 * 16, 270 * 16)
+            rect_l = QRectF(s * 0.28, s * 0.46, s * 0.48, s * 0.36)
+            p.drawArc(rect_l, 210 * 16, 270 * 16)
+            # Horizontal strike line through the middle
+            p.drawLine(int(s * 0.15), int(s * 0.5),
+                       int(s * 0.85), int(s * 0.5))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def align_left():
+        def d(p, s):
+            pen = _StudioIcons._pen(_StudioIcons._fg(), 2.2)
+            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+            p.setPen(pen)
+            # Four left-aligned bars of varying length
+            x0 = int(s * 0.18)
+            p.drawLine(x0, int(s * 0.25), int(s * 0.85), int(s * 0.25))
+            p.drawLine(x0, int(s * 0.44), int(s * 0.68), int(s * 0.44))
+            p.drawLine(x0, int(s * 0.63), int(s * 0.82), int(s * 0.63))
+            p.drawLine(x0, int(s * 0.82), int(s * 0.58), int(s * 0.82))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def align_center():
+        def d(p, s):
+            pen = _StudioIcons._pen(_StudioIcons._fg(), 2.2)
+            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+            p.setPen(pen)
+            cx = s * 0.5
+            # Four centered bars of varying length
+            for y, half in (
+                (0.25, 0.35), (0.44, 0.25), (0.63, 0.32), (0.82, 0.2)):
+                p.drawLine(int(cx - s * half), int(s * y),
+                           int(cx + s * half), int(s * y))
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def align_right():
+        def d(p, s):
+            pen = _StudioIcons._pen(_StudioIcons._fg(), 2.2)
+            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+            p.setPen(pen)
+            x1 = int(s * 0.82)
+            p.drawLine(int(s * 0.15), int(s * 0.25), x1, int(s * 0.25))
+            p.drawLine(int(s * 0.32), int(s * 0.44), x1, int(s * 0.44))
+            p.drawLine(int(s * 0.18), int(s * 0.63), x1, int(s * 0.63))
+            p.drawLine(int(s * 0.42), int(s * 0.82), x1, int(s * 0.82))
+        return _StudioIcons.make(d)
+
 
 class _ImageEnhanceSignals(QObject):
     """Worker -> GUI-thread bridge for off-thread image enhancement.
@@ -6524,71 +6657,79 @@ class StudioEditor(QWidget):
         self._font_size_label = QLabel("24")
         props.addWidget(self._font_size_label)
 
-        self.btn_bold = QPushButton("B")
+        # Weight / decoration buttons use painted QIcon glyphs instead
+        # of raw text — the old "B"/"I"/"U"/"S" letters disappeared on
+        # themes with thin UI fonts and on Windows installs missing
+        # the underline/strike composite glyphs.
+        self.btn_bold = QPushButton()
         self.btn_bold.setObjectName("studio_bold_btn")
         self.btn_bold.setCheckable(True)
         self.btn_bold.setFixedWidth(_icon_btn_w)
+        self.btn_bold.setIcon(_StudioIcons.text_bold())
+        self.btn_bold.setToolTip("Bold (Ctrl+B)")
         self.btn_bold.clicked.connect(self._on_bold_changed)
         props.addWidget(self.btn_bold)
 
-        self.btn_italic = QPushButton("I")
+        self.btn_italic = QPushButton()
         self.btn_italic.setObjectName("studio_italic_btn")
         self.btn_italic.setCheckable(True)
         self.btn_italic.setFixedWidth(_icon_btn_w)
+        self.btn_italic.setIcon(_StudioIcons.text_italic())
+        self.btn_italic.setToolTip("Italic (Ctrl+I)")
         self.btn_italic.clicked.connect(self._on_italic_changed)
         props.addWidget(self.btn_italic)
 
         # Underline / strikethrough — CanvasOverlay already has the
         # fields, just needs surfaced buttons so users don't have to
         # right-click every time.
-        self.btn_underline = QPushButton("U")
+        self.btn_underline = QPushButton()
         self.btn_underline.setObjectName("studio_underline_btn")
         self.btn_underline.setCheckable(True)
         self.btn_underline.setFixedWidth(_icon_btn_w)
-        _u_font = QFont(self.btn_underline.font())
-        _u_font.setUnderline(True)
-        self.btn_underline.setFont(_u_font)
-        self.btn_underline.setToolTip("Underline (U)")
+        self.btn_underline.setIcon(_StudioIcons.text_underline())
+        self.btn_underline.setToolTip("Underline (Ctrl+U)")
         self.btn_underline.clicked.connect(self._on_underline_changed)
         props.addWidget(self.btn_underline)
 
-        self.btn_strikethrough = QPushButton("S")
+        self.btn_strikethrough = QPushButton()
         self.btn_strikethrough.setObjectName("studio_strike_btn")
         self.btn_strikethrough.setCheckable(True)
         self.btn_strikethrough.setFixedWidth(_icon_btn_w)
-        _s_font = QFont(self.btn_strikethrough.font())
-        _s_font.setStrikeOut(True)
-        self.btn_strikethrough.setFont(_s_font)
+        self.btn_strikethrough.setIcon(_StudioIcons.text_strike())
         self.btn_strikethrough.setToolTip("Strikethrough")
         self.btn_strikethrough.clicked.connect(self._on_strikethrough_changed)
         props.addWidget(self.btn_strikethrough)
 
         # Text alignment: left / center / right buttons as exclusive
-        # radio-like toggles. Keyboard shortcuts Ctrl+Shift+L/E/R
-        # already work; these buttons make the feature discoverable.
-        self.btn_align_left = QPushButton("≡")
+        # radio-like toggles. Painted icons for the same reason as the
+        # weight buttons — the ≡ / ≣ unicode chars rendered blank on
+        # several system fonts.
+        self.btn_align_left = QPushButton()
         self.btn_align_left.setObjectName("studio_align_left_btn")
         self.btn_align_left.setToolTip("Align text left (Ctrl+Shift+L)")
         self.btn_align_left.setCheckable(True)
         self.btn_align_left.setFixedWidth(_icon_btn_w)
+        self.btn_align_left.setIcon(_StudioIcons.align_left())
         self.btn_align_left.clicked.connect(
             lambda: self._on_text_align_changed("left"))
         props.addWidget(self.btn_align_left)
 
-        self.btn_align_center = QPushButton("≣")
+        self.btn_align_center = QPushButton()
         self.btn_align_center.setObjectName("studio_align_center_btn")
         self.btn_align_center.setToolTip("Align text center (Ctrl+Shift+E)")
         self.btn_align_center.setCheckable(True)
         self.btn_align_center.setFixedWidth(_icon_btn_w)
+        self.btn_align_center.setIcon(_StudioIcons.align_center())
         self.btn_align_center.clicked.connect(
             lambda: self._on_text_align_changed("center"))
         props.addWidget(self.btn_align_center)
 
-        self.btn_align_right = QPushButton("≡")
+        self.btn_align_right = QPushButton()
         self.btn_align_right.setObjectName("studio_align_right_btn")
         self.btn_align_right.setToolTip("Align text right (Ctrl+Shift+R)")
         self.btn_align_right.setCheckable(True)
         self.btn_align_right.setFixedWidth(_icon_btn_w)
+        self.btn_align_right.setIcon(_StudioIcons.align_right())
         self.btn_align_right.clicked.connect(
             lambda: self._on_text_align_changed("right"))
         props.addWidget(self.btn_align_right)
@@ -6726,18 +6867,22 @@ class StudioEditor(QWidget):
         # Bold / Italic buttons need larger hit area + explicit typeface
         # to survive theme restyling. Inline font overrides defeat the
         # case where QSS renders text in the same shade as the fill.
+        # Size the weight/align/color buttons as square cells so the
+        # painted icons render crisp. Clear any leftover text labels
+        # (older builds set "B"/"I" here) — icons only now.
         _bi_btn_w = max(32, int(_dt.font_size * 2.8))
-        for _b, _face, _weight, _slant in (
-                (self.btn_bold, "B", QFont.Weight.Bold, False),
-                (self.btn_italic, "I", QFont.Weight.Normal, True)):
-            _b.setText(_face)
+        for _b in (self.btn_bold, self.btn_italic,
+                   self.btn_underline, self.btn_strikethrough,
+                   self.btn_align_left, self.btn_align_center,
+                   self.btn_align_right):
+            _b.setText("")
             _b.setMinimumWidth(_bi_btn_w)
             _b.setFixedWidth(_bi_btn_w)
-            _f = QFont(_b.font())
-            _f.setWeight(_weight)
-            _f.setItalic(_slant)
-            _f.setPointSize(max(10, _dt.font_size))
-            _b.setFont(_f)
+            # Icon size roughly 60% of the button footprint so there's
+            # visible padding around the glyph on both light and dark
+            # themes.
+            _iconpx = max(14, int(_bi_btn_w * 0.6))
+            _b.setIconSize(QSize(_iconpx, _iconpx))
         # Color swatch buttons get a bigger hit area + the glyphs are
         # drawn on paintEvent so theme stylesheets can't hide them.
         _sw = max(32, int(_dt.font_size * 2.8))
