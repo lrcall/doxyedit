@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         psyai autofill (DoxyEdit bridge)
 // @namespace    https://psyai.game
-// @version      2.2
+// @version      2.3
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard — with the old hardcoded library as last-resort fallback.
 // @author       psyai
 // @updateURL    http://127.0.0.1:8910/psyai-autofill.user.js
@@ -221,6 +221,137 @@ function fillFocusedField(text) {
   }
 }
 
+// ── IMAGE UPLOAD ──────────────────────────────────────────────────────────
+// One-click flow:
+//   1. User clicks "📁 upload image" in the panel.
+//   2. Hidden <input type="file"> opens the OS file picker.
+//   3. After files are selected, we try three injection strategies
+//      in order of DOM invasiveness until one sticks:
+//        (a) Assign to an existing visible input[type="file"] on
+//            the page via DataTransfer (Bluesky's image button adds
+//            one to the DOM on click; if the compose modal is open
+//            there's a decent chance it's already there).
+//        (b) Synthesize a paste event on the focused contenteditable
+//            compose area carrying the file as clipboardData (works
+//            on Bluesky / Twitter / Mastodon / Discord — they all
+//            handle image paste).
+//        (c) Dispatch a drop event on the focused element with the
+//            file in dataTransfer.files (last-resort — some platforms
+//            only accept real drag origins, but it's cheap to try).
+//   4. Feedback toast tells the user which strategy landed or that
+//      they need to click into the compose area first.
+//
+// Kept entirely inside the userscript so DoxyEdit's Qt drag focus
+// issues never come into play.
+
+// Persistent hidden file input — created once, clicked on demand.
+// Browsers throw away the user-gesture if we create+click the input
+// inside an async callback, so hold a reference at panel-build time.
+let _fileInputEl = null;
+let _uploadStatusEl = null;
+
+function ensureFileInput() {
+  if (_fileInputEl) return _fileInputEl;
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = "image/*";
+  inp.multiple = true;
+  inp.style.cssText = "position:fixed;left:-9999px;top:-9999px;";
+  inp.addEventListener("change", onUploadFilesPicked);
+  document.body.appendChild(inp);
+  _fileInputEl = inp;
+  return inp;
+}
+
+function triggerUpload() {
+  const inp = ensureFileInput();
+  inp.value = "";  // allow re-picking the same file
+  inp.click();
+}
+
+async function onUploadFilesPicked(ev) {
+  const files = Array.from(ev.target.files || []);
+  if (!files.length) return;
+  const landed = await injectImageFiles(files);
+  setUploadStatus(landed.msg, landed.ok);
+}
+
+function setUploadStatus(msg, ok) {
+  if (!_uploadStatusEl) return;
+  _uploadStatusEl.textContent = msg;
+  _uploadStatusEl.style.color = ok ? "#6bff6b" : "#ffb36b";
+  setTimeout(() => {
+    if (_uploadStatusEl) _uploadStatusEl.textContent = "";
+  }, 5000);
+}
+
+async function injectImageFiles(files) {
+  // (a) Existing file input on the page. Prefer one inside the
+  //     compose area if identifiable; otherwise take the first that
+  //     accepts images and is in a dialog-like ancestor.
+  const candidates = Array.from(
+    document.querySelectorAll('input[type="file"]'));
+  let target = candidates.find((el) => {
+    const accept = (el.getAttribute("accept") || "").toLowerCase();
+    if (accept && !accept.includes("image") && accept !== "*/*") return false;
+    // Prefer inputs inside a dialog/composer surface.
+    return el.closest('[role="dialog"], [aria-modal="true"], [data-testid*="compos" i], [data-testid*="post" i]');
+  });
+  if (!target) {
+    target = candidates.find((el) => {
+      const accept = (el.getAttribute("accept") || "").toLowerCase();
+      return !accept || accept.includes("image") || accept === "*/*";
+    });
+  }
+  if (target) {
+    try {
+      const dt = new DataTransfer();
+      for (const f of files) dt.items.add(f);
+      target.files = dt.files;
+      target.dispatchEvent(new Event("input", { bubbles: true }));
+      target.dispatchEvent(new Event("change", { bubbles: true }));
+      return { ok: true, msg: `✓ ${files.length} image(s) injected into file input` };
+    } catch (e) { /* fall through */ }
+  }
+
+  // (b) Paste event into the focused contenteditable / compose.
+  //     Bluesky + Twitter + Mastodon all handle image paste natively.
+  const active = document.activeElement;
+  if (active && (active.isContentEditable
+                  || active.tagName === "TEXTAREA"
+                  || active.tagName === "INPUT")) {
+    try {
+      const dt = new DataTransfer();
+      for (const f of files) dt.items.add(f);
+      const pasteEv = new ClipboardEvent("paste", {
+        clipboardData: dt,
+        bubbles: true,
+        cancelable: true,
+      });
+      active.dispatchEvent(pasteEv);
+      return { ok: true, msg: `✓ ${files.length} image(s) pasted into compose` };
+    } catch (e) { /* fall through */ }
+  }
+
+  // (c) Last resort: synthesize a drop event on the focused element.
+  if (active) {
+    try {
+      const dt = new DataTransfer();
+      for (const f of files) dt.items.add(f);
+      const dropEv = new DragEvent("drop", {
+        dataTransfer: dt, bubbles: true, cancelable: true,
+      });
+      active.dispatchEvent(dropEv);
+      return { ok: true, msg: `✓ ${files.length} image(s) dropped on focused element` };
+    } catch (e) { /* fall through */ }
+  }
+
+  return {
+    ok: false,
+    msg: "✗ No target found. Click into the compose area first, then retry.",
+  };
+}
+
 // ── PANEL ──────────────────────────────────────────────────────────────────
 // Rebuilt on data changes so the per-post button list reflects the
 // current DoxyEdit snapshot.
@@ -416,6 +547,8 @@ function rebuildPanel() {
     `</div>`,
     `<div class="psyai-source"><span class="dot" style="background:${sourceDotColor(currentSource)};"></span>source: ${currentSource}</div>`,
     `<button class="psyai-btn primary psyai-clipboard">📋 paste from DoxyEdit</button>`,
+    `<button class="psyai-btn primary psyai-upload">📁 upload image to compose</button>`,
+    `<div id="psyai-upload-status" style="font-size:10px;margin-top:2px;min-height:12px;"></div>`,
     `<div class="psyai-section">identity</div>`,
     `<button class="psyai-btn" data-fill="displayName">display name</button>`,
     `<button class="psyai-btn" data-fill="handle">handle</button>`,
@@ -441,6 +574,13 @@ function rebuildPanel() {
     panelEl.style.display = "none";
   });
   panelEl.querySelector(".psyai-clipboard").addEventListener("click", pasteFromClipboard);
+  const uploadBtn = panelEl.querySelector(".psyai-upload");
+  if (uploadBtn) {
+    // Must be a direct user-gesture click — can't defer the .click()
+    // on the hidden file input behind any async work.
+    uploadBtn.addEventListener("click", triggerUpload);
+  }
+  _uploadStatusEl = panelEl.querySelector("#psyai-upload-status");
   panelEl.querySelectorAll(".psyai-btn[data-fill]").forEach(btn => {
     btn.addEventListener("click", () => {
       fillFocusedField(currentData[btn.dataset.fill] || "");
