@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         psyai autofill (DoxyEdit bridge)
 // @namespace    https://psyai.game
-// @version      2.4
+// @version      2.5
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard — with the old hardcoded library as last-resort fallback.
 // @author       psyai
 // @updateURL    http://127.0.0.1:8910/psyai-autofill.user.js
@@ -558,10 +558,13 @@ function buildPanelScaffold() {
   fab.title = "drag to reposition · click to toggle panel · double-click to reset";
   fab.style.cssText = `
     position: fixed; bottom: 20px; right: 20px; z-index: 2147483646;
-    background: #ff6b6b; color: #111; border: none; border-radius: 20px;
-    padding: 8px 14px; font-family: monospace; font-weight: bold; cursor: grab;
+    background: #ff6b6b; color: #111; border: none; border-radius: 16px;
+    padding: 6px 12px; font-family: monospace; font-weight: bold; cursor: grab;
     box-shadow: 0 2px 8px rgba(0,0,0,0.4);
     user-select: none; touch-action: none;
+    min-width: 84px; min-height: 28px; font-size: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    white-space: nowrap;
   `;
   // Click toggles the panel, drag moves the FAB. Distinguish between
   // the two by tracking total mouse travel between down and up; a
