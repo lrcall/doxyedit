@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.17
+// @version      2.18
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -398,7 +398,11 @@ function loadAssetFromBridge(asset) {
     GM_xmlhttpRequest({
       method: "GET",
       url: asset.url,
-      responseType: "blob",
+      // arraybuffer + manual Blob construction because
+      // Tampermonkey's blob responseType can stall on multi-MB
+      // responses in some browser builds. arraybuffer is bulletproof
+      // and costs one extra wrap here.
+      responseType: "arraybuffer",
       timeout: 10000,
       onload: async (resp) => {
         if (resp.status !== 200) {
@@ -409,17 +413,18 @@ function loadAssetFromBridge(asset) {
           resolve(false);
           return;
         }
-        const blob = resp.response;
-        if (!blob || !(blob instanceof Blob)) {
+        const buf = resp.response;
+        if (!buf || !(buf instanceof ArrayBuffer)) {
           setUploadStatus(
-            `✗ ${asset.name}: response not a blob (got ${typeof blob})`,
+            `✗ ${asset.name}: response not an ArrayBuffer (got ${typeof buf})`,
             false);
           resolve(false);
           return;
         }
+        const mime = asset.mime || "image/png";
+        const blob = new Blob([buf], { type: mime });
         const f = new File(
-          [blob], asset.name || "image.png",
-          { type: asset.mime || blob.type || "image/png" });
+          [blob], asset.name || "image.png", { type: mime });
         _pickedFiles = [f];
         refreshPickedBadge();
         renderDragThumb();
