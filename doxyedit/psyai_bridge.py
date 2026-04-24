@@ -370,11 +370,24 @@ class _PsyaiPersistentSession:
 
     def _run(self):
         """Worker-thread entry. Drives Playwright's ASYNC API via a
-        dedicated asyncio event loop owned by this thread. The sync
-        API would have been simpler but is hard-locked to the main
-        thread (greenlet signal-handler setup), so an off-thread
-        persistent session has to go through async_playwright."""
-        _log("persistent_session.start", cdp_url=self._cdp_url)
+        dedicated asyncio event loop owned by this thread.
+
+        Sync API would've been simpler but is hard-locked to the
+        main thread (greenlet signal-handler setup).
+
+        On Windows the loop MUST be a ProactorEventLoop because
+        Playwright spawns a node subprocess for its driver. Qt /
+        PySide6 sometimes flips the default policy to
+        WindowsSelectorEventLoopPolicy, which would make
+        asyncio.new_event_loop() return a SelectorEventLoop — that
+        one can't spawn subprocesses and the driver connect fails
+        with 'Connection closed while reading from the driver' the
+        moment async_playwright() tries to start node.
+
+        Instantiating ProactorEventLoop directly bypasses whatever
+        policy the main thread installed."""
+        _log("persistent_session.start", cdp_url=self._cdp_url,
+             python=sys.executable, platform=sys.platform)
         try:
             from playwright.async_api import async_playwright
         except Exception as exc:
@@ -382,7 +395,13 @@ class _PsyaiPersistentSession:
             self._drain_with_error(f"Playwright not installed: {exc!r}")
             return
         import asyncio
-        loop = asyncio.new_event_loop()
+        if sys.platform == "win32":
+            loop = asyncio.ProactorEventLoop()
+            _log("persistent_session.loop_kind", kind="ProactorEventLoop")
+        else:
+            loop = asyncio.new_event_loop()
+            _log("persistent_session.loop_kind",
+                 kind=type(loop).__name__)
         try:
             asyncio.set_event_loop(loop)
             loop.run_until_complete(
