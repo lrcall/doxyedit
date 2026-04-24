@@ -892,6 +892,46 @@ class OverlayImageItem(QGraphicsPixmapItem):
         super().mouseDoubleClickEvent(event)
 
 
+# ──────────────────────────────────────────────────────────────────
+# Speech-bubble geometry tokens — shared between the path builder and
+# OverlayShapeItem.boundingRect so tweaks here never break the
+# worst-case extent calculation. Changing any ratio in one place and
+# not the other used to leave ghost-trails during drag.
+# ──────────────────────────────────────────────────────────────────
+# Inner padding as a fraction of min(width, height). Used as the base
+# rounded-rect corner radius and as a safety inset for tail base points.
+BUBBLE_INNER_PAD_RATIO = 0.18
+# Tail base length as a fraction of min(width, height).
+BUBBLE_TAIL_BASE_RATIO = 0.25
+# How far the tail's base overlaps into the body before the union, as
+# a fraction of min(width, height). Minimum 4px so small bubbles still
+# merge cleanly.
+BUBBLE_TAIL_OVERLAP_RATIO = 0.08
+BUBBLE_TAIL_OVERLAP_MIN = 4.0
+# Wobble amplitude: wobble * min(w, h) * this ratio sets the sinusoidal
+# displacement. Raising this makes the wobble "louder" at the same
+# slider value.
+BUBBLE_WOBBLE_AMP_RATIO = 0.04
+# Roundness > 1.0 puffs the ellipse outward. These control how much
+# each unit of overshoot inflates the body (per side).
+BUBBLE_ROUNDNESS_OVERSHOOT_OFFSET = 0.15
+BUBBLE_ROUNDNESS_OVERSHOOT_SCALE = 0.3
+# Oval stretch: sx = 1 + stretch; sy = 1 - stretch * this ratio.
+BUBBLE_OVAL_STRETCH_Y_COMPENSATION = 0.5
+# Minimum sample count for the wobble walk, and the per-complexity
+# multiplier used as max(MIN, complexity * MULTIPLIER).
+BUBBLE_WOBBLE_SAMPLE_MIN = 32
+BUBBLE_WOBBLE_SAMPLE_PER_COMPLEXITY = 9
+# Wobble "bump frequency" default (number of bumps around the path).
+BUBBLE_WOBBLE_COMPLEXITY_MIN = 2
+BUBBLE_WOBBLE_COMPLEXITY_MAX = 32
+# Tail taper multiplier: max shift per axis is
+# (half base length) * tail_taper * this factor.
+BUBBLE_TAIL_TAPER_FACTOR = 0.5
+# Tail bezier curve amplitude: curve * base_len * this factor.
+BUBBLE_TAIL_CURVE_AMP_RATIO = 1.2
+
+
 def _build_speech_bubble_path(body: QRectF, tip: QPointF, ov) -> QPainterPath:
     """Construct the QPainterPath for a speech bubble, applying every
     bubble deformer (roundness, oval_stretch, wobble, tail_curve,
@@ -911,21 +951,23 @@ def _build_speech_bubble_path(body: QRectF, tip: QPointF, ov) -> QPainterPath:
     builds its own path; this helper does not touch shared state.
     """
     import math as _math
-    inner_pad = min(body.width(), body.height()) * 0.18
+    short_side = min(body.width(), body.height())
+    inner_pad = short_side * BUBBLE_INNER_PAD_RATIO
     cx, cy = body.center().x(), body.center().y()
     dx_t, dy_t = tip.x() - cx, tip.y() - cy
     horiz = abs(dx_t) > abs(dy_t)
     tail_width_scale = max(0.2, min(3.0,
         float(getattr(ov, "bubble_tail_width", 1.0) or 1.0)))
-    base_len = min(body.width(), body.height()) * 0.25 * tail_width_scale
-    overlap = max(4.0, min(body.width(), body.height()) * 0.08)
+    base_len = short_side * BUBBLE_TAIL_BASE_RATIO * tail_width_scale
+    overlap = max(BUBBLE_TAIL_OVERLAP_MIN,
+                  short_side * BUBBLE_TAIL_OVERLAP_RATIO)
     # Oval stretch widens / heightens the body around its center.
     stretch = max(-1.2, min(1.2,
         float(getattr(ov, "bubble_oval_stretch", 0.0) or 0.0)))
     r = body
     if stretch != 0:
         sx = 1.0 + stretch
-        sy = 1.0 - stretch * 0.5
+        sy = 1.0 - stretch * BUBBLE_OVAL_STRETCH_Y_COMPENSATION
         new_w = body.width() * sx
         new_h = body.height() * sy
         r = QRectF(cx - new_w / 2, cy - new_h / 2, new_w, new_h)
@@ -956,11 +998,13 @@ def _build_speech_bubble_path(body: QRectF, tip: QPointF, ov) -> QPainterPath:
     if roundness >= 0.99:
         over = max(0.0, roundness - 1.0)
         if over > 0:
+            off = over * BUBBLE_ROUNDNESS_OVERSHOOT_OFFSET
+            scale = over * BUBBLE_ROUNDNESS_OVERSHOOT_SCALE
             r_exp = QRectF(
-                r.x() - r.width() * over * 0.15,
-                r.y() - r.height() * over * 0.15,
-                r.width() * (1 + over * 0.3),
-                r.height() * (1 + over * 0.3))
+                r.x() - r.width() * off,
+                r.y() - r.height() * off,
+                r.width() * (1 + scale),
+                r.height() * (1 + scale))
             path.addEllipse(r_exp)
         else:
             path.addEllipse(r)
@@ -979,8 +1023,8 @@ def _build_speech_bubble_path(body: QRectF, tip: QPointF, ov) -> QPainterPath:
         side_dx = b2.x() - b1.x()
         side_dy = b2.y() - b1.y()
         tip = QPointF(
-            tip.x() + side_dx * 0.5 * tail_taper,
-            tip.y() + side_dy * 0.5 * tail_taper)
+            tip.x() + side_dx * BUBBLE_TAIL_TAPER_FACTOR * tail_taper,
+            tip.y() + side_dy * BUBBLE_TAIL_TAPER_FACTOR * tail_taper)
     if abs(tail_curve) > 0.02:
         def _perp_ctrl(src, dst, amount):
             mx = (src.x() + dst.x()) / 2
@@ -991,7 +1035,7 @@ def _build_speech_bubble_path(body: QRectF, tip: QPointF, ov) -> QPainterPath:
             nx = -dy / length
             ny = dx / length
             return QPointF(mx + nx * amount, my + ny * amount)
-        amt = tail_curve * base_len * 1.2
+        amt = tail_curve * base_len * BUBBLE_TAIL_CURVE_AMP_RATIO
         c1 = _perp_ctrl(b1, tip, amt)
         c2 = _perp_ctrl(tip, b2, amt)
         tail.quadTo(c1, tip)
@@ -1008,15 +1052,17 @@ def _build_speech_bubble_path(body: QRectF, tip: QPointF, ov) -> QPainterPath:
     wobble = max(0.0, min(2.0,
         float(getattr(ov, "bubble_wobble", 0.0) or 0.0)))
     if wobble > 0.01:
-        amp = wobble * min(r.width(), r.height()) * 0.04
+        amp = wobble * min(r.width(), r.height()) * BUBBLE_WOBBLE_AMP_RATIO
         # Complexity = bump count around the perimeter. Higher values
         # produce more sample points so high-frequency detail doesn't
         # look scribbled with straight-line segments.
-        complexity = max(2, min(32,
-            int(getattr(ov, "bubble_wobble_complexity", 8) or 8)))
+        complexity = max(BUBBLE_WOBBLE_COMPLEXITY_MIN,
+                         min(BUBBLE_WOBBLE_COMPLEXITY_MAX,
+                             int(getattr(ov, "bubble_wobble_complexity", 8) or 8)))
         seed_phase = float(
             int(getattr(ov, "bubble_wobble_seed", 0) or 0)) * 0.1
-        n = max(32, complexity * 9)
+        n = max(BUBBLE_WOBBLE_SAMPLE_MIN,
+                complexity * BUBBLE_WOBBLE_SAMPLE_PER_COMPLEXITY)
         wobbled = QPainterPath()
         length = path.length() or 1.0
         for i in range(n + 1):
@@ -1971,22 +2017,21 @@ class OverlayShapeItem(QGraphicsItem):
                 ext_h = 0.0
             elif stretch < 0:
                 ext_w = 0.0
-                ext_h = h * (1.0 - stretch * 0.5) - h
+                ext_h = h * (
+                    1.0 - stretch * BUBBLE_OVAL_STRETCH_Y_COMPENSATION) - h
             else:
                 ext_w = ext_h = 0.0
-            # wobble pushes every outline point up to `amp` along its
-            # normal. amp = wobble * min(w, h) * 0.04.
+            # Every deformer's padding uses the same ratio as the path
+            # builder so the bounding rect always covers the painted
+            # extent. Tweaks to the ratios live at module top.
             wobble = float(getattr(ov, "bubble_wobble", 0.0) or 0.0)
-            wobble_pad = wobble * min(w, h) * 0.04
-            # skew_x shears x-coords by skew_x * (y - cy). Max shift at
-            # y = top or bottom is skew_x * (h / 2).
+            wobble_pad = wobble * min(w, h) * BUBBLE_WOBBLE_AMP_RATIO
             skew_x = float(getattr(ov, "bubble_skew_x", 0.0) or 0.0)
             skew_pad = abs(skew_x) * h * 0.5
-            # roundness > 1 overshoots into a puffier ellipse that
-            # expands out of the body rect by up to 15% on each side.
             roundness = float(getattr(ov, "bubble_roundness", 0.0) or 0.0)
-            round_pad_x = max(0.0, roundness - 1.0) * w * 0.15
-            round_pad_y = max(0.0, roundness - 1.0) * h * 0.15
+            round_overshoot = max(0.0, roundness - 1.0)
+            round_pad_x = round_overshoot * w * BUBBLE_ROUNDNESS_OVERSHOOT_OFFSET
+            round_pad_y = round_overshoot * h * BUBBLE_ROUNDNESS_OVERSHOOT_OFFSET
             # Combine: grow the body rect by the union of every
             # deformer's worst-case extent, then union with the tail
             # tip and a generous 12px tail_pad for stroke + anti-alias.
@@ -3281,7 +3326,15 @@ class OverlayTextItem(QGraphicsTextItem):
         lh = self.overlay.line_height or 1.2
         fmt = QTextBlockFormat()
         fmt.setLineHeight(lh * 100, 1)  # 1 = ProportionalHeight (percentage)
-        bottom_extra = self.overlay.font_size * (0.6 + max(0.0, 1.0 - lh))
+        # Ratios are named so the reader can tell WHY these numbers
+        # exist. HEADROOM covers ordinary descent on the last line;
+        # SHRINK_COMPENSATION adds back everything ProportionalHeight
+        # stole when lh drops below the natural 1.0.
+        LAST_LINE_HEADROOM_RATIO = 0.6
+        LH_SHRINK_COMPENSATION = 1.0
+        bottom_extra = self.overlay.font_size * (
+            LAST_LINE_HEADROOM_RATIO
+            + max(0.0, LH_SHRINK_COMPENSATION - lh))
         fmt.setBottomMargin(bottom_extra)
         cursor = self.textCursor()
         cursor.select(QTextCursor.SelectionType.Document)

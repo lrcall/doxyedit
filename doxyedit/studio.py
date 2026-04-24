@@ -3634,9 +3634,9 @@ class _ImageEnhanceWorker(QRunnable):
         self._item_id = item_id
         self._token = token
         self._qimg = qimg
-        self._br = brightness
-        self._ct = contrast
-        self._st = saturation
+        self._brightness = brightness
+        self._contrast = contrast
+        self._saturation = saturation
         self._signals = signals
         self.setAutoDelete(True)
 
@@ -3645,15 +3645,15 @@ class _ImageEnhanceWorker(QRunnable):
             from PIL import ImageEnhance
             from doxyedit.imaging import qimage_to_pil, pil_to_qimage
             pil_img = qimage_to_pil(self._qimg)
-            if self._br:
+            if self._brightness:
                 pil_img = ImageEnhance.Brightness(pil_img).enhance(
-                    1.0 + self._br)
-            if self._ct:
+                    1.0 + self._brightness)
+            if self._contrast:
                 pil_img = ImageEnhance.Contrast(pil_img).enhance(
-                    1.0 + self._ct)
-            if self._st:
+                    1.0 + self._contrast)
+            if self._saturation:
                 pil_img = ImageEnhance.Color(pil_img).enhance(
-                    1.0 + self._st)
+                    1.0 + self._saturation)
             out = pil_to_qimage(pil_img)
             self._signals.done.emit(self._item_id, self._token, out)
         except Exception:
@@ -6899,19 +6899,26 @@ class StudioEditor(QWidget):
         # Size the weight/align/color buttons as square cells so the
         # painted icons render crisp. Clear any leftover text labels
         # (older builds set "B"/"I" here) — icons only now.
-        _bi_btn_w = max(32, int(_dt.font_size * 2.8))
+        # All three ratios + minima are named so a future theme pass
+        # can rescale the dialog consistently from one place.
+        TEXT_CTRL_BUTTON_WIDTH_RATIO = 2.8   # button size relative to font
+        TEXT_CTRL_BUTTON_WIDTH_MIN = 32      # readable at any font size
+        TEXT_CTRL_ICON_RATIO = 0.6           # icon glyph vs button cell
+        TEXT_CTRL_ICON_MIN = 14              # minimum glyph legibility
+        text_ctrl_button_width = max(
+            TEXT_CTRL_BUTTON_WIDTH_MIN,
+            int(_dt.font_size * TEXT_CTRL_BUTTON_WIDTH_RATIO))
+        text_ctrl_icon_px = max(
+            TEXT_CTRL_ICON_MIN,
+            int(text_ctrl_button_width * TEXT_CTRL_ICON_RATIO))
         for _b in (self.btn_bold, self.btn_italic,
                    self.btn_underline, self.btn_strikethrough,
                    self.btn_align_left, self.btn_align_center,
                    self.btn_align_right):
             _b.setText("")
-            _b.setMinimumWidth(_bi_btn_w)
-            _b.setFixedWidth(_bi_btn_w)
-            # Icon size roughly 60% of the button footprint so there's
-            # visible padding around the glyph on both light and dark
-            # themes.
-            _iconpx = max(14, int(_bi_btn_w * 0.6))
-            _b.setIconSize(QSize(_iconpx, _iconpx))
+            _b.setMinimumWidth(text_ctrl_button_width)
+            _b.setFixedWidth(text_ctrl_button_width)
+            _b.setIconSize(QSize(text_ctrl_icon_px, text_ctrl_icon_px))
         # Color swatch buttons get a bigger hit area + the glyphs are
         # drawn on paintEvent so theme stylesheets can't hide them.
         _sw = max(32, int(_dt.font_size * 2.8))
@@ -7348,10 +7355,19 @@ class StudioEditor(QWidget):
         # 360x420 which forced users to dismiss it entirely when they
         # needed canvas space) but bump the floor high enough that the
         # Qt.Tool title bar's "Text Controls" caption always fits
-        # alongside the close button. At 200px wide the caption got
-        # truncated to "xt Controls" with the X overlapping.
-        _dlg.setMinimumWidth(260)
-        _dlg.setMinimumHeight(100)
+        # alongside the close button. Derived from font_size so the
+        # floor scales with theme.font_size instead of pinning to a
+        # hardcoded pixel count.
+        TEXT_CTRL_MIN_WIDTH_RATIO = 18.5     # caption + close fit at ~font_size*18
+        TEXT_CTRL_MIN_WIDTH_FLOOR = 260      # readable at very small font sizes
+        TEXT_CTRL_MIN_HEIGHT_RATIO = 7.0     # a handful of rows at the set font
+        TEXT_CTRL_MIN_HEIGHT_FLOOR = 100
+        _dlg.setMinimumWidth(max(
+            TEXT_CTRL_MIN_WIDTH_FLOOR,
+            int(_dt.font_size * TEXT_CTRL_MIN_WIDTH_RATIO)))
+        _dlg.setMinimumHeight(max(
+            TEXT_CTRL_MIN_HEIGHT_FLOOR,
+            int(_dt.font_size * TEXT_CTRL_MIN_HEIGHT_RATIO)))
         _geom_blob = _qs_geom.value("studio_text_controls_geom", None)
         if _geom_blob:
             try:
