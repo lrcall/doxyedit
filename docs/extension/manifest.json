@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "doxyedit autofill",
+  "version": "2.32.0",
+  "description": "DoxyEdit bridge content script. Fills identity, captions, and attaches images on social compose pages; one-click POST NOW on supported hosts. Talks to the DoxyEdit HTTP bridge on localhost:8910.",
+  "permissions": [
+    "activeTab",
+    "clipboardWrite",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8910/*",
+    "http://localhost:8910/*",
+    "http://127.0.0.1:8911/*",
+    "http://127.0.0.1:8912/*",
+    "https://bsky.app/*",
+    "https://mastodon.gamedev.place/*",
+    "https://*.mastodon.social/*",
+    "https://mastodon.social/*",
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "https://www.reddit.com/*",
+    "https://reddit.com/*",
+    "https://old.reddit.com/*",
+    "https://new.reddit.com/*",
+    "https://threads.net/*",
+    "https://www.threads.net/*",
+    "https://gamejolt.com/*",
+    "https://ko-fi.com/*",
+    "https://www.indiedb.com/*",
+    "https://www.newgrounds.com/*",
+    "https://*.newgrounds.com/*",
+    "https://itch.io/*",
+    "https://buttondown.com/*",
+    "https://lemmasoft.renai.us/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://bsky.app/*",
+        "https://mastodon.gamedev.place/*",
+        "https://*.mastodon.social/*",
+        "https://mastodon.social/*",
+        "https://x.com/*",
+        "https://twitter.com/*",
+        "https://www.reddit.com/*",
+        "https://reddit.com/*",
+        "https://old.reddit.com/*",
+        "https://new.reddit.com/*",
+        "https://threads.net/*",
+        "https://www.threads.net/*",
+        "https://gamejolt.com/*",
+        "https://ko-fi.com/*",
+        "https://www.indiedb.com/*",
+        "https://www.newgrounds.com/*",
+        "https://*.newgrounds.com/*",
+        "https://itch.io/*",
+        "https://buttondown.com/*",
+        "https://lemmasoft.renai.us/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
