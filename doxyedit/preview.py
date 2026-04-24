@@ -6,10 +6,10 @@ from PySide6.QtWidgets import (
     QGraphicsPixmapItem, QGraphicsRectItem, QGraphicsPathItem, QGraphicsItem,
     QApplication, QPushButton, QInputDialog, QWidget, QSizePolicy, QComboBox,
 )
-from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF, Signal, QEvent, QTimer
+from PySide6.QtCore import Qt, QPoint, QRectF, QSettings, QPointF, Signal, QEvent, QTimer, QSize
 from PySide6.QtGui import (
     QPainter, QFont, QColor, QKeySequence, QShortcut,
-    QTransform, QPen, QBrush, QPainterPath,
+    QTransform, QPen, QBrush, QPainterPath, QPixmap, QIcon,
 )
 
 from doxyedit.imaging import load_pixmap
@@ -463,7 +463,40 @@ class ImagePreviewDialog(QDialog):
         self._dock_btn.clicked.connect(self._on_dock)
         info_bar.addWidget(self._dock_btn)
 
-        self._fs_btn = QPushButton("⛶")
+        # Fullscreen toggle — painted icon (four corner brackets,
+        # matching Studio's _StudioIcons.focus() style). The unicode
+        # "⛶" fallback rendered as a blank tofu on several Windows
+        # font setups.
+        def _fs_icon(size=_cb):
+            pm = QPixmap(size, size)
+            pm.fill(Qt.GlobalColor.transparent)
+            p = QPainter(pm)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            _t = THEMES[DEFAULT_THEME]
+            pen = QPen(QColor(_t.text_secondary))
+            pen.setWidth(max(1, size // 10))
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            m = max(2, size // 6)            # inset margin
+            arm = max(2, size // 4)          # bracket arm length
+            # Top-left corner
+            p.drawLine(m, m, m + arm, m)
+            p.drawLine(m, m, m, m + arm)
+            # Top-right
+            p.drawLine(size - m, m, size - m - arm, m)
+            p.drawLine(size - m, m, size - m, m + arm)
+            # Bottom-left
+            p.drawLine(m, size - m, m + arm, size - m)
+            p.drawLine(m, size - m, m, size - m - arm)
+            # Bottom-right
+            p.drawLine(size - m, size - m, size - m - arm, size - m)
+            p.drawLine(size - m, size - m, size - m, size - m - arm)
+            p.end()
+            return QIcon(pm)
+
+        self._fs_btn = QPushButton()
+        self._fs_btn.setIcon(_fs_icon())
+        self._fs_btn.setIconSize(QSize(int(_cb * 0.9), int(_cb * 0.9)))
         self._fs_btn.setFixedWidth(_cb * 2)
         self._fs_btn.setToolTip("Toggle fullscreen (F11)")
         self._fs_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
