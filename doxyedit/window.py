@@ -5710,6 +5710,17 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         posts = len((data.get("posts") or {}))
         self.status.showMessage(
             f"Pushing identity + {posts} post(s) to debug browser...", 4000)
+        # If a previous push modal is still showing (user hit F6 twice
+        # before the first push completed), close it before opening a
+        # new one. Otherwise the first modal leaks until the process
+        # exits because _bridge_push_done only tracks the latest dialog.
+        prev_dlg = getattr(self, "_bridge_push_dialog", None)
+        if prev_dlg is not None:
+            try:
+                prev_dlg.close()
+            except Exception:
+                pass
+            self._bridge_push_dialog = None
         # Modal progress dialog, same styling contract as claude_modal
         # (QProgressDialog#claude_progress QSS selectors in themes.py
         # pick this up). Close in _bridge_push_done regardless of the
