@@ -114,7 +114,7 @@ def build_psyai_data(project, composer_post=None) -> dict:
         captions = dict(getattr(post, "captions", {}) or {})
         default_caption = getattr(post, "caption_default", "") or ""
         for platform in getattr(post, "platforms", []) or []:
-            text = captions.get(platform) or default_caption
+            text = _caption_with_fallback(platform, captions, default_caption)
             if not text:
                 continue
             if platform.startswith("reddit") or platform.startswith("r/"):
@@ -149,6 +149,34 @@ def build_psyai_data(project, composer_post=None) -> dict:
             data["assets"] = []
 
     return data
+
+
+# Short-form text platforms share idioms, so a caption written for
+# one is usually close enough for the others. When the user only
+# wrote a caption for twitter/x, fall back to it rather than forcing
+# them to copy-paste into every short-form field.
+_PLATFORM_CAPTION_FALLBACKS: dict[str, tuple[str, ...]] = {
+    "bluesky": ("x", "twitter"),
+    "threads": ("x", "twitter"),
+    "mastodon": ("x", "twitter"),
+    "x": ("twitter",),
+    "twitter": ("x",),
+}
+
+
+def _caption_with_fallback(platform: str, captions: dict,
+                           default_caption: str) -> str:
+    """Pick the best caption for `platform`: own key first, then
+    per-platform fallbacks (see `_PLATFORM_CAPTION_FALLBACKS`), then
+    the post-wide default."""
+    direct = captions.get(platform)
+    if direct:
+        return direct
+    for fb in _PLATFORM_CAPTION_FALLBACKS.get(platform, ()):
+        val = captions.get(fb)
+        if val:
+            return val
+    return default_caption
 
 
 def _reddit_key(platform_or_caption_key: str) -> str:
