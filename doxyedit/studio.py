@@ -4247,6 +4247,13 @@ class StudioView(QGraphicsView):
         # paint stream). 33ms = the budget for a 30fps frame; crossing
         # that is a user-visible stutter worth investigating.
         self._SLOW_PAINT_MS = 33.0
+        # A gap between consecutive paints longer than this means the
+        # event loop was blocked on something other than paint itself
+        # (autosave / network / JSON read / etc). Log these with
+        # "frame_gap" so the stalls the user *feels* as stutter show
+        # up distinctly from cheap-but-slow paints.
+        self._FRAME_GAP_MS = 100.0
+        self._fps_prev_paint_t = 0.0
         # Perf log — when FPS HUD is on, append paint/interaction events
         # as JSONL so the dev can correlate user actions with perf.
         # Path is predictable + readable by Claude Code for diagnosis.
@@ -4355,6 +4362,22 @@ class StudioView(QGraphicsView):
                     "dirty_h": event.rect().height(),
                     "gl": self._gl_viewport_active,
                 })
+            # Frame-gap detector: if the event loop was blocked between
+            # paints, log the gap independently of paint_ms. Paint_ms
+            # only measures the cost of THIS frame's paint; a 500ms
+            # autosave blocking the UI thread between two fast paints
+            # wouldn't show up in paint_ms at all but is exactly the
+            # kind of stutter users report. First paint of the session
+            # has no prior timestamp so skip the gap log there.
+            if self._fps_prev_paint_t:
+                gap_ms = (t1 - self._fps_prev_paint_t) * 1000.0
+                if gap_ms >= self._FRAME_GAP_MS:
+                    self._perf_log_event({
+                        "type": "frame_gap",
+                        "gap_ms": round(gap_ms, 2),
+                        "paint_ms": round(self._fps_last_paint_ms, 2),
+                    })
+            self._fps_prev_paint_t = t1
             # Also log every frame that took longer than SLOW_PAINT_MS —
             # those are the stutters the user actually feels but the
             # 1-in-N sampler usually misses. The log payload carries
