@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.32
+// @version      2.33
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -361,6 +361,8 @@ const HOST_TO_POST_KEY = {
   "newgrounds.com": "newgrounds",
   "itch.io": "itch",
   "indiedb.com": "indiedb",
+  "gamejolt.com": "gamejolt",
+  "tumblr.com": "tumblr",
 };
 function currentHostPostKey() {
   const host = (location.host || "").toLowerCase();
@@ -438,6 +440,21 @@ const POST_NOW_HOSTS = {
   ],
   "indiedb.com": [
     'input[type="submit"][value*="Post" i]',
+    'button[type="submit"]',
+  ],
+  "gamejolt.com": [
+    // Game page comment composer + blog post submit. Gamejolt
+    // uses Vue with class-based buttons; best-guess list until
+    // live inspection pins the actual slot.
+    'button[type="submit"]',
+    'button.button.primary',
+    'button[name*="post" i]',
+  ],
+  "tumblr.com": [
+    // New post modal has a "Post" button identified by data-testid
+    // on current dashboard, plus a generic fallback.
+    'button[data-testid*="post" i]',
+    'button[aria-label*="Post" i]',
     'button[type="submit"]',
   ],
 };

@@ -386,6 +386,8 @@ const HOST_TO_POST_KEY = {
   "newgrounds.com": "newgrounds",
   "itch.io": "itch",
   "indiedb.com": "indiedb",
+  "gamejolt.com": "gamejolt",
+  "tumblr.com": "tumblr",
 };
 function currentHostPostKey() {
   const host = (location.host || "").toLowerCase();
@@ -463,6 +465,21 @@ const POST_NOW_HOSTS = {
   ],
   "indiedb.com": [
     'input[type="submit"][value*="Post" i]',
+    'button[type="submit"]',
+  ],
+  "gamejolt.com": [
+    // Game page comment composer + blog post submit. Gamejolt
+    // uses Vue with class-based buttons; best-guess list until
+    // live inspection pins the actual slot.
+    'button[type="submit"]',
+    'button.button.primary',
+    'button[name*="post" i]',
+  ],
+  "tumblr.com": [
+    // New post modal has a "Post" button identified by data-testid
+    // on current dashboard, plus a generic fallback.
+    'button[data-testid*="post" i]',
+    'button[aria-label*="Post" i]',
     'button[type="submit"]',
   ],
 };
