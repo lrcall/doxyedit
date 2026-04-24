@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         psyai autofill (DoxyEdit bridge)
 // @namespace    https://psyai.game
-// @version      2.7
+// @version      2.8
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard — with the old hardcoded library as last-resort fallback.
 // @author       psyai
 // @updateURL    http://127.0.0.1:8910/psyai-autofill.user.js
@@ -927,9 +927,10 @@ function rebuildPanel() {
         ? `${k} (title+body)` : `${k}`;
       return `<button class="psyai-btn" data-post="${k}">${label}</button>`;
     }),
-    `<div style="margin-top:8px;color:#888;font-size:10px;">`,
+    `<div style="margin-top:8px;color:#888;font-size:10px;line-height:1.45;">`,
     `tip: click into the target field first, then click a button.<br>`,
-    `<kbd>Alt+P</kbd> panel · <kbd>Alt+B</kbd> short bio · <kbd>Alt+V</kbd> paste from DoxyEdit`,
+    `<kbd>Alt+P</kbd> panel · <kbd>Alt+N</kbd> name · <kbd>Alt+B</kbd> short bio · <kbd>Alt+V</kbd> paste<br>`,
+    `source: <span style="color:#6bff6b;">●</span> cdp live · <span style="color:#ffd76b;">●</span> http poll · <span style="color:#6bbcff;">●</span> clipboard · <span style="color:#888;">●</span> fallback`,
     `</div>`,
   ].join("\n");
   panelEl.innerHTML = html;
