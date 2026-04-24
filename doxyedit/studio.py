@@ -7170,11 +7170,13 @@ class StudioEditor(QWidget):
         _td_w = QWidget(_dlg)
         _td_w.setLayout(_td_row)
         _dlg_layout.addRow("", _td_w)
-        # Tiny minimum so the text-controls popup can be shrunk to a
-        # corner tile. Previous 360x420 floor meant users had to
-        # dismiss the popup entirely to reclaim the space during
-        # canvas-focused work; now resize-to-thumbnail works.
-        _dlg.setMinimumWidth(200)
+        # Keep the popup shrinkable to a corner tile (prior floor was
+        # 360x420 which forced users to dismiss it entirely when they
+        # needed canvas space) but bump the floor high enough that the
+        # Qt.Tool title bar's "Text Controls" caption always fits
+        # alongside the close button. At 200px wide the caption got
+        # truncated to "xt Controls" with the X overlapping.
+        _dlg.setMinimumWidth(260)
         _dlg.setMinimumHeight(100)
         _geom_blob = _qs_geom.value("studio_text_controls_geom", None)
         if _geom_blob:
