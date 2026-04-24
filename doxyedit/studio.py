@@ -2582,6 +2582,33 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     _mk_slider("bubble_oval_stretch", -1.2, 1.2))
                 deform_form.addRow("Wobble",
                     _mk_slider("bubble_wobble", 0.0, 2.0))
+                # Wobble complexity = bump count around the perimeter.
+                # Slider stores its value as int*100 like the others
+                # but scales to the int range via _mk_int_slider.
+                def _mk_int_slider(attr, lo, hi, fmt="{:d}"):
+                    sl = QSlider(Qt.Orientation.Horizontal)
+                    sl.setRange(int(lo), int(hi))
+                    sl.setValue(int(getattr(ov, attr, lo) or lo))
+                    sl.setMinimumWidth(150)
+                    readout = QLabel(fmt.format(int(getattr(ov, attr, lo) or lo)))
+                    readout.setFixedWidth(52)
+                    def _on_change(v, _it=item, _attr=attr, _r=readout):
+                        setattr(_it.overlay, _attr, int(v))
+                        _it.prepareGeometryChange()
+                        _it.update()
+                        _r.setText(fmt.format(int(v)))
+                        editor._sync_overlays_to_asset()
+                    sl.valueChanged.connect(_on_change)
+                    row = QHBoxLayout()
+                    row.setContentsMargins(0, 0, 0, 0)
+                    row.addWidget(sl, 1)
+                    row.addWidget(readout)
+                    w = _QW(); w.setLayout(row)
+                    return w
+                deform_form.addRow("Complexity",
+                    _mk_int_slider("bubble_wobble_complexity", 2, 32))
+                deform_form.addRow("Seed",
+                    _mk_int_slider("bubble_wobble_seed", 0, 999))
                 deform_form.addRow("Skew X",
                     _mk_slider("bubble_skew_x", -1.0, 1.0))
                 deform_form.addRow("Tail curve",
@@ -2600,6 +2627,8 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     ov_r.bubble_roundness = 0.0
                     ov_r.bubble_oval_stretch = 0.0
                     ov_r.bubble_wobble = 0.0
+                    ov_r.bubble_wobble_complexity = 8
+                    ov_r.bubble_wobble_seed = 0
                     ov_r.bubble_skew_x = 0.0
                     ov_r.bubble_tail_width = 1.0
                     ov_r.bubble_tail_taper = 0.0

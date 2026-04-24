@@ -1009,8 +1009,15 @@ def _build_speech_bubble_path(body: QRectF, tip: QPointF, ov) -> QPainterPath:
         float(getattr(ov, "bubble_wobble", 0.0) or 0.0)))
     if wobble > 0.01:
         amp = wobble * min(r.width(), r.height()) * 0.04
+        # Complexity = bump count around the perimeter. Higher values
+        # produce more sample points so high-frequency detail doesn't
+        # look scribbled with straight-line segments.
+        complexity = max(2, min(32,
+            int(getattr(ov, "bubble_wobble_complexity", 8) or 8)))
+        seed_phase = float(
+            int(getattr(ov, "bubble_wobble_seed", 0) or 0)) * 0.1
+        n = max(32, complexity * 9)
         wobbled = QPainterPath()
-        n = 72
         length = path.length() or 1.0
         for i in range(n + 1):
             t_i = (i / n) * length
@@ -1018,7 +1025,7 @@ def _build_speech_bubble_path(body: QRectF, tip: QPointF, ov) -> QPainterPath:
             pt = path.pointAtPercent(pct)
             ang = path.angleAtPercent(pct)
             normal = _math.radians(ang + 90)
-            push = _math.sin(pct * _math.pi * 8) * amp
+            push = _math.sin(pct * _math.pi * complexity + seed_phase) * amp
             nx = pt.x() + _math.cos(normal) * push
             ny = pt.y() - _math.sin(normal) * push
             if i == 0:
@@ -1574,6 +1581,8 @@ class OverlayShapeItem(QGraphicsItem):
             getattr(ov, "bubble_tail_width", 1.0),
             getattr(ov, "bubble_tail_taper", 0.0),
             getattr(ov, "bubble_skew_x", 0.0),
+            int(getattr(ov, "bubble_wobble_complexity", 8) or 8),
+            int(getattr(ov, "bubble_wobble_seed", 0) or 0),
             tail_dx, tail_dy,
             getattr(ov, "star_points", 0),
             getattr(ov, "inner_ratio", 0.0),

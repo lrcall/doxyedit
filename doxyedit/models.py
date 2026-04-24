@@ -282,6 +282,13 @@ class CanvasOverlay:
     bubble_tail_width: float = 1.0
     bubble_tail_taper: float = 0.0
     bubble_skew_x: float = 0.0
+    # Wobble tuning. bubble_wobble_complexity (2..32, default 8) is the
+    # number of bumps around the perimeter — higher = choppier, lower =
+    # slower organic undulation. bubble_wobble_seed (0..999) shifts the
+    # sin phase by seed * 0.1 radians so two bubbles on the same canvas
+    # don't wobble in lockstep when copy-pasted.
+    bubble_wobble_complexity: int = 8
+    bubble_wobble_seed: int = 0
     # Star / polygon shape params. shape_kind="star" -> n-pointed star,
     # "polygon" -> n-sided regular polygon. star_points doubles as
     # point-count for both. inner_ratio is the star's inner/outer
