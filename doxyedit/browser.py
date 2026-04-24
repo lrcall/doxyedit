@@ -20,7 +20,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QPixmap, QFont, QColor, QCursor, QPainter, QPen, QFontMetrics, QPainterPath,
-    QDrag, QMouseEvent,
+    QDrag, QMouseEvent, QIcon, QBrush,
 )
 
 from doxyedit.models import (
@@ -1476,7 +1476,33 @@ class AssetBrowser(QWidget):
         self._tag_flow.setContentsMargins(0, max(2, _pad // 2), 0, max(2, _pad // 2))
         self._tag_buttons: list[tuple[QPushButton, str]] = []
         self._tag_button_map: dict[str, QPushButton] = {}  # tag_id → button, O(1) lookup
-        self._add_tag_btn = QPushButton("+")
+        # Add-tag button — painted plus-in-circle icon. The bare "+"
+        # text glyph centered oddly in the square button and visually
+        # read as a close/dismiss affordance at small sizes. Painted
+        # icon matches the Studio painted-icon style.
+        def _make_add_tag_icon(size=16):
+            _pm = QPixmap(size, size)
+            _pm.fill(Qt.GlobalColor.transparent)
+            _p = QPainter(_pm)
+            _p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            _t = THEMES[DEFAULT_THEME]
+            _pen = QPen(QColor(_t.text_primary))
+            _pen.setWidth(max(1, size // 8))
+            _p.setPen(_pen)
+            _p.setBrush(Qt.BrushStyle.NoBrush)
+            _margin = max(1, size // 8)
+            _p.drawEllipse(_margin, _margin,
+                            size - 2 * _margin, size - 2 * _margin)
+            # Plus — two orthogonal lines centered.
+            _mid = size // 2
+            _arm = max(2, size // 4)
+            _p.drawLine(_mid - _arm, _mid, _mid + _arm, _mid)
+            _p.drawLine(_mid, _mid - _arm, _mid, _mid + _arm)
+            _p.end()
+            return QIcon(_pm)
+
+        self._add_tag_btn = QPushButton()
+        self._add_tag_btn.setIcon(_make_add_tag_icon(16))
         self._add_tag_btn.setObjectName("add_tag_btn")
         self._add_tag_btn.setToolTip("Add a custom tag")
         self._add_tag_btn.clicked.connect(self._add_custom_tag)
