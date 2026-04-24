@@ -146,6 +146,48 @@ def _main_profile_dir_for(browser_name: str) -> str:
     return ""
 
 
+def list_browser_profiles(browser_name: str) -> list[tuple[str, str]]:
+    """Return [(folder_name, display_name)] for every sub-profile in
+    the main user-data-dir. Brave / Chrome store profile folders
+    (`Default`, `Profile 1`, `Profile 2`, ...) under the User Data dir
+    and map them to display names via Local State's
+    `profile.info_cache`. Callers pass folder_name as
+    --profile-directory=... so launches target the right account."""
+    main_dir = _main_profile_dir_for(browser_name)
+    if not main_dir:
+        return []
+    ls_path = os.path.join(main_dir, "Local State")
+    if not os.path.exists(ls_path):
+        return []
+    try:
+        with open(ls_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return []
+    cache = data.get("profile", {}).get("info_cache", {}) or {}
+    out: list[tuple[str, str]] = []
+    for folder, info in cache.items():
+        name = (info.get("name")
+                or info.get("shortcut_name")
+                or info.get("gaia_name")
+                or folder)
+        out.append((folder, name))
+    # Sort so Default comes first, then Profile N in numeric order.
+    def _sort_key(t):
+        folder = t[0]
+        if folder == "Default":
+            return (0, 0)
+        # "Profile 10" sorts after "Profile 2" — handle numeric tail.
+        if folder.startswith("Profile "):
+            try:
+                return (1, int(folder.split(" ", 1)[1]))
+            except ValueError:
+                return (1, 0)
+        return (2, folder)
+    out.sort(key=_sort_key)
+    return out
+
+
 def is_chrome_running(cdp_url: str = DEFAULT_CDP) -> bool:
     """Check if a debug-mode Chromium browser (Chrome or Brave) is
     accessible on the CDP port. Name kept for back-compat with older
@@ -193,6 +235,7 @@ def launch_debug_browser(
     port: int = 9222,
     preferred: str = "auto",
     use_main_profile: bool = False,
+    profile_dir_name: str = "",
 ) -> tuple[Optional[subprocess.Popen], str]:
     """Launch a Chromium-family browser with --remote-debugging-port.
 
@@ -251,6 +294,12 @@ def launch_debug_browser(
         "--no-first-run",
         "--no-default-browser-check",
     ]
+    # --profile-directory picks a sub-profile within the main User
+    # Data dir. Only meaningful for the main-profile path; the
+    # isolated profile has a single Default sub-folder that Chromium
+    # auto-creates.
+    if use_main_profile and profile_dir_name:
+        args.append(f"--profile-directory={profile_dir_name}")
     print(
         f"[BrowserPost] Launching {display}: {browser_path} on port {port}")
     try:

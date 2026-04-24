@@ -5538,10 +5538,15 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         process; all other windows of the target browser MUST be
         closed first or the launch silently no-ops (or produces a
         second tab in the existing window without CDP enabled).
-        Confirm with the user before shelling out."""
+
+        If the browser has multiple sub-profiles (Default, Profile 1,
+        Profile 2, ...), present a picker so the user launches
+        directly into the right account — avoids the profile-picker
+        screen Brave shows on first run of a multi-profile install."""
         from doxyedit.browserpost import (
             is_chrome_running, launch_debug_browser,
             _main_profile_dir_for, _detect_browser_binary,
+            list_browser_profiles,
         )
         if is_chrome_running():
             self.status.showMessage(
@@ -5565,7 +5570,32 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         browser_name, _ = _detect_browser_binary(preferred)
         display = {"brave": "Brave", "chrome": "Chrome"}.get(
             browser_name, browser_name.capitalize() or "your browser")
-        main_dir = _main_profile_dir_for(browser_name)
+        # Profile picker: if there's more than one sub-profile,
+        # ask which to open. Single-profile installs skip straight
+        # to the close-first confirm.
+        profiles = list_browser_profiles(browser_name)
+        chosen_folder = ""
+        if len(profiles) > 1:
+            labels = [f"{display_name}  ({folder})"
+                      for folder, display_name in profiles]
+            # Persist the last pick so repeated launches don't
+            # re-prompt unless the user wants to change it.
+            last = self._settings.value(
+                "browser_posting_last_profile", "", type=str)
+            default_idx = 0
+            for i, (folder, _) in enumerate(profiles):
+                if folder == last:
+                    default_idx = i
+                    break
+            label, ok = QInputDialog.getItem(
+                self, f"Pick {display} profile",
+                f"Launch debug {display} with which profile?",
+                labels, default_idx, False)
+            if not ok:
+                return
+            chosen_folder = profiles[labels.index(label)][0]
+            self._settings.setValue(
+                "browser_posting_last_profile", chosen_folder)
         reply = QMessageBox.warning(
             self, f"Close {display} first",
             f"To launch with CDP enabled on your main {display} profile, "
@@ -5579,10 +5609,14 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if reply != QMessageBox.StandardButton.Ok:
             return
         proc, name = launch_debug_browser(
-            preferred=preferred, use_main_profile=True)
+            preferred=preferred,
+            use_main_profile=True,
+            profile_dir_name=chosen_folder)
         if proc:
+            label_tail = f" — profile {chosen_folder!r}" if chosen_folder else ""
             self.status.showMessage(
-                f"Debug {name} launched on your main profile — CDP live on 9222",
+                f"Debug {name} launched on your main profile{label_tail} — "
+                f"CDP live on 9222",
                 6000)
         else:
             QMessageBox.warning(
