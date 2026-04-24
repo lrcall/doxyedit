@@ -411,6 +411,17 @@ class ContentPanel(QWidget):
         self._links_edit = QLineEdit()
         self._links_edit.setPlaceholderText("URL")
         links_layout.addWidget(self._links_edit)
+        # Published URLs - populated from post.published_urls via
+        # set_post. Read-only rich-text label with openExternalLinks
+        # so the per-platform live URLs (captured by the userscript
+        # feedback backchannel) are clickable right from the composer.
+        self._published_urls_label = QLabel()
+        self._published_urls_label.setTextFormat(Qt.TextFormat.RichText)
+        self._published_urls_label.setOpenExternalLinks(True)
+        self._published_urls_label.setWordWrap(True)
+        self._published_urls_label.setVisible(False)
+        self._published_urls_label.setObjectName("composer_published_urls")
+        links_layout.addWidget(self._published_urls_label)
         layout.addWidget(links_box)
 
         # Schedule (hidden — left panel is primary, this is the data source)
@@ -520,6 +531,28 @@ class ContentPanel(QWidget):
         # Links
         if post.links:
             self._links_edit.setText(post.links[0])
+
+        # Published URLs (populated by the backchannel when a
+        # post lands on a platform). Show them as clickable anchors
+        # grouped by platform so the user can verify the live post
+        # from the composer without hunting through the timeline.
+        urls = getattr(post, "published_urls", {}) or {}
+        if urls:
+            lines = []
+            for plat, url in sorted(urls.items()):
+                if not url:
+                    continue
+                status = (getattr(post, "platform_status", {}) or {}).get(plat, "")
+                mark = " <b style=\"color:#ffd76b;\">[UNVERIFIED]</b>" if status == "posted_unverified" else ""
+                lines.append(f'<b>{plat}</b>: <a href="{url}">{url}</a>{mark}')
+            if lines:
+                self._published_urls_label.setText("<br>".join(lines))
+                self._published_urls_label.setVisible(True)
+            else:
+                self._published_urls_label.setVisible(False)
+        else:
+            self._published_urls_label.setVisible(False)
+            self._published_urls_label.clear()
 
         # Schedule
         if post.scheduled_time:
