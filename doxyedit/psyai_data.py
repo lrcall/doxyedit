@@ -20,8 +20,25 @@ from __future__ import annotations
 from typing import Optional
 
 
+def _sanitize_text(text: str) -> str:
+    """Replace punctuation that social platforms render awkwardly or
+    that the user has banned project-wide. Em-dashes become
+    space-hyphen-space; en-dashes become plain hyphen; curly quotes
+    become straight quotes. Operates on a single string, safe for
+    empty/None input."""
+    if not text:
+        return text or ""
+    return (text
+            .replace("—", " - ")    # em-dash ->  -
+            .replace("–", "-")       # en-dash  -> -
+            .replace("“", '"').replace("”", '"')
+            .replace("‘", "'").replace("’", "'"))
+
+
 def _truncate(text: str, max_len: int) -> str:
-    """Trim `text` to `max_len` chars on a word boundary when possible."""
+    """Trim `text` to `max_len` chars on a word boundary when possible.
+    Always sanitizes first so the cut can't land mid-replacement."""
+    text = _sanitize_text(text)
     if not text or len(text) <= max_len:
         return text or ""
     cut = text[:max_len].rsplit(" ", 1)
@@ -95,12 +112,12 @@ def build_psyai_data(project, composer_post=None) -> dict:
         # a single blob the short/medium variants are word-boundary
         # truncations of the long form.
         "handle": _slugify_handle(name),
-        "displayName": name,
+        "displayName": _sanitize_text(name),
         "taglineShort": _truncate(bio_blurb, 80),
         "oneLine": _truncate(bio_blurb, 120),
         "bioShort": _truncate(bio_blurb, 160),
         "bioMedium": _truncate(bio_blurb, 500),
-        "bioLong": bio_blurb,
+        "bioLong": _sanitize_text(bio_blurb),
         # URLs come straight off the identity. Keys match the userscript.
         "steamURL": "",
         "itchURL": "",
@@ -130,9 +147,10 @@ def build_psyai_data(project, composer_post=None) -> dict:
         captions = dict(getattr(post, "captions", {}) or {})
         default_caption = getattr(post, "caption_default", "") or ""
         for platform in getattr(post, "platforms", []) or []:
-            text = _caption_with_fallback(platform, captions, default_caption)
+            text = captions.get(platform) or default_caption
             if not text:
                 continue
+            text = _sanitize_text(text)
             if platform.startswith("reddit") or platform.startswith("r/"):
                 data["posts"][_reddit_key(platform)] = _split_title_body(text)
             else:
@@ -165,34 +183,6 @@ def build_psyai_data(project, composer_post=None) -> dict:
             data["assets"] = []
 
     return data
-
-
-# Short-form text platforms share idioms, so a caption written for
-# one is usually close enough for the others. When the user only
-# wrote a caption for twitter/x, fall back to it rather than forcing
-# them to copy-paste into every short-form field.
-_PLATFORM_CAPTION_FALLBACKS: dict[str, tuple[str, ...]] = {
-    "bluesky": ("x", "twitter"),
-    "threads": ("x", "twitter"),
-    "mastodon": ("x", "twitter"),
-    "x": ("twitter",),
-    "twitter": ("x",),
-}
-
-
-def _caption_with_fallback(platform: str, captions: dict,
-                           default_caption: str) -> str:
-    """Pick the best caption for `platform`: own key first, then
-    per-platform fallbacks (see `_PLATFORM_CAPTION_FALLBACKS`), then
-    the post-wide default."""
-    direct = captions.get(platform)
-    if direct:
-        return direct
-    for fb in _PLATFORM_CAPTION_FALLBACKS.get(platform, ()):
-        val = captions.get(fb)
-        if val:
-            return val
-    return default_caption
 
 
 def _reddit_key(platform_or_caption_key: str) -> str:
