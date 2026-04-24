@@ -1962,11 +1962,13 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
         self._root_layout = QVBoxLayout(self)
         self._root_layout.setContentsMargins(8, 8, 8, 8)
         self._root_layout.setSpacing(6)
-        # Wider default so inline button rows (color swatch + Clear +
-        # Rand, or spinbox + 5 preset stroke widths) fit without the
-        # trailing buttons getting cropped to 'lea' / empty squares.
-        self.setMinimumWidth(400)
-        self.setMinimumHeight(440)
+        # Tiny minimum so users can shrink the popup to a corner tile
+        # for focus-mode workflows (matches the preview tiny-mode
+        # philosophy). Buttons and sliders gracefully overflow the
+        # contained scroll when sized below their sizeHint — users
+        # who want the full layout can always resize back up.
+        self.setMinimumWidth(200)
+        self.setMinimumHeight(100)
         # Ctrl+P pin-on-top toggle + Ctrl+Shift+L / R snap-to-edge
         # park positions. Mirror of _TextControlsDialog so both popups
         # respond to the same 'dock-ish' gestures.
@@ -7016,9 +7018,12 @@ class StudioEditor(QWidget):
         _td_w = QWidget(_dlg)
         _td_w.setLayout(_td_row)
         _dlg_layout.addRow("", _td_w)
-        # Reasonable min size envelope. Restore persisted geometry if any.
-        _dlg.setMinimumWidth(max(360, int(_dt.font_size * 32)))
-        _dlg.setMinimumHeight(420)
+        # Tiny minimum so the text-controls popup can be shrunk to a
+        # corner tile. Previous 360x420 floor meant users had to
+        # dismiss the popup entirely to reclaim the space during
+        # canvas-focused work; now resize-to-thumbnail works.
+        _dlg.setMinimumWidth(200)
+        _dlg.setMinimumHeight(100)
         _geom_blob = _qs_geom.value("studio_text_controls_geom", None)
         if _geom_blob:
             try:
