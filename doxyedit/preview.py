@@ -443,6 +443,12 @@ class ImagePreviewDialog(QDialog):
         self._on_top_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._on_top_btn.toggled.connect(self._toggle_on_top)
         info_bar.addWidget(self._on_top_btn)
+        # setChecked(True) ran BEFORE the connect above, so the initial
+        # on-top state was never actually installed — the button showed
+        # checked but nothing was wired to raise us when the parent
+        # gained focus. Fire the handler once post-connect to install
+        # the event filter so "On Top" actually works on first open.
+        self._toggle_on_top(True)
 
         self._pin_btn = QPushButton("Pin")
         self._pin_btn.setCheckable(True)
@@ -922,7 +928,7 @@ class ImagePreviewDialog(QDialog):
         toggle. Persists via QSettings so the choice survives restarts."""
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
-        tiny_act = menu.addAction("Tiny mode (allow very small size)")
+        tiny_act = menu.addAction("Tiny mode")
         tiny_act.setCheckable(True)
         tiny_act.setChecked(bool(getattr(self, "_preview_tiny_mode", False)))
         chosen = menu.exec(self.mapToGlobal(pos))
