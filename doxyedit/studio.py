@@ -3961,6 +3961,13 @@ def gl_probe_result() -> tuple[bool, str]:
     return (bool(_GL_PROBE_RESULT), _GL_PROBE_ERROR)
 
 
+def gl_probe_attempted() -> bool:
+    """True iff _probe_gl_viewport() has been called this session.
+    Used by the perf-log header to distinguish "GL probe failed" from
+    "GL was never requested, so the probe never ran."""
+    return _GL_PROBE_RESULT is not None
+
+
 class StudioView(QGraphicsView):
     """Zoomable (wheel) + pannable (middle-drag) view."""
 
@@ -4087,15 +4094,24 @@ class StudioView(QGraphicsView):
             import os as _os, time as _t
             self._perf_log_file = open(self._perf_log_path, "w",
                                         encoding="utf-8")
-            gl_ok, gl_err = gl_probe_result()
-            self._perf_log_event({
+            ev = {
                 "type": "session_start",
                 "path": self._perf_log_path,
                 "pid": _os.getpid(),
                 "gl_active": self._gl_viewport_active,
-                "gl_probe_ok": gl_ok,
-                "gl_probe_err": gl_err,
-            })
+            }
+            # Only include probe fields when a probe was actually
+            # attempted. Otherwise the default (False, "") readings
+            # look like "GL probe failed" when the truth is "GL was
+            # never requested" — and the empty gl_probe_err was
+            # wasting diagnostic attention on a non-issue.
+            if gl_probe_attempted():
+                gl_ok, gl_err = gl_probe_result()
+                ev["gl_probe_ok"] = gl_ok
+                ev["gl_probe_err"] = gl_err
+            else:
+                ev["gl_probe_attempted"] = False
+            self._perf_log_event(ev)
         except Exception:
             self._perf_log_file = None
 
