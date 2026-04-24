@@ -704,6 +704,7 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         self.browser.folder_opened.connect(self._add_recent_folder)
         self.browser.thumb_loaded.connect(self._on_thumb_for_tray)
         self.browser.asset_to_tray.connect(self._send_single_to_tray)
+        self.browser.asset_to_studio.connect(self._send_to_studio)
         self.browser.tags_modified.connect(self._on_tags_modified)
         self.studio.queue_requested.connect(self._prepare_for_posting)
         self.platform_panel.request_asset_pick.connect(self._assign_selected_to_slot)

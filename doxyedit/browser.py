@@ -1223,6 +1223,7 @@ class AssetBrowser(QWidget):
     asset_to_censor = Signal(str)
     asset_to_post = Signal(str)
     asset_to_tray = Signal(str)
+    asset_to_studio = Signal(str)  # Enter on a thumb -> open in Studio
     thumb_loaded = Signal(str, QPixmap)
     folder_opened = Signal(str)
     tags_modified = Signal()
@@ -3862,7 +3863,14 @@ class AssetBrowser(QWidget):
                 if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                     if self._selected_ids:
                         aid = next(iter(self._selected_ids))
-                        self.asset_preview.emit(aid)
+                        # Ctrl+Enter = send to Studio; plain Enter = preview.
+                        # Matches the "send to Studio" asks from the main
+                        # UI backlog without overriding the preview muscle-
+                        # memory the default Enter binding has trained.
+                        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                            self.asset_to_studio.emit(aid)
+                        else:
+                            self.asset_preview.emit(aid)
                     return True
                 if event.key() == Qt.Key.Key_F3:
                     self._open_in_native_editor()
@@ -3908,10 +3916,14 @@ class AssetBrowser(QWidget):
             self.window().status.showMessage("Recaching thumbnails...", 2000)
             return
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            # Open preview for the currently selected asset
+            # Open preview (plain Enter) or send to Studio (Ctrl+Enter)
+            # for the currently selected asset.
             if self._selected_ids:
                 aid = next(iter(self._selected_ids))
-                self.asset_preview.emit(aid)
+                if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                    self.asset_to_studio.emit(aid)
+                else:
+                    self.asset_preview.emit(aid)
                 return
         if event.key() == Qt.Key.Key_Escape:
             if self._bar_tag_filters:
