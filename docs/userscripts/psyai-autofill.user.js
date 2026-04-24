@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         psyai autofill (DoxyEdit bridge)
 // @namespace    https://psyai.game
-// @version      2.6
+// @version      2.7
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard — with the old hardcoded library as last-resort fallback.
 // @author       psyai
 // @updateURL    http://127.0.0.1:8910/psyai-autofill.user.js
@@ -260,6 +260,9 @@ let _fileInputEl = null;       // hidden <input> for the optional local pick
 let _pickedFiles = [];         // cached Files from either DoxyEdit push or local pick
 let _uploadStatusEl = null;    // status line under the upload buttons
 let _dragThumbEl = null;       // draggable preview <img>
+// Thumbnail cache: asset.id -> object URL (or 'loading' / 'error').
+// Avoids re-fetching the same asset on every panel rebuild.
+const _assetThumbCache = {};
 
 function ensureFileInput() {
   if (_fileInputEl) return _fileInputEl;
@@ -283,30 +286,64 @@ function triggerFilePick() {
 // Fetch a pushed-from-DoxyEdit asset URL, construct a File object,
 // stash it in _pickedFiles so the injection strategies run against
 // it. One-click: no OS picker, no typing a filename.
-async function loadAssetFromBridge(asset) {
-  if (!asset || !asset.url) return false;
-  try {
-    const resp = await fetch(asset.url, { cache: "no-store" });
-    if (!resp.ok) {
-      setUploadStatus(`✗ fetch ${asset.name} failed: ${resp.status}`, false);
-      return false;
+//
+// Uses GM_xmlhttpRequest (not plain fetch) because the bridge runs
+// on http://127.0.0.1 and most social platforms are HTTPS —
+// browsers block mixed-content fetches from HTTPS to HTTP, but
+// GM_xmlhttpRequest has cross-origin privileges declared by
+// @connect in the userscript header and bypasses that check.
+function loadAssetFromBridge(asset) {
+  return new Promise((resolve) => {
+    if (!asset || !asset.url) { resolve(false); return; }
+    if (typeof GM_xmlhttpRequest !== "function") {
+      setUploadStatus(
+        "✗ GM_xmlhttpRequest unavailable — userscript missing @grant", false);
+      resolve(false);
+      return;
     }
-    const blob = await resp.blob();
-    const f = new File(
-      [blob], asset.name || "image.png",
-      { type: asset.mime || blob.type || "image/png" });
-    _pickedFiles = [f];
-    refreshPickedBadge();
-    renderDragThumb();
-    setUploadStatus(`loaded ${f.name} — auto-injecting...`, true);
-    // Auto-fire the best-guess strategy chain so the common case
-    // ends in "image attached" with a single click.
-    await autoInject();
-    return true;
-  } catch (e) {
-    setUploadStatus(`✗ fetch ${asset.name || "asset"} failed: ${e.message}`, false);
-    return false;
-  }
+    setUploadStatus(`fetching ${asset.name}...`, true);
+    GM_xmlhttpRequest({
+      method: "GET",
+      url: asset.url,
+      responseType: "blob",
+      timeout: 10000,
+      onload: async (resp) => {
+        if (resp.status !== 200) {
+          setUploadStatus(
+            `✗ fetch ${asset.name} failed: HTTP ${resp.status}`, false);
+          resolve(false);
+          return;
+        }
+        const blob = resp.response;
+        if (!blob || !(blob instanceof Blob)) {
+          setUploadStatus(
+            `✗ fetch ${asset.name}: response not a blob`, false);
+          resolve(false);
+          return;
+        }
+        const f = new File(
+          [blob], asset.name || "image.png",
+          { type: asset.mime || blob.type || "image/png" });
+        _pickedFiles = [f];
+        refreshPickedBadge();
+        renderDragThumb();
+        setUploadStatus(`loaded ${f.name} — auto-injecting...`, true);
+        await autoInject();
+        resolve(true);
+      },
+      onerror: (err) => {
+        setUploadStatus(
+          `✗ fetch ${asset.name} network error — is the HTTP bridge running?`,
+          false);
+        resolve(false);
+      },
+      ontimeout: () => {
+        setUploadStatus(
+          `✗ fetch ${asset.name} timed out after 10s`, false);
+        resolve(false);
+      },
+    });
+  });
 }
 
 // Try strategies 1 -> 4 (2 needs explicit focus, not auto). Stops
@@ -445,6 +482,41 @@ function setUploadStatus(msg, ok) {
   setTimeout(() => {
     if (_uploadStatusEl) _uploadStatusEl.textContent = "";
   }, 6000);
+}
+
+function preloadAssetThumbs(assets) {
+  if (typeof GM_xmlhttpRequest !== "function") return;
+  let anyStarted = false;
+  for (const a of assets || []) {
+    if (!a || !a.id || !a.url) continue;
+    if (_assetThumbCache[a.id]) continue;  // cached, loading, or errored
+    _assetThumbCache[a.id] = "loading";
+    anyStarted = true;
+    GM_xmlhttpRequest({
+      method: "GET",
+      url: a.url,
+      responseType: "blob",
+      timeout: 10000,
+      onload: (resp) => {
+        if (resp.status === 200 && resp.response instanceof Blob) {
+          _assetThumbCache[a.id] = URL.createObjectURL(resp.response);
+        } else {
+          _assetThumbCache[a.id] = "error";
+        }
+        // Re-render so the new thumb shows up.
+        rebuildPanel();
+      },
+      onerror: () => {
+        _assetThumbCache[a.id] = "error";
+        rebuildPanel();
+      },
+      ontimeout: () => {
+        _assetThumbCache[a.id] = "error";
+        rebuildPanel();
+      },
+    });
+  }
+  // Note: rebuildPanel called inside onload; no need to call here.
 }
 
 function requirePicked() {
@@ -818,9 +890,14 @@ function rebuildPanel() {
     // pick + strategy buttons when no assets were pushed.
     (d.assets && d.assets.length)
       ? `<div class="psyai-section">images (1-click attach)</div>` +
-        d.assets.map((a, i) =>
-          `<button class="psyai-btn primary psyai-asset" data-idx="${i}">📎 ${a.name || a.id}</button>`
-        ).join("\n")
+        d.assets.map((a, i) => {
+          const thumbUrl = _assetThumbCache[a.id];
+          const hasThumb = thumbUrl && thumbUrl !== "loading" && thumbUrl !== "error";
+          const thumbHtml = hasThumb
+            ? `<img src="${thumbUrl}" style="width:40px;height:40px;object-fit:cover;border-radius:3px;margin-right:6px;vertical-align:middle;flex-shrink:0;">`
+            : `<span style="width:40px;height:40px;display:inline-block;background:#333;border-radius:3px;margin-right:6px;vertical-align:middle;text-align:center;line-height:40px;flex-shrink:0;">📎</span>`;
+          return `<button class="psyai-btn primary psyai-asset" data-idx="${i}" style="display:flex;align-items:center;">${thumbHtml}<span>${a.name || a.id}</span></button>`;
+        }).join("\n")
       : "",
     `<div class="psyai-section">image injection (manual)</div>`,
     `<button class="psyai-btn psyai-pick">📁 pick local image instead</button>`,
@@ -869,6 +946,10 @@ function rebuildPanel() {
       if (asset) loadAssetFromBridge(asset);
     });
   });
+  // Kick off thumbnail preloads for any assets we haven't cached
+  // yet. When each lands we re-render the panel so the placeholder
+  // swaps to the real <img>.
+  preloadAssetThumbs(currentData.assets || []);
   const pickBtn = panelEl.querySelector(".psyai-pick");
   if (pickBtn) pickBtn.addEventListener("click", triggerFilePick);
   const s1 = panelEl.querySelector(".psyai-s1");
