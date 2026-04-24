@@ -5811,11 +5811,11 @@ class StudioEditor(QWidget):
         toolbar.addWidget(QLabel("|"))
 
         # Group 3: Overlay tools
-        self.btn_watermark = QPushButton(" Watermark")
+        self.btn_watermark = QPushButton(" Image")
         self.btn_watermark.setIcon(_StudioIcons.watermark())
         self.btn_watermark.setIconSize(_ICO_SZ)
         self.btn_watermark.setObjectName("studio_btn_watermark")
-        self.btn_watermark.setToolTip("Watermark / logo tool (E)")
+        self.btn_watermark.setToolTip("Image / logo tool (E) — embeds a watermark or logo overlay")
         self.btn_watermark.setCheckable(True)
         self.btn_watermark.clicked.connect(lambda: self._set_tool(StudioTool.WATERMARK))
         toolbar.addWidget(self.btn_watermark)
@@ -8584,7 +8584,7 @@ class StudioEditor(QWidget):
                 StudioTool.CENSOR: "Censor",
                 StudioTool.CROP: "Crop",
                 StudioTool.NOTE: "Note",
-                StudioTool.WATERMARK: "Watermark",
+                StudioTool.WATERMARK: "Image",
                 StudioTool.TEXT_OVERLAY: "Text",
                 StudioTool.EYEDROPPER: "Eyedropper",
                 StudioTool.ARROW: "Arrow",
