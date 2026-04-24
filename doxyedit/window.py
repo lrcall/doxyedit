@@ -5900,12 +5900,40 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             all_done = all(
                 _is_posted(target.platform_status.get(p, ""))
                 for p in (target.platforms or []))
+            prev_status = target.status
             if all_done and (target.platforms or []):
                 target.status = SocialPostStatus.POSTED
             elif any(_is_posted(target.platform_status.get(p, ""))
                      for p in (target.platforms or [])):
                 target.status = SocialPostStatus.PARTIAL
             target.updated_at = _t.strftime("%Y-%m-%dT%H:%M:%S")
+            # Schedule engagement follow-ups the first time this post
+            # flips to POSTED. Idempotent: only generates when the
+            # engagement_checks list is empty, so subsequent backchannel
+            # events (cross-platform fills) don't re-stamp windows.
+            if (target.status == SocialPostStatus.POSTED
+                    and prev_status != SocialPostStatus.POSTED
+                    and not target.engagement_checks):
+                try:
+                    from doxyedit.reminders import generate_engagement_windows
+                    from doxyedit.oneup import get_connected_platforms
+                    from pathlib import Path
+                    project_dir = (str(Path(self._project_path).parent)
+                                   if self._project_path else ".")
+                    connected = get_connected_platforms(project_dir)
+                    windows = generate_engagement_windows(target, connected)
+                    # Let the live pageUrl override the template URL so
+                    # reminders link straight to the actual post.
+                    for w in windows:
+                        live_url = target.published_urls.get(w.platform, "")
+                        if live_url:
+                            w.url = live_url
+                    target.engagement_checks = [
+                        w.to_dict() for w in windows]
+                except Exception:
+                    # Engagement scheduling is best-effort; a failure
+                    # here shouldn't block the POSTED transition.
+                    pass
             touched = True
             url_tail = ""
             if page_url:
