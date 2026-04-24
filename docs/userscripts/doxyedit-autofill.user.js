@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.23
+// @version      2.24
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -572,9 +572,22 @@ function triggerFilePick() {
 // by handing _pickedFiles to autoInject the same way. Each logs its
 // exact code path to the status strip + console.
 async function _finalizeLoadedFile(asset, blob) {
+  // Mutex against double-attach: the cascade fires multiple variants
+  // in sequence with a 4s race timeout; a slow variant that completes
+  // AFTER a faster sibling has already attached would otherwise run
+  // its own finalize and dispatch a second paste event, producing the
+  // two-image result on Bluesky. Use _pickedFiles content as the
+  // signal: if a File with the same name and size is already there,
+  // skip. Variants return the same bytes so name+size match uniquely.
+  const expectedName = asset.name || "image.png";
+  if (_pickedFiles.length > 0 &&
+      _pickedFiles[0].name === expectedName &&
+      _pickedFiles[0].size === blob.size) {
+    console.log("[doxyedit] finalize skipped (sibling already attached)");
+    return;
+  }
   const mime = asset.mime || blob.type || "image/png";
-  const f = new File(
-    [blob], asset.name || "image.png", { type: mime });
+  const f = new File([blob], expectedName, { type: mime });
   _pickedFiles = [f];
   refreshPickedBadge();
   renderDragThumb();
@@ -582,109 +595,14 @@ async function _finalizeLoadedFile(asset, blob) {
   await autoInject();
 }
 
-// Variant 1: GM_xmlhttpRequest + arraybuffer, wrap into Blob locally.
-function loadAssetV1_GMArrayBuffer(asset) {
-  return new Promise((resolve) => {
-    if (typeof GM_xmlhttpRequest !== "function") {
-      setUploadStatus("v1: GM_xmlhttpRequest unavailable", false);
-      resolve(false); return;
-    }
-    setUploadStatus(`v1 (GM arraybuffer) -> ${asset.url}`, true);
-    GM_xmlhttpRequest({
-      method: "GET", url: asset.url,
-      responseType: "arraybuffer", timeout: 15000,
-      onload: async (resp) => {
-        if (resp.status !== 200) {
-          setUploadStatus(`v1: HTTP ${resp.status}`, false);
-          resolve(false); return;
-        }
-        const buf = resp.response;
-        if (!(buf instanceof ArrayBuffer)) {
-          setUploadStatus(`v1: response not ArrayBuffer (${typeof buf})`, false);
-          resolve(false); return;
-        }
-        await _finalizeLoadedFile(
-          asset, new Blob([buf], {type: asset.mime || "image/png"}));
-        setUploadStatus(`v1 OK (${buf.byteLength}B)`, true);
-        resolve(true);
-      },
-      onerror: () => { setUploadStatus(`v1: network error`, false); resolve(false); },
-      ontimeout: () => { setUploadStatus(`v1: timeout 15s`, false); resolve(false); },
-    });
-  });
-}
-
-// Variant 2: GM_xmlhttpRequest + blob responseType (was the original
-// implementation pre-rename; breaks on multi-MB responses in some
-// Tampermonkey builds).
-function loadAssetV2_GMBlob(asset) {
-  return new Promise((resolve) => {
-    if (typeof GM_xmlhttpRequest !== "function") {
-      setUploadStatus("v2: GM_xmlhttpRequest unavailable", false);
-      resolve(false); return;
-    }
-    setUploadStatus(`v2 (GM blob) -> ${asset.url}`, true);
-    GM_xmlhttpRequest({
-      method: "GET", url: asset.url,
-      responseType: "blob", timeout: 15000,
-      onload: async (resp) => {
-        if (resp.status !== 200) {
-          setUploadStatus(`v2: HTTP ${resp.status}`, false);
-          resolve(false); return;
-        }
-        const b = resp.response;
-        if (!(b instanceof Blob)) {
-          setUploadStatus(`v2: not a Blob (${typeof b})`, false);
-          resolve(false); return;
-        }
-        await _finalizeLoadedFile(asset, b);
-        setUploadStatus(`v2 OK (${b.size}B)`, true);
-        resolve(true);
-      },
-      onerror: () => { setUploadStatus(`v2: network error`, false); resolve(false); },
-      ontimeout: () => { setUploadStatus(`v2: timeout 15s`, false); resolve(false); },
-    });
-  });
-}
-
-// Variant 3: GM_xmlhttpRequest with binary-string override, manually
-// converted to a Uint8Array. Works on old Tampermonkey builds where
-// arraybuffer/blob both have quirks.
-function loadAssetV3_GMBinaryString(asset) {
-  return new Promise((resolve) => {
-    if (typeof GM_xmlhttpRequest !== "function") {
-      setUploadStatus("v3: GM_xmlhttpRequest unavailable", false);
-      resolve(false); return;
-    }
-    setUploadStatus(`v3 (GM binary-string) -> ${asset.url}`, true);
-    GM_xmlhttpRequest({
-      method: "GET", url: asset.url,
-      overrideMimeType: "text/plain; charset=x-user-defined",
-      timeout: 15000,
-      onload: async (resp) => {
-        if (resp.status !== 200) {
-          setUploadStatus(`v3: HTTP ${resp.status}`, false);
-          resolve(false); return;
-        }
-        const text = resp.responseText || "";
-        const bytes = new Uint8Array(text.length);
-        for (let i = 0; i < text.length; i++) {
-          bytes[i] = text.charCodeAt(i) & 0xff;
-        }
-        await _finalizeLoadedFile(
-          asset, new Blob([bytes], {type: asset.mime || "image/png"}));
-        setUploadStatus(`v3 OK (${bytes.length}B)`, true);
-        resolve(true);
-      },
-      onerror: () => { setUploadStatus(`v3: network error`, false); resolve(false); },
-      ontimeout: () => { setUploadStatus(`v3: timeout 15s`, false); resolve(false); },
-    });
-  });
-}
-
 // Variant 4: plain fetch(). Blocked by mixed-content on HTTPS pages
 // hitting http://127.0.0.1, but works fine on HTTP pages or when the
 // browser has the "Insecure content" permission for the site.
+// (v1/v2/v3 GM_xmlhttpRequest variants were dropped: confirmed broken
+// on this install because the psyai -> bridge rename re-registered
+// the script under a new (@namespace, @name) and Tampermonkey never
+// re-granted @connect 127.0.0.1 transparently. Plain fetch / XHR /
+// img+canvas all work reliably so the cascade goes through those.)
 function loadAssetV4_PlainFetch(asset) {
   setUploadStatus(`v4 (plain fetch) -> ${asset.url}`, true);
   return fetch(asset.url)
@@ -771,19 +689,15 @@ function loadAssetV6_ImgCanvas(asset) {
   });
 }
 
-// Default entry point cascades through fetch variants. Confirmed on
-// this install that Tampermonkey's GM_xmlhttpRequest stalls after the
-// psyai -> bridge rename (script re-registered under a new
-// (@namespace, @name) pair, @connect 127.0.0.1 approval didn't carry
-// over). Plain fetch / XHR / img+canvas all work, so they go first
-// and the GM variants are a last-resort fallback for hosts where
-// mixed-content blocks fetch/XHR.
+// Default entry point cascades through the three working fetch
+// variants. GM_xmlhttpRequest-based paths were dropped entirely
+// (confirmed broken on this install; Tampermonkey never re-granted
+// @connect after the rename). Double-attach protection lives in
+// _finalizeLoadedFile via a _pickedFiles content check.
 const _ASSET_CASCADE = [
-  ["v4 plain fetch",    loadAssetV4_PlainFetch],
-  ["v5 plain XHR",      loadAssetV5_PlainXHR],
-  ["v6 img+canvas",     loadAssetV6_ImgCanvas],
-  ["v1 GM arraybuffer", loadAssetV1_GMArrayBuffer],
-  ["v2 GM blob",        loadAssetV2_GMBlob],
+  ["v4 plain fetch", loadAssetV4_PlainFetch],
+  ["v5 plain XHR",   loadAssetV5_PlainXHR],
+  ["v6 img+canvas",  loadAssetV6_ImgCanvas],
 ];
 async function loadAssetFromBridge(asset) {
   if (!asset || !asset.url) {
@@ -794,9 +708,9 @@ async function loadAssetFromBridge(asset) {
   for (const [label, fn] of _ASSET_CASCADE) {
     setUploadStatus(`trying ${label}...`, true);
     // Race the variant against a 4s hint. If the variant's own
-    // timeout (10-15s) hasn't fired by then we assume it's stalled
-    // and move on, but we don't cancel it - so if it completes late
-    // we still benefit. Only takes the first actual success.
+    // timeout (10-15s) hasn't fired by then we move on. Late
+    // completers that still try to finalize are blocked by the
+    // content-match guard in _finalizeLoadedFile.
     const result = await Promise.race([
       fn(asset).then((ok) => ({winner: label, ok})),
       new Promise((r) => setTimeout(() => r({winner: null, ok: false}), 4000)),
@@ -1493,19 +1407,7 @@ function rebuildPanel() {
           const thumbHtml = hasThumb
             ? `<img src="${thumbUrl}" style="width:40px;height:40px;object-fit:cover;border-radius:3px;margin-right:6px;vertical-align:middle;flex-shrink:0;">`
             : `<span style="width:40px;height:40px;display:inline-block;background:#333;border-radius:3px;margin-right:6px;vertical-align:middle;text-align:center;line-height:40px;flex-shrink:0;">📎</span>`;
-          // Six fetch-variant buttons per asset so user can try each
-          // when the default (v1) stalls. Each strategy reports its
-          // exact outcome to the status strip below.
-          const variantBtns = [1,2,3,4,5,6].map(
-            (v) => `<button class="doxyedit-btn doxyedit-asset-v" data-idx="${i}" data-v="${v}" style="width:auto;padding:2px 6px;margin:0 2px 0 0;font-size:10px;">v${v}</button>`
-          ).join("");
-          return (
-            `<div style="display:flex;align-items:center;margin-top:2px;">` +
-              `<button class="doxyedit-btn primary doxyedit-asset" data-idx="${i}" style="display:flex;align-items:center;flex:1;">${thumbHtml}<span>${a.name || a.id}</span></button>` +
-            `</div>` +
-            `<div style="font-size:9px;color:#888;margin:2px 0 0 2px;">try variants if default stalls:</div>` +
-            `<div style="display:flex;margin:1px 0 4px 0;">${variantBtns}</div>`
-          );
+          return `<button class="doxyedit-btn primary doxyedit-asset" data-idx="${i}" style="display:flex;align-items:center;">${thumbHtml}<span>${a.name || a.id}</span></button>`;
         }).join("\n")
       : "",
     `<div class="doxyedit-section">image injection (manual)</div>`,
@@ -1568,28 +1470,9 @@ function rebuildPanel() {
       }
     });
   }
-  // Pushed-asset buttons - one-click attach, no OS picker.
-  // Variant buttons: each fires a different fetch strategy on the
-  // same asset so the user can figure out which one survives their
-  // exact browser + Tampermonkey combo.
-  const VARIANT_FNS = [
-    null,  // 0 unused
-    loadAssetV1_GMArrayBuffer,
-    loadAssetV2_GMBlob,
-    loadAssetV3_GMBinaryString,
-    loadAssetV4_PlainFetch,
-    loadAssetV5_PlainXHR,
-    loadAssetV6_ImgCanvas,
-  ];
-  panelEl.querySelectorAll(".doxyedit-asset-v").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const idx = parseInt(btn.dataset.idx, 10);
-      const v = parseInt(btn.dataset.v, 10);
-      const asset = (currentData.assets || [])[idx];
-      const fn = VARIANT_FNS[v];
-      if (asset && fn) fn(asset);
-    });
-  });
+  // Pushed-asset buttons - one-click attach, no OS picker. The
+  // cascade inside loadAssetFromBridge tries v4 -> v5 -> v6 fetch
+  // paths automatically so there's no per-variant button UI.
   panelEl.querySelectorAll(".doxyedit-asset").forEach((btn) => {
     btn.addEventListener("click", () => {
       const idx = parseInt(btn.dataset.idx, 10);
