@@ -3329,31 +3329,27 @@ class OverlayTextItem(QGraphicsTextItem):
             self.setTextWidth(self.overlay.text_width)
         else:
             self.setTextWidth(-1)
-        # Line height via block format. ProportionalHeight below 100%
-        # shrinks the per-line layout box but the actual glyph
-        # descenders don't shrink with it — they bleed past the
-        # document's reported size and get clipped on the last line.
-        # The workaround has to be aggressive because mergeBlockFormat
-        # + Qt's documentSize() under-report by roughly one full
-        # line-box worth of descent at lh < 1.0, and by up to half
-        # that even at lh = 1.0 for fonts with tall descenders.
-        # Always reserve a full font-size worth of headroom at the
-        # bottom, scaling up further when lh drops below 1.0. The
-        # extra space is invisible to the reader (it's just padding
-        # inside the text overlay's boundingRect) and it's cheap.
+        # Line height via QTextBlockFormat's LineDistanceHeight mode
+        # (Qt's additive-leading mode — the one mode that matches
+        # how typography treats line-height).
+        #
+        # ProportionalHeight and FixedHeight both shrink the per-line
+        # BOX itself, which clips glyphs at the box edge — descenders
+        # on the last line disappear. LineDistanceHeight instead adds
+        # (or, with negative values, subtracts) from the natural line
+        # advance. Glyphs always render at their natural height; only
+        # the spacing between baselines changes.
+        #
+        # At lh = 1.0 -> extra = 0 (natural rendering).
+        # At lh < 1.0 -> extra < 0, lines overlap (tight double-decker
+        #               speech-bubble look the user asked for).
+        # At lh > 1.0 -> extra > 0, loose spacing.
         lh = self.overlay.line_height or 1.2
+        natural_leading = self.overlay.font_size * 1.2  # typical ratio
+        extra_leading = natural_leading * (lh - 1.0)
         fmt = QTextBlockFormat()
-        fmt.setLineHeight(lh * 100, 1)  # 1 = ProportionalHeight (percentage)
-        # Ratios are named so the reader can tell WHY these numbers
-        # exist. HEADROOM covers ordinary descent on the last line;
-        # SHRINK_COMPENSATION adds back everything ProportionalHeight
-        # stole when lh drops below the natural 1.0.
-        LAST_LINE_HEADROOM_RATIO = 0.6
-        LH_SHRINK_COMPENSATION = 1.0
-        bottom_extra = self.overlay.font_size * (
-            LAST_LINE_HEADROOM_RATIO
-            + max(0.0, LH_SHRINK_COMPENSATION - lh))
-        fmt.setBottomMargin(bottom_extra)
+        fmt.setLineHeight(extra_leading, 4)  # 4 = LineDistanceHeight
+        fmt.setBottomMargin(0)
         cursor = self.textCursor()
         cursor.select(QTextCursor.SelectionType.Document)
         cursor.mergeBlockFormat(fmt)
@@ -3502,7 +3498,18 @@ class OverlayTextItem(QGraphicsTextItem):
                     self._draw_document(painter, stroke_c)
                     painter.restore()
             painter.restore()
-        super().paint(painter, option, widget)
+        # In edit mode let super().paint() handle the text so the
+        # caret + selection highlight render normally. Outside edit
+        # mode, route through _draw_document — QAbstractTextDocument
+        # Layout.draw() with a PaintContext has NO internal clip to
+        # document size, so descenders on the last line render fully
+        # even when line-height compresses them past the document's
+        # reported bottom edge. QGraphicsTextItem.paint clips to the
+        # document bounds, which was eating the last line's bottom.
+        if _is_editing:
+            super().paint(painter, option, widget)
+        else:
+            self._draw_document(painter, QColor(self.overlay.color))
 
     def itemChange(self, change, value):
         if change == QGraphicsTextItem.GraphicsItemChange.ItemPositionHasChanged:
