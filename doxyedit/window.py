@@ -5660,11 +5660,16 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         """Track A — inject identity + posts into the running Brave /
         Chrome debug instance as window.__psyai_data. Uses the
         persistent CDP session so init-script registrations survive
-        page reloads (F5 keeps the userscript green); the session
-        auto-starts on first push. One-shot fallback is cdp_push_
-        async if ever needed — but short-lived pushes lose the
-        registration the instant Playwright disconnects."""
-        from doxyedit.psyai_bridge import worker_push
+        page reloads (F5 keeps the userscript green); the worker
+        subprocess auto-starts on first push.
+
+        Also auto-starts the HTTP bridge if not already running so
+        /psyai-asset endpoints for one-click image attach are live
+        without a separate setup step — removes one click from the
+        foolproof path."""
+        from doxyedit.psyai_bridge import (
+            worker_push, start_http_server, http_bridge_port,
+            update_http_snapshot)
         from doxyedit.browserpost import is_chrome_running
         if not is_chrome_running():
             QMessageBox.warning(
@@ -5672,7 +5677,19 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 "Launch Debug Chrome / Brave first so the userscript "
                 "has a page to receive the injection.")
             return
+        # Auto-start the HTTP bridge on first push so /psyai-asset
+        # endpoints resolve for one-click image attach. Idempotent:
+        # returns the existing port if already running.
+        if not http_bridge_port():
+            start_http_server(8910) or start_http_server(0)
         data = self._psyai_build_data()
+        # Keep the HTTP snapshot synced with whatever we just pushed
+        # via CDP so panels falling back to amber (HTTP) see the
+        # same data the green (CDP) panels would.
+        try:
+            update_http_snapshot(data)
+        except Exception:
+            pass
         posts = len((data.get("posts") or {}))
         self.status.showMessage(
             f"Pushing identity + {posts} post(s) to debug browser...", 4000)
