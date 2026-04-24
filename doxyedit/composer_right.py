@@ -504,13 +504,18 @@ class ContentPanel(QWidget):
 
         # Captions
         self._caption_edit.setPlainText(post.caption_default)
+        # Cache the post's per-platform captions so the toggle
+        # label can count overrides even while the section is
+        # collapsed and _platform_captions is empty.
+        self._pp_caption_cache = {
+            k: v for k, v in (post.captions or {}).items() if v}
         has_per_platform = bool(post.captions)
         if has_per_platform:
             self._per_platform_toggle.setChecked(True)
             self._per_platform_container.setVisible(True)
-            self._per_platform_toggle.setText("Per-platform captions \u25b2")
         for plat, te in self._platform_captions.items():
             te.setPlainText(post.captions.get(plat, ""))
+        self._refresh_pp_toggle_label()
 
         # Links
         if post.links:
@@ -744,6 +749,12 @@ class ContentPanel(QWidget):
                 self._pp_layout.addWidget(lbl)
                 self._pp_layout.addWidget(te)
 
+        # Live-count override updates as the user types in any
+        # per-platform caption textedit.
+        for te in self._platform_captions.values():
+            te.textChanged.connect(self._refresh_pp_toggle_label)
+        self._refresh_pp_toggle_label()
+
     # ------------------------------------------------------------------
     # Timezone display
     # ------------------------------------------------------------------
@@ -776,9 +787,26 @@ class ContentPanel(QWidget):
         if checked:
             self._rebuild_per_platform_captions()
         self._per_platform_container.setVisible(checked)
+        self._refresh_pp_toggle_label()
+
+    def _refresh_pp_toggle_label(self, count=None) -> None:
+        """Update the per-platform toggle text with arrow +
+        override count. When count is None the count is read
+        from live widgets (when rebuilt) or the captions dict
+        cached at set_post time. Non-zero count renders as
+        " (N set)" so the user sees overrides exist without
+        expanding the section."""
+        if count is None:
+            if self._platform_captions:
+                count = sum(
+                    1 for te in self._platform_captions.values()
+                    if te.toPlainText().strip())
+            else:
+                count = len(getattr(self, "_pp_caption_cache", {}) or {})
+        arrow = "\u25b2" if self._per_platform_toggle.isChecked() else "\u25bc"
+        suffix = f" ({count} set)" if count else ""
         self._per_platform_toggle.setText(
-            "Per-platform captions \u25b2" if checked else "Per-platform captions \u25bc"
-        )
+            f"Per-platform captions {arrow}{suffix}")
 
     # ------------------------------------------------------------------
     # Strategy generation
