@@ -1,5 +1,136 @@
 # DoxyEdit Changelog
 
+## v2.5.3 (2026-04-24) - Posting bridge polish + resilience
+
+Follow-up session to v2.5.2. Keeps the one-click flow working
+through real-world breakage: bridge restarts between submits, a
+site DOM that doesn't match our default selectors, multi-
+subreddit sessions, and the user needing to come back later and
+see what landed where.
+
+### Backchannel resilience
+
+- **localStorage retry queue** (`doxyedit_feedback_queue_v1`) for
+  feedback events that failed to reach the bridge. Up to 50
+  unsent entries persist across browser restart + tab reload;
+  every successful `notifyFeedback` opportunistically flushes
+  the backlog, and `init()` schedules a flush 1.2s after page
+  load. A DoxyEdit restart or port change between submit and
+  notification no longer loses the record of a post we already
+  submitted on the platform.
+- **SPA navigation detector** - 2s poll of `location.href` +
+  `window.focus` listener re-runs `tryCdpInjection` and flushes
+  the feedback queue so the panel follows route changes inside
+  Bluesky / X / Reddit / Threads (which swap between feed /
+  compose / profile without full reloads).
+- **Bounding-rect size filter** (40x20 floor) on the paste-target
+  scan. Sites like Threads / Instagram / Bluesky mount several
+  contentEditable nodes (reply boxes, emoji pickers, decorative
+  placeholders); the old "first visible contentEditable" heuristic
+  latched onto the wrong one. Anything smaller than 40x20 is
+  always decoration.
+
+### Per-platform tuning
+
+- **Reddit title selectors** include the faceplate design-system
+  forms new.reddit.com actually uses today:
+  `faceplate-textarea-input[name="title"] textarea`,
+  `faceplate-input[name="title"] input`,
+  `shreddit-composer [slot="title"]`,
+  `[data-testid="post-title-input"]`.
+- **Per-subreddit-aware resolver** - `currentHostPostKey` on
+  reddit.com now scans the `reddit_*` keys and picks the one
+  whose subreddit segment appears in the current URL path (case
+  insensitive, bracketed to avoid prefix collisions like
+  pixelart vs pixelart_wip). Alphabetical first is only the
+  fallback. Prevents the "posted indiedev content into
+  /r/pixelart" wrong-sub class of bug.
+- **POST NOW stubs** for gamejolt, tumblr, ko-fi, newgrounds,
+  itch, indiedb. Each carries best-guess submit-button
+  selectors; unmatched hosts fall through to the existing
+  "no submit button found, click manually" status line.
+
+### Error recovery + status feedback
+
+- **POST NOW history panel** persists up to 20 most-recent
+  attempts in localStorage (`doxyedit_post_history_v1`). Every
+  branch of the flow (verified, unverified, skipped, failed
+  at image / fill / submit) records an entry. Panel renders a
+  collapsed "recent posts (N)" section with color-coded rows:
+  green verified, amber unverified, red failed, gray skipped.
+- **Retry link** on non-verified history rows re-fires
+  `postNowOnCurrentPlatform` in place. Safety guard: retry
+  only runs if the current host's platformKey still matches
+  what the history row targeted.
+- **/doxyedit-log** endpoint on the bridge accepts
+  `{level, message, url, detail}` from the userscript and
+  funnels each line into `%TEMP%/doxyedit_bridge.log` tagged
+  `userscript.<level>`. `logToBridge(level, msg, detail)`
+  wraps a console.log + fire-and-forget fetch; used for retry-
+  queue warnings, asset-fetch debug traces, and cascade-winner
+  info so headless tests and remote-assist see browser-side
+  diagnostics without DevTools.
+- **Text-transform reset** on panel classes so host CSS
+  (Bluesky applies `text-transform:uppercase` on `button{}`)
+  can't render the panel in SHOUTING CAPS.
+
+### Socials-tab UI
+
+- **Published URLs** clickable in the composer's Links box:
+  rich-text QLabel under the URL field renders each
+  `(platform, live_url)` pair from `post.published_urls` as an
+  anchor with `openExternalLinks(True)`. Unverified platforms
+  get an amber `[UNVERIFIED]` tag next to the URL.
+- **Per-platform override count** on the composer's
+  Per-platform captions toggle: "Per-platform captions v (3 set)"
+  when three platforms carry overrides, live-updated via
+  `textChanged` on each textedit and cached across collapsed
+  state so the count is right even before the section is
+  expanded.
+- **Engagement checks scheduled** on backchannel POSTED flip.
+  When `_consume_bridge_feedback` promotes a post QUEUED/PARTIAL
+  -> POSTED for the first time, it calls
+  `generate_engagement_windows` and stores the resulting
+  EngagementWindow dicts on `post.engagement_checks`. Live
+  URLs from `published_urls` override template URLs so
+  reminder links land on the actual post. Idempotent: repeat
+  events find engagement_checks non-empty and skip.
+
+### Extension + MCP
+
+- **Manifest V3 browser extension** at `docs/extension/`.
+  Mirror of the userscript as a content script + MV3 manifest.
+  `host_permissions` cover bridge ports 8910-8912 plus every
+  platform the userscript targets. Dodges the Tampermonkey
+  `@connect` reapproval issue that broke asset fetches during
+  the psyai -> bridge rename. Install via
+  `brave://extensions -> Load unpacked -> docs/extension/`.
+- **MCP server** at `bin/doxyedit_mcp.py`. Read-only tools let
+  Claude Desktop / Claude Code / Cowork query projects without
+  the GUI running: `list_projects`, `get_project_summary`,
+  `list_posts`, `get_post`, `get_active_page`. Project discovery
+  via `DOXYEDIT_PROJECT_DIRS` env var. Requires
+  `pip install mcp` (opt-in; server only runs when the user
+  registers it in their client config).
+
+### Misc
+
+- **atexit cleanup** in bridge.py so the worker subprocess +
+  HTTP server thread + persistent Playwright session don't
+  zombie when DoxyEdit exits through `sys.exit`, an unhandled
+  exception, or bare `QApplication.quit()`.
+- **HTTP bridge self-heal**: userscript drops the cached winning
+  port on a miss and re-probes all candidates next poll, so a
+  DoxyEdit restart on a different port is rediscovered within
+  one poll interval.
+- **Double-attach mutex** in `_finalizeLoadedFile` uses
+  `_pickedFiles[0].name + .size` as the signal, so a slow
+  fetch variant that completes after a faster sibling already
+  attached bails instead of firing a second paste event (the
+  "posts 2 images" bug on Bluesky).
+
+---
+
 ## v2.5.2 (2026-04-24) - One-click cross-platform posting
 
 Session goal: press ONE button in the browser, the game-promotion
