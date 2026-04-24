@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.30
+// @version      2.31
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -219,8 +219,16 @@ function fillPostPayload(payload) {
       'input[placeholder*="Title" i]',
       'textarea[aria-label*="title" i]',
       'input[aria-label*="title" i]',
-      'shreddit-composer-title-input textarea',      // new.reddit
+      // new.reddit uses the faceplate design system for form inputs.
+      // Selectors below borrowed from the autofill reference project
+      // (E:/git/autofill/userscript/autofill.user.js) where they're
+      // known to hit the title field on live /submit pages.
+      'faceplate-textarea-input[name="title"] textarea',
+      'faceplate-input[name="title"] input',
+      'shreddit-composer [slot="title"]',
+      'shreddit-composer-title-input textarea',
       'shreddit-composer-title-input input',
+      '[data-testid="post-title-input"]',
       '[name="title"]',                              // form fallback
     ];
     let titleField = null;
@@ -1005,19 +1013,33 @@ async function autoInject() {
       '[data-testid*="compos" i], [data-testid*="post" i], ' +
       'form[class*="compose" i], form[id*="compose" i]'
     );
+    // Bounding-rect size filter rejects hidden / placeholder-stub /
+    // emoji-picker contentEditable nodes that sites like Threads,
+    // Instagram, and Bluesky mount on the same page as the real
+    // compose. 40x20 is the empirical floor from the autofill
+    // reference project - anything smaller is always a decoration.
+    const isBigEnough = (el) => {
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      return r.width > 40 && r.height > 20;
+    };
     const isComposeTarget = (el) => el && (
       (el.isContentEditable || el.tagName === "TEXTAREA")
-      && el.closest(COMPOSE_PASTE_CONTEXT));
+      && el.closest(COMPOSE_PASTE_CONTEXT)
+      && isBigEnough(el));
     let target = document.activeElement;
     if (!isComposeTarget(target)) {
       target = null;
       for (const ctx of document.querySelectorAll(COMPOSE_PASTE_CONTEXT)) {
-        const cand = ctx.querySelector(
+        const cands = ctx.querySelectorAll(
           '[contenteditable="true"], [contenteditable=""], textarea');
-        if (cand && cand.offsetParent !== null) {
-          target = cand;
-          break;
+        for (const cand of cands) {
+          if (cand.offsetParent !== null && isBigEnough(cand)) {
+            target = cand;
+            break;
+          }
         }
+        if (target) break;
       }
     }
     if (target) {
@@ -1829,3 +1851,23 @@ function init() {
 
 if (document.body) init();
 else window.addEventListener("DOMContentLoaded", init);
+
+// SPA navigation: Bluesky / X / Reddit / Threads route between
+// feed / compose / profile without a full page reload, so
+// location.href drifts while our panel keeps showing context from
+// the page we loaded on. Poll every 2s and re-run tryCdpInjection +
+// tryHttpBridge so the panel picks up post changes after a route
+// change. Focus listener covers the cross-tab case where the user
+// switches back with DoxyEdit having pushed fresh data. Borrowed
+// verbatim from the autofill reference project's SPA detector.
+let _lastObservedURL = location.href;
+setInterval(() => {
+  if (location.href !== _lastObservedURL) {
+    _lastObservedURL = location.href;
+    try { tryCdpInjection(); } catch (e) {}
+    try { _flushFeedbackQueue(); } catch (e) {}
+  }
+}, 2000);
+window.addEventListener("focus", () => {
+  try { tryCdpInjection(); } catch (e) {}
+});
