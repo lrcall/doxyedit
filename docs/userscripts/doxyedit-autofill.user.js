@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.26
+// @version      2.27
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -188,6 +188,28 @@ async function pasteFromClipboard() {
 function fillPostPayload(payload) {
   // Shape: { platform: "reddit_indiedev", title?: str, body?: str, text?: str }
   if (payload.title !== undefined || payload.body !== undefined) {
+    // Reddit post-type tabs: new.reddit.com defaults to the Images
+    // tab for some users and on some subreddits. Text post fields
+    // aren't mounted on those tabs, so look for a visible "Text" tab
+    // button and click it first to ensure title + body fields exist.
+    // Selector list is a best-effort stub; unknown UIs silently fall
+    // through and the existing field scan handles or fails loudly.
+    const TEXT_TAB_SELECTORS = [
+      'button[role="tab"][aria-label*="Text" i]',
+      'button[data-post-type="text" i]',
+      'a[href*="type=TEXT"]',
+      'shreddit-composer button[slot*="text" i]',
+    ];
+    for (const sel of TEXT_TAB_SELECTORS) {
+      try {
+        const tab = document.querySelector(sel);
+        if (tab && tab.offsetParent !== null
+            && tab.getAttribute("aria-selected") !== "true") {
+          tab.click();
+          break;
+        }
+      } catch (e) { /* bad selector, skip */ }
+    }
     // Title field: try a broad selector list so new.reddit.com's
     // Shreddit web components and the old compose form are both
     // covered. Tests each candidate in order; first match wins.
@@ -431,7 +453,27 @@ async function postNowOnCurrentPlatform() {
   // start from /r/<sub>/submit for a text post.
   const isReddit = postKey.startsWith("reddit_");
   if (isReddit) {
-    setUploadStatus(`post 1/2: filling title + body...`, true);
+    // Subreddit-awareness: plat_key is "reddit_<sub>", so we know
+    // which community this post targets. If the user is on the
+    // generic /submit (no subreddit selected in the URL), bail out
+    // with a direct link to /r/<sub>/submit - that's the one-click
+    // path that skips the subreddit picker entirely. Navigating
+    // programmatically is tempting but loses the userscript's panel
+    // state since Reddit's SPA tears down the script on each full
+    // nav.
+    const subredditFromKey = postKey.slice("reddit_".length);
+    const pathLower = location.pathname.toLowerCase();
+    const pathInSub = pathLower.includes(`/r/${subredditFromKey.toLowerCase()}/`);
+    if (!pathInSub) {
+      const suggestedUrl = `https://${location.host}/r/${subredditFromKey}/submit`;
+      setUploadStatus(
+        `open ${suggestedUrl} first (Reddit submit needs /r/<sub>/submit)`,
+        false);
+      // Log for convenience - user can copy from DevTools console.
+      console.log(`[doxyedit] navigate to ${suggestedUrl} to post`);
+      return false;
+    }
+    setUploadStatus(`post 1/2: filling title + body on r/${subredditFromKey}...`, true);
     fillPostPayload(Object.assign({}, caption, {platform: postKey}));
     await _wait(500);
   } else {
