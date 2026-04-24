@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.20
+// @version      2.21
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -583,14 +583,46 @@ function loadAssetV6_ImgCanvas(asset) {
   });
 }
 
-// Default entry point kept as v1 so existing callers still work.
-function loadAssetFromBridge(asset) {
+// Default entry point cascades through fetch variants. Confirmed on
+// this install that Tampermonkey's GM_xmlhttpRequest stalls after the
+// psyai -> bridge rename (script re-registered under a new
+// (@namespace, @name) pair, @connect 127.0.0.1 approval didn't carry
+// over). Plain fetch / XHR / img+canvas all work, so they go first
+// and the GM variants are a last-resort fallback for hosts where
+// mixed-content blocks fetch/XHR.
+const _ASSET_CASCADE = [
+  ["v4 plain fetch",    loadAssetV4_PlainFetch],
+  ["v5 plain XHR",      loadAssetV5_PlainXHR],
+  ["v6 img+canvas",     loadAssetV6_ImgCanvas],
+  ["v1 GM arraybuffer", loadAssetV1_GMArrayBuffer],
+  ["v2 GM blob",        loadAssetV2_GMBlob],
+];
+async function loadAssetFromBridge(asset) {
   if (!asset || !asset.url) {
     setUploadStatus("✗ asset has no url", false);
-    return Promise.resolve(false);
+    return false;
   }
   console.log("[doxyedit] fetching asset:", asset.url);
-  return loadAssetV1_GMArrayBuffer(asset);
+  for (const [label, fn] of _ASSET_CASCADE) {
+    setUploadStatus(`trying ${label}...`, true);
+    // Race the variant against a 4s hint. If the variant's own
+    // timeout (10-15s) hasn't fired by then we assume it's stalled
+    // and move on, but we don't cancel it - so if it completes late
+    // we still benefit. Only takes the first actual success.
+    const result = await Promise.race([
+      fn(asset).then((ok) => ({winner: label, ok})),
+      new Promise((r) => setTimeout(() => r({winner: null, ok: false}), 4000)),
+    ]);
+    if (result.ok) {
+      console.log("[doxyedit] cascade winner:", label);
+      return true;
+    }
+    if (result.winner === null) {
+      setUploadStatus(`${label} stalled 4s, moving on`, false);
+    }
+  }
+  setUploadStatus("✗ every variant failed; try manual via click image btn", false);
+  return false;
 }
 
 // Try strategies 1 -> 4 (2 needs explicit focus, not auto). Stops
@@ -816,44 +848,62 @@ function setUploadStatus(msg, ok) {
 }
 
 function preloadAssetThumbs(assets) {
-  if (typeof GM_xmlhttpRequest !== "function") return;
-  let anyStarted = false;
+  // Use plain fetch first (v4 in the cascade) since it's confirmed
+  // working on this install. Fall back to XHR then GM_xmlhttpRequest
+  // so the thumb works regardless of which transport is available.
   for (const a of assets || []) {
     if (!a || !a.id || !a.url) continue;
     if (_assetThumbCache[a.id]) continue;  // cached, loading, or errored
     _assetThumbCache[a.id] = "loading";
-    anyStarted = true;
-    GM_xmlhttpRequest({
-      method: "GET",
-      url: a.url,
-      // Same stall pattern as loadAssetFromBridge - Tampermonkey's
-      // blob responseType hangs on multi-MB responses. Use
-      // arraybuffer and wrap into a Blob locally before creating
-      // the objectURL that the <img> src will point at.
-      responseType: "arraybuffer",
-      timeout: 10000,
-      onload: (resp) => {
-        if (resp.status === 200 && resp.response instanceof ArrayBuffer) {
-          const mime = a.mime || "image/png";
-          const blob = new Blob([resp.response], { type: mime });
-          _assetThumbCache[a.id] = URL.createObjectURL(blob);
-        } else {
-          _assetThumbCache[a.id] = "error";
-        }
-        // Re-render so the new thumb shows up.
-        rebuildPanel();
-      },
-      onerror: () => {
-        _assetThumbCache[a.id] = "error";
-        rebuildPanel();
-      },
-      ontimeout: () => {
-        _assetThumbCache[a.id] = "error";
-        rebuildPanel();
-      },
+    _preloadOneThumb(a).then((objectUrl) => {
+      _assetThumbCache[a.id] = objectUrl || "error";
+      rebuildPanel();
     });
   }
-  // Note: rebuildPanel called inside onload; no need to call here.
+}
+
+async function _preloadOneThumb(a) {
+  const mime = a.mime || "image/png";
+  // Try plain fetch first.
+  try {
+    const r = await fetch(a.url);
+    if (r.ok) {
+      const buf = await r.arrayBuffer();
+      return URL.createObjectURL(new Blob([buf], {type: mime}));
+    }
+  } catch (e) { /* fall through */ }
+  // XHR fallback (same mixed-content constraints as fetch but
+  // different Tampermonkey proxy path).
+  try {
+    const xhr = await new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open("GET", a.url, true);
+      x.responseType = "arraybuffer";
+      x.onload = () => (x.status === 200 ? resolve(x) : reject(new Error(String(x.status))));
+      x.onerror = () => reject(new Error("net"));
+      x.timeout = 10000;
+      x.ontimeout = () => reject(new Error("timeout"));
+      x.send();
+    });
+    return URL.createObjectURL(new Blob([xhr.response], {type: mime}));
+  } catch (e) { /* fall through */ }
+  // GM_xmlhttpRequest last resort (may stall, but at worst we get "error").
+  if (typeof GM_xmlhttpRequest === "function") {
+    return new Promise((resolve) => {
+      GM_xmlhttpRequest({
+        method: "GET", url: a.url,
+        responseType: "arraybuffer", timeout: 5000,
+        onload: (resp) => {
+          if (resp.status === 200 && resp.response instanceof ArrayBuffer) {
+            resolve(URL.createObjectURL(new Blob([resp.response], {type: mime})));
+          } else { resolve(null); }
+        },
+        onerror: () => resolve(null),
+        ontimeout: () => resolve(null),
+      });
+    });
+  }
+  return null;
 }
 
 function requirePicked() {
