@@ -226,10 +226,64 @@ function fillFocusedField(text) {
 let panelEl = null;
 let fabEl = null;
 
+// Saved position for the FAB (and, by derivation, the panel just
+// above it). Persisted to localStorage so the user's placement
+// survives page reloads, nav, and browser restarts. Defaults to
+// bottom-right on first run.
+const FAB_POSITION_STORAGE = "psyai_fab_position_v1";
+
+function loadFabPosition() {
+  try {
+    const raw = localStorage.getItem(FAB_POSITION_STORAGE);
+    if (!raw) return null;
+    const pos = JSON.parse(raw);
+    if (typeof pos.left === "number" && typeof pos.top === "number") {
+      return pos;
+    }
+  } catch (e) { /* fall through */ }
+  return null;
+}
+
+function saveFabPosition(pos) {
+  try { localStorage.setItem(FAB_POSITION_STORAGE, JSON.stringify(pos)); }
+  catch (e) { /* quota exceeded — ignore */ }
+}
+
+function applyFabPosition(left, top) {
+  if (!fabEl) return;
+  // Clamp to viewport so the FAB never lands fully off-screen (can
+  // happen after resolution change). Leave an 8px breather.
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const fabW = fabEl.offsetWidth || 90;
+  const fabH = fabEl.offsetHeight || 32;
+  left = Math.max(8, Math.min(vw - fabW - 8, left));
+  top = Math.max(8, Math.min(vh - fabH - 8, top));
+  fabEl.style.left = left + "px";
+  fabEl.style.top = top + "px";
+  fabEl.style.right = "auto";
+  fabEl.style.bottom = "auto";
+  // Panel anchors above the FAB with the same left edge so they
+  // track together. If the panel would flow below the viewport we
+  // flip it to anchor at the TOP of the FAB instead.
+  if (panelEl) {
+    panelEl.style.left = left + "px";
+    panelEl.style.right = "auto";
+    const panelH = panelEl.offsetHeight || 300;
+    // Prefer panel ABOVE the FAB. Flip below if no room above.
+    let panelTop = top - panelH - 10;
+    if (panelTop < 8) panelTop = top + fabH + 10;
+    panelEl.style.top = panelTop + "px";
+    panelEl.style.bottom = "auto";
+  }
+}
+
 function buildPanelScaffold() {
   if (document.getElementById("psyai-autofill-panel")) return;
   const panel = document.createElement("div");
   panel.id = "psyai-autofill-panel";
+  // Position is set by applyFabPosition once the FAB is laid out.
+  // Default placement is bottom-right until the user moves it.
   panel.style.cssText = `
     position: fixed; bottom: 60px; right: 20px; z-index: 2147483647;
     background: #111; color: #eee; border: 2px solid #ff6b6b; border-radius: 8px;
@@ -257,14 +311,78 @@ function buildPanelScaffold() {
 
   const fab = document.createElement("button");
   fab.id = "psyai-fab";
+  fab.title = "drag to reposition · click to toggle panel · double-click to reset";
   fab.style.cssText = `
     position: fixed; bottom: 20px; right: 20px; z-index: 2147483646;
     background: #ff6b6b; color: #111; border: none; border-radius: 20px;
-    padding: 8px 14px; font-family: monospace; font-weight: bold; cursor: pointer;
+    padding: 8px 14px; font-family: monospace; font-weight: bold; cursor: grab;
     box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    user-select: none; touch-action: none;
   `;
-  fab.addEventListener("click", () => {
-    panelEl.style.display = panelEl.style.display === "none" ? "block" : "none";
+  // Click toggles the panel, drag moves the FAB. Distinguish between
+  // the two by tracking total mouse travel between down and up; a
+  // click that moved less than DRAG_THRESHOLD px counts as a tap.
+  const DRAG_THRESHOLD = 4;
+  let dragState = null;
+  fab.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    fab.setPointerCapture(ev.pointerId);
+    const rect = fab.getBoundingClientRect();
+    dragState = {
+      startX: ev.clientX, startY: ev.clientY,
+      offsetX: ev.clientX - rect.left, offsetY: ev.clientY - rect.top,
+      moved: 0,
+    };
+    fab.style.cursor = "grabbing";
+  });
+  fab.addEventListener("pointermove", (ev) => {
+    if (!dragState) return;
+    dragState.moved = Math.max(dragState.moved,
+      Math.hypot(ev.clientX - dragState.startX, ev.clientY - dragState.startY));
+    if (dragState.moved >= DRAG_THRESHOLD) {
+      applyFabPosition(
+        ev.clientX - dragState.offsetX, ev.clientY - dragState.offsetY);
+    }
+  });
+  fab.addEventListener("pointerup", (ev) => {
+    if (!dragState) return;
+    const wasDrag = dragState.moved >= DRAG_THRESHOLD;
+    if (wasDrag) {
+      // Persist the new position. Parse from the computed style so
+      // we save the clamped value, not the raw cursor location.
+      const left = parseFloat(fab.style.left) || 0;
+      const top = parseFloat(fab.style.top) || 0;
+      saveFabPosition({left, top});
+    } else {
+      // Tap — toggle the panel.
+      panelEl.style.display = panelEl.style.display === "none" ? "block" : "none";
+      // Reposition the panel now that it's visible (offsetHeight
+      // read when hidden was 0, leading to a stale flip decision).
+      if (panelEl.style.display !== "none") {
+        const left = parseFloat(fab.style.left);
+        const top = parseFloat(fab.style.top);
+        if (!isNaN(left) && !isNaN(top)) applyFabPosition(left, top);
+      }
+    }
+    fab.releasePointerCapture(ev.pointerId);
+    fab.style.cursor = "grab";
+    dragState = null;
+  });
+  // Double-click to reset to bottom-right.
+  fab.addEventListener("dblclick", (ev) => {
+    ev.preventDefault();
+    try { localStorage.removeItem(FAB_POSITION_STORAGE); } catch (e) {}
+    fab.style.left = "auto";
+    fab.style.top = "auto";
+    fab.style.right = "20px";
+    fab.style.bottom = "20px";
+    if (panelEl) {
+      panelEl.style.left = "auto";
+      panelEl.style.top = "auto";
+      panelEl.style.right = "20px";
+      panelEl.style.bottom = "60px";
+    }
   });
   document.body.appendChild(fab);
   fabEl = fab;
@@ -364,6 +482,13 @@ function init() {
   applyData(PSYAI_FALLBACK, "fallback");
   tryCdpInjection();
   tryHttpBridge();
+  // Restore saved FAB position (user may have moved it last session).
+  const saved = loadFabPosition();
+  if (saved) {
+    // Defer one tick so fabEl.offsetHeight reports a real value for
+    // the panel's above/below flip calc inside applyFabPosition.
+    setTimeout(() => applyFabPosition(saved.left, saved.top), 0);
+  }
 }
 
 if (document.body) init();
