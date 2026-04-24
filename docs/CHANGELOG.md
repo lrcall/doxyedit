@@ -111,6 +111,62 @@ the posting pipeline switch from Chrome to Brave.
   answering the CDP port so UI messages can say "Debug Brave
   launched..." instead of a stale "Debug Chrome launched...".
 
+### Userscript bridge (psyai)
+New Tampermonkey userscript at `docs/userscripts/psyai-autofill.user.js`
+gives one-click identity + caption + asset autofill on social compose
+pages (Bluesky, X, Mastodon, Reddit, Threads). DoxyEdit is the source
+of truth; the userscript renders a draggable FAB panel that pulls the
+current project's snapshot.
+
+- **F6 = Push Identity+Posts to Browser.** Auto-starts the local HTTP
+  bridge if not running and keeps the snapshot live for the session
+  (`_psyai_push_cdp` / `_psyai_push_done` / `update_http_snapshot`).
+- **Three transports, one payload.** `build_psyai_data()` in
+  `psyai_data.py` is the single source:
+  - **CDP push** (`psyai_bridge.cdp_push`) injects `window.__psyai_data`
+    on every page under the Brave debug instance via
+    `Page.addScriptToEvaluateOnNewDocument`, so F5 keeps the
+    userscript green until DoxyEdit closes.
+  - **HTTP bridge** (`psyai_bridge.start_http_server`) serves
+    `GET /psyai.json`, the userscript itself at
+    `/psyai-autofill.user.js` (wired through `@updateURL`/
+    `@downloadURL` for Tampermonkey auto-update), and asset bytes at
+    `/psyai-asset?id=…`.
+  - **Clipboard** fallback so the userscript's "paste from DoxyEdit"
+    button works even when neither browser transport is reachable.
+- **Isolated Playwright subprocess** (`psyai_worker.py`) - Qt/PySide6
+  asyncio state corrupts the driver subprocess's pipe handles, so all
+  Playwright calls run in a fresh Python interpreter spawned via
+  subprocess using a newline-delimited JSON protocol. Long-lived
+  connection survives F5; init scripts persist.
+- **ProactorEventLoop pinned** on Windows in the worker so driver
+  subprocess pipes attach correctly (Selector-on-Windows failed with
+  "Connection closed while reading from the driver").
+- **Five injection strategies** in the userscript (existing
+  `input[type=file]`, click image button + input, paste on focused
+  compose, synthetic DataTransfer drag, clipboard write) so at least
+  one path works per platform variant.
+- **One-click image attach** - DoxyEdit registers composer-post asset
+  bytes with the HTTP bridge (`register_assets_bulk`) and the panel
+  renders thumbnail buttons that fetch via `GM_xmlhttpRequest`,
+  sidestepping the mixed-content block from HTTPS pages to
+  `http://127.0.0.1`.
+- **Per-host post filter** (`HOST_POST_TAGS`) - panel only shows the
+  caption for the current platform (bsky.app → bluesky, x.com → x,
+  etc.) instead of dumping every platform's post.
+- **Draggable FAB** with position persisted via Tampermonkey storage;
+  dblclick resets. Min-size floors keep it readable even with empty
+  `displayName`.
+- **Composer-post fallback** - when F6 fires with no composer open,
+  the bridge pushes the first project post that has `asset_ids` so
+  the userscript still has real content to work with.
+- **Short-form caption fallback** - bluesky/threads/mastodon fall
+  back to `x` or `twitter` caption when no dedicated key exists, so
+  short-form idiom copy doesn't need duplication per platform.
+- **Persistent log** at `%TEMP%/doxyedit_psyai_bridge.log` captures
+  CDP push attempts, worker spawns, and failure tracebacks for
+  post-hoc diagnosis.
+
 ### Performance
 - **Image-enhance PIL off GUI thread** — the brightness / contrast /
   saturation PIL passes on image overlays now run on
