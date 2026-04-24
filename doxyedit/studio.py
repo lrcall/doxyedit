@@ -4269,10 +4269,17 @@ class StudioView(QGraphicsView):
         self._perf_paint_counter = 0
         self._perf_last_event = 0.0
         self._perf_drag_last_log = 0.0
-        if self._fps_enabled:
-            self._perf_open_log()
+        # Always open the perf log so slow_paint / frame_gap events
+        # (threshold-gated, zero cost on fast frames) are captured
+        # without the user having to toggle the FPS HUD. Gives every
+        # session diagnostic data to reason about stutter.
+        self._perf_open_log()
 
     def _perf_open_log(self):
+        # Idempotent so the HUD toggle can re-call without truncating
+        # the session's already-captured events.
+        if self._perf_log_file is not None:
+            return
         try:
             import os as _os, time as _t
             self._perf_log_file = open(self._perf_log_path, "w",
@@ -4332,79 +4339,71 @@ class StudioView(QGraphicsView):
     def paintEvent(self, event):
         t0 = self._fps_time.perf_counter()
         super().paintEvent(event)
+        # Always measure paint_ms + run the threshold-gated slow-path
+        # detectors. Threshold events (slow_paint, frame_gap) fire only
+        # when something is actually wrong, so overhead on fast frames
+        # is two perf_counter reads + two compares. The HUD, rolling
+        # average, and 1-in-N sampled paint events stay gated on
+        # _fps_enabled so the live overlay doesn't cost anything when
+        # the HUD is off.
+        t1 = self._fps_time.perf_counter()
+        paint_ms = (t1 - t0) * 1000.0
+        self._fps_last_paint_ms = paint_ms
+        # Frame-gap detector: event-loop blocked between paints. Paint_ms
+        # only measures the cost of THIS frame; a 500ms autosave between
+        # two fast paints shows up only here. First paint has no prior.
+        if self._fps_prev_paint_t:
+            gap_ms = (t1 - self._fps_prev_paint_t) * 1000.0
+            if gap_ms >= self._FRAME_GAP_MS:
+                self._perf_log_event({
+                    "type": "frame_gap",
+                    "gap_ms": round(gap_ms, 2),
+                    "paint_ms": round(paint_ms, 2),
+                })
+        self._fps_prev_paint_t = t1
+        # Slow-paint: this single frame crossed the 33ms budget. Payload
+        # carries scene_items + zoom + dirty-rect so a future iteration
+        # can correlate stutter with specific zoom levels or overlay
+        # counts, and distinguish full-viewport invalidations from
+        # big-moving-item paints.
+        if paint_ms >= self._SLOW_PAINT_MS:
+            try:
+                scene = self.scene()
+                scene_items = len(scene.items()) if scene else 0
+                zoom_scale = self.transform().m11()
+            except Exception:
+                scene_items = 0
+                zoom_scale = 1.0
+            self._perf_log_event({
+                "type": "slow_paint",
+                "paint_ms": round(paint_ms, 2),
+                "dirty_w": event.rect().width(),
+                "dirty_h": event.rect().height(),
+                "scene_items": scene_items,
+                "zoom": round(zoom_scale, 3),
+                "gl": self._gl_viewport_active,
+            })
         if self._fps_enabled:
-            # Record timing & overlay the HUD. Done via a viewport-level
-            # painter so it's in pixel coordinates (not scene) and can't
-            # be zoomed/panned out of view.
-            t1 = self._fps_time.perf_counter()
-            self._fps_last_paint_ms = (t1 - t0) * 1000.0
+            # HUD-only path: rolling average, live fps, sampled paint
+            # stream, viewport overlay. All skipped when HUD is off.
             self._fps_rolling_ms = (0.9 * self._fps_rolling_ms
-                                     + 0.1 * self._fps_last_paint_ms)
+                                     + 0.1 * paint_ms)
             self._fps_times.append(t1)
-            # Keep 2s rolling window
             cutoff = t1 - 2.0
             while self._fps_times and self._fps_times[0] < cutoff:
                 self._fps_times.pop(0)
-            # Live fps = frames in the last second. _fps_times is sorted
-            # (appended in perf_counter order); bisect finds the split
-            # point in O(log N) vs the list-comprehension's O(N) scan +
-            # allocation. Only matters with FPS HUD on but that's when
-            # the user is actively watching — avoid paint-loop overhead.
             fps_cutoff = t1 - 1.0
             fps = len(self._fps_times) - bisect.bisect_left(
                 self._fps_times, fps_cutoff)
-            # Log every Nth paint to keep file small.
             self._perf_paint_counter += 1
             if self._perf_paint_counter % self._perf_paint_sample_every == 0:
                 self._perf_log_event({
                     "type": "paint",
                     "fps": fps,
-                    "paint_ms": round(self._fps_last_paint_ms, 2),
+                    "paint_ms": round(paint_ms, 2),
                     "avg_ms": round(self._fps_rolling_ms, 2),
                     "dirty_w": event.rect().width(),
                     "dirty_h": event.rect().height(),
-                    "gl": self._gl_viewport_active,
-                })
-            # Frame-gap detector: if the event loop was blocked between
-            # paints, log the gap independently of paint_ms. Paint_ms
-            # only measures the cost of THIS frame's paint; a 500ms
-            # autosave blocking the UI thread between two fast paints
-            # wouldn't show up in paint_ms at all but is exactly the
-            # kind of stutter users report. First paint of the session
-            # has no prior timestamp so skip the gap log there.
-            if self._fps_prev_paint_t:
-                gap_ms = (t1 - self._fps_prev_paint_t) * 1000.0
-                if gap_ms >= self._FRAME_GAP_MS:
-                    self._perf_log_event({
-                        "type": "frame_gap",
-                        "gap_ms": round(gap_ms, 2),
-                        "paint_ms": round(self._fps_last_paint_ms, 2),
-                    })
-            self._fps_prev_paint_t = t1
-            # Also log every frame that took longer than SLOW_PAINT_MS —
-            # those are the stutters the user actually feels but the
-            # 1-in-N sampler usually misses. The log payload carries
-            # the sceneItemCount and scene transform scale so a future
-            # iteration can correlate slow paints with specific zooms
-            # and overlay counts. Dirty-rect is full ev.rect so we can
-            # distinguish "full viewport invalidation" slow paints
-            # from "big moving item" slow paints.
-            if self._fps_last_paint_ms >= self._SLOW_PAINT_MS:
-                try:
-                    scene = self.scene()
-                    scene_items = len(scene.items()) if scene else 0
-                    zoom_scale = self.transform().m11()
-                except Exception:
-                    scene_items = 0
-                    zoom_scale = 1.0
-                self._perf_log_event({
-                    "type": "slow_paint",
-                    "paint_ms": round(self._fps_last_paint_ms, 2),
-                    "avg_ms": round(self._fps_rolling_ms, 2),
-                    "dirty_w": event.rect().width(),
-                    "dirty_h": event.rect().height(),
-                    "scene_items": scene_items,
-                    "zoom": round(zoom_scale, 3),
                     "gl": self._gl_viewport_active,
                 })
             # Paint HUD on viewport
