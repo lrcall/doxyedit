@@ -1054,6 +1054,19 @@ class CanvasSkia(QWidget):
             int(ov.star_points or 5),
             float(ov.inner_ratio or 0.5),
             tail_dx, tail_dy,
+            # Bubble deformers — missing from the key meant changes to
+            # any of these attrs hit the cached pre-deformer path and
+            # silently "reverted" the shape in the Skia preview, matching
+            # the Qt-side bug we fixed in studio_items.py. Include them
+            # for every kind; on non-bubble shapes they stay at defaults
+            # so the cache still hits.
+            float(getattr(ov, "bubble_roundness", 0.0) or 0.0),
+            float(getattr(ov, "bubble_oval_stretch", 0.0) or 0.0),
+            float(getattr(ov, "bubble_wobble", 0.0) or 0.0),
+            float(getattr(ov, "tail_curve", 0.0) or 0.0),
+            float(getattr(ov, "bubble_tail_width", 1.0) or 1.0),
+            float(getattr(ov, "bubble_tail_taper", 0.0) or 0.0),
+            float(getattr(ov, "bubble_skew_x", 0.0) or 0.0),
         )
         key = id(ov)
         cached = self._skia_path_cache.get(key)
@@ -1137,21 +1150,14 @@ class CanvasSkia(QWidget):
         path.close()
 
     def _append_speech_bubble_path(self, path, w, h, ov):
-        """Rounded-rect body + triangular tail, unioned. Tail tip is
+        """Rounded-rect body + triangular/bezier tail, unioned. Applies
+        every bubble deformer so the Skia preview matches the main Qt
+        canvas (studio_items._build_speech_bubble_path). Tail tip is
         stored in scene coords on the overlay; convert to local by
         subtracting overlay.x/y."""
-        # Body
-        roundness = max(0.0, min(1.0,
-            (ov.bubble_roundness or 0.0)))
-        pad = min(w, h) * 0.18
-        effective_pad = pad + (min(w, h) / 2 - pad) * roundness
-        body = skia.Path()
-        if roundness >= 0.99:
-            body.addOval(skia.Rect.MakeXYWH(0, 0, w, h))
-        else:
-            body.addRoundRect(skia.Rect.MakeXYWH(0, 0, w, h),
-                              effective_pad, effective_pad)
-        # Tail — tip in local coords
+        inner_pad = min(w, h) * 0.18
+        cx, cy = w / 2, h / 2
+        # Tail tip in local coords (subtract the overlay origin).
         tip_sx = (ov.tail_x or 0)
         tip_sy = (ov.tail_y or 0)
         if tip_sx == 0 and tip_sy == 0:
@@ -1159,25 +1165,74 @@ class CanvasSkia(QWidget):
         else:
             tip_x = float(tip_sx) - float(ov.x)
             tip_y = float(tip_sy) - float(ov.y)
-        cx, cy = w / 2, h / 2
         dx, dy = tip_x - cx, tip_y - cy
         horiz = abs(dx) > abs(dy)
-        base_len = min(w, h) * 0.25
+        tail_width_scale = max(0.2, min(3.0,
+            float(getattr(ov, "bubble_tail_width", 1.0) or 1.0)))
+        base_len = min(w, h) * 0.25 * tail_width_scale
         overlap = max(4.0, min(w, h) * 0.08)
+        # Oval stretch reshapes the body rect around its center.
+        stretch = max(-1.2, min(1.2,
+            float(getattr(ov, "bubble_oval_stretch", 0.0) or 0.0)))
+        if stretch != 0:
+            sx = 1.0 + stretch
+            sy = 1.0 - stretch * 0.5
+            new_w = w * sx
+            new_h = h * sy
+            body_rect = skia.Rect.MakeXYWH(
+                cx - new_w / 2, cy - new_h / 2, new_w, new_h)
+            r_left, r_top = cx - new_w / 2, cy - new_h / 2
+            r_right, r_bottom = cx + new_w / 2, cy + new_h / 2
+            r_w, r_h = new_w, new_h
+        else:
+            body_rect = skia.Rect.MakeXYWH(0, 0, w, h)
+            r_left, r_top = 0.0, 0.0
+            r_right, r_bottom = w, h
+            r_w, r_h = w, h
+        # Body path: roundness 0..1 blends rounded-rect -> ellipse;
+        # >1 overshoots into a wider/taller ellipse puff.
+        roundness = max(0.0, min(2.0,
+            float(getattr(ov, "bubble_roundness", 0.0) or 0.0)))
+        body = skia.Path()
+        if roundness >= 0.99:
+            over = max(0.0, roundness - 1.0)
+            if over > 0:
+                body.addOval(skia.Rect.MakeXYWH(
+                    r_left - r_w * over * 0.15,
+                    r_top - r_h * over * 0.15,
+                    r_w * (1 + over * 0.3),
+                    r_h * (1 + over * 0.3)))
+            else:
+                body.addOval(body_rect)
+        else:
+            effective_pad = inner_pad + (
+                min(r_w, r_h) / 2 - inner_pad) * roundness
+            body.addRoundRect(body_rect, effective_pad, effective_pad)
+        # Tail base points on the body edge nearest the tip.
         if horiz:
-            edge_x = (w - overlap) if dx > 0 else overlap
-            mid_y = max(pad, min(h - pad, tip_y * 0.5 + cy * 0.5))
+            edge_x = (r_right - overlap) if dx > 0 else (r_left + overlap)
+            mid_y = max(r_top + inner_pad,
+                        min(r_bottom - inner_pad, tip_y * 0.5 + cy * 0.5))
             b1 = (edge_x, mid_y - base_len / 2)
             b2 = (edge_x, mid_y + base_len / 2)
         else:
-            edge_y = (h - overlap) if dy > 0 else overlap
-            mid_x = max(pad, min(w - pad, tip_x * 0.5 + cx * 0.5))
+            edge_y = (r_bottom - overlap) if dy > 0 else (r_top + overlap)
+            mid_x = max(r_left + inner_pad,
+                        min(r_right - inner_pad, tip_x * 0.5 + cx * 0.5))
             b1 = (mid_x - base_len / 2, edge_y)
             b2 = (mid_x + base_len / 2, edge_y)
+        # Tail taper slides the tip sideways along the base axis.
+        tail_taper = max(-1.0, min(1.0,
+            float(getattr(ov, "bubble_tail_taper", 0.0) or 0.0)))
+        if tail_taper != 0:
+            side_dx = b2[0] - b1[0]
+            side_dy = b2[1] - b1[1]
+            tip_x = tip_x + side_dx * 0.5 * tail_taper
+            tip_y = tip_y + side_dy * 0.5 * tail_taper
         tail = skia.Path()
         tail.moveTo(*b1)
-        tail_curve = max(-1.0, min(1.0,
-            float(ov.tail_curve or 0.0)))
+        tail_curve = max(-2.0, min(2.0,
+            float(getattr(ov, "tail_curve", 0.0) or 0.0)))
         if abs(tail_curve) > 0.02:
             amt = tail_curve * base_len * 1.2
             def _perp(src, dst, a):
@@ -1196,17 +1251,66 @@ class CanvasSkia(QWidget):
             tail.lineTo(tip_x, tip_y)
             tail.lineTo(*b2)
         tail.close()
-        # Union body + tail
+        # Union body + tail before applying wobble/skew so a single
+        # outline walks the whole shape.
         try:
             merged = body.op(tail, skia.PathOp.kUnion_PathOp)
-            if merged is not None:
-                path.addPath(merged)
-            else:
-                path.addPath(body)
-                path.addPath(tail)
         except Exception:
-            path.addPath(body)
-            path.addPath(tail)
+            merged = None
+        if merged is None:
+            merged = skia.Path()
+            merged.addPath(body)
+            merged.addPath(tail)
+        # Wobble: 72-sample sinusoidal normal displacement. Skia lacks
+        # a direct walk-by-arc-length API; build a lightweight sampler
+        # over the outline's line segments by converting to a polygon
+        # via pathmeasure.
+        wobble = max(0.0, min(2.0,
+            float(getattr(ov, "bubble_wobble", 0.0) or 0.0)))
+        if wobble > 0.01:
+            amp = wobble * min(r_w, r_h) * 0.04
+            try:
+                pm = skia.PathMeasure(merged, True)
+                total = pm.getLength() or 1.0
+                n = 72
+                wobbled = skia.Path()
+                for i in range(n + 1):
+                    t_i = (i / n) * total
+                    pos_tan = pm.getPosTan(t_i)
+                    if pos_tan is None:
+                        continue
+                    pos, tan = pos_tan
+                    # Normal = rotate tangent 90 deg (nx = -ty, ny = tx).
+                    tlen = math.hypot(tan.fX, tan.fY) or 1.0
+                    nx = -tan.fY / tlen
+                    ny = tan.fX / tlen
+                    push = math.sin((i / n) * math.pi * 8) * amp
+                    px = pos.fX + nx * push
+                    py = pos.fY + ny * push
+                    if i == 0:
+                        wobbled.moveTo(px, py)
+                    else:
+                        wobbled.lineTo(px, py)
+                wobbled.close()
+                merged = wobbled
+            except Exception:
+                # PathMeasure may not be available on older skia-python
+                # builds — fall through with the un-wobbled path rather
+                # than crash the preview.
+                pass
+        # Horizontal skew as a final transform around the body center.
+        skew_x = max(-1.0, min(1.0,
+            float(getattr(ov, "bubble_skew_x", 0.0) or 0.0)))
+        if abs(skew_x) > 0.001:
+            try:
+                t = skia.Matrix()
+                t.preTranslate(cx, cy)
+                t.preSkew(skew_x, 0.0)
+                t.preTranslate(-cx, -cy)
+                merged.transform(t)
+            except Exception:
+                pass
+        path.addPath(merged)
 
     def _append_thought_bubble_path(self, path, w, h, ov):
         """Cloud body via ellipse + 10 peripheral puffs unioned."""
