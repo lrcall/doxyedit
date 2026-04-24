@@ -941,6 +941,17 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         self._progress_timer.timeout.connect(self._update_progress)
         self._progress_timer.start(2000)
 
+        # --- Bridge feedback drain ---
+        # Every N seconds, drain the userscript -> DoxyEdit event queue
+        # (populated by notifyFeedback calls from the browser side when
+        # POST NOW succeeds). Events get matched to the active
+        # project's posts by platformKey and flip per-platform status
+        # + record the live URL. No-op when the HTTP bridge isn't up.
+        self._bridge_feedback_timer = QTimer(self)
+        self._bridge_feedback_timer.timeout.connect(
+            self._consume_bridge_feedback)
+        self._bridge_feedback_timer.start(3000)
+
         # --- Dirty-state title watcher ---
         # Single poll timer updates the window title + active tab label
         # with a leading '*' whenever _dirty is set. Avoids threading a
@@ -5810,6 +5821,84 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             "Could not inject into the debug browser. Playwright "
             "must be installed and the browser must have the debug "
             "port (9222) open." + detail)
+
+    def _consume_bridge_feedback(self):
+        """Timer callback: drain userscript-emitted events and apply
+        them to the active project. Matches each event to a post by
+        the platformKey it carries; updates per-platform status and
+        the live URL. No-op when no project is open or when the
+        feedback queue is empty."""
+        if not self.project:
+            return
+        try:
+            from doxyedit.bridge import drain_feedback
+        except Exception:
+            return
+        events = drain_feedback()
+        if not events:
+            return
+        import time as _t
+        from doxyedit.models import SocialPostStatus
+        touched = False
+        summary = []
+        for ev in events:
+            etype = ev.get("type") or ""
+            plat_key = ev.get("platformKey") or ""
+            page_url = ev.get("pageUrl") or ""
+            if etype != "posted" or not plat_key:
+                # Other event types (scan_result, action_done, etc)
+                # land here later; for now log + skip so we don't
+                # silently lose them.
+                summary.append(f"{etype}:skipped")
+                continue
+            # Match the plat_key to the first DRAFT/QUEUED post whose
+            # platforms list contains it. Reddit plat_keys look like
+            # "reddit_indiedev" and may appear in post.platforms as
+            # either "reddit_indiedev" or "reddit"; match flexibly
+            # and remember WHICH entry matched so we update the right
+            # status key (platform_status is keyed by what the post
+            # itself lists in .platforms).
+            target = None
+            matched_entry = None
+            plat_root = plat_key.split("_", 1)[0]
+            for post in (self.project.posts or []):
+                if post.status == SocialPostStatus.POSTED:
+                    continue
+                platforms = post.platforms or []
+                if plat_key in platforms:
+                    target, matched_entry = post, plat_key
+                    break
+                if plat_root in platforms:
+                    target, matched_entry = post, plat_root
+                    break
+            if target is None:
+                summary.append(f"posted:{plat_key}(no match)")
+                continue
+            # Use the matched entry as the platform_status key so the
+            # all-done calculation below can find it. Keep the full
+            # plat_key as an alias + URL key for any consumer that
+            # cares about the specific subreddit.
+            target.platform_status[matched_entry] = "posted"
+            target.platform_status[plat_key] = "posted"
+            if page_url:
+                target.published_urls[plat_key] = page_url
+            # If every platform listed on the post is now marked
+            # posted, flip the overall status; otherwise PARTIAL.
+            all_done = all(
+                target.platform_status.get(p) == "posted"
+                for p in (target.platforms or []))
+            if all_done and (target.platforms or []):
+                target.status = SocialPostStatus.POSTED
+            elif any(target.platform_status.get(p) == "posted"
+                     for p in (target.platforms or [])):
+                target.status = SocialPostStatus.PARTIAL
+            target.updated_at = _t.strftime("%Y-%m-%dT%H:%M:%S")
+            touched = True
+            summary.append(f"posted:{plat_key}->{target.id}")
+        if touched:
+            self._dirty = True
+            self.status.showMessage(
+                f"bridge feedback: {', '.join(summary)}", 4000)
 
     def _bridge_start_http(self):
         """Track C — run a tiny localhost HTTP server that the
