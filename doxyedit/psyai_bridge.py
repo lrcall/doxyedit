@@ -174,7 +174,7 @@ def http_bridge_port() -> int:
 # Track A — CDP push via Playwright
 # ──────────────────────────────────────────────────────────────────
 
-def cdp_push(data: dict, cdp_url: str = "http://localhost:9222") -> bool:
+def cdp_push(data: dict, cdp_url: str = "http://127.0.0.1:9222") -> bool:
     """Inject `data` as `window.__psyai_data` on every open page in
     the running Brave/Chrome debug instance. Also registers an init
     script so the data is present BEFORE userscripts run on future
