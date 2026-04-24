@@ -1302,6 +1302,12 @@ class AssetBrowser(QWidget):
             toolbar.addWidget(btn)
             self._toolbar_plain_btns.append(btn)
 
+        # Filter buttons — kept as checkable widgets so all callers
+        # (self._on_filter_changed, external state reads) keep working,
+        # but collapsed into a pulldown menu to save the 7-button
+        # toolbar row. The Filters button shows an asterisk when any
+        # filter is active so the user sees the aggregate state at a
+        # glance.
         self.filter_starred = self._make_filter_btn("Starred")
         self.filter_starred.setToolTip("Show only starred images")
         self.filter_untagged = self._make_filter_btn("Untagged")
@@ -1313,20 +1319,45 @@ class AssetBrowser(QWidget):
         self.filter_posted = self._make_filter_btn("Posted")
         self.filter_posted.setToolTip("Show only assets with a posted platform status")
         self.filter_needs_censor = self._make_filter_btn("Needs Censor")
-        self.filter_needs_censor.setToolTip("Show assets assigned to censor-required platforms with no censor regions")
-        toolbar.addWidget(self.filter_starred)
-        toolbar.addWidget(self.filter_untagged)
-        toolbar.addWidget(self.filter_tagged)
-        toolbar.addWidget(self.filter_assigned)
-        toolbar.addWidget(self.filter_posted)
-        toolbar.addWidget(self.filter_needs_censor)
-
+        self.filter_needs_censor.setToolTip(
+            "Show assets assigned to censor-required platforms "
+            "with no censor regions")
         self.filter_show_ignored = QPushButton("Show Ignored")
         self.filter_show_ignored.setCheckable(True)
         self.filter_show_ignored.setChecked(False)
         self.filter_show_ignored.setStyleSheet(self._btn_style())
         self.filter_show_ignored.toggled.connect(self._on_filter_changed)
-        toolbar.addWidget(self.filter_show_ignored)
+
+        _filter_widgets = [
+            (self.filter_starred, "Starred"),
+            (self.filter_untagged, "Untagged"),
+            (self.filter_tagged, "Tagged"),
+            (self.filter_assigned, "Assigned"),
+            (self.filter_posted, "Posted"),
+            (self.filter_needs_censor, "Needs Censor"),
+            (self.filter_show_ignored, "Show Ignored"),
+        ]
+        self._filters_menu_btn = QPushButton("Filters ▼")
+        self._filters_menu_btn.setToolTip(
+            "Asset filters — check one or more to narrow the grid")
+        self._filters_menu_btn.setStyleSheet(self._btn_style())
+        _filters_menu = QMenu(self._filters_menu_btn)
+        for _btn, _label in _filter_widgets:
+            _act = _filters_menu.addAction(_label)
+            _act.setCheckable(True)
+            _act.setChecked(_btn.isChecked())
+            # Two-way bind: action -> button (drives _on_filter_changed
+            # through the existing toggled signal) and button -> action
+            # (covers programmatic setChecked from external callers).
+            _act.toggled.connect(_btn.setChecked)
+            _btn.toggled.connect(_act.setChecked)
+            _btn.toggled.connect(self._update_filters_menu_label)
+        self._filters_menu_btn.setMenu(_filters_menu)
+        toolbar.addWidget(self._filters_menu_btn)
+        # The actual filter QPushButtons stay in memory but aren't
+        # shown — their toggled signal continues to drive filter state.
+        for _btn, _ in _filter_widgets:
+            _btn.hide()
 
         self._link_mode_btn = QPushButton("Link Mode")
         self._link_mode_btn.setCheckable(True)
@@ -1849,6 +1880,19 @@ class AssetBrowser(QWidget):
 
     def _on_filter_changed(self, *_):
         self._refresh_grid()
+
+    def _update_filters_menu_label(self, *_):
+        """Reflect 'any filter active' by appending an asterisk to
+        the Filters ▼ pulldown label. Driven by the filter buttons'
+        toggled signal; no extra state tracked here."""
+        btn = getattr(self, "_filters_menu_btn", None)
+        if btn is None:
+            return
+        active = any(b.isChecked() for b in (
+            self.filter_starred, self.filter_untagged, self.filter_tagged,
+            self.filter_assigned, self.filter_posted,
+            self.filter_needs_censor, self.filter_show_ignored))
+        btn.setText("Filters* ▼" if active else "Filters ▼")
 
     def _on_search_mode_changed(self, checked):
         self.search_box.setPlaceholderText("Search by tags..." if checked else "Search...")
