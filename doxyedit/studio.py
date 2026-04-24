@@ -11109,8 +11109,16 @@ class StudioEditor(QWidget):
         self._scene.update()
 
     def _on_focus_toggled(self, on: bool):
-        """Focus mode: hide layer panel + filmstrip to maximize canvas."""
-        if self._layer_panel is not None:
+        """Focus mode: hide layer panel + filmstrip to maximize canvas.
+        The Focus button itself lives in the layer-sidebar footer so
+        it stays visible in both states — we only hide the splitter
+        body (list + props), leaving the footer row visible so users
+        can toggle focus back off."""
+        body = getattr(self, "_layer_sidebar_body", None)
+        if body is not None:
+            body.setVisible(not on)
+        elif self._layer_panel is not None:
+            # Fallback for pre-footer layouts (shouldn't normally hit).
             self._layer_panel.parent().setVisible(not on)
         if hasattr(self, "_preview_strip"):
             self._preview_strip.setVisible(not on)
