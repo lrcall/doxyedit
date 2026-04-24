@@ -258,6 +258,32 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):  # noqa: N802
+        if self.path == "/doxyedit-log":
+            # Userscript-side diagnostics. Lands in the same
+            # doxyedit_bridge.log file everything else writes to so
+            # headless test runs and remote-assist sessions can see
+            # browser-side errors without opening DevTools.
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length else b""
+            try:
+                data = json.loads(raw.decode("utf-8") or "{}")
+            except Exception:
+                data = {"_raw": raw.decode("utf-8", errors="replace")[:500]}
+            level = str(data.get("level", "info")).lower()
+            _log(
+                "userscript." + level,
+                msg=str(data.get("message", ""))[:500],
+                url=str(data.get("url", ""))[:300],
+                detail=str(data.get("detail", ""))[:500],
+            )
+            body = b'{"ok":true}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path == "/doxyedit-feedback":
             import time
             length = int(self.headers.get("Content-Length") or 0)

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.31
+// @version      2.32
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -516,6 +516,25 @@ function _feedbackUrl() {
   const port = httpBridgePort || HTTP_BRIDGE_PORTS[0];
   return `http://127.0.0.1:${port}/doxyedit-feedback`;
 }
+
+// Best-effort diagnostic log that lands in %TEMP%/doxyedit_bridge.log
+// on the DoxyEdit side. Lets us ship errors and verbose traces
+// from the browser without the user having to open DevTools.
+// Mirrors console.log on the client side too.
+function logToBridge(level, message, detail) {
+  try { console.log(`[doxyedit ${level}]`, message, detail || ""); }
+  catch (e) {}
+  const port = httpBridgePort || HTTP_BRIDGE_PORTS[0];
+  try {
+    fetch(`http://127.0.0.1:${port}/doxyedit-log`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        level, message, detail, url: location.href,
+      }),
+    }).catch(() => { /* bridge down, not fatal */ });
+  } catch (e) { /* host blocks fetch, not fatal */ }
+}
 async function _feedbackPostOne(entry) {
   const r = await fetch(_feedbackUrl(), {
     method: "POST",
@@ -564,7 +583,7 @@ function notifyFeedback(entry) {
     const q = _feedbackQueueLoad();
     q.push(full);
     _feedbackQueueSave(q);
-    console.log("[doxyedit] feedback queued for retry (bridge down)");
+    logToBridge("warn", "feedback queued for retry (bridge down)");
   });
 }
 
@@ -961,7 +980,7 @@ async function loadAssetFromBridge(asset) {
     setUploadStatus("✗ asset has no url", false);
     return false;
   }
-  console.log("[doxyedit] fetching asset:", asset.url);
+  logToBridge("debug", "fetching asset", asset.url);
   for (const [label, fn] of _ASSET_CASCADE) {
     setUploadStatus(`trying ${label}...`, true);
     // Race the variant against a 4s hint. If the variant's own
@@ -973,7 +992,7 @@ async function loadAssetFromBridge(asset) {
       new Promise((r) => setTimeout(() => r({winner: null, ok: false}), 4000)),
     ]);
     if (result.ok) {
-      console.log("[doxyedit] cascade winner:", label);
+      logToBridge("info", "cascade winner", label);
       return true;
     }
     if (result.winner === null) {
