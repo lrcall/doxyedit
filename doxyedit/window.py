@@ -5647,9 +5647,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _psyai_push_cdp(self):
         """Track A — inject identity + posts into the running Brave /
-        Chrome debug instance as window.__psyai_data. Re-pushes on
-        demand; also auto-runs after Launch Debug Chrome finishes."""
-        from doxyedit.psyai_bridge import cdp_push
+        Chrome debug instance as window.__psyai_data. Runs on a
+        worker thread so Playwright's sync_playwright doesn't deadlock
+        against Qt's main event loop."""
+        from doxyedit.psyai_bridge import cdp_push_async
         from doxyedit.browserpost import is_chrome_running
         if not is_chrome_running():
             QMessageBox.warning(
@@ -5658,17 +5659,34 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 "has a page to receive the injection.")
             return
         data = self._psyai_build_data()
-        ok = cdp_push(data)
+        posts = len((data.get("posts") or {}))
+        self.status.showMessage(
+            f"Pushing identity + {posts} post(s) to debug browser...", 4000)
+        # Signal hop back to the main thread to update UI safely from
+        # the worker callback. Signal is held on the handler itself so
+        # Qt can auto-route it via QueuedConnection.
+        from PySide6.QtCore import QObject, Signal, Qt
+        if not hasattr(self, "_psyai_push_signal"):
+            class _PushSig(QObject):
+                done = Signal(bool, str, int)
+            self._psyai_push_signal = _PushSig()
+            self._psyai_push_signal.done.connect(
+                self._psyai_push_done, Qt.ConnectionType.QueuedConnection)
+        def _cb(ok, err):
+            self._psyai_push_signal.done.emit(ok, err or "", posts)
+        cdp_push_async(data, on_done=_cb)
+
+    def _psyai_push_done(self, ok: bool, err: str, posts: int):
         if ok:
-            posts = len((data.get("posts") or {}))
             self.status.showMessage(
                 f"Pushed identity + {posts} post(s) to debug browser", 4000)
         else:
+            detail = f"\n\nError: {err}" if err else ""
             QMessageBox.warning(
                 self, "CDP Push Failed",
                 "Could not inject into the debug browser. Playwright "
                 "must be installed and the browser must have the debug "
-                "port (9222) open.")
+                "port (9222) open." + detail)
 
     def _psyai_start_http_bridge(self):
         """Track C — run a tiny localhost HTTP server that the

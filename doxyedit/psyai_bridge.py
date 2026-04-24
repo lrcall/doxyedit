@@ -174,24 +174,17 @@ def http_bridge_port() -> int:
 # Track A — CDP push via Playwright
 # ──────────────────────────────────────────────────────────────────
 
-def cdp_push(data: dict, cdp_url: str = "http://127.0.0.1:9222") -> bool:
-    """Inject `data` as `window.__psyai_data` on every open page in
-    the running Brave/Chrome debug instance. Also registers an init
-    script so the data is present BEFORE userscripts run on future
-    navigations — the psyai userscript reads on document-idle, so
-    this is the only reliable delivery across page navigations.
-
-    Runs Playwright synchronously (short-lived connection per call).
-    Returns True on success. Failures (browser not running, network
-    blocked, Playwright missing) return False without raising."""
+def _cdp_push_worker(data: dict, cdp_url: str) -> tuple[bool, str]:
+    """The actual Playwright work. Returns (ok, error_message).
+    Split out from cdp_push so GUI callers can run it on a worker
+    thread — sync_playwright blocks on a subprocess handshake and
+    needs its own event loop, which collides with Qt's main loop
+    if called directly from the GUI thread."""
     try:
         from playwright.sync_api import sync_playwright
-    except Exception:
-        return False
+    except Exception as exc:
+        return False, f"Playwright not installed: {exc!r}"
     try:
-        # Magic-marker-wrapped payload so the userscript can
-        # differentiate "live data from DoxyEdit" from "whatever else
-        # set window.__psyai_data".
         wrapped = _wrap_marker(data, "full")
         init_script = (
             "window.__psyai_data = " + json.dumps(wrapped) + ";"
@@ -202,19 +195,66 @@ def cdp_push(data: dict, cdp_url: str = "http://127.0.0.1:9222") -> bool:
             browser = pw.chromium.connect_over_cdp(cdp_url)
             try:
                 for context in browser.contexts:
-                    # Future navigations see the data before any
-                    # document-idle userscript fires.
                     context.add_init_script(init_script)
-                    # Currently-open pages need the live injection.
                     for page in context.pages:
                         try:
                             page.evaluate(init_script)
                         except Exception:
-                            # A closed / navigating page shouldn't
-                            # abort the whole push.
                             continue
             finally:
                 browser.close()
-        return True
+        return True, ""
+    except Exception as exc:
+        return False, repr(exc)
+
+
+def cdp_push(data: dict, cdp_url: str = "http://127.0.0.1:9222") -> bool:
+    """Inject `data` as `window.__psyai_data` on every open page in
+    the running Brave/Chrome debug instance. Also registers an init
+    script so the data is present BEFORE userscripts run on future
+    navigations — the psyai userscript reads on document-idle, so
+    this is the only reliable delivery across page navigations.
+
+    Runs Playwright synchronously (short-lived connection per call).
+    Returns True on success. Failures (browser not running, network
+    blocked, Playwright missing) return False without raising.
+
+    Callers in Qt apps should NOT call this from the main GUI
+    thread — use cdp_push_async or run on a QThreadPool worker so
+    Playwright's event loop doesn't deadlock against the Qt loop.
+    """
+    ok, _err = _cdp_push_worker(data, cdp_url)
+    return ok
+
+
+def cdp_push_async(data: dict, on_done=None,
+                   cdp_url: str = "http://127.0.0.1:9222") -> None:
+    """Run cdp_push on a background thread via QThreadPool. Designed
+    for GUI callers: never blocks the main loop, never deadlocks
+    against Qt's async machinery. `on_done(ok: bool, err: str)` is
+    invoked back on the thread pool worker — GUI updates inside the
+    callback should re-marshal to the main thread (signal, or
+    QMetaObject.invokeMethod with Qt.QueuedConnection)."""
+    try:
+        from PySide6.QtCore import QRunnable, QThreadPool
     except Exception:
-        return False
+        # No Qt available (CLI / test context) — fall back to sync.
+        ok, err = _cdp_push_worker(data, cdp_url)
+        if on_done:
+            on_done(ok, err)
+        return
+
+    class _Runner(QRunnable):
+        def __init__(self):
+            super().__init__()
+            self.setAutoDelete(True)
+
+        def run(self):
+            ok, err = _cdp_push_worker(data, cdp_url)
+            if on_done:
+                try:
+                    on_done(ok, err)
+                except Exception:
+                    pass
+
+    QThreadPool.globalInstance().start(_Runner())
