@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         psyai autofill (DoxyEdit bridge)
 // @namespace    https://psyai.game
-// @version      2.3
+// @version      2.4
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard — with the old hardcoded library as last-resort fallback.
 // @author       psyai
 // @updateURL    http://127.0.0.1:8910/psyai-autofill.user.js
@@ -221,34 +221,45 @@ function fillFocusedField(text) {
   }
 }
 
-// ── IMAGE UPLOAD ──────────────────────────────────────────────────────────
-// One-click flow:
-//   1. User clicks "📁 upload image" in the panel.
-//   2. Hidden <input type="file"> opens the OS file picker.
-//   3. After files are selected, we try three injection strategies
-//      in order of DOM invasiveness until one sticks:
-//        (a) Assign to an existing visible input[type="file"] on
-//            the page via DataTransfer (Bluesky's image button adds
-//            one to the DOM on click; if the compose modal is open
-//            there's a decent chance it's already there).
-//        (b) Synthesize a paste event on the focused contenteditable
-//            compose area carrying the file as clipboardData (works
-//            on Bluesky / Twitter / Mastodon / Discord — they all
-//            handle image paste).
-//        (c) Dispatch a drop event on the focused element with the
-//            file in dataTransfer.files (last-resort — some platforms
-//            only accept real drag origins, but it's cheap to try).
-//   4. Feedback toast tells the user which strategy landed or that
-//      they need to click into the compose area first.
+// ── IMAGE INJECTION ──────────────────────────────────────────────────────
+// Bluesky, X, Mastodon, Reddit, Discord — each platform's compose
+// accepts images via a different low-level path. Rather than guess,
+// we expose FIVE separate injection strategies as isolated buttons
+// so the user can try them on each platform and keep a mental map
+// of which works where.
 //
-// Kept entirely inside the userscript so DoxyEdit's Qt drag focus
-// issues never come into play.
+// Shared state: once the user picks a file via "📁 pick image", the
+// File is cached and every subsequent strategy button runs against
+// that same file. Re-pick to swap.
+//
+// Strategies:
+//   1. File Input  — find input[type="file"], set DataTransfer.files
+//                    + dispatch input/change. Works when the compose
+//                    modal has a file input in the DOM (opened the
+//                    image picker at least once).
+//   2. Paste       — ClipboardEvent("paste") with the file on the
+//                    focused textbox. Bluesky / Twitter / Mastodon /
+//                    Discord all handle image paste natively.
+//   3. Drop        — DragEvent("drop") on the focused element. Some
+//                    platforms (Newgrounds, older Mastodon) accept.
+//   4. Click+Input — walk the DOM for a button labelled "image" /
+//                    "attach" / "photo", click it (creates the
+//                    hidden input[type=file]), then run strategy 1.
+//                    Needed on Bluesky when the modal's open but the
+//                    user hasn't clicked the image button yet.
+//   5. Drag Thumb  — render a draggable <img> preview in the panel
+//                    with the File preloaded into DataTransfer on
+//                    dragstart. User drags onto the compose's own
+//                    drop zone (real drag origin — passes platforms
+//                    that reject synthesized drops).
+//
+// Kept entirely inside the userscript — no DoxyEdit Qt drag, no
+// focus splintering.
 
-// Persistent hidden file input — created once, clicked on demand.
-// Browsers throw away the user-gesture if we create+click the input
-// inside an async callback, so hold a reference at panel-build time.
-let _fileInputEl = null;
-let _uploadStatusEl = null;
+let _fileInputEl = null;       // hidden <input> for the "pick image" step
+let _pickedFiles = [];         // cached Files picked by the user
+let _uploadStatusEl = null;    // status line under the upload buttons
+let _dragThumbEl = null;       // draggable preview <img>
 
 function ensureFileInput() {
   if (_fileInputEl) return _fileInputEl;
@@ -263,17 +274,56 @@ function ensureFileInput() {
   return inp;
 }
 
-function triggerUpload() {
+function triggerFilePick() {
   const inp = ensureFileInput();
-  inp.value = "";  // allow re-picking the same file
+  inp.value = "";
   inp.click();
 }
 
-async function onUploadFilesPicked(ev) {
-  const files = Array.from(ev.target.files || []);
-  if (!files.length) return;
-  const landed = await injectImageFiles(files);
-  setUploadStatus(landed.msg, landed.ok);
+function onUploadFilesPicked(ev) {
+  _pickedFiles = Array.from(ev.target.files || []);
+  if (!_pickedFiles.length) return;
+  refreshPickedBadge();
+  renderDragThumb();
+  setUploadStatus(
+    `picked ${_pickedFiles.length} file(s) — try a strategy below`, true);
+}
+
+function refreshPickedBadge() {
+  const badge = document.getElementById("psyai-picked-name");
+  if (!badge) return;
+  badge.textContent = _pickedFiles.length
+    ? `📎 ${_pickedFiles[0].name}${_pickedFiles.length > 1
+        ? ` (+${_pickedFiles.length - 1})` : ""}`
+    : "(no file picked)";
+}
+
+function renderDragThumb() {
+  const holder = document.getElementById("psyai-drag-thumb-holder");
+  if (!holder) return;
+  holder.innerHTML = "";
+  _dragThumbEl = null;
+  if (!_pickedFiles.length) return;
+  const first = _pickedFiles[0];
+  const img = document.createElement("img");
+  img.draggable = true;
+  img.style.cssText = `
+    max-width: 100%; max-height: 80px; border: 2px dashed #ff6b6b;
+    border-radius: 4px; cursor: grab; object-fit: contain;
+    background: #222;
+  `;
+  img.title = "drag this onto the compose area";
+  // Preload as object URL so the thumb is visible + the File is
+  // already constructed for dragstart.
+  img.src = URL.createObjectURL(first);
+  img.addEventListener("dragstart", (ev) => {
+    try {
+      for (const f of _pickedFiles) ev.dataTransfer.items.add(f);
+      ev.dataTransfer.effectAllowed = "copy";
+    } catch (e) { /* ignore */ }
+  });
+  holder.appendChild(img);
+  _dragThumbEl = img;
 }
 
 function setUploadStatus(msg, ok) {
@@ -282,74 +332,135 @@ function setUploadStatus(msg, ok) {
   _uploadStatusEl.style.color = ok ? "#6bff6b" : "#ffb36b";
   setTimeout(() => {
     if (_uploadStatusEl) _uploadStatusEl.textContent = "";
-  }, 5000);
+  }, 6000);
 }
 
-async function injectImageFiles(files) {
-  // (a) Existing file input on the page. Prefer one inside the
-  //     compose area if identifiable; otherwise take the first that
-  //     accepts images and is in a dialog-like ancestor.
+function requirePicked() {
+  if (!_pickedFiles.length) {
+    setUploadStatus("✗ pick a file first", false);
+    return false;
+  }
+  return true;
+}
+
+// Strategy 1 — set .files on an existing <input type="file">.
+function strategyFileInput() {
+  if (!requirePicked()) return;
   const candidates = Array.from(
     document.querySelectorAll('input[type="file"]'));
   let target = candidates.find((el) => {
     const accept = (el.getAttribute("accept") || "").toLowerCase();
     if (accept && !accept.includes("image") && accept !== "*/*") return false;
-    // Prefer inputs inside a dialog/composer surface.
     return el.closest('[role="dialog"], [aria-modal="true"], [data-testid*="compos" i], [data-testid*="post" i]');
+  }) || candidates.find((el) => {
+    const accept = (el.getAttribute("accept") || "").toLowerCase();
+    return !accept || accept.includes("image") || accept === "*/*";
   });
   if (!target) {
-    target = candidates.find((el) => {
-      const accept = (el.getAttribute("accept") || "").toLowerCase();
-      return !accept || accept.includes("image") || accept === "*/*";
-    });
+    setUploadStatus(
+      "✗ no input[type=file] found (click image button first)", false);
+    return;
   }
-  if (target) {
-    try {
-      const dt = new DataTransfer();
-      for (const f of files) dt.items.add(f);
-      target.files = dt.files;
-      target.dispatchEvent(new Event("input", { bubbles: true }));
-      target.dispatchEvent(new Event("change", { bubbles: true }));
-      return { ok: true, msg: `✓ ${files.length} image(s) injected into file input` };
-    } catch (e) { /* fall through */ }
+  try {
+    const dt = new DataTransfer();
+    for (const f of _pickedFiles) dt.items.add(f);
+    target.files = dt.files;
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+    target.dispatchEvent(new Event("change", { bubbles: true }));
+    setUploadStatus(
+      `✓ strategy 1 (file input) — ${_pickedFiles.length} file(s) injected`, true);
+  } catch (e) {
+    setUploadStatus(`✗ strategy 1 failed: ${e.message}`, false);
   }
+}
 
-  // (b) Paste event into the focused contenteditable / compose.
-  //     Bluesky + Twitter + Mastodon all handle image paste natively.
+// Strategy 2 — paste event on the focused compose element.
+function strategyPaste() {
+  if (!requirePicked()) return;
   const active = document.activeElement;
-  if (active && (active.isContentEditable
-                  || active.tagName === "TEXTAREA"
-                  || active.tagName === "INPUT")) {
-    try {
-      const dt = new DataTransfer();
-      for (const f of files) dt.items.add(f);
-      const pasteEv = new ClipboardEvent("paste", {
-        clipboardData: dt,
-        bubbles: true,
-        cancelable: true,
-      });
-      active.dispatchEvent(pasteEv);
-      return { ok: true, msg: `✓ ${files.length} image(s) pasted into compose` };
-    } catch (e) { /* fall through */ }
+  if (!active || !(active.isContentEditable
+                    || active.tagName === "TEXTAREA"
+                    || active.tagName === "INPUT")) {
+    setUploadStatus(
+      "✗ no focused text field — click into compose first", false);
+    return;
   }
-
-  // (c) Last resort: synthesize a drop event on the focused element.
-  if (active) {
-    try {
-      const dt = new DataTransfer();
-      for (const f of files) dt.items.add(f);
-      const dropEv = new DragEvent("drop", {
-        dataTransfer: dt, bubbles: true, cancelable: true,
-      });
-      active.dispatchEvent(dropEv);
-      return { ok: true, msg: `✓ ${files.length} image(s) dropped on focused element` };
-    } catch (e) { /* fall through */ }
+  try {
+    const dt = new DataTransfer();
+    for (const f of _pickedFiles) dt.items.add(f);
+    const pasteEv = new ClipboardEvent("paste", {
+      clipboardData: dt, bubbles: true, cancelable: true,
+    });
+    active.dispatchEvent(pasteEv);
+    setUploadStatus(
+      `✓ strategy 2 (paste) — dispatched on ${active.tagName}`, true);
+  } catch (e) {
+    setUploadStatus(`✗ strategy 2 failed: ${e.message}`, false);
   }
+}
 
-  return {
-    ok: false,
-    msg: "✗ No target found. Click into the compose area first, then retry.",
-  };
+// Strategy 3 — drop event on the focused element.
+function strategyDrop() {
+  if (!requirePicked()) return;
+  const active = document.activeElement;
+  if (!active) {
+    setUploadStatus("✗ nothing focused — click compose first", false);
+    return;
+  }
+  try {
+    const dt = new DataTransfer();
+    for (const f of _pickedFiles) dt.items.add(f);
+    const dropEv = new DragEvent("drop", {
+      dataTransfer: dt, bubbles: true, cancelable: true,
+    });
+    active.dispatchEvent(dropEv);
+    setUploadStatus(
+      `✓ strategy 3 (drop) — dispatched on ${active.tagName}`, true);
+  } catch (e) {
+    setUploadStatus(`✗ strategy 3 failed: ${e.message}`, false);
+  }
+}
+
+// Strategy 4 — find + click an "attach image" button, then run
+// strategy 1. Gives the compose modal a chance to mount the hidden
+// input[type=file] if it hasn't yet.
+function strategyClickThenInput() {
+  if (!requirePicked()) return;
+  const patterns = [
+    'button[aria-label*="image" i]',
+    'button[aria-label*="photo" i]',
+    'button[aria-label*="attach" i]',
+    'button[aria-label*="media" i]',
+    '[data-testid*="image" i][role="button"]',
+    '[data-testid*="photo" i][role="button"]',
+    '[data-testid*="attach" i]',
+  ];
+  let btn = null;
+  for (const sel of patterns) {
+    const found = document.querySelectorAll(sel);
+    for (const el of found) {
+      // Prefer buttons inside a compose modal.
+      if (el.closest('[role="dialog"], [aria-modal="true"], [data-testid*="compos" i]')) {
+        btn = el; break;
+      }
+    }
+    if (btn) break;
+  }
+  if (!btn) {
+    setUploadStatus(
+      "✗ no image/photo/attach button found on page", false);
+    return;
+  }
+  btn.click();
+  // Give the DOM a beat to mount the file input before running
+  // strategy 1 against it.
+  setTimeout(() => {
+    strategyFileInput();
+  }, 200);
+  setUploadStatus(
+    `→ clicked ${btn.getAttribute("aria-label")
+        || btn.getAttribute("data-testid")
+        || btn.tagName} — retrying file input in 200ms...`, true);
 }
 
 // ── PANEL ──────────────────────────────────────────────────────────────────
@@ -547,8 +658,16 @@ function rebuildPanel() {
     `</div>`,
     `<div class="psyai-source"><span class="dot" style="background:${sourceDotColor(currentSource)};"></span>source: ${currentSource}</div>`,
     `<button class="psyai-btn primary psyai-clipboard">📋 paste from DoxyEdit</button>`,
-    `<button class="psyai-btn primary psyai-upload">📁 upload image to compose</button>`,
-    `<div id="psyai-upload-status" style="font-size:10px;margin-top:2px;min-height:12px;"></div>`,
+    `<div class="psyai-section">image injection</div>`,
+    `<button class="psyai-btn primary psyai-pick">📁 pick image file</button>`,
+    `<div id="psyai-picked-name" style="font-size:10px;color:#aaa;margin:2px 0 4px 2px;">(no file picked)</div>`,
+    `<div id="psyai-drag-thumb-holder" style="margin:2px 0;"></div>`,
+    `<button class="psyai-btn psyai-s1">1. set input[type=file].files</button>`,
+    `<button class="psyai-btn psyai-s2">2. paste into focused field</button>`,
+    `<button class="psyai-btn psyai-s3">3. drop on focused element</button>`,
+    `<button class="psyai-btn psyai-s4">4. click image btn + set input</button>`,
+    `<div style="font-size:10px;color:#aaa;margin-top:4px;">5. drag the thumb above onto the compose drop zone</div>`,
+    `<div id="psyai-upload-status" style="font-size:10px;margin-top:4px;min-height:14px;"></div>`,
     `<div class="psyai-section">identity</div>`,
     `<button class="psyai-btn" data-fill="displayName">display name</button>`,
     `<button class="psyai-btn" data-fill="handle">handle</button>`,
@@ -574,13 +693,21 @@ function rebuildPanel() {
     panelEl.style.display = "none";
   });
   panelEl.querySelector(".psyai-clipboard").addEventListener("click", pasteFromClipboard);
-  const uploadBtn = panelEl.querySelector(".psyai-upload");
-  if (uploadBtn) {
-    // Must be a direct user-gesture click — can't defer the .click()
-    // on the hidden file input behind any async work.
-    uploadBtn.addEventListener("click", triggerUpload);
-  }
+  const pickBtn = panelEl.querySelector(".psyai-pick");
+  if (pickBtn) pickBtn.addEventListener("click", triggerFilePick);
+  const s1 = panelEl.querySelector(".psyai-s1");
+  if (s1) s1.addEventListener("click", strategyFileInput);
+  const s2 = panelEl.querySelector(".psyai-s2");
+  if (s2) s2.addEventListener("click", strategyPaste);
+  const s3 = panelEl.querySelector(".psyai-s3");
+  if (s3) s3.addEventListener("click", strategyDrop);
+  const s4 = panelEl.querySelector(".psyai-s4");
+  if (s4) s4.addEventListener("click", strategyClickThenInput);
   _uploadStatusEl = panelEl.querySelector("#psyai-upload-status");
+  // Re-render the picked badge + drag thumb from cached state after
+  // a rebuild (e.g. after a CDP push repaints the panel).
+  refreshPickedBadge();
+  renderDragThumb();
   panelEl.querySelectorAll(".psyai-btn[data-fill]").forEach(btn => {
     btn.addEventListener("click", () => {
       fillFocusedField(currentData[btn.dataset.fill] || "");
