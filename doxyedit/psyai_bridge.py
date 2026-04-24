@@ -724,6 +724,28 @@ class _PsyaiWorkerProcess:
                 target=self._stdout_loop, daemon=True,
                 name="psyai-worker-stdout")
             self._stdout_thread.start()
+            # Drain stderr so Playwright / Python warnings that bypass
+            # the JSON protocol can't fill the 64 KiB pipe buffer and
+            # block the worker mid-command.
+            self._stderr_thread = threading.Thread(
+                target=self._stderr_loop, daemon=True,
+                name="psyai-worker-stderr")
+            self._stderr_thread.start()
+
+    def _stderr_loop(self) -> None:
+        """Drain the worker's stderr. Each non-empty line is logged
+        so tracebacks that escape the JSON protocol still land in
+        the persistent file log."""
+        if self._proc is None or self._proc.stderr is None:
+            return
+        try:
+            for line in self._proc.stderr:
+                line = line.rstrip()
+                if not line:
+                    continue
+                _log("worker.stderr", line=line[:500])
+        except Exception as exc:
+            _log("worker.stderr_loop_crashed", error=repr(exc))
 
     def _stdout_loop(self) -> None:
         """Read worker responses line-by-line; dispatch to pending
