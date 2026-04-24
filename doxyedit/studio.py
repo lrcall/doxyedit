@@ -5875,6 +5875,10 @@ class StudioEditor(QWidget):
         self.chk_grid.toggled.connect(self._on_grid_toggled)
         toolbar.addWidget(self.chk_grid)
 
+        # Grid-spacing spinbox kept as a hidden widget so existing
+        # setValue / valueChanged plumbing still works, but it's no
+        # longer added to the toolbar — the Studio Settings dialog
+        # owns the grid spacing control (see line 12379).
         self.spin_grid = QSpinBox()
         self.spin_grid.setObjectName("studio_grid_spin")
         self.spin_grid.setRange(5, 500)
@@ -5882,7 +5886,7 @@ class StudioEditor(QWidget):
         self.spin_grid.setSuffix(" px")
         self.spin_grid.setToolTip("Grid spacing in pixels")
         self.spin_grid.valueChanged.connect(self._on_grid_spacing_changed)
-        toolbar.addWidget(self.spin_grid)
+        self.spin_grid.hide()
 
         # Toggle buttons use short ASCII labels instead of the obscure
         # unicode glyphs that earlier versions relied on — user reported
