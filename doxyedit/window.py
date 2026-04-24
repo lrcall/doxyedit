@@ -5845,6 +5845,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             etype = ev.get("type") or ""
             plat_key = ev.get("platformKey") or ""
             page_url = ev.get("pageUrl") or ""
+            verified = ev.get("verified", True)  # default True for
+                                                  # older userscripts
             if etype != "posted" or not plat_key:
                 # Other event types (scan_result, action_done, etc)
                 # land here later; for now log + skip so we don't
@@ -5877,19 +5879,30 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             # Use the matched entry as the platform_status key so the
             # all-done calculation below can find it. Keep the full
             # plat_key as an alias + URL key for any consumer that
-            # cares about the specific subreddit.
-            target.platform_status[matched_entry] = "posted"
-            target.platform_status[plat_key] = "posted"
+            # cares about the specific subreddit. Unverified posts
+            # (userscript couldn't confirm the compose closed) get a
+            # distinct status string so the Socials tab shows them
+            # clearly instead of flipping the post to POSTED on a
+            # submit-click that may not have landed.
+            status_value = "posted" if verified else "posted_unverified"
+            target.platform_status[matched_entry] = status_value
+            target.platform_status[plat_key] = status_value
             if page_url:
                 target.published_urls[plat_key] = page_url
             # If every platform listed on the post is now marked
-            # posted, flip the overall status; otherwise PARTIAL.
+            # posted (verified or not), flip the overall status.
+            # Unverified is still "posted" for the project's POSTED
+            # vs PARTIAL calc; the distinction lives at the platform
+            # level so the user can see which specific ones need a
+            # manual check.
+            def _is_posted(s):
+                return s in ("posted", "posted_unverified")
             all_done = all(
-                target.platform_status.get(p) == "posted"
+                _is_posted(target.platform_status.get(p, ""))
                 for p in (target.platforms or []))
             if all_done and (target.platforms or []):
                 target.status = SocialPostStatus.POSTED
-            elif any(target.platform_status.get(p) == "posted"
+            elif any(_is_posted(target.platform_status.get(p, ""))
                      for p in (target.platforms or [])):
                 target.status = SocialPostStatus.PARTIAL
             target.updated_at = _t.strftime("%Y-%m-%dT%H:%M:%S")
@@ -5902,9 +5915,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 url_tail = page_url
                 if len(url_tail) > 50:
                     url_tail = "..." + url_tail[-47:]
-                summary.append(f"{plat_key}@{target.id[:8]} {url_tail}")
-            else:
-                summary.append(f"{plat_key}@{target.id[:8]}")
+            prefix = "" if verified else "UNVERIFIED "
+            tag = f"{prefix}{plat_key}@{target.id[:8]}"
+            summary.append(f"{tag} {url_tail}" if url_tail else tag)
         if touched:
             self._dirty = True
             # Repaint the timeline, calendar, gantt, browser overlay,

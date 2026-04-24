@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.25
+// @version      2.26
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -509,11 +509,56 @@ async function postNowOnCurrentPlatform() {
     return false;
   }
   btn.click();
-  setUploadStatus(`✓ posted to ${postKey}`, true);
-  // Tell DoxyEdit we just submitted. Project-side this marks the
-  // post POSTED and schedules any engagement follow-ups.
-  notifyFeedback({type: "posted", platformKey: postKey});
-  return true;
+  setUploadStatus(`${stepLabel}: clicked, verifying...`, true);
+  // Post-submit verification: poll for the submit button to go away
+  // (button detached from DOM, disabled, or its compose container
+  // closed). That's a near-universal signal the platform accepted
+  // the post. Time out at 8s if no signal - in that case we still
+  // notify DoxyEdit but flag as unverified so the Socials tab can
+  // warn instead of showing a false-positive POSTED.
+  const verifyDeadline = Date.now() + 8000;
+  const btnRef = btn;
+  let verified = false;
+  while (Date.now() < verifyDeadline) {
+    await _wait(400);
+    // Detached from the document tree entirely?
+    if (!document.body.contains(btnRef)) { verified = true; break; }
+    // Disabled / aria-disabled after click? (X, Bluesky do this while
+    // the request is in flight and then remove the button on success.)
+    if (btnRef.disabled
+        || btnRef.getAttribute("aria-disabled") === "true"
+        || btnRef.offsetParent === null) {
+      // Button disabled isn't definitive on its own; confirm by also
+      // checking that none of the selector list matches any visible
+      // button anymore (compose modal closed).
+      let stillVisible = false;
+      for (const sel of selectors) {
+        try {
+          for (const el of document.querySelectorAll(sel)) {
+            if (el.offsetParent !== null && !el.disabled
+                && el.getAttribute("aria-disabled") !== "true") {
+              stillVisible = true; break;
+            }
+          }
+        } catch (e) {}
+        if (stillVisible) break;
+      }
+      if (!stillVisible) { verified = true; break; }
+    }
+  }
+  if (verified) {
+    setUploadStatus(`✓ posted to ${postKey} (verified)`, true);
+    notifyFeedback({type: "posted", platformKey: postKey,
+                    verified: true});
+  } else {
+    setUploadStatus(
+      `submitted to ${postKey} but compose didn't close - check the page`,
+      false);
+    notifyFeedback({type: "posted", platformKey: postKey,
+                    verified: false,
+                    note: "submit clicked; compose still open after 8s"});
+  }
+  return verified;
 }
 
 // ── IMAGE INJECTION ──────────────────────────────────────────────────────
