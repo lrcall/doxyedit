@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.29
+// @version      2.30
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -457,6 +457,38 @@ function _wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
 // of a post we already submitted on the platform.
 const FEEDBACK_QUEUE_KEY = "doxyedit_feedback_queue_v1";
 const FEEDBACK_QUEUE_MAX = 50;
+// Separate localStorage key for POST NOW attempt history. Status
+// strip messages vanish in seconds - this gives the user a short
+// scrollback so they can spot which platform came back UNVERIFIED
+// after they looked away from the panel for a minute.
+const POST_HISTORY_KEY = "doxyedit_post_history_v1";
+const POST_HISTORY_MAX = 20;
+
+function _postHistoryLoad() {
+  try {
+    return JSON.parse(localStorage.getItem(POST_HISTORY_KEY) || "[]");
+  } catch (e) { return []; }
+}
+function _postHistorySave(h) {
+  try {
+    localStorage.setItem(
+      POST_HISTORY_KEY,
+      JSON.stringify(h.slice(-POST_HISTORY_MAX)));
+  } catch (e) { /* quota full, drop */ }
+}
+function recordPostAttempt(entry) {
+  const h = _postHistoryLoad();
+  h.push(Object.assign({t: Date.now(), host: location.host,
+                         pageUrl: location.href}, entry));
+  _postHistorySave(h);
+}
+function _formatPostAgo(t) {
+  const s = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
 
 function _feedbackQueueLoad() {
   try {
@@ -568,6 +600,8 @@ async function postNowOnCurrentPlatform() {
         false);
       // Log for convenience - user can copy from DevTools console.
       console.log(`[doxyedit] navigate to ${suggestedUrl} to post`);
+      recordPostAttempt({platformKey: postKey, outcome: "skipped",
+                          note: "subreddit not in URL"});
       return false;
     }
     setUploadStatus(`post 1/2: filling title + body on r/${subredditFromKey}...`, true);
@@ -584,6 +618,8 @@ async function postNowOnCurrentPlatform() {
       if (!ok) {
         setUploadStatus(
           `post 1/3 FAILED: image attach did not complete`, false);
+        recordPostAttempt({platformKey: postKey, outcome: "failed",
+                            note: "image attach failed"});
         return false;
       }
       await _wait(500);
@@ -620,6 +656,8 @@ async function postNowOnCurrentPlatform() {
       } else {
         setUploadStatus(
           `post 2/3 FAILED: no compose editor found`, false);
+        recordPostAttempt({platformKey: postKey, outcome: "failed",
+                            note: "no compose editor"});
         return false;
       }
     }
@@ -645,6 +683,8 @@ async function postNowOnCurrentPlatform() {
     setUploadStatus(
       `${stepLabel} FAILED: no submit button found - click it manually`,
       false);
+    recordPostAttempt({platformKey: postKey, outcome: "failed",
+                        note: "no submit button"});
     return false;
   }
   btn.click();
@@ -689,6 +729,7 @@ async function postNowOnCurrentPlatform() {
     setUploadStatus(`✓ posted to ${postKey} (verified)`, true);
     notifyFeedback({type: "posted", platformKey: postKey,
                     verified: true});
+    recordPostAttempt({platformKey: postKey, outcome: "verified"});
   } else {
     setUploadStatus(
       `submitted to ${postKey} but compose didn't close - check the page`,
@@ -696,6 +737,7 @@ async function postNowOnCurrentPlatform() {
     notifyFeedback({type: "posted", platformKey: postKey,
                     verified: false,
                     note: "submit clicked; compose still open after 8s"});
+    recordPostAttempt({platformKey: postKey, outcome: "unverified"});
   }
   return verified;
 }
@@ -1645,6 +1687,29 @@ function rebuildPanel() {
         ? `${k} (title+body)` : `${k}`;
       return `<button class="doxyedit-btn" data-post="${k}">${label}</button>`;
     }),
+    // Recent POST NOW attempts. Collapsed by default; click the
+    // header to expand. Survives browser restart + tab reload via
+    // localStorage so the user can come back and see what landed
+    // where, including UNVERIFIED entries that need manual check.
+    (() => {
+      const h = _postHistoryLoad();
+      if (!h.length) return "";
+      const rows = h.slice().reverse().slice(0, POST_HISTORY_MAX).map((e) => {
+        const when = _formatPostAgo(e.t);
+        const color = e.outcome === "verified" ? "#6bff6b"
+                    : e.outcome === "unverified" ? "#ffd76b"
+                    : e.outcome === "skipped" ? "#888"
+                    : "#ff6b6b";
+        const note = e.note ? ` <span style="color:#888;">(${e.note})</span>` : "";
+        return `<div style="font-size:10px;color:${color};padding:1px 0;">`
+             + `${when} - ${e.platformKey} ${e.outcome}${note}`
+             + `</div>`;
+      }).join("");
+      return `<details style="margin-top:4px;">`
+           + `<summary class="doxyedit-section" style="cursor:pointer;">recent posts (${h.length})</summary>`
+           + `<div style="padding:2px 4px;">${rows}</div>`
+           + `</details>`;
+    })(),
     `<div style="margin-top:8px;color:#888;font-size:10px;line-height:1.45;">`,
     `tip: click into the target field first, then click a button.<br>`,
     `<kbd>Alt+P</kbd> panel · <kbd>Alt+N</kbd> name · <kbd>Alt+B</kbd> short bio · <kbd>Alt+V</kbd> paste<br>`,
