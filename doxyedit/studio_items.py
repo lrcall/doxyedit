@@ -892,6 +892,154 @@ class OverlayImageItem(QGraphicsPixmapItem):
         super().mouseDoubleClickEvent(event)
 
 
+def _build_speech_bubble_path(body: QRectF, tip: QPointF, ov) -> QPainterPath:
+    """Construct the QPainterPath for a speech bubble, applying every
+    bubble deformer (roundness, oval_stretch, wobble, tail_curve,
+    tail_width, tail_taper, skew_x). Body rect and tip point must be
+    expressed in the same coordinate system — the returned path is
+    relative to that system.
+
+    Callers:
+    - OverlayShapeItem._paint_speech_bubble (live/main-thread path)
+    - _render_shape_to_image (off-thread QImage cache builder)
+
+    Both call sites share this single implementation so a cached
+    render is pixel-identical to the live render; the cache can no
+    longer "revert" the shape when a deformer is non-zero.
+
+    QPainterPath construction is thread-safe in Qt when each thread
+    builds its own path; this helper does not touch shared state.
+    """
+    import math as _math
+    inner_pad = min(body.width(), body.height()) * 0.18
+    cx, cy = body.center().x(), body.center().y()
+    dx_t, dy_t = tip.x() - cx, tip.y() - cy
+    horiz = abs(dx_t) > abs(dy_t)
+    tail_width_scale = max(0.2, min(3.0,
+        float(getattr(ov, "bubble_tail_width", 1.0) or 1.0)))
+    base_len = min(body.width(), body.height()) * 0.25 * tail_width_scale
+    overlap = max(4.0, min(body.width(), body.height()) * 0.08)
+    # Oval stretch widens / heightens the body around its center.
+    stretch = max(-1.2, min(1.2,
+        float(getattr(ov, "bubble_oval_stretch", 0.0) or 0.0)))
+    r = body
+    if stretch != 0:
+        sx = 1.0 + stretch
+        sy = 1.0 - stretch * 0.5
+        new_w = body.width() * sx
+        new_h = body.height() * sy
+        r = QRectF(cx - new_w / 2, cy - new_h / 2, new_w, new_h)
+    # Tail base points on the body edge nearest the tip.
+    if horiz:
+        if dx_t > 0:
+            edge_x = r.right() - overlap
+        else:
+            edge_x = r.left() + overlap
+        mid_y = max(r.top() + inner_pad,
+                    min(r.bottom() - inner_pad, tip.y() * 0.5 + cy * 0.5))
+        b1 = QPointF(edge_x, mid_y - base_len / 2)
+        b2 = QPointF(edge_x, mid_y + base_len / 2)
+    else:
+        if dy_t > 0:
+            edge_y = r.bottom() - overlap
+        else:
+            edge_y = r.top() + overlap
+        mid_x = max(r.left() + inner_pad,
+                    min(r.right() - inner_pad, tip.x() * 0.5 + cx * 0.5))
+        b1 = QPointF(mid_x - base_len / 2, edge_y)
+        b2 = QPointF(mid_x + base_len / 2, edge_y)
+    # Body: roundness blends pad-rounded-rect -> ellipse -> puffier
+    # ellipse (over 1.0 inflates beyond the rect bounds).
+    roundness = max(0.0, min(2.0,
+        float(getattr(ov, "bubble_roundness", 0.0) or 0.0)))
+    path = QPainterPath()
+    if roundness >= 0.99:
+        over = max(0.0, roundness - 1.0)
+        if over > 0:
+            r_exp = QRectF(
+                r.x() - r.width() * over * 0.15,
+                r.y() - r.height() * over * 0.15,
+                r.width() * (1 + over * 0.3),
+                r.height() * (1 + over * 0.3))
+            path.addEllipse(r_exp)
+        else:
+            path.addEllipse(r)
+    else:
+        effective_pad = inner_pad + (
+            min(r.width(), r.height()) / 2 - inner_pad) * roundness
+        path.addRoundedRect(r, effective_pad, effective_pad)
+    # Tail: triangle or bezier depending on tail_curve.
+    tail = QPainterPath()
+    tail.moveTo(b1)
+    tail_curve = max(-2.0, min(2.0,
+        float(getattr(ov, "tail_curve", 0.0) or 0.0)))
+    tail_taper = max(-1.0, min(1.0,
+        float(getattr(ov, "bubble_tail_taper", 0.0) or 0.0)))
+    if tail_taper != 0:
+        side_dx = b2.x() - b1.x()
+        side_dy = b2.y() - b1.y()
+        tip = QPointF(
+            tip.x() + side_dx * 0.5 * tail_taper,
+            tip.y() + side_dy * 0.5 * tail_taper)
+    if abs(tail_curve) > 0.02:
+        def _perp_ctrl(src, dst, amount):
+            mx = (src.x() + dst.x()) / 2
+            my = (src.y() + dst.y()) / 2
+            dx = dst.x() - src.x()
+            dy = dst.y() - src.y()
+            length = _math.hypot(dx, dy) or 1.0
+            nx = -dy / length
+            ny = dx / length
+            return QPointF(mx + nx * amount, my + ny * amount)
+        amt = tail_curve * base_len * 1.2
+        c1 = _perp_ctrl(b1, tip, amt)
+        c2 = _perp_ctrl(tip, b2, amt)
+        tail.quadTo(c1, tip)
+        tail.quadTo(c2, b2)
+    else:
+        tail.lineTo(tip)
+        tail.lineTo(b2)
+    tail.closeSubpath()
+    path = path.united(tail)
+    # Wobble: 72-sample sinusoidal normal displacement for a
+    # hand-drawn look. Only applied when non-trivial (>= 0.01)
+    # because path.length() + pointAtPercent are the most expensive
+    # ops in Qt's path API.
+    wobble = max(0.0, min(2.0,
+        float(getattr(ov, "bubble_wobble", 0.0) or 0.0)))
+    if wobble > 0.01:
+        amp = wobble * min(r.width(), r.height()) * 0.04
+        wobbled = QPainterPath()
+        n = 72
+        length = path.length() or 1.0
+        for i in range(n + 1):
+            t_i = (i / n) * length
+            pct = t_i / length
+            pt = path.pointAtPercent(pct)
+            ang = path.angleAtPercent(pct)
+            normal = _math.radians(ang + 90)
+            push = _math.sin(pct * _math.pi * 8) * amp
+            nx = pt.x() + _math.cos(normal) * push
+            ny = pt.y() - _math.sin(normal) * push
+            if i == 0:
+                wobbled.moveTo(nx, ny)
+            else:
+                wobbled.lineTo(nx, ny)
+        wobbled.closeSubpath()
+        path = wobbled
+    # Horizontal skew wraps every other deformer so the final render
+    # leans around the body's center.
+    skew_x = max(-1.0, min(1.0,
+        float(getattr(ov, "bubble_skew_x", 0.0) or 0.0)))
+    if abs(skew_x) > 0.001:
+        t = QTransform()
+        t.translate(cx, cy)
+        t.shear(skew_x, 0.0)
+        t.translate(-cx, -cy)
+        path = t.map(path)
+    return path
+
+
 def _render_shape_to_image(overlay_snapshot, pad: int):
     """Return a closure that renders a shape snapshot into a QImage.
 
@@ -971,26 +1119,17 @@ def _render_shape_to_image(overlay_snapshot, pad: int):
             path.addPolygon(QPolygonF(pts))
             path.closeSubpath()
         elif kind == "speech_bubble":
-            roundness = max(0.0, min(1.0,
-                getattr(ov, "bubble_roundness", 0.0) or 0.0))
-            inner_pad = min(w, h) * 0.18
-            eff_pad = inner_pad + (min(w, h) / 2 - inner_pad) * roundness
-            path.addRoundedRect(body, eff_pad, eff_pad)
+            # Delegate to the shared builder so cached renders match
+            # the live path pixel-for-pixel, including all deformers.
             tx = getattr(ov, "tail_x", 0) or 0
             ty = getattr(ov, "tail_y", 0) or 0
             if tx == 0 and ty == 0:
-                tip_x = pad - w * 0.15
-                tip_y = pad + h + h * 0.35
+                tip = QPointF(pad - w * 0.15, pad + h + h * 0.35)
             else:
-                tip_x = pad + (float(tx) - float(ov.x))
-                tip_y = pad + (float(ty) - float(ov.y))
-            base_len = min(w, h) * 0.25
-            tail = QPainterPath()
-            tail.moveTo(pad, pad + h * 0.5)
-            tail.lineTo(tip_x, tip_y)
-            tail.lineTo(pad, pad + h * 0.5 + base_len)
-            tail.closeSubpath()
-            path = path.united(tail)
+                tip = QPointF(
+                    pad + (float(tx) - float(ov.x)),
+                    pad + (float(ty) - float(ov.y)))
+            path = _build_speech_bubble_path(body, tip, ov)
         elif kind == "thought_bubble":
             # Central ellipse + 10 peripheral puff unions.
             cx, cy = pad + w / 2, pad + h / 2
@@ -1525,7 +1664,11 @@ class OverlayShapeItem(QGraphicsItem):
         LOCAL coords and drawn via painter.translate() so dragging the
         bubble (which only shifts overlay.x/y) doesn't invalidate the
         cache. Cache hit = one translate + drawPath. Cache miss involves
-        path.united() + up to 72 wobble samples."""
+        path.united() + up to 72 wobble samples.
+
+        Path construction is delegated to module-level
+        _build_speech_bubble_path so the off-thread cache renderer
+        produces the exact same geometry (same deformers applied)."""
         key = ("speech", self._shape_params_tuple())
         if self._cached_path_key == key and self._cached_path is not None:
             painter.save()
@@ -1533,149 +1676,8 @@ class OverlayShapeItem(QGraphicsItem):
             painter.drawPath(self._cached_path)
             painter.restore()
             return
-        pad = min(r.width(), r.height()) * 0.18
         tip = self._tail_tip(r)
-        # Tail base: pick two points on the body edge closest to the tip
-        cx, cy = r.center().x(), r.center().y()
-        dx, dy = tip.x() - cx, tip.y() - cy
-        horiz = abs(dx) > abs(dy)
-        tail_width_scale = max(0.2, min(3.0,
-            float(getattr(self.overlay, "bubble_tail_width", 1.0) or 1.0)))
-        base_len = min(r.width(), r.height()) * 0.25 * tail_width_scale
-        # Overlap the tail base into the body interior so the union erases
-        # the seam. ~8% of body short-side, clamped to a minimum so small
-        # bubbles still merge cleanly.
-        overlap = max(4.0, min(r.width(), r.height()) * 0.08)
-        # Apply bubble_oval_stretch: >0 widens, <0 taller. Normalize
-        # against a central pivot so the overall footprint stays similar.
-        stretch = max(-1.2, min(1.2, self.overlay.bubble_oval_stretch))
-        if stretch != 0:
-            sx = 1.0 + stretch
-            sy = 1.0 - stretch * 0.5
-            new_w = r.width() * sx
-            new_h = r.height() * sy
-            r = QRectF(cx - new_w / 2, cy - new_h / 2, new_w, new_h)
-        if horiz:
-            if dx > 0:
-                edge_x = r.right() - overlap
-            else:
-                edge_x = r.left() + overlap
-            mid_y = max(r.top() + pad,
-                         min(r.bottom() - pad, tip.y() * 0.5 + cy * 0.5))
-            b1 = QPointF(edge_x, mid_y - base_len / 2)
-            b2 = QPointF(edge_x, mid_y + base_len / 2)
-        else:
-            if dy > 0:
-                edge_y = r.bottom() - overlap
-            else:
-                edge_y = r.top() + overlap
-            mid_x = max(r.left() + pad,
-                         min(r.right() - pad, tip.x() * 0.5 + cx * 0.5))
-            b1 = QPointF(mid_x - base_len / 2, edge_y)
-            b2 = QPointF(mid_x + base_len / 2, edge_y)
-        # Build path: roundness blends between pad-rounded rect (0.0)
-        # and a pure ellipse (1.0); values above 1.0 overshoot the
-        # ellipse into a squished-pill shape by widening the body.
-        roundness = max(0.0, min(2.0,
-            self.overlay.bubble_roundness))
-        path = QPainterPath()
-        if roundness >= 0.99:
-            # Past 1.0, exaggerate the ellipse's height/width ratio so
-            # the bubble can overshoot into a rounder-than-round puffier
-            # shape. Below 1.0, use pure ellipse.
-            over = max(0.0, roundness - 1.0)
-            if over > 0:
-                r_exp = QRectF(
-                    r.x() - r.width() * over * 0.15,
-                    r.y() - r.height() * over * 0.15,
-                    r.width() * (1 + over * 0.3),
-                    r.height() * (1 + over * 0.3))
-                path.addEllipse(r_exp)
-            else:
-                path.addEllipse(r)
-        else:
-            effective_pad = pad + (min(r.width(), r.height()) / 2 - pad) * roundness
-            path.addRoundedRect(r, effective_pad, effective_pad)
-        tail = QPainterPath()
-        tail.moveTo(b1)
-        tail_curve = max(-2.0, min(2.0,
-            float(self.overlay.tail_curve or 0.0)))
-        # Tail taper: slide the tip along the base direction so the
-        # tail leans to one side instead of coming to a symmetric
-        # point. 0 = centered, positive/negative shift by up to one
-        # base-length in either direction.
-        tail_taper = max(-1.0, min(1.0,
-            float(getattr(self.overlay, "bubble_tail_taper", 0.0) or 0.0)))
-        if tail_taper != 0:
-            bx_mid = (b1.x() + b2.x()) / 2
-            by_mid = (b1.y() + b2.y()) / 2
-            side_dx = b2.x() - b1.x()
-            side_dy = b2.y() - b1.y()
-            tip = QPointF(
-                tip.x() + side_dx * 0.5 * tail_taper,
-                tip.y() + side_dy * 0.5 * tail_taper,
-            )
-        if abs(tail_curve) > 0.02:
-            # Bezier tail: compute a control point perpendicular to the
-            # b1 - tip line, offset by curve * base_len * 1.2. Sides of
-            # the tail both curve in the same direction so the tail
-            # swoops instead of going straight.
-            def _perp_ctrl(src, dst, amount):
-                mx = (src.x() + dst.x()) / 2
-                my = (src.y() + dst.y()) / 2
-                dx = dst.x() - src.x()
-                dy = dst.y() - src.y()
-                length = math.hypot(dx, dy) or 1.0
-                nx = -dy / length
-                ny = dx / length
-                return QPointF(mx + nx * amount, my + ny * amount)
-            amt = tail_curve * base_len * 1.2
-            c1 = _perp_ctrl(b1, tip, amt)
-            c2 = _perp_ctrl(tip, b2, amt)
-            tail.quadTo(c1, tip)
-            tail.quadTo(c2, b2)
-        else:
-            tail.lineTo(tip)
-            tail.lineTo(b2)
-        tail.closeSubpath()
-        path = path.united(tail)
-        # Wobble: walk the path at many points and push each one a small
-        # amount along its normal using a sin function of its arc-length
-        # parameter. Produces a hand-drawn look.
-        wobble = max(0.0, min(2.0,
-            self.overlay.bubble_wobble))
-        if wobble > 0.01:
-            amp = wobble * min(r.width(), r.height()) * 0.04
-            wobbled = QPainterPath()
-            n = 72
-            length = path.length() or 1.0
-            for i in range(n + 1):
-                t = (i / n) * length
-                pct = t / length
-                pt = path.pointAtPercent(pct)
-                ang = path.angleAtPercent(pct)
-                normal = math.radians(ang + 90)
-                push = math.sin(pct * math.pi * 8) * amp
-                nx = pt.x() + math.cos(normal) * push
-                ny = pt.y() - math.sin(normal) * push
-                if i == 0:
-                    wobbled.moveTo(nx, ny)
-                else:
-                    wobbled.lineTo(nx, ny)
-            wobbled.closeSubpath()
-            path = wobbled
-        # Horizontal skew: shear the entire path around the body's
-        # vertical center so the bubble leans left / right without
-        # displacing its anchor point. Applied last so it wraps every
-        # other deformer (wobble, tail curve, oval stretch).
-        skew_x = max(-1.0, min(1.0,
-            float(getattr(self.overlay, "bubble_skew_x", 0.0) or 0.0)))
-        if abs(skew_x) > 0.001:
-            t = QTransform()
-            t.translate(cx, cy)
-            t.shear(skew_x, 0.0)
-            t.translate(-cx, -cy)
-            path = t.map(path)
+        path = _build_speech_bubble_path(r, tip, self.overlay)
         # Store the path translated to local coords so cache hits survive
         # drag (which only shifts r.left()/r.top() each frame).
         self._cached_path_key = key
@@ -1989,21 +1991,6 @@ class OverlayShapeItem(QGraphicsItem):
         # Selected state + handles are always drawn live (below) since
         # they change frequently with selection toggles.
         cache_key = self._shape_render_params_tuple()
-        # Bubble-deformer check: the off-thread cache renderer only
-        # applies bubble_roundness. bubble_oval_stretch / bubble_wobble
-        # / tail_curve are handled ONLY by the live paint path below.
-        # Using the cache when any of those are non-zero makes the
-        # shape "revert" to an undeformed version once the async
-        # render settles, which is exactly what the user sees when
-        # they release a deformer slider. Skip the fast-blit for any
-        # bubble that has deformer values the cache can't represent.
-        _ov = self.overlay
-        _is_bubble = _ov.shape_kind in ("speech_bubble", "thought_bubble")
-        _bubble_cache_incomplete = _is_bubble and (
-            (_ov.bubble_oval_stretch or 0.0) != 0.0
-            or (_ov.bubble_wobble or 0.0) != 0.0
-            or (_ov.tail_curve or 0.0) != 0.0
-        )
         fast_blit_ok = (
             self._cached_render is not None
             and self._cached_render_key == cache_key
@@ -2017,7 +2004,6 @@ class OverlayShapeItem(QGraphicsItem):
             # through to the live path for inside/outside strokes.
             and (self.overlay.stroke_align or "center")
                 == "center"
-            and not _bubble_cache_incomplete
         )
         if fast_blit_ok:
             painter.save()
@@ -2039,13 +2025,9 @@ class OverlayShapeItem(QGraphicsItem):
             if not self.isSelected():
                 return
             # Fall through to the live path's selection-handle drawing.
-        elif (self._cached_render_key != cache_key
-                and not _bubble_cache_incomplete):
+        elif self._cached_render_key != cache_key:
             # Cache miss — schedule a rebuild so the NEXT paint hits
-            # the fast path. Current frame renders live. Skip entirely
-            # for bubbles whose deformers can't round-trip through the
-            # cached renderer; otherwise we'd spin up async work that's
-            # guaranteed to be skipped by the fast-blit guard above.
+            # the fast path. Current frame renders live.
             self._schedule_cached_render()
         r = QRectF(self.overlay.x, self.overlay.y,
                     self.overlay.shape_w, self.overlay.shape_h)
