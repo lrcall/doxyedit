@@ -6940,7 +6940,10 @@ class StudioEditor(QWidget):
         # the QFormLayout. Without this, widgets inherit their original
         # _props_row parent's hidden state, leaving the dialog blank.
         _dlg = self._text_controls_dlg
-        for _w in (self.combo_position, self.font_combo, self.slider_font_size,
+        # combo_position stays in the main props_row — user wants the
+        # "Position [custom (drag)]" control in the main toolbar, not
+        # buried inside the Text Controls popup.
+        for _w in (self.font_combo, self.slider_font_size,
                    self.btn_bold, self.btn_italic,
                    self.btn_underline, self.btn_strikethrough,
                    self.btn_align_left, self.btn_align_center, self.btn_align_right,
@@ -7007,20 +7010,16 @@ class StudioEditor(QWidget):
             "Text content (edits selected text overlay)")
         self._tc_content_edit.setFixedHeight(int(_dt.font_size * 4.4))
         self._tc_content_edit.textChanged.connect(self._on_tc_content_changed)
-        # Character + word count line under the editor so the user can
-        # eyeball how long the text is without squinting at the canvas.
-        # Important for platform-specific caption limits.
+        _dlg_layout.addRow("Text", self._tc_content_edit)
+        # Character / word / line count on its own form row so it can
+        # never collide with the text editor above — the prior layout
+        # wrapped both in a QVBoxLayout whose wrapper height was
+        # clamped by the form row, letting the label paint on top of
+        # the edit's bottom border.
         self._tc_count_label = QLabel("0 chars  /  0 words", _dlg)
         self._tc_count_label.setObjectName("studio_tc_count")
-        _tc_wrap = QWidget(_dlg)
-        _tc_wrap_v = QVBoxLayout(_tc_wrap)
-        _tc_wrap_v.setContentsMargins(0, 0, 0, 0)
-        _tc_wrap_v.setSpacing(2)
-        _tc_wrap_v.addWidget(self._tc_content_edit)
-        _tc_wrap_v.addWidget(self._tc_count_label)
+        _dlg_layout.addRow("", self._tc_count_label)
         self._tc_content_edit.textChanged.connect(self._update_tc_count)
-        _dlg_layout.addRow("Text", _tc_wrap)
-        _dlg_layout.addRow("Position", self.combo_position)
         _dlg_layout.addRow("Font", self.font_combo)
         # Font size row: single wide slider, no presets. The slider's fixed
         # width from the top-of-Studio props bar is cleared so it can grow
