@@ -6989,8 +6989,19 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     if asset and asset.source_path:
                         self.browser._thumb_cache.request(aid, asset.source_path)
             if all_aids:
-                self.work_tray.show()
-                self._toggle_tray_action.setText("Hide Work Tray")
+                # Respect the user's saved "tray hidden" choice instead
+                # of auto-showing every time a project loads that has
+                # tray items. If they explicitly closed the tray last
+                # session, keep it closed on load — the tray items
+                # stay in self.work_tray ready for the next toggle.
+                tray_should_show = self._settings.value(
+                    "tray_visible", False, type=bool)
+                if tray_should_show:
+                    self._tray_open = True
+                    self.work_tray.show()
+                    self._toggle_tray_action.setText("Hide Work Tray")
+                    if hasattr(self, "_tray_btn"):
+                        self._tray_btn.setChecked(True)
 
         # Update tag panel eye buttons to match restored eye_hidden_tags
         if self.project.eye_hidden_tags:
