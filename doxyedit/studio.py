@@ -8255,12 +8255,24 @@ class StudioEditor(QWidget):
         lst.blockSignals(False)
 
     def _prompt_zoom_level(self, _event):
-        """Click the zoom % label to enter a numeric zoom percentage."""
+        """Click the zoom % label to enter a numeric zoom percentage.
+        Uses a manually-constructed QInputDialog so the app's QSS
+        actually applies — getInt() static spawns a dialog in a
+        separate top-level context that Windows doesn't style."""
         current = int(self._view.transform().m11() * 100)
-        pct, ok = QInputDialog.getInt(
-            self, "Zoom", "Zoom (%):", value=current, minValue=5, maxValue=4000)
-        if ok:
-            self._set_zoom(pct / 100.0)
+        dlg = QInputDialog(self)
+        dlg.setInputMode(QInputDialog.InputMode.IntInput)
+        dlg.setWindowTitle("Zoom")
+        dlg.setLabelText("Zoom (%):")
+        dlg.setIntRange(5, 4000)
+        dlg.setIntValue(current)
+        # Pull the window's active stylesheet so OK / Cancel / spinbox
+        # match the rest of the app in both light and dark themes.
+        win = self.window()
+        if win is not None:
+            dlg.setStyleSheet(win.styleSheet())
+        if dlg.exec() == QInputDialog.DialogCode.Accepted:
+            self._set_zoom(dlg.intValue() / 100.0)
 
     def _prompt_goto_coord(self):
         """Go-to dialog: prompt for X then Y and center the viewport
