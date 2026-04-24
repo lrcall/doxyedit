@@ -4,6 +4,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
     QScrollArea, QFrame, QPushButton, QLineEdit, QCompleter,
+    QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal, QStringListModel, QSettings
 from doxyedit.themes import ui_font_size
@@ -73,6 +74,15 @@ class InfoPanel(QWidget):
         _bold.setPointSize(_bold.pointSize() + 1)
         self._header.setFont(_bold)
         self._header.setWordWrap(True)
+        # Long filenames with no whitespace (e.g.
+        # 147864c589e91ca7185cbc50a2840262-png) can't word-wrap and
+        # force the containing splitter to stay wider than the user
+        # wants. Ignored-horizontal size policy lets the parent shrink
+        # the label arbitrarily; QLabel will clip the excess. Fallback
+        # for users who want to read the full name: hover for tooltip.
+        self._header.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self._header.setMinimumWidth(0)
         self._header.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad)
         outer.addWidget(self._header)
 
@@ -86,10 +96,15 @@ class InfoPanel(QWidget):
         self._layout.setContentsMargins(_pad_lg, _pad, _pad_lg, _pad_lg)
         self._layout.setSpacing(_pad_lg)
 
-        # Filename
+        # Filename + path body
         self._name_label = QLabel()
         self._name_label.setObjectName("info_body_label")
         self._name_label.setWordWrap(True)
+        # Mirror _header's size-policy trick so a long path doesn't
+        # force the panel wider than the user wants.
+        self._name_label.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self._name_label.setMinimumWidth(0)
         self._name_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._layout.addWidget(self._name_label)
 
@@ -244,6 +259,8 @@ class InfoPanel(QWidget):
         """Display detailed info for a single asset."""
         p = Path(asset.source_path)
         self._header.setText(p.name)
+        # Tooltip carries the full name for when the label clips it.
+        self._header.setToolTip(str(p))
         self._name_label.setText(f"<b>Path:</b> {p.parent}")
 
         # Properties
