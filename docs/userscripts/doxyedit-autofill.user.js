@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.27
+// @version      2.28
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -414,21 +414,85 @@ function _wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
 // Backchannel: POST an event to DoxyEdit's /doxyedit-feedback
 // endpoint. Used to tell DoxyEdit "I just posted on <platform>" so
 // the project can mark the post as POSTED and schedule engagement
-// follow-ups. Fire-and-forget; we don't block posting on whether the
-// bridge accepted the feedback (bridge may be down while the page is).
-function notifyFeedback(entry) {
-  const port = httpBridgePort || HTTP_BRIDGE_PORTS[0];
-  const url = `http://127.0.0.1:${port}/doxyedit-feedback`;
-  const body = JSON.stringify(Object.assign(
-    {host: location.host, pageUrl: location.href}, entry));
-  // Plain fetch works for the same reason v4 works for asset bytes.
+// follow-ups.
+//
+// Resilient: if the bridge is down when we submit, the entry is
+// queued in localStorage and retried on every subsequent
+// notifyFeedback call plus on page load. DoxyEdit eventually sees
+// the event as soon as the bridge comes back up, so a transient
+// outage (DoxyEdit restart, port change) doesn't lose the record
+// of a post we already submitted on the platform.
+const FEEDBACK_QUEUE_KEY = "doxyedit_feedback_queue_v1";
+const FEEDBACK_QUEUE_MAX = 50;
+
+function _feedbackQueueLoad() {
   try {
-    fetch(url, {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body,
-    }).catch(() => { /* bridge down, not fatal */ });
-  } catch (e) { /* host blocks fetch, not fatal */ }
+    return JSON.parse(localStorage.getItem(FEEDBACK_QUEUE_KEY) || "[]");
+  } catch (e) { return []; }
+}
+function _feedbackQueueSave(q) {
+  try {
+    // Keep only the most recent MAX entries so a persistent outage
+    // can't pin localStorage.
+    localStorage.setItem(
+      FEEDBACK_QUEUE_KEY,
+      JSON.stringify(q.slice(-FEEDBACK_QUEUE_MAX)));
+  } catch (e) { /* quota full, drop silently */ }
+}
+function _feedbackUrl() {
+  const port = httpBridgePort || HTTP_BRIDGE_PORTS[0];
+  return `http://127.0.0.1:${port}/doxyedit-feedback`;
+}
+async function _feedbackPostOne(entry) {
+  const r = await fetch(_feedbackUrl(), {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(entry),
+  });
+  return r.ok;
+}
+
+async function _flushFeedbackQueue() {
+  const queue = _feedbackQueueLoad();
+  if (!queue.length) return;
+  const remaining = [];
+  for (let i = 0; i < queue.length; i++) {
+    const entry = queue[i];
+    try {
+      const ok = await _feedbackPostOne(entry);
+      if (!ok) {
+        // Non-200: bridge is up but rejecting; drop this one, keep going.
+        continue;
+      }
+    } catch (e) {
+      // Network error mid-flush - bridge went down again. Keep the
+      // rest of the queue intact for later.
+      remaining.push(...queue.slice(i));
+      break;
+    }
+  }
+  _feedbackQueueSave(remaining);
+  if (queue.length > remaining.length) {
+    console.log(`[doxyedit] flushed ${queue.length - remaining.length} queued feedback entry(ies)`);
+  }
+}
+
+function notifyFeedback(entry) {
+  const full = Object.assign(
+    {host: location.host, pageUrl: location.href}, entry);
+  // Attempt POST. On success, opportunistically flush anything else
+  // that was queued from a previous outage. On failure, append to
+  // queue for retry.
+  _feedbackPostOne(full).then((ok) => {
+    if (ok) { _flushFeedbackQueue(); return; }
+    // Bridge up but returned non-2xx; don't retry this particular
+    // one, bridge is telling us it refused.
+  }).catch(() => {
+    const q = _feedbackQueueLoad();
+    q.push(full);
+    _feedbackQueueSave(q);
+    console.log("[doxyedit] feedback queued for retry (bridge down)");
+  });
 }
 
 async function postNowOnCurrentPlatform() {
@@ -1652,6 +1716,10 @@ function init() {
   applyData(DOXYEDIT_FALLBACK, "fallback");
   tryCdpInjection();
   tryHttpBridge();
+  // Retry any feedback events that failed to reach DoxyEdit last
+  // time (bridge was down, DoxyEdit restarting, etc.). Deferred a
+  // tick so the HTTP probe has a chance to discover the port first.
+  setTimeout(_flushFeedbackQueue, 1200);
   // Restore saved FAB position (user may have moved it last session).
   const saved = loadFabPosition();
   if (saved) {
