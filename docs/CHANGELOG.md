@@ -1,5 +1,158 @@
 # DoxyEdit Changelog
 
+## v2.5.2 (2026-04-24) - One-click cross-platform posting
+
+Session goal: press ONE button in the browser, the game-promotion
+post lands on the target social platform with image, caption, and
+submit all chained. Built on top of the v2.5.1 userscript bridge;
+this slice turns the bridge from an autofill helper into an actual
+posting pipeline.
+
+### Rename: psyai -> bridge
+
+Infrastructure cleanup before the posting work. The userscript
+system was named after a prior project; everything renamed in one
+pass (git mv preserves history):
+
+- `doxyedit/psyai_bridge.py` -> `doxyedit/bridge.py`
+- `doxyedit/psyai_data.py`   -> `doxyedit/bridge_data.py`
+- `doxyedit/psyai_worker.py` -> `doxyedit/bridge_worker.py`
+- `docs/userscripts/psyai-autofill.user.js`
+                             -> `docs/userscripts/doxyedit-autofill.user.js`
+- HTTP endpoints: `/psyai.json` -> `/doxyedit.json`, `/psyai-asset`
+  -> `/doxyedit-asset`, `/psyai-autofill.user.js`
+  -> `/doxyedit-autofill.user.js`
+- Window global `window.__psyai_data` -> `window.__bridge_data`
+- CSS classes, Python identifiers, log file path, panel brand,
+  all updated in lockstep
+
+### One-click POST NOW flow
+
+- **Green POST NOW button** appears in the userscript panel when
+  the current host is recognized AND the payload carries a matching
+  posts[<key>]. Chains image attach -> caption fill -> submit click
+  in sequence, reporting each step to the status strip.
+- **Per-host submit selectors** in `POST_NOW_HOSTS`:
+  - Bluesky: `[data-testid="composerPublishBtn"]`, `aria-label="Publish post"`
+  - X / Twitter: `[data-testid="tweetButtonInline"]`, `tweetButton`
+  - Threads: `div[role="dialog"] div[role="button"][tabindex="0"]`
+  - Mastodon: `button.compose-form__publish-button-wrapper button`
+  - Reddit: `shreddit-composer button[type="submit"]`,
+    `button[slot="submit-button"]`, `button.btn[name="submit"]`
+    for old.reddit
+- **Debounced** via `_postInFlight` so a second click while a post
+  is mid-flight is ignored.
+- **Post-submit verification**. After clicking submit, polls 8s
+  for the button to detach from the DOM, become disabled, or the
+  compose container to close (universal accepted-post signal).
+  Emits `verified:true` on success, `verified:false` with a note
+  on timeout so the user can spot-check instead of trusting a
+  false-positive POSTED.
+
+### Image attach: fetch cascade
+
+Tampermonkey's `GM_xmlhttpRequest` started stalling on multi-MB
+responses after the rename (script re-registered under new
+`@namespace` + `@name`; `@connect 127.0.0.1` approval never
+invisibly carried over). Ship a cascade of non-GM fetch paths,
+confirmed working by the user:
+
+- v4: plain `fetch()`
+- v5: plain `XMLHttpRequest`
+- v6: `<img>` + `canvas.toBlob()` (re-encodes; no byte transit)
+
+Cascade fires each variant in order with a 4s race timeout.
+Double-attach mutex in `_finalizeLoadedFile` checks
+`_pickedFiles[0].name + .size` so a slow variant that completes
+after a faster sibling already attached bails instead of firing
+a second paste event (had been producing the "two face.png"
+result on Bluesky). GM variants removed entirely rather than
+carried as dead code.
+
+### Feedback backchannel
+
+The other half of the pipeline: when the userscript successfully
+submits, DoxyEdit needs to know so the project can flip the post's
+status and record the live URL.
+
+- **POST /doxyedit-feedback** on the same HTTP bridge server.
+  Accepts JSON, stamps `t=epoch`, appends to `_HTTP_STATE.feedback`
+  (queue bounded at 1000).
+- `peek_feedback()` / `drain_feedback()` helpers on `bridge.py`.
+- Userscript `notifyFeedback(entry)` fires a plain fetch POST
+  stamped with `host` and `pageUrl`; called after every successful
+  POST NOW.
+- **MainWindow `_consume_bridge_feedback`** QTimer drains every 3s,
+  matches by `platformKey` (with Reddit root-matching so
+  `reddit_indiedev` maps to a `platforms=["reddit"]` post), sets
+  `platform_status[key] = "posted"` or `"posted_unverified"`,
+  records `published_urls[key] = pageUrl`, flips the overall
+  `status` to `POSTED` when every listed platform is accounted for
+  (or `PARTIAL` when some are). Calls `_refresh_social_panels()`
+  so the timeline / calendar / gantt / platform panel all repaint
+  without a manual tab switch.
+
+### Reddit-specific handling
+
+- Payload shape is `{title, body}`, not a plain caption string,
+  so the POST NOW flow branches to `fillPostPayload` which targets
+  title + body editors separately (Shreddit web components,
+  Draft.js contentEditable, old.reddit textareas).
+- **Subreddit-aware URL check**. plat_key is `reddit_<sub>`, so on
+  generic `/submit` we know which community and bail with a status
+  pointing at `/r/<sub>/submit` rather than failing silently at the
+  subreddit picker.
+- **Post-type tab stub**. Best-effort click on a visible Text tab
+  before the field scan, so `/submit` pages that default to the
+  Images tab get the title + body fields mounted.
+
+### UX polish
+
+- **F6 themed progress modal** (QProgressDialog styled via the
+  existing `claude_progress` QSS selectors) during CDP push.
+  Windows title bar tinted to the active theme.
+- **Auto-focus compose editor** before dispatching the synthetic
+  paste, so clicking the asset button no longer requires the user
+  to first click into the compose field themselves.
+- **Search-bar paste filter**: paste-friendly host check now
+  requires the focused element to sit inside a compose container
+  (`role=dialog`, `aria-modal`, form.compose-form, etc.) - a
+  focused search input on bsky.app no longer silently swallows
+  the paste event.
+- **atexit cleanup** so the worker subprocess + HTTP server thread
+  + persistent Playwright session don't zombie when DoxyEdit exits
+  through `sys.exit`, an unhandled exception, or bare
+  `QApplication.quit()`.
+- **HTTP bridge self-heal**: userscript drops the cached winning
+  port on a miss and re-probes all candidates next poll, so a
+  DoxyEdit restart on a different port is rediscovered within one
+  poll interval.
+- **Help line** in the userscript FAB panel documents all four
+  Alt shortcuts (P/N/B/V) and the transport color legend (cdp /
+  http / clipboard / fallback).
+- **Text-transform reset** on panel classes so host CSS (Bluesky
+  applies `text-transform:uppercase` on `button{}`) can't leak
+  into our buttons and render them in SHOUTING CAPS.
+
+### Misc
+
+- `_slugify_handle` collapses every non-[a-z0-9] run to a single
+  underscore so display names like `B.D. INC / Yacky` produce a
+  usable handle `b_d_inc_yacky` instead of `b.d._inc_/_yacky`.
+- Worker `stderr` is drained on a daemon thread so Playwright's
+  Node driver warnings / tracebacks can't fill the 64 KiB pipe
+  buffer and stall pushes; stderr lines land in the persistent
+  log for diagnosis.
+- Quiet CDP failure fallback: when CDP push fails but the HTTP
+  bridge is live, the userscript already has the same snapshot
+  mirrored, so `_bridge_push_done` degrades to a status-bar line
+  instead of a modal dialog.
+- `docs/userscripts/README.md` covers install, the F6 flow,
+  transport legend, shortcuts, per-platform notes, and the three
+  common failure modes.
+
+---
+
 ## v2.5.1 (2026-04-24) — Bubble + text polish, perf instrumentation, Brave migration
 
 Follow-up session to v2.5: bubble-deformer feature completion, text
