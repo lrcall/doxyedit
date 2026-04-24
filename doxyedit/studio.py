@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox, QTabWidget, QTextBrowser, QMessageBox,
     QWidgetAction, QDoubleSpinBox, QPlainTextEdit,
     QGraphicsDropShadowEffect, QGraphicsPathItem, QProgressDialog,
-    QSizePolicy,
+    QSizePolicy, QFrame,
 )
 from PySide6.QtCore import (
     Qt, QRectF, QPointF, QLineF, Signal, QSettings, QSize,
@@ -2163,6 +2163,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             fill_btn.clicked.connect(_fill_dialog)
             fill_row.addWidget(fill_btn)
             clear_btn = QPushButton("Clear")
+            clear_btn.setObjectName("studio_prop_btn")
             clear_btn.setMinimumWidth(56)
             def _clear_fill(_checked=False, _it=item):
                 _it.overlay.fill_color = ""
@@ -2176,6 +2177,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             # Text label instead of dice glyph - the emoji rendered as
             # a single letter on Windows default fonts.
             rand_btn = QPushButton("Rand")
+            rand_btn.setObjectName("studio_prop_btn")
             rand_btn.setMinimumWidth(56)
             rand_btn.setToolTip(
                 "Random pleasing color (HSL mid-brightness).")
@@ -2257,6 +2259,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             sd_row = QHBoxLayout()
             sd_row.setContentsMargins(0, 0, 0, 0)
             reset_btn = QPushButton("Reset Transform")
+            reset_btn.setObjectName("studio_prop_btn")
             reset_btn.setToolTip(
                 "Zero rotation / skew / flip + blend mode 'normal' on "
                 "the selected shape(s).")
@@ -2282,6 +2285,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             form.addRow("", reset_btn)
 
             save_default_btn = QPushButton("Save Default")
+            save_default_btn.setObjectName("studio_prop_btn")
             save_default_btn.setToolTip(
                 "Current stroke / fill / width / line style become the "
                 "defaults for new shapes drawn with the Shape tool.")
@@ -2304,6 +2308,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             sd_row.addWidget(save_default_btn)
 
             apply_default_btn = QPushButton("Apply Default")
+            apply_default_btn.setObjectName("studio_prop_btn")
             apply_default_btn.setToolTip(
                 "Apply the saved default shape style to every "
                 "selected shape.")
@@ -2367,6 +2372,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             # Only meaningful when stroke_width > 0 (otherwise the
             # swapped stroke is invisible).
             swap_btn = QPushButton("Swap fill ↔ stroke color")
+            swap_btn.setObjectName("studio_prop_btn")
             swap_btn.setToolTip(
                 "Exchange the fill color with the stroke color. "
                 "Illustrator calls this 'X'.")
@@ -2402,6 +2408,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             # turning a freehand ellipse into a perfect circle.
             if ov.shape_kind in ("rect", "ellipse"):
                 square_btn = QPushButton("Make perfect square / circle")
+                square_btn.setObjectName("studio_prop_btn")
                 square_btn.setToolTip(
                     "Equalize width and height (using the larger of the "
                     "two), keeping the shape centered in place.")
@@ -2464,6 +2471,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 preset_combo.currentTextChanged.connect(_apply_preset)
                 preset_row.addWidget(preset_combo, 1)
                 swap_btn = QPushButton("Swap")
+                swap_btn.setObjectName("studio_prop_btn")
                 swap_btn.setToolTip("Swap gradient start / end colors")
                 def _swap_grad(_checked=False, _it=item):
                     _it.overlay.gradient_start_color, \
@@ -2569,14 +2577,21 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     w = _QW(); w.setLayout(row)
                     return w
                 deform_form.addRow("Roundness",
-                    _mk_slider("bubble_roundness", 0.0, 1.0))
+                    _mk_slider("bubble_roundness", 0.0, 2.0))
                 deform_form.addRow("Oval stretch",
-                    _mk_slider("bubble_oval_stretch", -0.6, 0.6))
+                    _mk_slider("bubble_oval_stretch", -1.2, 1.2))
                 deform_form.addRow("Wobble",
-                    _mk_slider("bubble_wobble", 0.0, 1.0))
+                    _mk_slider("bubble_wobble", 0.0, 2.0))
+                deform_form.addRow("Skew X",
+                    _mk_slider("bubble_skew_x", -1.0, 1.0))
                 deform_form.addRow("Tail curve",
-                    _mk_slider("tail_curve", -1.0, 1.0))
+                    _mk_slider("tail_curve", -2.0, 2.0))
+                deform_form.addRow("Tail width",
+                    _mk_slider("bubble_tail_width", 0.2, 3.0))
+                deform_form.addRow("Tail taper",
+                    _mk_slider("bubble_tail_taper", -1.0, 1.0))
                 reset_def_btn = QPushButton("Reset Deformers")
+                reset_def_btn.setObjectName("studio_prop_btn")
                 reset_def_btn.setToolTip(
                     "Zero bubble roundness / oval / wobble / tail curve "
                     "back to their default values.")
@@ -2585,6 +2600,9 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     ov_r.bubble_roundness = 0.0
                     ov_r.bubble_oval_stretch = 0.0
                     ov_r.bubble_wobble = 0.0
+                    ov_r.bubble_skew_x = 0.0
+                    ov_r.bubble_tail_width = 1.0
+                    ov_r.bubble_tail_taper = 0.0
                     ov_r.tail_curve = 0.0
                     _it.prepareGeometryChange()
                     _it.update()
@@ -2858,6 +2876,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             form.addRow("Saturation", _mk_adjust("img_saturation", "Saturation"))
             # Reset all three adjustments quickly.
             reset_adj_btn = QPushButton("Reset Adjustments")
+            reset_adj_btn.setObjectName("studio_prop_btn")
             reset_adj_btn.setToolTip(
                 "Zero brightness / contrast / saturation back to defaults.")
             def _reset_adj(_checked=False, _it=item):
@@ -2876,6 +2895,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
 
             # Save-as-default row for watermark/image overlays.
             img_save_btn = QPushButton("Save as default watermark style")
+            img_save_btn.setObjectName("studio_prop_btn")
             img_save_btn.setToolTip(
                 "Current scale / opacity / filter / blend / adjustments "
                 "become the defaults for newly-dropped watermarks.")
@@ -2981,6 +3001,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             form.addRow("Line style", ls_combo)
 
             dh_btn = QPushButton("Double-headed")
+            dh_btn.setObjectName("studio_prop_btn")
             dh_btn.setCheckable(True)
             dh_btn.setChecked(bool(ov.double_headed))
             def _arrow_dh(checked, _it=item):
@@ -2991,6 +3012,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             form.addRow("", dh_btn)
 
             flip_dir_btn = QPushButton("Flip arrow direction")
+            flip_dir_btn.setObjectName("studio_prop_btn")
             flip_dir_btn.setToolTip(
                 "Swap arrow tail + tip endpoints so the arrow points "
                 "the other way without moving the overall line.")
@@ -3005,6 +3027,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             form.addRow("", flip_dir_btn)
 
             straighten_btn = QPushButton("Straighten (snap to 15°)")
+            straighten_btn.setObjectName("studio_prop_btn")
             straighten_btn.setToolTip(
                 "Rotate the arrow to the nearest 15° increment while "
                 "keeping the tail anchored. Useful for lining up "
@@ -3138,15 +3161,43 @@ class _StudioIcons:
         # Read the active theme (not DEFAULT_THEME) so sidebar tool icons
         # contrast against whatever backdrop the user has picked. For
         # light themes (Candy, Dawn, Gold, ...) this resolves to a dark
-        # ink; for dark themes (Soot, Midnight, ...) a light ink.
+        # ink; for dark themes (Soot, Midnight, ...) a light ink. On
+        # light themes push the ink to a deeper value than text_primary
+        # — the default text_primary values hover around #1a1410 which
+        # is fine for text but reads washed-out at 1.6-2px line widths
+        # against a bright background. Go to near-black for more
+        # perceptual weight without looking blown-out.
         tid = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
         theme = THEMES.get(tid, THEMES[DEFAULT_THEME])
+        if _StudioIcons._theme_is_light(theme):
+            return "#101010"
         return theme.text_primary
+
+    @staticmethod
+    def _theme_is_light(theme) -> bool:
+        # Rough perceptual-luminance check on bg_main. Treats anything
+        # brighter than mid-grey as a light theme. Matches the themes
+        # labelled "light" in themes.py (Bone, Milk Glass, Candy, etc.).
+        h = (theme.bg_main or "#000").lstrip("#")
+        if len(h) != 6:
+            return False
+        try:
+            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        except ValueError:
+            return False
+        return (0.299 * r + 0.587 * g + 0.114 * b) > 160
 
     @staticmethod
     def _pen(color_hex: str | None = None, w: float = 1.6) -> QPen:
         if color_hex is None:
             color_hex = _StudioIcons._fg()
+        # Thicken the stroke on light themes so the ink carries enough
+        # visual weight against the brighter backdrop. Dark themes stay
+        # at the base width to preserve the current silhouette.
+        tid = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
+        theme = THEMES.get(tid, THEMES[DEFAULT_THEME])
+        if _StudioIcons._theme_is_light(theme):
+            w = max(w, w + 0.4)
         p = QPen(QColor(color_hex), w)
         p.setCapStyle(Qt.PenCapStyle.RoundCap)
         p.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -6741,6 +6792,15 @@ class StudioEditor(QWidget):
         _col_row.addWidget(self.btn_outline_color)
         _col_row.addStretch()
         _dlg_layout.addRow("Colors", _col_widget)
+        # Horizontal divider helper, used to group the slider stack and the
+        # shadow row as distinct visual sections.
+        def _hdivider():
+            line = QFrame(_dlg)
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setFrameShadow(QFrame.Shadow.Plain)
+            line.setObjectName("card_divider")
+            return line
+        _dlg_layout.addRow("", _hdivider())
         # Outline row: slider + Clear button
         _ol_row = QHBoxLayout()
         _ol_row.setContentsMargins(0, 0, 0, 0)
@@ -6784,8 +6844,14 @@ class StudioEditor(QWidget):
         _dlg_layout.addRow("Line Height", self.slider_line_height)
         _dlg_layout.addRow("Rotation", self.slider_rotation)
         _dlg_layout.addRow("Width", self.slider_text_width)
+        _dlg_layout.addRow("", _hdivider())
         # Shadow toggles - persist through the overlay's shadow_color/
         # shadow_offset/shadow_blur fields so they round-trip on save.
+        # Two-row layout: top row = toggle + color + reset; bottom row =
+        # offset + blur sliders labelled so their purpose is obvious.
+        _shadow_container = QVBoxLayout()
+        _shadow_container.setContentsMargins(0, 0, 0, 0)
+        _shadow_container.setSpacing(4)
         _shadow_row = QHBoxLayout()
         _shadow_row.setContentsMargins(0, 0, 0, 0)
         self.btn_shadow_toggle = QPushButton("Drop Shadow")
@@ -6793,6 +6859,7 @@ class StudioEditor(QWidget):
         self.btn_shadow_toggle.setObjectName("studio_btn_shadow_toggle")
         self.btn_shadow_toggle.toggled.connect(self._on_shadow_toggled)
         _shadow_row.addWidget(self.btn_shadow_toggle)
+        _shadow_row.addStretch(1)
         self.slider_shadow_offset = QSlider(Qt.Orientation.Horizontal)
         self.slider_shadow_offset.setObjectName("studio_shadow_offset")
         self.slider_shadow_offset.setRange(0, 15)
@@ -6801,7 +6868,6 @@ class StudioEditor(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.slider_shadow_offset.setToolTip("Shadow offset (both x/y) in px")
         self.slider_shadow_offset.valueChanged.connect(self._on_shadow_offset_changed)
-        _shadow_row.addWidget(self.slider_shadow_offset, 1)
         # Blur slider for the drop shadow
         self.slider_shadow_blur = QSlider(Qt.Orientation.Horizontal)
         self.slider_shadow_blur.setObjectName("studio_shadow_blur")
@@ -6811,7 +6877,6 @@ class StudioEditor(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.slider_shadow_blur.setToolTip("Shadow blur radius in px")
         self.slider_shadow_blur.valueChanged.connect(self._on_shadow_blur_changed)
-        _shadow_row.addWidget(self.slider_shadow_blur, 1)
         # Color swatch for the shadow itself
         self.btn_shadow_color = _ColorSwatchButton(is_outline=False)
         self.btn_shadow_color.setObjectName("studio_shadow_color_btn")
@@ -6854,8 +6919,23 @@ class StudioEditor(QWidget):
             self.info_label.setText("Shadow cleared")
         _shadow_reset_btn.clicked.connect(_clear_shadow)
         _shadow_row.addWidget(_shadow_reset_btn)
+        # Second row: the two sliders with mini labels so the user can
+        # tell offset from blur at a glance.
+        _shadow_sliders_row = QHBoxLayout()
+        _shadow_sliders_row.setContentsMargins(0, 0, 0, 0)
+        _shadow_sliders_row.setSpacing(4)
+        _offset_lbl = QLabel("Off")
+        _offset_lbl.setObjectName("studio_mini_label")
+        _shadow_sliders_row.addWidget(_offset_lbl)
+        _shadow_sliders_row.addWidget(self.slider_shadow_offset, 1)
+        _blur_lbl = QLabel("Blur")
+        _blur_lbl.setObjectName("studio_mini_label")
+        _shadow_sliders_row.addWidget(_blur_lbl)
+        _shadow_sliders_row.addWidget(self.slider_shadow_blur, 1)
+        _shadow_container.addLayout(_shadow_row)
+        _shadow_container.addLayout(_shadow_sliders_row)
         _shadow_widget = QWidget(_dlg)
-        _shadow_widget.setLayout(_shadow_row)
+        _shadow_widget.setLayout(_shadow_container)
         _dlg_layout.addRow("Shadow", _shadow_widget)
         # Named text styles: combo + Save / Apply / Delete. Replaces the
         # generic 'Save Template' button (that moved to the overlay
@@ -10658,19 +10738,24 @@ class StudioEditor(QWidget):
         self.info_label.setText(f"Snapped {len(sel)} to pixels")
 
     def _qp_pick_fill_color(self):
-        """Quickbar fill-swatch click -> open QColorDialog and apply to
-        EVERY selected overlay (text color / shape fill / arrow color).
-        Previously routed through the text-only path so shape swatches
-        silently no-op'd."""
+        """Quickbar fill-swatch click -> open QColorDialog. When
+        something is selected, apply to EVERY selected overlay (text
+        color / shape fill / arrow color). When nothing is selected,
+        still open the dialog and persist the chosen color as the
+        DEFAULT fill for new shapes + text so the swatch is never a
+        dead click."""
         sel = self._scene.selectedItems()
         overlay_sel = [it for it in sel if hasattr(it, "overlay")]
-        if not overlay_sel:
-            return
-        first = overlay_sel[0].overlay
-        if isinstance(overlay_sel[0], OverlayShapeItem):
-            cur_hex = first.fill_color or first.color or "#ffffff"
+        if overlay_sel:
+            first = overlay_sel[0].overlay
+            if isinstance(overlay_sel[0], OverlayShapeItem):
+                cur_hex = first.fill_color or first.color or "#ffffff"
+            else:
+                cur_hex = first.color or "#000000"
         else:
-            cur_hex = first.color or "#000000"
+            qs = QSettings("DoxyEdit", "DoxyEdit")
+            cur_hex = qs.value(
+                "studio_shape_fill_color", "#ffffff", type=str) or "#ffffff"
         col = QColorDialog.getColor(
             QColor(cur_hex), self, "Fill / text color",
             QColorDialog.ColorDialogOption.ShowAlphaChannel)
@@ -10694,7 +10779,16 @@ class StudioEditor(QWidget):
                 it.update()
         self._qp_fill.setSwatchColor(col)
         self._add_recent_color(col.name())
-        self._sync_overlays_to_asset()
+        if not overlay_sel:
+            # Nothing to mutate — persist as the default fill so the
+            # next shape / text drawn picks up this color.
+            qs = QSettings("DoxyEdit", "DoxyEdit")
+            qs.setValue("studio_shape_fill_color", col.name())
+            if hasattr(self, "info_label"):
+                self.info_label.setText(
+                    f"Default fill color set to {col.name()}")
+        else:
+            self._sync_overlays_to_asset()
 
     def _qp_pick_stroke_color(self):
         """Quickbar outline-swatch click -> dialog -> stroke_color on
@@ -12034,6 +12128,17 @@ class StudioEditor(QWidget):
             if hasattr(it, "overlay") and it.overlay is ov:
                 if isinstance(it, OverlayArrowItem):
                     # Arrow: move whole arrow by delta of start point
+                    it.update()
+                elif isinstance(it, OverlayShapeItem):
+                    # Shape items are anchored at scene (0,0) and paint using
+                    # overlay.x/y directly (see itemChange ItemPositionChange
+                    # handler). Calling setPos here would trigger that
+                    # handler and DOUBLE the position delta on every slider
+                    # tick, leaving ghost-paint artifacts as the bounding
+                    # rect and painted geometry diverge. Re-anchor the drag
+                    # baseline and just invalidate geometry + redraw.
+                    it._drag_prev_value = QPointF(0, 0)
+                    it.prepareGeometryChange()
                     it.update()
                 else:
                     it.setPos(ov.x, ov.y)
