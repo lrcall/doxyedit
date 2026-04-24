@@ -2354,6 +2354,16 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         browser_menu = tools_menu.addMenu("Browser Posting")
         browser_menu.addAction("Launch Debug Chrome", self._launch_debug_chrome)
         browser_menu.addAction("Auto-Post to Subscriptions...", self._auto_post_subscriptions)
+        browser_menu.addSeparator()
+        browser_menu.addAction(
+            "Push Identity+Posts to Browser (CDP)",
+            self._psyai_push_cdp)
+        browser_menu.addAction(
+            "Start HTTP Bridge (userscript)",
+            self._psyai_start_http_bridge)
+        browser_menu.addAction(
+            "Copy Identity+Posts to Clipboard (userscript)",
+            self._psyai_copy_clipboard)
 
         # — Project Info submenu —
         projinfo_menu = tools_menu.addMenu("Project Info")
@@ -5514,6 +5524,90 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         else:
             QMessageBox.warning(self, "Chrome Not Found",
                 "Could not find Chrome. Set chrome_path in config.yaml under browser_automation:")
+
+    # ──────────────────────────────────────────────────────────────
+    # psyai userscript bridge — three transports from DoxyEdit into
+    # the Tampermonkey "psyai autofill" script. See psyai_bridge.py
+    # for the push / HTTP / clipboard implementations.
+    # ──────────────────────────────────────────────────────────────
+
+    def _psyai_build_data(self):
+        """Assemble the userscript payload from the current project +
+        whichever post is being composed (if any)."""
+        from doxyedit.psyai_data import build_psyai_data
+        composer_post = None
+        try:
+            if hasattr(self, "_docked_composer") and self._docked_composer:
+                composer_post = getattr(
+                    self._docked_composer, "_post", None)
+        except Exception:
+            composer_post = None
+        return build_psyai_data(self.project, composer_post)
+
+    def _psyai_push_cdp(self):
+        """Track A — inject identity + posts into the running Brave /
+        Chrome debug instance as window.__psyai_data. Re-pushes on
+        demand; also auto-runs after Launch Debug Chrome finishes."""
+        from doxyedit.psyai_bridge import cdp_push
+        from doxyedit.browserpost import is_chrome_running
+        if not is_chrome_running():
+            QMessageBox.warning(
+                self, "Debug Browser Not Running",
+                "Launch Debug Chrome / Brave first so the userscript "
+                "has a page to receive the injection.")
+            return
+        data = self._psyai_build_data()
+        ok = cdp_push(data)
+        if ok:
+            posts = len((data.get("posts") or {}))
+            self.status.showMessage(
+                f"Pushed identity + {posts} post(s) to debug browser", 4000)
+        else:
+            QMessageBox.warning(
+                self, "CDP Push Failed",
+                "Could not inject into the debug browser. Playwright "
+                "must be installed and the browser must have the debug "
+                "port (9222) open.")
+
+    def _psyai_start_http_bridge(self):
+        """Track C — run a tiny localhost HTTP server that the
+        userscript can GET /psyai.json from. Returns the bound port
+        so the user can paste it into the userscript if needed."""
+        from doxyedit.psyai_bridge import (
+            start_http_server, update_http_snapshot, http_bridge_port)
+        # Prefer the canonical port so the userscript's default
+        # candidate list finds it immediately; fall through to any
+        # free port if 8910 is taken.
+        port = start_http_server(8910)
+        if not port:
+            port = start_http_server(0)
+        if not port:
+            QMessageBox.warning(
+                self, "HTTP Bridge Failed",
+                "Could not start the localhost HTTP server. Another "
+                "process may already be using the port.")
+            return
+        update_http_snapshot(self._psyai_build_data())
+        self.status.showMessage(
+            f"psyai userscript bridge live at http://127.0.0.1:{port}/psyai.json",
+            8000)
+
+    def _psyai_copy_clipboard(self):
+        """Track B — serialize identity + posts as JSON with the magic
+        marker to the OS clipboard. The userscript's 'paste from
+        DoxyEdit' button reads it."""
+        from doxyedit.psyai_bridge import copy_to_clipboard
+        data = self._psyai_build_data()
+        if copy_to_clipboard(data):
+            posts = len((data.get("posts") or {}))
+            self.status.showMessage(
+                f"Copied identity + {posts} post(s) to clipboard — "
+                f"click 'paste from DoxyEdit' in the userscript panel",
+                6000)
+        else:
+            QMessageBox.warning(
+                self, "Clipboard Write Failed",
+                "Could not write to the clipboard.")
 
     def _auto_post_subscriptions(self):
         """Auto-post to all pending subscription platforms via Playwright."""
