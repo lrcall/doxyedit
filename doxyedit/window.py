@@ -5647,10 +5647,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _psyai_push_cdp(self):
         """Track A — inject identity + posts into the running Brave /
-        Chrome debug instance as window.__psyai_data. Runs on a
-        worker thread so Playwright's sync_playwright doesn't deadlock
-        against Qt's main event loop."""
-        from doxyedit.psyai_bridge import cdp_push_async
+        Chrome debug instance as window.__psyai_data. Uses the
+        persistent CDP session so init-script registrations survive
+        page reloads (F5 keeps the userscript green); the session
+        auto-starts on first push. One-shot fallback is cdp_push_
+        async if ever needed — but short-lived pushes lose the
+        registration the instant Playwright disconnects."""
+        from doxyedit.psyai_bridge import persistent_push
         from doxyedit.browserpost import is_chrome_running
         if not is_chrome_running():
             QMessageBox.warning(
@@ -5674,7 +5677,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 self._psyai_push_done, Qt.ConnectionType.QueuedConnection)
         def _cb(ok, err):
             self._psyai_push_signal.done.emit(ok, err or "", posts)
-        cdp_push_async(data, on_done=_cb)
+        persistent_push(data, on_done=_cb)
 
     def _psyai_push_done(self, ok: bool, err: str, posts: int):
         import sys as _sys
@@ -7535,6 +7538,18 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.status.showMessage(f"Opened {len(targets)} file(s)", 2000)
 
     def closeEvent(self, event):
+        # Tear down the persistent psyai CDP session + HTTP bridge
+        # so the daemon threads don't outlive Qt (otherwise Python's
+        # thread cleanup at interpreter shutdown can raise ugly
+        # RuntimeError: "cannot schedule new futures after
+        # interpreter shutdown" from Playwright's asyncio loop).
+        try:
+            from doxyedit.psyai_bridge import (
+                stop_persistent_session, stop_http_server)
+            stop_persistent_session()
+            stop_http_server()
+        except Exception:
+            pass
         if getattr(self, '_hotkey_registered', False):
             windroptarget.unregister_hotkey(int(self.winId()))
             if hasattr(self, '_hotkey_filter'):
