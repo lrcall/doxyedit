@@ -120,8 +120,29 @@ class _PsyaiHTTPState:
 _HTTP_STATE = _PsyaiHTTPState()
 
 
+def _userscript_path() -> Optional[str]:
+    """Absolute path to the bundled psyai-autofill.user.js. Resolves
+    relative to this file so it works regardless of CWD. Returns
+    None if the file isn't where we expect (e.g., a Nuitka onefile
+    build that didn't include docs/)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.dirname(here)
+    candidate = os.path.join(root, "docs", "userscripts",
+                              "psyai-autofill.user.js")
+    return candidate if os.path.exists(candidate) else None
+
+
 class _PsyaiHandler(BaseHTTPRequestHandler):
-    """Single-endpoint handler that returns the current snapshot JSON.
+    """Two-endpoint HTTP bridge.
+
+    GET /psyai.json   -> latest identity + posts snapshot (JSON).
+    GET /psyai-autofill.user.js
+                      -> bundled Tampermonkey userscript. Wired as
+                         @updateURL on the userscript itself so
+                         Tampermonkey's "Check for updates" pulls
+                         the LOCAL file — edits to the checkout are
+                         picked up without a GitHub round-trip.
+
     CORS wide-open so the userscript's GM_xmlhttpRequest (or a plain
     fetch from the browser page) can read cross-origin."""
 
@@ -131,6 +152,33 @@ class _PsyaiHandler(BaseHTTPRequestHandler):
                 body = _HTTP_STATE.snapshot_bytes
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path == "/psyai-autofill.user.js":
+            us_path = _userscript_path()
+            if us_path is None:
+                self.send_response(404)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                return
+            try:
+                with open(us_path, "rb") as f:
+                    body = f.read()
+            except Exception:
+                self.send_response(500)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                return
+            self.send_response(200)
+            # Tampermonkey needs text/javascript (NOT
+            # application/javascript) to recognize the install
+            # banner on page load.
+            self.send_header("Content-Type", "text/javascript; charset=utf-8")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
             self.send_header("Cache-Control", "no-store")
