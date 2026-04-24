@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.14
+// @version      2.15
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -188,16 +188,82 @@ async function pasteFromClipboard() {
 function fillPostPayload(payload) {
   // Shape: { platform: "reddit_indiedev", title?: str, body?: str, text?: str }
   if (payload.title !== undefined || payload.body !== undefined) {
-    const titleField = document.querySelector(
-      'textarea[placeholder*="Title" i], input[placeholder*="Title" i], textarea[name="title"]');
-    if (titleField && payload.title) setReactValue(titleField, payload.title);
-    else if (payload.title) copyToClipboard(payload.title);
-    const active = document.activeElement;
-    if ((active.tagName === "TEXTAREA" || active.isContentEditable) && payload.body) {
-      fillFocusedField(payload.body);
-    } else if (payload.body) {
-      copyToClipboard(payload.body);
-      alert("Body copied to clipboard - paste into body field.");
+    // Title field: try a broad selector list so new.reddit.com's
+    // Shreddit web components and the old compose form are both
+    // covered. Tests each candidate in order; first match wins.
+    const TITLE_SELECTORS = [
+      'textarea[name="title"]',                      // old.reddit
+      'textarea[placeholder*="Title" i]',            // generic
+      'input[placeholder*="Title" i]',
+      'textarea[aria-label*="title" i]',
+      'input[aria-label*="title" i]',
+      'shreddit-composer-title-input textarea',      // new.reddit
+      'shreddit-composer-title-input input',
+      '[name="title"]',                              // form fallback
+    ];
+    let titleField = null;
+    let titleMatched = null;
+    for (const sel of TITLE_SELECTORS) {
+      const el = document.querySelector(sel);
+      if (el) { titleField = el; titleMatched = sel; break; }
+    }
+    if (titleField && payload.title) {
+      setReactValue(titleField, payload.title);
+      setUploadStatus(
+        `title filled via ${titleMatched}`, true);
+    } else if (payload.title) {
+      copyToClipboard(payload.title);
+      setUploadStatus(
+        "no title field found; title copied to clipboard", false);
+    }
+    // Body: prefer a paste-style injection into the first body-like
+    // editor (Draft.js / Slate / generic contenteditable) inside a
+    // compose container. setReactValue doesn't stick in rich editors;
+    // paste events are what Reddit's body editor actually listens on.
+    if (payload.body) {
+      const BODY_SELECTORS = [
+        'shreddit-composer [contenteditable="true"]', // new.reddit
+        '[role="dialog"] [contenteditable="true"]',
+        '[aria-modal="true"] [contenteditable="true"]',
+        '[data-testid*="post" i] [contenteditable="true"]',
+        '[data-testid*="compos" i] [contenteditable="true"]',
+        'textarea[name="text"]',                     // old.reddit body
+        'textarea[placeholder*="body" i]',
+        'div.DraftEditor-root [contenteditable="true"]',
+      ];
+      let bodyField = null;
+      let bodyMatched = null;
+      for (const sel of BODY_SELECTORS) {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null) {
+          bodyField = el; bodyMatched = sel; break;
+        }
+      }
+      if (bodyField) {
+        try {
+          bodyField.focus();
+          if (bodyField.tagName === "TEXTAREA") {
+            setReactValue(bodyField, payload.body);
+          } else {
+            const dt = new DataTransfer();
+            dt.setData("text/plain", payload.body);
+            bodyField.dispatchEvent(new ClipboardEvent("paste", {
+              clipboardData: dt, bubbles: true, cancelable: true,
+            }));
+          }
+          setUploadStatus(
+            `body filled via ${bodyMatched}`, true);
+        } catch (e) {
+          copyToClipboard(payload.body);
+          setUploadStatus(
+            `body fill failed (${e.message}); copied to clipboard`,
+            false);
+        }
+      } else {
+        copyToClipboard(payload.body);
+        setUploadStatus(
+          "no body editor found; body copied to clipboard", false);
+      }
     }
   } else if (payload.text) {
     fillFocusedField(payload.text);
