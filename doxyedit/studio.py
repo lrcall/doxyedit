@@ -4242,6 +4242,11 @@ class StudioView(QGraphicsView):
         self._fps_last_paint_ms = 0.0
         self._fps_rolling_ms = 0.0
         self._fps_time = _t
+        # Any paint at or above this threshold gets logged unconditionally
+        # as a "slow_paint" event (separately from the 1-in-N sampled
+        # paint stream). 33ms = the budget for a 30fps frame; crossing
+        # that is a user-visible stutter worth investigating.
+        self._SLOW_PAINT_MS = 33.0
         # Perf log — when FPS HUD is on, append paint/interaction events
         # as JSONL so the dev can correlate user actions with perf.
         # Path is predictable + readable by Claude Code for diagnosis.
@@ -4338,7 +4343,7 @@ class StudioView(QGraphicsView):
             fps_cutoff = t1 - 1.0
             fps = len(self._fps_times) - bisect.bisect_left(
                 self._fps_times, fps_cutoff)
-            # Log every Nth paint to keep file small
+            # Log every Nth paint to keep file small.
             self._perf_paint_counter += 1
             if self._perf_paint_counter % self._perf_paint_sample_every == 0:
                 self._perf_log_event({
@@ -4348,6 +4353,32 @@ class StudioView(QGraphicsView):
                     "avg_ms": round(self._fps_rolling_ms, 2),
                     "dirty_w": event.rect().width(),
                     "dirty_h": event.rect().height(),
+                    "gl": self._gl_viewport_active,
+                })
+            # Also log every frame that took longer than SLOW_PAINT_MS —
+            # those are the stutters the user actually feels but the
+            # 1-in-N sampler usually misses. The log payload carries
+            # the sceneItemCount and scene transform scale so a future
+            # iteration can correlate slow paints with specific zooms
+            # and overlay counts. Dirty-rect is full ev.rect so we can
+            # distinguish "full viewport invalidation" slow paints
+            # from "big moving item" slow paints.
+            if self._fps_last_paint_ms >= self._SLOW_PAINT_MS:
+                try:
+                    scene = self.scene()
+                    scene_items = len(scene.items()) if scene else 0
+                    zoom_scale = self.transform().m11()
+                except Exception:
+                    scene_items = 0
+                    zoom_scale = 1.0
+                self._perf_log_event({
+                    "type": "slow_paint",
+                    "paint_ms": round(self._fps_last_paint_ms, 2),
+                    "avg_ms": round(self._fps_rolling_ms, 2),
+                    "dirty_w": event.rect().width(),
+                    "dirty_h": event.rect().height(),
+                    "scene_items": scene_items,
+                    "zoom": round(zoom_scale, 3),
                     "gl": self._gl_viewport_active,
                 })
             # Paint HUD on viewport
