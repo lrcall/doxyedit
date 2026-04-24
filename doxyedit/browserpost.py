@@ -1,10 +1,18 @@
 """browserpost.py — Automated posting to subscription platforms via Playwright + CDP.
 
-Connects to a running Chrome instance (with --remote-debugging-port) to fill
-forms, upload images, and submit posts on platforms that have no posting API.
+Connects to a running Chromium-family browser (Chrome or Brave) with
+--remote-debugging-port enabled, then fills forms, uploads images, and
+submits posts on platforms that have no posting API.
+
+Brave is preferred by default because Chrome now forces phone-number
+verification for fresh profiles. Brave is Chromium under the hood, so
+every CDP / Playwright call works identically — only the binary path
+and the default profile-dir name differ.
 
 Requires: pip install playwright
-Setup: User launches Chrome once with debug port, logs into platforms.
+Setup: User launches the chosen browser once with the debug port and
+logs into each platform. Per-browser profile dirs keep Chrome and
+Brave login state isolated.
 """
 from __future__ import annotations
 import asyncio
@@ -62,14 +70,92 @@ DEFAULT_SELECTORS: dict[str, dict] = {
 }
 
 
+# Per-browser binary candidates. First match wins inside each family.
+# Brave is listed first in the auto-detect order because the user's
+# primary workflow moved to Brave (Chrome now demands phone-number
+# verification on new profiles). Chrome stays as a fallback so
+# installations that still use it keep working untouched.
+_BROWSER_CANDIDATES: dict[str, list[str]] = {
+    "brave": [
+        os.path.expandvars(
+            r"%ProgramFiles%\BraveSoftware\Brave-Browser\Application\brave.exe"),
+        os.path.expandvars(
+            r"%ProgramFiles(x86)%\BraveSoftware\Brave-Browser\Application\brave.exe"),
+        os.path.expandvars(
+            r"%LocalAppData%\BraveSoftware\Brave-Browser\Application\brave.exe"),
+    ],
+    "chrome": [
+        os.path.expandvars(
+            r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(
+            r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(
+            r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
+    ],
+}
+
+_BROWSER_DISPLAY = {"brave": "Brave", "chrome": "Chrome"}
+
+# Auto-detect preference order: Brave, then Chrome. Applied when config
+# neither specifies a browser nor a binary path.
+_BROWSER_AUTO_ORDER = ("brave", "chrome")
+
+
+def _detect_browser_binary(preferred: str = "auto") -> tuple[str, str]:
+    """Return (browser_name, binary_path) for the first existing browser.
+    preferred = 'brave' / 'chrome' / 'auto'. Empty tuple on no match."""
+    if preferred and preferred != "auto":
+        for p in _BROWSER_CANDIDATES.get(preferred.lower(), []):
+            if os.path.exists(p):
+                return preferred.lower(), p
+        # Preference missed — fall through to auto-detect rather than
+        # failing outright, so the caller still gets a working browser.
+    for name in _BROWSER_AUTO_ORDER:
+        for p in _BROWSER_CANDIDATES.get(name, []):
+            if os.path.exists(p):
+                return name, p
+    return "", ""
+
+
+def _profile_dir_for(browser_name: str) -> str:
+    """Dedicated user-data-dir per browser so login state is isolated.
+    Preserves legacy chrome profile name so users who already logged in
+    via the old path keep their session on upgrade."""
+    if browser_name == "chrome":
+        return str(Path.home() / ".doxyedit_chrome_profile")
+    return str(Path.home() / f".doxyedit_{browser_name}_profile")
+
+
 def is_chrome_running(cdp_url: str = DEFAULT_CDP) -> bool:
-    """Check if a Chrome instance is accessible on the debug port."""
+    """Check if a debug-mode Chromium browser (Chrome or Brave) is
+    accessible on the CDP port. Name kept for back-compat with older
+    callers; the CDP endpoint is browser-agnostic."""
     try:
         with urlopen(f"{cdp_url}/json/version", timeout=2) as resp:
             data = json.loads(resp.read())
             return bool(data.get("webSocketDebuggerUrl"))
     except Exception:
         return False
+
+
+# Preferred name for new callers.
+is_debug_browser_running = is_chrome_running
+
+
+def detect_running_browser(cdp_url: str = DEFAULT_CDP) -> str:
+    """Return 'Brave' / 'Chrome' / '' for the browser backing the debug
+    port, extracted from the Browser field of /json/version."""
+    try:
+        with urlopen(f"{cdp_url}/json/version", timeout=2) as resp:
+            data = json.loads(resp.read())
+            ua = (data.get("Browser") or "") + " " + (data.get("User-Agent") or "")
+            if "Brave" in ua:
+                return "Brave"
+            if "Chrome" in ua:
+                return "Chrome"
+    except Exception:
+        pass
+    return ""
 
 
 def get_chrome_ws_url(cdp_url: str = DEFAULT_CDP) -> str:
@@ -82,48 +168,73 @@ def get_chrome_ws_url(cdp_url: str = DEFAULT_CDP) -> str:
         return ""
 
 
-def launch_debug_chrome(chrome_path: str = "", port: int = 9222) -> Optional[subprocess.Popen]:
-    """Launch Chrome with --remote-debugging-port.
+def launch_debug_browser(
+    browser_path: str = "",
+    port: int = 9222,
+    preferred: str = "auto",
+) -> tuple[Optional[subprocess.Popen], str]:
+    """Launch a Chromium-family browser with --remote-debugging-port.
 
-    Uses the system Chrome if chrome_path is empty.
-    Returns the Popen object, or None on failure.
+    browser_path: explicit binary path. Wins if set AND exists.
+    preferred:    'brave' / 'chrome' / 'auto' (Brave preferred, Chrome
+                  as fallback). Ignored when browser_path is set.
+
+    Returns (Popen, display_name). On failure returns (None, "").
     """
-    if not chrome_path:
-        # Try common Windows paths
-        candidates = [
-            os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
-            os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
-            os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
-        ]
-        for c in candidates:
-            if os.path.exists(c):
-                chrome_path = c
-                break
+    browser_name = ""
+    if browser_path and os.path.exists(browser_path):
+        # Infer name from path so the profile dir / log message matches.
+        lower = browser_path.lower()
+        if "brave" in lower:
+            browser_name = "brave"
+        elif "chrome" in lower:
+            browser_name = "chrome"
+        else:
+            # Unknown Chromium fork — treat as its own profile bucket.
+            browser_name = Path(browser_path).stem
+    else:
+        browser_name, browser_path = _detect_browser_binary(preferred)
 
-    if not chrome_path or not os.path.exists(chrome_path):
-        print(f"[BrowserPost] Chrome not found at: {chrome_path}")
-        return None
+    if not browser_path or not os.path.exists(browser_path):
+        print(
+            f"[BrowserPost] No Chromium-family browser found "
+            f"(preferred={preferred!r}). Install Brave or Chrome, or set "
+            f"browser_automation.browser_path in config.yaml.")
+        return None, ""
 
-    # Use a separate user-data-dir to avoid conflicting with main Chrome
-    profile_dir = str(Path.home() / ".doxyedit_chrome_profile")
-
+    display = _BROWSER_DISPLAY.get(browser_name, browser_name.capitalize())
+    profile_dir = _profile_dir_for(browser_name)
     args = [
-        chrome_path,
+        browser_path,
         f"--remote-debugging-port={port}",
         f"--user-data-dir={profile_dir}",
         "--no-first-run",
         "--no-default-browser-check",
     ]
-    print(f"[BrowserPost] Launching Chrome: {chrome_path} on port {port}")
+    print(
+        f"[BrowserPost] Launching {display}: {browser_path} on port {port}")
     try:
         proc = subprocess.Popen(
             args,
             creationflags=0x08000000 if sys.platform == "win32" else 0,
         )
-        return proc
+        return proc, display
     except Exception as e:
-        print(f"[BrowserPost] Failed to launch Chrome: {e}")
-        return None
+        print(f"[BrowserPost] Failed to launch {display}: {e}")
+        return None, ""
+
+
+def launch_debug_chrome(chrome_path: str = "", port: int = 9222) -> Optional[subprocess.Popen]:
+    """Deprecated shim — kept for back-compat with older callers that
+    may pass a Chrome binary path. New code should call
+    launch_debug_browser(...) directly so Brave is preferred by default.
+
+    When chrome_path is empty this routes through the new auto-detect
+    logic, so "no path set" gives the user Brave-preferred behavior
+    without any config change."""
+    proc, _ = launch_debug_browser(
+        browser_path=chrome_path, port=port, preferred="auto")
+    return proc
 
 
 def _load_selectors(project_dir: str) -> dict[str, dict]:
