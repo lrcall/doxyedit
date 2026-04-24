@@ -1,5 +1,163 @@
 # DoxyEdit Changelog
 
+## v2.5.1 (2026-04-24) — Bubble + text polish, perf instrumentation, Brave migration
+
+Follow-up session to v2.5: bubble-deformer feature completion, text
+rendering fixes, perf log visibility, and infrastructure work to let
+the posting pipeline switch from Chrome to Brave.
+
+### Bubble deformer overhaul
+- **Range doubled** on every existing deformer. Roundness 0..2 (past
+  1.0 overshoots into a puffier ellipse), Oval stretch -1.2..1.2,
+  Wobble 0..2, Tail curve -2..2.
+- **New modifiers** on `CanvasOverlay`:
+  - `bubble_tail_width` (0.2..3.0, default 1.0) — thicker/chunkier
+    vs needle-thin tail base.
+  - `bubble_tail_taper` (-1..1) — slides the tip sideways along the
+    tail axis so the tail leans instead of pointing symmetrically.
+  - `bubble_skew_x` (-1..1) — horizontal shear around body center.
+  - `bubble_wobble_waves` (2..32, default 8) — sin-cycle count around
+    the perimeter. Renamed from the prior `bubble_wobble_complexity`
+    (which controlled frequency, not vertex density).
+  - `bubble_wobble_complexity` (16..512, default 72) — actual vertex
+    count along the outline. Low → polygonal silhouette, high →
+    smooth curves, independent of wave count.
+  - `bubble_wobble_seed` (0..999) — phase shift so two bubbles on
+    the same canvas don't wobble in lockstep when copy-pasted.
+- **Shape Controls dialog** exposes all new sliders with "Reset
+  Deformers" restoring the full set to defaults.
+- **Shared path builder** (`_build_speech_bubble_path` and
+  `_build_thought_bubble_body_path`) so the off-thread QImage cache
+  renderer and the live paint path produce pixel-identical output
+  across every deformer. Previously the cache only applied
+  `bubble_roundness` and "reverted" the shape once async render
+  settled.
+- **Skia preview (Shift+S)** brought to parity with every deformer
+  via `canvas_skia._append_speech_bubble_path`, including
+  `skia.PathMeasure`-based wobble when the Skia-Python build
+  supports it.
+- **Bounding rect inflation** covers every deformer's worst-case
+  extent — wobble amp, oval-stretch expansion, skew shear, roundness
+  overshoot, tail-curve bezier excursion, and stroke half-width —
+  so selection dashes, hit-tests, and Qt invalidation never crop
+  the painted shape.
+- **Text ↔ bubble reverse linking**: dragging a text item that's the
+  `linked_text_id` of a speech/thought bubble now moves the bubble
+  in lockstep. Previously the link was one-way (bubble drag → text
+  followed) so dragging the text decoupled the pair.
+
+### Text rendering
+- **Line-height mode** switched from `ProportionalHeight` to
+  `LineDistanceHeight` (Qt's additive-leading mode). Glyphs always
+  render at natural height; only the baseline advance changes. At
+  `lh < 1.0` lines overlap typographic-comics style without
+  shrinking the line box; at `lh > 1.0` leading expands normally.
+- **Descender clipping fixed** — main text routed through
+  `QAbstractTextDocumentLayout.draw()` instead of the default
+  `QGraphicsTextItem.paint()` which clipped to the document's
+  reported bounds and ate the last line's descenders. Edit mode
+  still routes through super().paint() so the caret + selection
+  highlight render normally.
+
+### Text Controls dialog
+- **Painted `_StudioIcons` for Weight + Align** (`text_bold`,
+  `text_italic`, `text_underline`, `text_strike`, `align_left`,
+  `align_center`, `align_right`). Replaces raw glyph letters and
+  unicode line-drawing chars that rendered blank on some UI fonts.
+- **Compressed button token** (`studio_prop_btn`) applied to every
+  Shape Controls action button (Reset Transform, Save/Apply Default,
+  Swap fill↔stroke, Make square, Clear, Rand, Reset Deformers,
+  Reset Adjustments, etc).
+- **Shadow row split** into two rows: toggle + color swatch + Clear
+  on top, labelled Off / Blur sliders on bottom.
+- **Dividers** above the Outline/Kerning/Line Height/Rotation/Width
+  slider stack and above the Shadow section.
+- **Min width raised** so the Qt.Tool title bar never truncates the
+  "Text Controls" caption to "xt Controls" with the close X on top.
+  Derived from `font_size * ratio` so the floor scales with the
+  active theme's UI size.
+- **Chars / words / lines** count label moved to its own form row
+  so it no longer overlaps the text edit above.
+- **Position combo** stays in the main top toolbar instead of being
+  re-parented into the Text Controls popup on dialog build.
+
+### Theme + icon contrast
+- **Light-theme icon tuning** — `_StudioIcons._fg()` returns
+  `#101010` on themes whose `bg_main` luminance is over 160, and
+  `_pen()` adds 0.4px of stroke width on light themes so painted
+  glyphs carry visible weight against bright chrome.
+
+### Browser → Studio routing
+- **Ctrl+Enter** on a browser thumbnail emits the new
+  `AssetBrowser.asset_to_studio` signal, which window.py wires to
+  the existing `_send_to_studio` handler.
+- **S key** (plain, no modifiers) sends the current asset to Studio
+  from anywhere in the main window: browser selection wins first,
+  then the docked preview pane's asset, then a Studio-tab fallback.
+- **Paint → Studio**: fill-color swatch in the quickbar now opens
+  `QColorDialog` when nothing is selected and persists the picked
+  color as the default shape fill, so the left-side swatch is never
+  a dead click.
+
+### Posting pipeline
+- **Brave browser auto-detect** (`browserpost._BROWSER_CANDIDATES`,
+  `launch_debug_browser`). Chrome now requires phone-number
+  verification for fresh profiles, so the user's posting workflow
+  is shifting to Brave. Brave is preferred by default, Chrome is
+  a fallback, per-browser profile dirs isolate login state, and
+  the deprecated `launch_debug_chrome` shim keeps every existing
+  call site working.
+- `detect_running_browser(cdp_url)` reports whichever is actually
+  answering the CDP port so UI messages can say "Debug Brave
+  launched..." instead of a stale "Debug Chrome launched...".
+
+### Performance
+- **Image-enhance PIL off GUI thread** — the brightness / contrast /
+  saturation PIL passes on image overlays now run on
+  `QThreadPool.globalInstance()` via `_ImageEnhanceWorker` +
+  `_ImageEnhanceSignals`. Per-item monotonic tokens prevent stale
+  mid-drag workers from overwriting newer slider positions.
+- **Shared speech-bubble path builder** removes the divergence
+  guard so decorated bubbles can hit the fast-blit cache path after
+  the first async build, instead of being stuck on the 72-sample
+  live path forever.
+- **OverlayShapeItem X/Y slider fix** — `_on_pos_field_changed`
+  bypasses `setPos()` for shape items (which stay anchored at scene
+  (0,0) and paint from `overlay.x/y` directly). Previously setPos
+  triggered itemChange which added the slider delta a SECOND time,
+  leaving ghost-tail paint artifacts as the bounding rect drifted
+  away from the painted geometry.
+
+### Perf log instrumentation
+- **`slow_paint`** events fire unconditionally when a single paint
+  is ≥ 33ms (30fps budget). Payload carries scene_items + zoom +
+  dirty-rect dimensions to distinguish "full viewport invalidation"
+  slow paints from "big moving item" slow paints. Prior 1-in-N
+  sampler missed most stutter frames.
+- **`frame_gap`** events fire when the inter-paint interval is
+  ≥ 100ms. Catches the class of stutter where each paint is fast
+  but the event loop was blocked between them (autosave / JSON I/O
+  / signal-handler work). Payload carries gap_ms + current paint_ms.
+- **`session_start`** no longer misreports `gl_probe_ok=false` /
+  `gl_probe_err=""` when the probe was never attempted; now records
+  `gl_probe_attempted=false` instead.
+
+### Tokenization + cleanup
+- **`BUBBLE_*` and `THOUGHT_BUBBLE_*` constants** at module top of
+  `studio_items.py` so every bubble geometry ratio has a single
+  source of truth. Prior duplication between the live path and
+  bounding-rect inflation was the source of multiple "ghost trail"
+  regressions this session.
+- **Session tokenization pass** (`/tokenize session`) named every
+  magic number this session introduced — text-controls button sizing
+  ratios, deformer slider widths, worker state (`_brightness`
+  instead of `_br`, etc), last-line headroom + shrink compensation.
+- **`QFrame` import fix** in `studio.py` — missing from the Widgets
+  import block caused a startup `NameError` when the Text Controls
+  dialog tried to build its dividers.
+
+---
+
 ## v2.5 (2026-04-22) — Studio full-graphics-product push
 
 Session goal: "the closer it is to a full graphic product the better."
