@@ -515,15 +515,26 @@ class ImagePreviewDialog(QDialog):
         info_bar_widget.setLayout(info_bar)
         info_bar_widget.mouseDoubleClickEvent = lambda e: self._toggle_fullscreen()
         layout.addWidget(info_bar_widget)
+        # Held so Tiny mode can hide this whole row — the toggle is
+        # about reclaiming space, not just shrinking the frame.
+        self._info_bar_widget = info_bar_widget
+        # Apply whatever tiny-mode persisted state we read at init.
+        if self._preview_tiny_mode:
+            info_bar_widget.setVisible(False)
 
         # Zoomable view
         _dt = THEMES[DEFAULT_THEME]
         self.scene = QGraphicsScene()
         self.scene.setBackgroundBrush(QColor(_dt.bg_deep))
         self.view = QGraphicsView(self.scene)
-        self.view.setRenderHints(
-            QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform
-        )
+        # Apply persisted bilinear / nearest preference. Default on
+        # (smooth upscale); users who want true pixel ratio flip via
+        # right-click context menu.
+        _bilinear = QSettings("DoxyEdit", "DoxyEdit").value(
+            "preview_bilinear", True, type=bool)
+        self.view.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        self.view.setRenderHint(
+            QPainter.RenderHint.SmoothPixmapTransform, _bilinear)
         self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self.view.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         # Allow panning beyond the image edges
@@ -957,19 +968,53 @@ class ImagePreviewDialog(QDialog):
                 int(font_size * self.DIALOG_MIN_HEIGHT_RATIO))
 
     def _on_preview_context_menu(self, pos):
-        """Right-click anywhere in the preview dialog — offer a Tiny-mode
-        toggle. Persists via QSettings so the choice survives restarts."""
+        """Right-click anywhere in the preview dialog — offer Tiny mode
+        + bilinear-filtering toggles. Both persist via QSettings so the
+        choice survives restarts."""
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
         tiny_act = menu.addAction("Tiny mode")
         tiny_act.setCheckable(True)
         tiny_act.setChecked(bool(getattr(self, "_preview_tiny_mode", False)))
+        menu.addSeparator()
+        bil_act = menu.addAction("Bilinear filter (smooth upscale)")
+        bil_act.setCheckable(True)
+        cur_bilinear = QSettings("DoxyEdit", "DoxyEdit").value(
+            "preview_bilinear", True, type=bool)
+        bil_act.setChecked(cur_bilinear)
         chosen = menu.exec(self.mapToGlobal(pos))
         if chosen is tiny_act:
             self._preview_tiny_mode = not self._preview_tiny_mode
             QSettings("DoxyEdit", "DoxyEdit").setValue(
                 "preview_tiny_mode", self._preview_tiny_mode)
+            # Also hide / show the top info bar — tiny-mode reclaims
+            # that whole strip instead of just letting the window
+            # shrink behind it.
+            if hasattr(self, "_info_bar_widget"):
+                self._info_bar_widget.setVisible(not self._preview_tiny_mode)
             self._apply_preview_min_size()
+        elif chosen is bil_act:
+            new_val = not cur_bilinear
+            QSettings("DoxyEdit", "DoxyEdit").setValue(
+                "preview_bilinear", new_val)
+            self._apply_preview_smoothing(new_val)
+
+    def _apply_preview_smoothing(self, bilinear: bool):
+        """Swap the QGraphicsView's render hints between smooth bilinear
+        upscale and nearest-neighbor. Nearest gives true pixel ratio
+        with no interpolation — the "pixel-art / exact-pixel inspect"
+        mode the user asked for."""
+        view = getattr(self, "view", None)
+        if view is None:
+            return
+        view.setRenderHint(
+            QPainter.RenderHint.SmoothPixmapTransform, bilinear)
+        for item in view.items():
+            if hasattr(item, "setTransformationMode"):
+                item.setTransformationMode(
+                    Qt.TransformationMode.SmoothTransformation if bilinear
+                    else Qt.TransformationMode.FastTransformation)
+        view.viewport().update()
 
     def _toggle_fullscreen(self):
         if self._is_fullscreen:
