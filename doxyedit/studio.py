@@ -7286,22 +7286,27 @@ class StudioEditor(QWidget):
         self.chk_layer_locked.toggled.connect(self._on_layer_locked_toggled)
         _props_layout.addWidget(self.chk_layer_locked)
 
-        # Position X: slider (coarse drag) + spinbox (precise text entry)
-        # User asked for 'X/Y and rotation in layer mode should be
-        # sliders with text entry fields' - both widgets edit the same
-        # value and stay in sync via blockSignals when one updates.
+        # Position X / Y / Rot share a 3-column layout:
+        #   [ fixed-width label | stretchy slider | fixed-width spinbox ]
+        # so all three rows visually align — the user's "draw x,y,rot
+        # consistently with columns and proper spacing" ask.
+        _label_col_w = int(_dt.font_size * 2.8)
+        _spin_col_w = int(_dt.font_size * 6.2)
         _px_row = QHBoxLayout()
         _px_row.setContentsMargins(0, 0, 0, 0)
-        _px_row.addWidget(QLabel("X"))
+        _px_row.setSpacing(max(4, _pad))
+        _px_lbl = QLabel("X")
+        _px_lbl.setFixedWidth(_label_col_w)
+        _px_row.addWidget(_px_lbl)
         self.slider_pos_x = QSlider(Qt.Orientation.Horizontal)
         self.slider_pos_x.setObjectName("studio_pos_x_slider")
         self.slider_pos_x.setRange(-10000, 10000)
-        _px_row.addWidget(self.slider_pos_x, 2)
+        _px_row.addWidget(self.slider_pos_x, 1)
         self.spin_pos_x = QSpinBox()
         self.spin_pos_x.setObjectName("studio_pos_x_spin")
         self.spin_pos_x.setRange(-50000, 50000)
         self.spin_pos_x.setSuffix(" px")
-        self.spin_pos_x.setFixedWidth(int(_dt.font_size * 6.2))
+        self.spin_pos_x.setFixedWidth(_spin_col_w)
         _px_row.addWidget(self.spin_pos_x)
         def _x_slider_changed(v):
             if self.spin_pos_x.value() != v:
@@ -7321,16 +7326,19 @@ class StudioEditor(QWidget):
 
         _py_row = QHBoxLayout()
         _py_row.setContentsMargins(0, 0, 0, 0)
-        _py_row.addWidget(QLabel("Y"))
+        _py_row.setSpacing(max(4, _pad))
+        _py_lbl = QLabel("Y")
+        _py_lbl.setFixedWidth(_label_col_w)
+        _py_row.addWidget(_py_lbl)
         self.slider_pos_y = QSlider(Qt.Orientation.Horizontal)
         self.slider_pos_y.setObjectName("studio_pos_y_slider")
         self.slider_pos_y.setRange(-10000, 10000)
-        _py_row.addWidget(self.slider_pos_y, 2)
+        _py_row.addWidget(self.slider_pos_y, 1)
         self.spin_pos_y = QSpinBox()
         self.spin_pos_y.setObjectName("studio_pos_y_spin")
         self.spin_pos_y.setRange(-50000, 50000)
         self.spin_pos_y.setSuffix(" px")
-        self.spin_pos_y.setFixedWidth(int(_dt.font_size * 6.2))
+        self.spin_pos_y.setFixedWidth(_spin_col_w)
         _py_row.addWidget(self.spin_pos_y)
         def _y_slider_changed(v):
             if self.spin_pos_y.value() != v:
@@ -7348,20 +7356,25 @@ class StudioEditor(QWidget):
         self.spin_pos_y.valueChanged.connect(_y_spin_changed)
         _props_layout.addLayout(_py_row)
 
-        # Rotation: slider (-360..360) + spinbox with same range.
+        # Rotation: slider (-360..360) + spinbox with same range. Uses
+        # the same label-col / spin-col widths as X and Y so the three
+        # rows align.
         _rot_row = QHBoxLayout()
         _rot_row.setContentsMargins(0, 0, 0, 0)
-        _rot_row.addWidget(QLabel("Rot"))
+        _rot_row.setSpacing(max(4, _pad))
+        _rot_lbl = QLabel("Rot")
+        _rot_lbl.setFixedWidth(_label_col_w)
+        _rot_row.addWidget(_rot_lbl)
         self.slider_rotation_layer = QSlider(Qt.Orientation.Horizontal)
         self.slider_rotation_layer.setObjectName(
             "studio_rotation_layer_slider")
         self.slider_rotation_layer.setRange(-360, 360)
-        _rot_row.addWidget(self.slider_rotation_layer, 2)
+        _rot_row.addWidget(self.slider_rotation_layer, 1)
         self.spin_rotation_layer = QSpinBox()
         self.spin_rotation_layer.setObjectName("studio_rotation_layer_spin")
         self.spin_rotation_layer.setRange(-360, 360)
         self.spin_rotation_layer.setSuffix("°")
-        self.spin_rotation_layer.setFixedWidth(int(_dt.font_size * 5.2))
+        self.spin_rotation_layer.setFixedWidth(_spin_col_w)
         _rot_row.addWidget(self.spin_rotation_layer)
         def _rot_slider_changed(v):
             if self.spin_rotation_layer.value() != v:
