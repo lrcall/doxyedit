@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.12
+// @version      2.13
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -368,7 +368,53 @@ function loadAssetFromBridge(asset) {
 // on first success. Used by the click-an-asset-button flow.
 async function autoInject() {
   if (!_pickedFiles.length) return;
-  // Strategy 1: existing input[type=file]
+  // On paste-friendly hosts (Bluesky, X, Mastodon, Threads) the
+  // file input is a React-managed ghost: reading its .files doesn't
+  // reflect the site's own image state, and writing to it triggers
+  // a second attach even when a paste has already happened. Going
+  // paste-only there means one attach, one code path. If the compose
+  // isn't focused we fall through to the click strategy so the user
+  // can still recover (even though that opens the OS dialog).
+  const host = location.hostname.toLowerCase();
+  const pasteFriendly = (
+    host.endsWith("bsky.app") ||
+    host === "x.com" || host.endsWith(".x.com") ||
+    host.endsWith("twitter.com") ||
+    host.includes("mastodon") ||
+    host.endsWith("threads.net")
+  );
+  if (pasteFriendly) {
+    const active = document.activeElement;
+    // Only paste onto a compose editor, not a search bar. Require
+    // contentEditable or TEXTAREA AND proximity to a compose container.
+    const isComposeish = active && (
+      active.isContentEditable || active.tagName === "TEXTAREA");
+    const inComposeContext = isComposeish && active.closest(
+      '[role="dialog"], [aria-modal="true"], ' +
+      '[data-testid*="compos" i], [data-testid*="post" i], ' +
+      'form[class*="compose" i], form[id*="compose" i]');
+    if (inComposeContext) {
+      try {
+        const dt2 = new DataTransfer();
+        for (const f of _pickedFiles) dt2.items.add(f);
+        const pasteEv = new ClipboardEvent("paste", {
+          clipboardData: dt2, bubbles: true, cancelable: true,
+        });
+        active.dispatchEvent(pasteEv);
+        setUploadStatus(`✓ attached via paste (no dialog)`, true);
+        return;
+      } catch (e) { /* fall through to click strategy */ }
+    }
+    // Paste-friendly host but compose not focused: don't fall through
+    // to Strategy 1 here, because the file-input route produces the
+    // same duplicate-attach bug. Tell the user what's needed instead.
+    setUploadStatus(
+      "click into the compose editor first, then retry", false);
+    return;
+  }
+  // Strategy 1: existing input[type=file]. Only runs on non-paste-
+  // friendly hosts (Newgrounds, Reddit upload, ko-fi, etc.) where the
+  // file-input is the actual source of truth for attachments.
   const candidates = Array.from(
     document.querySelectorAll('input[type="file"]'));
   // Exclude profile-picture uploaders that might be on the same page
@@ -379,10 +425,10 @@ async function autoInject() {
     const attrs = [el.name, el.id, el.className].join(" ").toLowerCase();
     return !/\b(avatar|banner|profile_pic|profilepic|header_image|headerimage|favicon)\b/.test(attrs);
   };
-  // Compose-context selector list covers modal composers (X, Bluesky,
-  // Reddit new), inline composers that live in a plain <form> with a
-  // "compose" class or id (Mastodon: main form, no dialog wrapper),
-  // and upload forms (Newgrounds: form[action*=upload]).
+  // Compose-context selector list covers upload forms (Newgrounds:
+  // form[action*=upload]) and inline composers that live in a plain
+  // <form class="compose-form">. Modal composers (Bluesky, X) never
+  // reach here because pasteFriendly caught them above.
   const COMPOSE_CONTEXT = (
     '[role="dialog"], [aria-modal="true"], ' +
     '[data-testid*="compos" i], [data-testid*="post" i], ' +
@@ -409,46 +455,6 @@ async function autoInject() {
       setUploadStatus(`✓ attached via file input`, true);
       return;
     } catch (e) { /* fall through */ }
-  }
-  // Strategy 2: paste onto the focused compose area. Bluesky, X,
-  // Mastodon, and Threads all handle pasted image files natively
-  // and attach without opening a native file picker. Running this
-  // BEFORE strategy 4 avoids the "image attaches AND OS file picker
-  // pops open" UX on those hosts. Only fires when a relevant text
-  // field is focused, since ClipboardEvent paste needs a target.
-  const host = location.hostname.toLowerCase();
-  const pasteFriendly = (
-    host.endsWith("bsky.app") ||
-    host === "x.com" || host.endsWith(".x.com") ||
-    host.endsWith("twitter.com") ||
-    host.includes("mastodon") ||
-    host.endsWith("threads.net")
-  );
-  if (pasteFriendly) {
-    const active = document.activeElement;
-    // Require a compose-ish target to avoid dispatching paste onto
-    // a search bar (plain <input>) on sites like bsky.app, which
-    // would silently swallow the event and leave the user thinking
-    // the attach succeeded. Drop plain INPUT from the accepted
-    // types and also require proximity to a compose container.
-    const isComposeish = active && (
-      active.isContentEditable || active.tagName === "TEXTAREA");
-    const inComposeContext = isComposeish && active.closest(
-      '[role="dialog"], [aria-modal="true"], ' +
-      '[data-testid*="compos" i], [data-testid*="post" i], ' +
-      'form[class*="compose" i], form[id*="compose" i]');
-    if (inComposeContext) {
-      try {
-        const dt2 = new DataTransfer();
-        for (const f of _pickedFiles) dt2.items.add(f);
-        const pasteEv = new ClipboardEvent("paste", {
-          clipboardData: dt2, bubbles: true, cancelable: true,
-        });
-        active.dispatchEvent(pasteEv);
-        setUploadStatus(`✓ attached via paste (no dialog)`, true);
-        return;
-      } catch (e) { /* fall through to click strategy */ }
-    }
   }
   // Strategy 4: click image/photo/attach button, retry input.
   const btnPatterns = [
