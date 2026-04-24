@@ -860,10 +860,13 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         for fkey, target in self._fkey_tab_map:
             QShortcut(QKeySequence(fkey), self).activated.connect(
                 lambda t=target: self.tabs.setCurrentWidget(t))
-        # S = jump to Studio tab. Single-letter, so WindowShortcut context
-        # keeps it dormant when a text input has focus.
+        # S = send the current asset (browser selection, or whatever the
+        # preview pane is showing) to Studio + switch to the Studio tab.
+        # Falls back to just switching tabs when nothing is selected.
+        # WindowShortcut context keeps the single-letter binding dormant
+        # while a text input has focus.
         QShortcut(QKeySequence("S"), self).activated.connect(
-            lambda: self.tabs.setCurrentWidget(self.studio))
+            self._s_shortcut_to_studio)
 
         # --- Status bar with progress ---
         self.status = QStatusBar()
@@ -4518,6 +4521,24 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         asset = self.project.get_asset(asset_id)
         if asset and hasattr(self, 'studio'):
             self.studio.load_asset(asset)
+            self.tabs.setCurrentWidget(self.studio)
+
+    def _s_shortcut_to_studio(self):
+        """Handler for the window-level S shortcut. Sends whichever asset
+        is currently "active" to Studio: browser selection wins first,
+        then the docked preview pane's asset, then the floating preview
+        dialog's asset. If none of those have anything, just switches
+        to the Studio tab as a fallback."""
+        aid = ""
+        if hasattr(self, "browser") and self.browser._selected_ids:
+            aid = next(iter(self.browser._selected_ids))
+        elif hasattr(self, "_preview_pane"):
+            pv_asset = getattr(self._preview_pane, "_asset", None)
+            if pv_asset is not None:
+                aid = pv_asset.id
+        if aid:
+            self._send_to_studio(aid)
+        elif hasattr(self, "studio"):
             self.tabs.setCurrentWidget(self.studio)
 
     def _studio_from_preview_pane(self):
