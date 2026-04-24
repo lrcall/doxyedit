@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.35
+// @version      2.36
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -1010,6 +1010,13 @@ async function loadAssetFromBridge(asset) {
     setUploadStatus("✗ asset has no url", false);
     return false;
   }
+  // Reset the cached File bag so the content-match mutex inside
+  // _finalizeLoadedFile actually behaves as a per-call guard. Without
+  // this a second click on the same asset (e.g. user hit POST NOW
+  // after the first one's compose closed) would see _pickedFiles[0]
+  // already matching, skip the finalize, and silently fail to
+  // dispatch the paste event on the new compose.
+  _pickedFiles = [];
   logToBridge("debug", "fetching asset", asset.url);
   for (const [label, fn] of _ASSET_CASCADE) {
     setUploadStatus(`trying ${label}...`, true);
@@ -1846,11 +1853,18 @@ function rebuildPanel() {
   // Pushed-asset buttons - one-click attach, no OS picker. The
   // cascade inside loadAssetFromBridge tries v4 -> v5 -> v6 fetch
   // paths automatically so there's no per-variant button UI.
+  // Disable the button for the duration of the fetch so a double-
+  // click can't start two concurrent loadAssetFromBridge calls -
+  // the _pickedFiles reset inside the second call would otherwise
+  // stomp the first call's in-progress state.
   panelEl.querySelectorAll(".doxyedit-asset").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const idx = parseInt(btn.dataset.idx, 10);
       const asset = (currentData.assets || [])[idx];
-      if (asset) loadAssetFromBridge(asset);
+      if (!asset) return;
+      btn.disabled = true;
+      try { await loadAssetFromBridge(asset); }
+      finally { btn.disabled = false; }
     });
   });
   // Kick off thumbnail preloads for any assets we haven't cached
