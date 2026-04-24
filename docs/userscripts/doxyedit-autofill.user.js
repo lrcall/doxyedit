@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.18
+// @version      2.19
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -681,11 +681,17 @@ function preloadAssetThumbs(assets) {
     GM_xmlhttpRequest({
       method: "GET",
       url: a.url,
-      responseType: "blob",
+      // Same stall pattern as loadAssetFromBridge - Tampermonkey's
+      // blob responseType hangs on multi-MB responses. Use
+      // arraybuffer and wrap into a Blob locally before creating
+      // the objectURL that the <img> src will point at.
+      responseType: "arraybuffer",
       timeout: 10000,
       onload: (resp) => {
-        if (resp.status === 200 && resp.response instanceof Blob) {
-          _assetThumbCache[a.id] = URL.createObjectURL(resp.response);
+        if (resp.status === 200 && resp.response instanceof ArrayBuffer) {
+          const mime = a.mime || "image/png";
+          const blob = new Blob([resp.response], { type: mime });
+          _assetThumbCache[a.id] = URL.createObjectURL(blob);
         } else {
           _assetThumbCache[a.id] = "error";
         }
