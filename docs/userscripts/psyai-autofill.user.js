@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         psyai autofill (DoxyEdit bridge)
 // @namespace    https://psyai.game
-// @version      2.11
+// @version      2.12
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard — with the old hardcoded library as last-resort fallback.
 // @author       psyai
 // @updateURL    http://127.0.0.1:8910/psyai-autofill.user.js
@@ -426,9 +426,18 @@ async function autoInject() {
   );
   if (pasteFriendly) {
     const active = document.activeElement;
-    if (active && (active.isContentEditable
-                    || active.tagName === "TEXTAREA"
-                    || active.tagName === "INPUT")) {
+    // Require a compose-ish target to avoid dispatching paste onto
+    // a search bar (plain <input>) on sites like bsky.app, which
+    // would silently swallow the event and leave the user thinking
+    // the attach succeeded. Drop plain INPUT from the accepted
+    // types and also require proximity to a compose container.
+    const isComposeish = active && (
+      active.isContentEditable || active.tagName === "TEXTAREA");
+    const inComposeContext = isComposeish && active.closest(
+      '[role="dialog"], [aria-modal="true"], ' +
+      '[data-testid*="compos" i], [data-testid*="post" i], ' +
+      'form[class*="compose" i], form[id*="compose" i]');
+    if (inComposeContext) {
       try {
         const dt2 = new DataTransfer();
         for (const f of _pickedFiles) dt2.items.add(f);
