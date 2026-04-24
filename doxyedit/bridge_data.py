@@ -1,44 +1,27 @@
-"""psyai_data.py — shared data builder for the userscript bridge.
+"""bridge_data.py - shared data builder for the userscript bridge.
 
-Produces a JSON-serializable dict in the shape the `psyai-autofill`
-Tampermonkey userscript expects (matches its PSYAI constant so the
+Produces a JSON-serializable dict in the shape the `bridge-autofill`
+Tampermonkey userscript expects (matches its DOXYEDIT constant so the
 userscript can drop-in replace its hardcoded values).
 
 Three transport paths consume the same dict:
- - Track A (CDP push): `psyai_bridge.cdp_push(data)` injects as
-   `window.__psyai_data` on every page under the Brave debug instance.
- - Track B (clipboard): `psyai_bridge.copy_to_clipboard(data)` writes
+ - Track A (CDP push): `bridge.cdp_push(data)` injects as
+   `window.__bridge_data` on every page under the Brave debug instance.
+ - Track B (clipboard): `bridge.copy_to_clipboard(data)` writes
    as JSON; the userscript's "paste from DoxyEdit" button reads.
- - Track C (local HTTP): `psyai_bridge.start_http_server()` serves the
-   latest snapshot at GET /psyai.json for GM_xmlhttpRequest fetches.
+ - Track C (local HTTP): `bridge.start_http_server()` serves the
+   latest snapshot at GET /doxyedit.json for GM_xmlhttpRequest fetches.
 
 Keeping the builder standalone means every transport works off one
-source of truth — swapping strategy doesn't re-derive the data.
+source of truth - swapping strategy doesn't re-derive the data.
 """
 from __future__ import annotations
 
 from typing import Optional
 
 
-def _sanitize_text(text: str) -> str:
-    """Replace punctuation that social platforms render awkwardly or
-    that the user has banned project-wide. Em-dashes become
-    space-hyphen-space; en-dashes become plain hyphen; curly quotes
-    become straight quotes. Operates on a single string, safe for
-    empty/None input."""
-    if not text:
-        return text or ""
-    return (text
-            .replace("—", " - ")    # em-dash ->  -
-            .replace("–", "-")       # en-dash  -> -
-            .replace("“", '"').replace("”", '"')
-            .replace("‘", "'").replace("’", "'"))
-
-
 def _truncate(text: str, max_len: int) -> str:
-    """Trim `text` to `max_len` chars on a word boundary when possible.
-    Always sanitizes first so the cut can't land mid-replacement."""
-    text = _sanitize_text(text)
+    """Trim `text` to `max_len` chars on a word boundary when possible."""
     if not text or len(text) <= max_len:
         return text or ""
     cut = text[:max_len].rsplit(" ", 1)
@@ -80,14 +63,14 @@ def _split_title_body(caption: str) -> dict:
     return {"title": title, "body": rest}
 
 
-def build_psyai_data(project, composer_post=None) -> dict:
+def build_bridge_data(project, composer_post=None) -> dict:
     """Assemble the userscript payload from a DoxyEdit project.
 
     When `composer_post` is provided, its captions win over any other
-    post's captions for the same platform keys — this lets the UI push
+    post's captions for the same platform keys - this lets the UI push
     the currently-editing post live even before it's saved.
 
-    Return shape mirrors the PSYAI constant in psyai-autofill.user.js:
+    Return shape mirrors the DOXYEDIT constant in doxyedit-autofill.user.js:
         {
           "handle": str, "displayName": str,
           "taglineShort": str, "oneLine": str,
@@ -112,12 +95,12 @@ def build_psyai_data(project, composer_post=None) -> dict:
         # a single blob the short/medium variants are word-boundary
         # truncations of the long form.
         "handle": _slugify_handle(name),
-        "displayName": _sanitize_text(name),
+        "displayName": name,
         "taglineShort": _truncate(bio_blurb, 80),
         "oneLine": _truncate(bio_blurb, 120),
         "bioShort": _truncate(bio_blurb, 160),
         "bioMedium": _truncate(bio_blurb, 500),
-        "bioLong": _sanitize_text(bio_blurb),
+        "bioLong": bio_blurb,
         # URLs come straight off the identity. Keys match the userscript.
         "steamURL": "",
         "itchURL": "",
@@ -137,7 +120,7 @@ def build_psyai_data(project, composer_post=None) -> dict:
 
     # Walk project posts for per-platform caption snapshots. Later
     # entries (including the composer_post override below) replace
-    # earlier ones for the same platform key — the most recently-
+    # earlier ones for the same platform key - the most recently-
     # touched post wins so the userscript always sees fresh text.
     posts_bag = list(getattr(project, "posts", []) or [])
     if composer_post is not None:
@@ -150,7 +133,6 @@ def build_psyai_data(project, composer_post=None) -> dict:
             text = captions.get(platform) or default_caption
             if not text:
                 continue
-            text = _sanitize_text(text)
             if platform.startswith("reddit") or platform.startswith("r/"):
                 data["posts"][_reddit_key(platform)] = _split_title_body(text)
             else:
@@ -166,12 +148,12 @@ def build_psyai_data(project, composer_post=None) -> dict:
 
     # Composer-post assets: expose as {id, name, url, mime} so the
     # userscript panel can render one-click "attach this" buttons.
-    # DoxyEdit already knows which assets belong to which post —
+    # DoxyEdit already knows which assets belong to which post -
     # this skips the OS file picker entirely.
     data["assets"] = []
     if composer_post is not None:
         try:
-            from doxyedit.psyai_bridge import register_assets_bulk
+            from doxyedit.bridge import register_assets_bulk
             items = []
             for aid in (getattr(composer_post, "asset_ids", []) or []):
                 asset = (project.get_asset(aid)

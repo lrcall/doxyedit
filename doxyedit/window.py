@@ -863,11 +863,11 @@ class MainWindow(SaveLoadMixin, QMainWindow):
             QShortcut(QKeySequence(fkey), self).activated.connect(
                 lambda t=target: self.tabs.setCurrentWidget(t))
         # F6 = Push Identity+Posts to Browser (CDP). Single-tap
-        # re-injects window.__psyai_data on every page of the debug
-        # browser so the psyai userscript picks up composer edits
+        # re-injects window.__bridge_data on every page of the debug
+        # browser so the bridge userscript picks up composer edits
         # without opening the Tools menu.
         QShortcut(QKeySequence("F6"), self).activated.connect(
-            self._psyai_push_cdp)
+            self._bridge_push_cdp)
         # S = send the current asset (browser selection, or whatever the
         # preview pane is showing) to Studio + switch to the Studio tab.
         # Falls back to just switching tabs when nothing is selected.
@@ -2370,16 +2370,16 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         browser_menu.addSeparator()
         browser_menu.addAction(
             "Push Identity+Posts to Browser (CDP)",
-            self._psyai_push_cdp)
+            self._bridge_push_cdp)
         browser_menu.addAction(
             "Start HTTP Bridge (userscript)",
-            self._psyai_start_http_bridge)
+            self._bridge_start_http)
         browser_menu.addAction(
             "Copy Identity+Posts to Clipboard (userscript)",
-            self._psyai_copy_clipboard)
+            self._bridge_copy_clipboard)
         browser_menu.addAction(
             "Upload Composer Images to Browser...",
-            self._psyai_upload_images)
+            self._bridge_upload_images)
 
         # — Project Info submenu —
         projinfo_menu = tools_menu.addMenu("Project Info")
@@ -5638,12 +5638,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 f"and try again.")
 
     # ──────────────────────────────────────────────────────────────
-    # psyai userscript bridge — three transports from DoxyEdit into
-    # the Tampermonkey "psyai autofill" script. See psyai_bridge.py
+    # bridge userscript bridge — three transports from DoxyEdit into
+    # the Tampermonkey "doxyedit autofill" script. See bridge.py
     # for the push / HTTP / clipboard implementations.
     # ──────────────────────────────────────────────────────────────
 
-    def _psyai_build_data(self):
+    def _bridge_build_data(self):
         """Assemble the userscript payload from the current project +
         whichever post is being composed (if any). When the composer
         isn't open, fall back to the first post that has asset_ids so
@@ -5651,7 +5651,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         button — skipping this would leave the user staring at a
         manual-pick UI even though DoxyEdit knows which image to
         post."""
-        from doxyedit.psyai_data import build_psyai_data
+        from doxyedit.bridge_data import build_bridge_data
         composer_post = None
         try:
             if hasattr(self, "_docked_composer") and self._docked_composer:
@@ -5671,20 +5671,20 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                           if getattr(p, "status", "") in
                           ("queued", "QUEUED")]
                 composer_post = queued[0] if queued else posts_with_assets[0]
-        return build_psyai_data(self.project, composer_post)
+        return build_bridge_data(self.project, composer_post)
 
-    def _psyai_push_cdp(self):
+    def _bridge_push_cdp(self):
         """Track A — inject identity + posts into the running Brave /
-        Chrome debug instance as window.__psyai_data. Uses the
+        Chrome debug instance as window.__bridge_data. Uses the
         persistent CDP session so init-script registrations survive
         page reloads (F5 keeps the userscript green); the worker
         subprocess auto-starts on first push.
 
         Also auto-starts the HTTP bridge if not already running so
-        /psyai-asset endpoints for one-click image attach are live
+        /doxyedit-asset endpoints for one-click image attach are live
         without a separate setup step — removes one click from the
         foolproof path."""
-        from doxyedit.psyai_bridge import (
+        from doxyedit.bridge import (
             worker_push, start_http_server, http_bridge_port,
             update_http_snapshot)
         from doxyedit.browserpost import is_chrome_running
@@ -5694,12 +5694,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 "Launch Debug Chrome / Brave first so the userscript "
                 "has a page to receive the injection.")
             return
-        # Auto-start the HTTP bridge on first push so /psyai-asset
+        # Auto-start the HTTP bridge on first push so /doxyedit-asset
         # endpoints resolve for one-click image attach. Idempotent:
         # returns the existing port if already running.
         if not http_bridge_port():
             start_http_server(8910) or start_http_server(0)
-        data = self._psyai_build_data()
+        data = self._bridge_build_data()
         # Keep the HTTP snapshot synced with whatever we just pushed
         # via CDP so panels falling back to amber (HTTP) see the
         # same data the green (CDP) panels would.
@@ -5714,27 +5714,27 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # the worker callback. Signal is held on the handler itself so
         # Qt can auto-route it via QueuedConnection.
         from PySide6.QtCore import QObject, Signal, Qt
-        if not hasattr(self, "_psyai_push_signal"):
+        if not hasattr(self, "_bridge_push_signal"):
             class _PushSig(QObject):
                 done = Signal(bool, str, int)
-            self._psyai_push_signal = _PushSig()
-            self._psyai_push_signal.done.connect(
-                self._psyai_push_done, Qt.ConnectionType.QueuedConnection)
+            self._bridge_push_signal = _PushSig()
+            self._bridge_push_signal.done.connect(
+                self._bridge_push_done, Qt.ConnectionType.QueuedConnection)
         def _cb(ok, err):
-            self._psyai_push_signal.done.emit(ok, err or "", posts)
+            self._bridge_push_signal.done.emit(ok, err or "", posts)
         worker_push(data, on_done=_cb)
 
-    def _psyai_push_done(self, ok: bool, err: str, posts: int):
+    def _bridge_push_done(self, ok: bool, err: str, posts: int):
         import sys as _sys
         if ok:
             self.status.showMessage(
                 f"Pushed identity + {posts} post(s) to debug browser", 4000)
             return
         # CDP failed. If the HTTP bridge is live we already pushed the
-        # same snapshot to it in _psyai_push_cdp, so the userscript
+        # same snapshot to it in _bridge_push_cdp, so the userscript
         # will fall back to amber mode automatically. Degrade the
         # notice to a status-bar line instead of a modal dialog.
-        from doxyedit.psyai_bridge import bridge_log_path, http_bridge_port
+        from doxyedit.bridge import bridge_log_path, http_bridge_port
         http_port = http_bridge_port()
         if http_port:
             self.status.showMessage(
@@ -5755,11 +5755,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             "must be installed and the browser must have the debug "
             "port (9222) open." + detail)
 
-    def _psyai_start_http_bridge(self):
+    def _bridge_start_http(self):
         """Track C — run a tiny localhost HTTP server that the
-        userscript can GET /psyai.json from. Returns the bound port
+        userscript can GET /doxyedit.json from. Returns the bound port
         so the user can paste it into the userscript if needed."""
-        from doxyedit.psyai_bridge import (
+        from doxyedit.bridge import (
             start_http_server, update_http_snapshot, http_bridge_port)
         # Prefer the canonical port so the userscript's default
         # candidate list finds it immediately; fall through to any
@@ -5773,12 +5773,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 "Could not start the localhost HTTP server. Another "
                 "process may already be using the port.")
             return
-        update_http_snapshot(self._psyai_build_data())
+        update_http_snapshot(self._bridge_build_data())
         self.status.showMessage(
-            f"psyai userscript bridge live at http://127.0.0.1:{port}/psyai.json",
+            f"bridge userscript bridge live at http://127.0.0.1:{port}/doxyedit.json",
             8000)
 
-    def _psyai_upload_images(self):
+    def _bridge_upload_images(self):
         """Upload the composer's current post images (or a user-
         picked file) into whichever debug-browser page has a file
         input. Bluesky / Mastodon / ko-fi all use hidden
@@ -5791,7 +5791,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         2. Ask the user which tab to target (URL substring) so a
            Reddit upload doesn't hit Bluesky by accident.
         3. Call worker_upload_files; status-bar on result."""
-        from doxyedit.psyai_bridge import worker_upload_files
+        from doxyedit.bridge import worker_upload_files
         from doxyedit.browserpost import is_chrome_running
         if not is_chrome_running():
             QMessageBox.warning(
@@ -5850,34 +5850,34 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.status.showMessage(
             f"Uploading {len(paths)} file(s) to {label}...", 4000)
         from PySide6.QtCore import QObject, Signal, Qt
-        if not hasattr(self, "_psyai_upload_signal"):
+        if not hasattr(self, "_bridge_upload_signal"):
             class _UpSig(QObject):
                 done = Signal(bool, str)
-            self._psyai_upload_signal = _UpSig()
-            self._psyai_upload_signal.done.connect(
-                self._psyai_upload_done,
+            self._bridge_upload_signal = _UpSig()
+            self._bridge_upload_signal.done.connect(
+                self._bridge_upload_done,
                 Qt.ConnectionType.QueuedConnection)
 
         def _cb(ok, err):
-            self._psyai_upload_signal.done.emit(ok, err or "")
+            self._bridge_upload_signal.done.emit(ok, err or "")
         worker_upload_files(paths, url_contains=substring, on_done=_cb)
 
-    def _psyai_upload_done(self, ok: bool, err: str):
+    def _bridge_upload_done(self, ok: bool, err: str):
         if ok:
             self.status.showMessage("Files uploaded to browser", 4000)
         else:
-            from doxyedit.psyai_bridge import bridge_log_path
+            from doxyedit.bridge import bridge_log_path
             QMessageBox.warning(
                 self, "Upload Failed",
                 f"Could not upload files.\n\nError: {err}\n\n"
                 f"Full log: {bridge_log_path()}")
 
-    def _psyai_copy_clipboard(self):
+    def _bridge_copy_clipboard(self):
         """Track B — serialize identity + posts as JSON with the magic
         marker to the OS clipboard. The userscript's 'paste from
         DoxyEdit' button reads it."""
-        from doxyedit.psyai_bridge import copy_to_clipboard
-        data = self._psyai_build_data()
+        from doxyedit.bridge import copy_to_clipboard
+        data = self._bridge_build_data()
         if copy_to_clipboard(data):
             posts = len((data.get("posts") or {}))
             self.status.showMessage(
@@ -7699,13 +7699,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.status.showMessage(f"Opened {len(targets)} file(s)", 2000)
 
     def closeEvent(self, event):
-        # Tear down the persistent psyai CDP session + HTTP bridge
+        # Tear down the persistent bridge CDP session + HTTP bridge
         # so the daemon threads don't outlive Qt (otherwise Python's
         # thread cleanup at interpreter shutdown can raise ugly
         # RuntimeError: "cannot schedule new futures after
         # interpreter shutdown" from Playwright's asyncio loop).
         try:
-            from doxyedit.psyai_bridge import (
+            from doxyedit.bridge import (
                 stop_persistent_session, stop_worker_process,
                 stop_http_server)
             stop_persistent_session()

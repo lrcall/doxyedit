@@ -1,11 +1,11 @@
 // ==UserScript==
-// @name         psyai autofill (DoxyEdit bridge)
-// @namespace    https://psyai.game
+// @name         doxyedit autofill (DoxyEdit bridge)
+// @namespace    https://doxyedit.local
 // @version      2.12
-// @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard — with the old hardcoded library as last-resort fallback.
-// @author       psyai
-// @updateURL    http://127.0.0.1:8910/psyai-autofill.user.js
-// @downloadURL  http://127.0.0.1:8910/psyai-autofill.user.js
+// @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
+// @author       doxyedit
+// @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
+// @downloadURL  http://127.0.0.1:8910/doxyedit-autofill.user.js
 // @match        https://bsky.app/*
 // @match        https://mastodon.gamedev.place/*
 // @match        https://x.com/*
@@ -30,26 +30,26 @@
 
 // ── DOXYEDIT BRIDGE CONFIG ─────────────────────────────────────────────────
 // One of three transports will be active at any given moment:
-//   A. window.__psyai_data injected via CDP (preferred — live)
-//   B. HTTP bridge fetched from 127.0.0.1:{PORT}/psyai.json
+//   A. window.__bridge_data injected via CDP (preferred - live)
+//   B. HTTP bridge fetched from 127.0.0.1:{PORT}/doxyedit.json
 //   C. "paste from clipboard" button (manual, always available)
-// If none respond, the hardcoded PSYAI_FALLBACK below is used.
+// If none respond, the hardcoded DOXYEDIT_FALLBACK below is used.
 
 const HTTP_BRIDGE_PORTS = [8910, 8911, 8912];  // DoxyEdit tries first free
 const HTTP_BRIDGE_POLL_MS = 8000;              // refetch every 8s if active
-const PSYAI_MARKER = "_psyai_panel_v1";        // matches psyai_bridge.py
+const DOXYEDIT_PANEL_MARKER = "_bridge_panel_v1";        // matches bridge.py
 
 // ── HARDCODED FALLBACK ─────────────────────────────────────────────────────
 // Used only when no DoxyEdit transport is live. Lets the script work
 // standalone on a machine that doesn't have DoxyEdit running.
-const PSYAI_FALLBACK = {
-  handle: "psyai_game",
-  displayName: "psyai",
+const DOXYEDIT_FALLBACK = {
+  handle: "doxyedit_user",
+  displayName: "bridge",
   taglineShort: "a retro sci-fi point-and-click.",
   oneLine: "retro sci-fi point-and-click VN. wishlist on steam ↓",
-  bioShort: "psyai — retro sci-fi point-and-click VN. dialogue trees, crt glow, bad decisions. demo at steam next fest · june 2026.",
-  bioMedium: "psyai: a retro sci-fi point-and-click VN.\ndialogue trees, crt glow, bad decisions.\nren'py · hand-drawn pixel · shipping 2026.\ndemo at steam next fest.",
-  bioLong: "psyai is a retro sci-fi point-and-click visual novel.\na diagnostic. a unit you shouldn't have kept talking to. a city that was never supposed to hold this many ghosts.\n\nchoice-driven dialogue trees, hand-drawn pixel backgrounds, a synth score, and enough arcade machines to make the long conversations survivable.\n\ncurrently in development — playable at Steam Next Fest, June 2026.",
+  bioShort: "bridge - retro sci-fi point-and-click VN. dialogue trees, crt glow, bad decisions. demo at steam next fest · june 2026.",
+  bioMedium: "bridge: a retro sci-fi point-and-click VN.\ndialogue trees, crt glow, bad decisions.\nren'py · hand-drawn pixel · shipping 2026.\ndemo at steam next fest.",
+  bioLong: "bridge is a retro sci-fi point-and-click visual novel.\na diagnostic. a unit you shouldn't have kept talking to. a city that was never supposed to hold this many ghosts.\n\nchoice-driven dialogue trees, hand-drawn pixel backgrounds, a synth score, and enough arcade machines to make the long conversations survivable.\n\ncurrently in development - playable at Steam Next Fest, June 2026.",
   steamURL: "https://store.steampowered.com/",
   itchURL: "https://itch.io/",
   discordURL: "",
@@ -61,18 +61,18 @@ const PSYAI_FALLBACK = {
 // ── LIVE DATA ──────────────────────────────────────────────────────────────
 // currentData holds whichever source is active. source flags the
 // provenance for the status dot in the floating FAB.
-let currentData = PSYAI_FALLBACK;
+let currentData = DOXYEDIT_FALLBACK;
 let currentSource = "fallback";
 
 function unwrapPayload(obj) {
   // Accept both plain-dict and marker-wrapped payloads.
-  if (obj && obj[PSYAI_MARKER] === true && obj.payload) return obj.payload;
+  if (obj && obj[DOXYEDIT_PANEL_MARKER] === true && obj.payload) return obj.payload;
   return obj;
 }
 
 function applyData(data, source) {
   if (!data || typeof data !== "object") return false;
-  currentData = Object.assign({}, PSYAI_FALLBACK, data);
+  currentData = Object.assign({}, DOXYEDIT_FALLBACK, data);
   if (!currentData.posts) currentData.posts = {};
   currentSource = source;
   rebuildPanel();
@@ -80,14 +80,14 @@ function applyData(data, source) {
   return true;
 }
 
-// ── TRANSPORT A: window.__psyai_data (CDP push) ────────────────────────────
+// ── TRANSPORT A: window.__bridge_data (CDP push) ────────────────────────────
 function tryCdpInjection() {
-  if (window.__psyai_data) {
-    const payload = unwrapPayload(window.__psyai_data);
+  if (window.__bridge_data) {
+    const payload = unwrapPayload(window.__bridge_data);
     applyData(payload, "cdp");
   }
-  window.addEventListener("psyai-data-updated", (ev) => {
-    const payload = unwrapPayload(ev.detail || window.__psyai_data);
+  window.addEventListener("doxyedit-data-updated", (ev) => {
+    const payload = unwrapPayload(ev.detail || window.__bridge_data);
     applyData(payload, "cdp");
   });
 }
@@ -132,13 +132,13 @@ function fetchFromPort(port, isProbe) {
   };
   GM_xmlhttpRequest({
     method: "GET",
-    url: `http://127.0.0.1:${port}/psyai.json`,
+    url: `http://127.0.0.1:${port}/doxyedit.json`,
     timeout: 1500,
     onload: (resp) => {
       if (resp.status !== 200) { handleMiss(); return; }
       try {
         const parsed = JSON.parse(resp.responseText);
-        if (parsed[PSYAI_MARKER] !== true) { handleMiss(); return; }
+        if (parsed[DOXYEDIT_PANEL_MARKER] !== true) { handleMiss(); return; }
         const payload = unwrapPayload(parsed);
         // CDP-injected data wins over HTTP (CDP is always more live).
         if (currentSource === "cdp") return;
@@ -165,7 +165,7 @@ async function pasteFromClipboard() {
       alert("Clipboard doesn't contain DoxyEdit JSON.\nCopy a post from DoxyEdit first.");
       return;
     }
-    if (parsed[PSYAI_MARKER] !== true) {
+    if (parsed[DOXYEDIT_PANEL_MARKER] !== true) {
       alert("Clipboard JSON doesn't carry the DoxyEdit marker.");
       return;
     }
@@ -175,7 +175,7 @@ async function pasteFromClipboard() {
       applyData(payload, "clipboard");
       alert(`DoxyEdit data loaded (${Object.keys(payload.posts || {}).length} posts, ${currentData.displayName}).`);
     } else if (kind === "post") {
-      // Single-post clipboard payload — fill current field(s) directly.
+      // Single-post clipboard payload - fill current field(s) directly.
       fillPostPayload(payload);
     } else if (kind === "identity") {
       fillFocusedField(payload.text || "");
@@ -197,7 +197,7 @@ function fillPostPayload(payload) {
       fillFocusedField(payload.body);
     } else if (payload.body) {
       copyToClipboard(payload.body);
-      alert("Body copied to clipboard — paste into body field.");
+      alert("Body copied to clipboard - paste into body field.");
     }
   } else if (payload.text) {
     fillFocusedField(payload.text);
@@ -235,12 +235,12 @@ function fillFocusedField(text) {
     document.execCommand("insertText", false, text);
   } else {
     copyToClipboard(text);
-    alert("Field is not directly fillable — text copied to clipboard. Paste manually.");
+    alert("Field is not directly fillable - text copied to clipboard. Paste manually.");
   }
 }
 
 // ── IMAGE INJECTION ──────────────────────────────────────────────────────
-// Bluesky, X, Mastodon, Reddit, Discord — each platform's compose
+// Bluesky, X, Mastodon, Reddit, Discord - each platform's compose
 // accepts images via a different low-level path. Rather than guess,
 // we expose FIVE separate injection strategies as isolated buttons
 // so the user can try them on each platform and keep a mental map
@@ -251,27 +251,27 @@ function fillFocusedField(text) {
 // that same file. Re-pick to swap.
 //
 // Strategies:
-//   1. File Input  — find input[type="file"], set DataTransfer.files
+//   1. File Input  - find input[type="file"], set DataTransfer.files
 //                    + dispatch input/change. Works when the compose
 //                    modal has a file input in the DOM (opened the
 //                    image picker at least once).
-//   2. Paste       — ClipboardEvent("paste") with the file on the
+//   2. Paste       - ClipboardEvent("paste") with the file on the
 //                    focused textbox. Bluesky / Twitter / Mastodon /
 //                    Discord all handle image paste natively.
-//   3. Drop        — DragEvent("drop") on the focused element. Some
+//   3. Drop        - DragEvent("drop") on the focused element. Some
 //                    platforms (Newgrounds, older Mastodon) accept.
-//   4. Click+Input — walk the DOM for a button labelled "image" /
+//   4. Click+Input - walk the DOM for a button labelled "image" /
 //                    "attach" / "photo", click it (creates the
 //                    hidden input[type=file]), then run strategy 1.
 //                    Needed on Bluesky when the modal's open but the
 //                    user hasn't clicked the image button yet.
-//   5. Drag Thumb  — render a draggable <img> preview in the panel
+//   5. Drag Thumb  - render a draggable <img> preview in the panel
 //                    with the File preloaded into DataTransfer on
 //                    dragstart. User drags onto the compose's own
-//                    drop zone (real drag origin — passes platforms
+//                    drop zone (real drag origin - passes platforms
 //                    that reject synthesized drops).
 //
-// Kept entirely inside the userscript — no DoxyEdit Qt drag, no
+// Kept entirely inside the userscript - no DoxyEdit Qt drag, no
 // focus splintering.
 
 let _fileInputEl = null;       // hidden <input> for the optional local pick
@@ -306,7 +306,7 @@ function triggerFilePick() {
 // it. One-click: no OS picker, no typing a filename.
 //
 // Uses GM_xmlhttpRequest (not plain fetch) because the bridge runs
-// on http://127.0.0.1 and most social platforms are HTTPS —
+// on http://127.0.0.1 and most social platforms are HTTPS -
 // browsers block mixed-content fetches from HTTPS to HTTP, but
 // GM_xmlhttpRequest has cross-origin privileges declared by
 // @connect in the userscript header and bypasses that check.
@@ -315,7 +315,7 @@ function loadAssetFromBridge(asset) {
     if (!asset || !asset.url) { resolve(false); return; }
     if (typeof GM_xmlhttpRequest !== "function") {
       setUploadStatus(
-        "✗ GM_xmlhttpRequest unavailable — userscript missing @grant", false);
+        "✗ GM_xmlhttpRequest unavailable - userscript missing @grant", false);
       resolve(false);
       return;
     }
@@ -345,13 +345,13 @@ function loadAssetFromBridge(asset) {
         _pickedFiles = [f];
         refreshPickedBadge();
         renderDragThumb();
-        setUploadStatus(`loaded ${f.name} — auto-injecting...`, true);
+        setUploadStatus(`loaded ${f.name} - auto-injecting...`, true);
         await autoInject();
         resolve(true);
       },
       onerror: (err) => {
         setUploadStatus(
-          `✗ fetch ${asset.name} network error — is the HTTP bridge running?`,
+          `✗ fetch ${asset.name} network error - is the HTTP bridge running?`,
           false);
         resolve(false);
       },
@@ -474,7 +474,7 @@ async function autoInject() {
     await new Promise((r) => setTimeout(r, 200));
     const inp = Array.from(
       document.querySelectorAll('input[type="file"]')).find(
-      (el) => !el.closest('#psyai-autofill-panel'));
+      (el) => !el.closest('#doxyedit-autofill-panel'));
     if (inp) {
       try {
         const dt = new DataTransfer();
@@ -503,7 +503,7 @@ async function autoInject() {
     } catch (e) { /* fall through */ }
   }
   setUploadStatus(
-    "⚠ all auto-inject strategies failed — click into compose + try the strategy buttons below",
+    "⚠ all auto-inject strategies failed - click into compose + try the strategy buttons below",
     false);
 }
 
@@ -513,11 +513,11 @@ function onUploadFilesPicked(ev) {
   refreshPickedBadge();
   renderDragThumb();
   setUploadStatus(
-    `picked ${_pickedFiles.length} file(s) — try a strategy below`, true);
+    `picked ${_pickedFiles.length} file(s) - try a strategy below`, true);
 }
 
 function refreshPickedBadge() {
-  const badge = document.getElementById("psyai-picked-name");
+  const badge = document.getElementById("doxyedit-picked-name");
   if (!badge) return;
   badge.textContent = _pickedFiles.length
     ? `📎 ${_pickedFiles[0].name}${_pickedFiles.length > 1
@@ -526,7 +526,7 @@ function refreshPickedBadge() {
 }
 
 function renderDragThumb() {
-  const holder = document.getElementById("psyai-drag-thumb-holder");
+  const holder = document.getElementById("doxyedit-drag-thumb-holder");
   if (!holder) return;
   holder.innerHTML = "";
   _dragThumbEl = null;
@@ -605,7 +605,7 @@ function requirePicked() {
   return true;
 }
 
-// Strategy 1 — set .files on an existing <input type="file">.
+// Strategy 1 - set .files on an existing <input type="file">.
 function strategyFileInput() {
   if (!requirePicked()) return;
   const candidates = Array.from(
@@ -630,13 +630,13 @@ function strategyFileInput() {
     target.dispatchEvent(new Event("input", { bubbles: true }));
     target.dispatchEvent(new Event("change", { bubbles: true }));
     setUploadStatus(
-      `✓ strategy 1 (file input) — ${_pickedFiles.length} file(s) injected`, true);
+      `✓ strategy 1 (file input) - ${_pickedFiles.length} file(s) injected`, true);
   } catch (e) {
     setUploadStatus(`✗ strategy 1 failed: ${e.message}`, false);
   }
 }
 
-// Strategy 2 — paste event on the focused compose element.
+// Strategy 2 - paste event on the focused compose element.
 function strategyPaste() {
   if (!requirePicked()) return;
   const active = document.activeElement;
@@ -644,7 +644,7 @@ function strategyPaste() {
                     || active.tagName === "TEXTAREA"
                     || active.tagName === "INPUT")) {
     setUploadStatus(
-      "✗ no focused text field — click into compose first", false);
+      "✗ no focused text field - click into compose first", false);
     return;
   }
   try {
@@ -655,18 +655,18 @@ function strategyPaste() {
     });
     active.dispatchEvent(pasteEv);
     setUploadStatus(
-      `✓ strategy 2 (paste) — dispatched on ${active.tagName}`, true);
+      `✓ strategy 2 (paste) - dispatched on ${active.tagName}`, true);
   } catch (e) {
     setUploadStatus(`✗ strategy 2 failed: ${e.message}`, false);
   }
 }
 
-// Strategy 3 — drop event on the focused element.
+// Strategy 3 - drop event on the focused element.
 function strategyDrop() {
   if (!requirePicked()) return;
   const active = document.activeElement;
   if (!active) {
-    setUploadStatus("✗ nothing focused — click compose first", false);
+    setUploadStatus("✗ nothing focused - click compose first", false);
     return;
   }
   try {
@@ -677,13 +677,13 @@ function strategyDrop() {
     });
     active.dispatchEvent(dropEv);
     setUploadStatus(
-      `✓ strategy 3 (drop) — dispatched on ${active.tagName}`, true);
+      `✓ strategy 3 (drop) - dispatched on ${active.tagName}`, true);
   } catch (e) {
     setUploadStatus(`✗ strategy 3 failed: ${e.message}`, false);
   }
 }
 
-// Strategy 4 — find + click an "attach image" button, then run
+// Strategy 4 - find + click an "attach image" button, then run
 // strategy 1. Gives the compose modal a chance to mount the hidden
 // input[type=file] if it hasn't yet.
 function strategyClickThenInput() {
@@ -722,7 +722,7 @@ function strategyClickThenInput() {
   setUploadStatus(
     `→ clicked ${btn.getAttribute("aria-label")
         || btn.getAttribute("data-testid")
-        || btn.tagName} — retrying file input in 200ms...`, true);
+        || btn.tagName} - retrying file input in 200ms...`, true);
 }
 
 // ── PANEL ──────────────────────────────────────────────────────────────────
@@ -736,7 +736,7 @@ let fabEl = null;
 // above it). Persisted to localStorage so the user's placement
 // survives page reloads, nav, and browser restarts. Defaults to
 // bottom-right on first run.
-const FAB_POSITION_STORAGE = "psyai_fab_position_v1";
+const FAB_POSITION_STORAGE = "bridge_fab_position_v1";
 
 function loadFabPosition() {
   try {
@@ -752,7 +752,7 @@ function loadFabPosition() {
 
 function saveFabPosition(pos) {
   try { localStorage.setItem(FAB_POSITION_STORAGE, JSON.stringify(pos)); }
-  catch (e) { /* quota exceeded — ignore */ }
+  catch (e) { /* quota exceeded - ignore */ }
 }
 
 function applyFabPosition(left, top) {
@@ -785,9 +785,9 @@ function applyFabPosition(left, top) {
 }
 
 function buildPanelScaffold() {
-  if (document.getElementById("psyai-autofill-panel")) return;
+  if (document.getElementById("doxyedit-autofill-panel")) return;
   const panel = document.createElement("div");
-  panel.id = "psyai-autofill-panel";
+  panel.id = "doxyedit-autofill-panel";
   // Position is set by applyFabPosition once the FAB is laid out.
   // Default placement is bottom-right until the user moves it.
   panel.style.cssText = `
@@ -802,21 +802,21 @@ function buildPanelScaffold() {
 
   const styleEl = document.createElement("style");
   styleEl.textContent = `
-    .psyai-btn { background:#222; color:#eee; border:1px solid #444; padding:6px 8px;
+    .doxyedit-btn { background:#222; color:#eee; border:1px solid #444; padding:6px 8px;
                  cursor:pointer; font:inherit; text-align:left; border-radius:3px;
                  margin-top:2px; width:100%; box-sizing:border-box; }
-    .psyai-btn:hover { background:#333; border-color:#ff6b6b; }
-    .psyai-btn.primary { border-color:#ff6b6b; background:#221818; }
-    .psyai-section { color:#ff6b6b; font-size:10px; letter-spacing:0.1em;
+    .doxyedit-btn:hover { background:#333; border-color:#ff6b6b; }
+    .doxyedit-btn.primary { border-color:#ff6b6b; background:#221818; }
+    .doxyedit-section { color:#ff6b6b; font-size:10px; letter-spacing:0.1em;
                      margin:8px 0 2px 0; text-transform:uppercase; }
-    .psyai-source { color:#888; font-size:10px; margin-top:4px; }
-    .psyai-source .dot { display:inline-block; width:8px; height:8px;
+    .doxyedit-source { color:#888; font-size:10px; margin-top:4px; }
+    .doxyedit-source .dot { display:inline-block; width:8px; height:8px;
                          border-radius:4px; margin-right:4px; vertical-align:middle; }
   `;
   document.head.appendChild(styleEl);
 
   const fab = document.createElement("button");
-  fab.id = "psyai-fab";
+  fab.id = "bridge-fab";
   fab.title = "drag to reposition · click to toggle panel · double-click to reset";
   fab.style.cssText = `
     position: fixed; bottom: 20px; right: 20px; z-index: 2147483646;
@@ -864,7 +864,7 @@ function buildPanelScaffold() {
       const top = parseFloat(fab.style.top) || 0;
       saveFabPosition({left, top});
     } else {
-      // Tap — toggle the panel.
+      // Tap - toggle the panel.
       panelEl.style.display = panelEl.style.display === "none" ? "block" : "none";
       // Reposition the panel now that it's visible (offsetHeight
       // read when hidden was 0, leading to a stale flip decision).
@@ -898,15 +898,15 @@ function buildPanelScaffold() {
 }
 
 function sourceDotColor(source) {
-  if (source === "cdp") return "#6bff6b";       // bright green — live
-  if (source === "http") return "#ffd76b";      // amber — periodic poll
-  if (source === "clipboard") return "#6bbcff"; // blue — manual
-  return "#888";                                // gray — fallback
+  if (source === "cdp") return "#6bff6b";       // bright green - live
+  if (source === "http") return "#ffd76b";      // amber - periodic poll
+  if (source === "clipboard") return "#6bbcff"; // blue - manual
+  return "#888";                                // gray - fallback
 }
 
 function updateFab() {
   if (!fabEl) return;
-  const name = (currentData && currentData.displayName) || "psyai";
+  const name = (currentData && currentData.displayName) || "bridge";
   fabEl.innerHTML = `<span style="display:inline-block;width:8px;height:8px;` +
     `border-radius:4px;background:${sourceDotColor(currentSource)};` +
     `margin-right:6px;vertical-align:middle;"></span>${name}`;
@@ -920,6 +920,7 @@ const HOST_POST_TAGS = {
   "bsky.app": ["bluesky", "bsky"],
   "x.com": ["twitter", "_x_", "x_"],
   "twitter.com": ["twitter"],
+  "threads.net": ["threads"],
   "reddit.com": ["reddit"],
   "old.reddit.com": ["reddit"],
   "ko-fi.com": ["kofi", "ko-fi"],
@@ -958,52 +959,52 @@ function rebuildPanel() {
   const postKeys = filterPostKeysForHost(allPostKeys);
   const html = [
     `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">`,
-    `  <b style="color:#ff6b6b;">${d.displayName || "psyai"} autofill</b>`,
-    `  <button class="psyai-close" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:16px;">×</button>`,
+    `  <b style="color:#ff6b6b;">${d.displayName || "bridge"} autofill</b>`,
+    `  <button class="doxyedit-close" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:16px;">×</button>`,
     `</div>`,
-    `<div class="psyai-source"><span class="dot" style="background:${sourceDotColor(currentSource)};"></span>source: ${currentSource}</div>`,
-    `<button class="psyai-btn primary psyai-clipboard">📋 paste from DoxyEdit</button>`,
+    `<div class="doxyedit-source"><span class="dot" style="background:${sourceDotColor(currentSource)};"></span>source: ${currentSource}</div>`,
+    `<button class="doxyedit-btn primary doxyedit-clipboard">📋 paste from DoxyEdit</button>`,
     // Asset buttons auto-attach in one click when DoxyEdit has
     // pushed composer_post.asset_ids. Falls through to the manual
     // pick + strategy buttons when no assets were pushed.
     (d.assets && d.assets.length)
-      ? `<div class="psyai-section">images (1-click attach)</div>` +
+      ? `<div class="doxyedit-section">images (1-click attach)</div>` +
         d.assets.map((a, i) => {
           const thumbUrl = _assetThumbCache[a.id];
           const hasThumb = thumbUrl && thumbUrl !== "loading" && thumbUrl !== "error";
           const thumbHtml = hasThumb
             ? `<img src="${thumbUrl}" style="width:40px;height:40px;object-fit:cover;border-radius:3px;margin-right:6px;vertical-align:middle;flex-shrink:0;">`
             : `<span style="width:40px;height:40px;display:inline-block;background:#333;border-radius:3px;margin-right:6px;vertical-align:middle;text-align:center;line-height:40px;flex-shrink:0;">📎</span>`;
-          return `<button class="psyai-btn primary psyai-asset" data-idx="${i}" style="display:flex;align-items:center;">${thumbHtml}<span>${a.name || a.id}</span></button>`;
+          return `<button class="doxyedit-btn primary doxyedit-asset" data-idx="${i}" style="display:flex;align-items:center;">${thumbHtml}<span>${a.name || a.id}</span></button>`;
         }).join("\n")
       : "",
-    `<div class="psyai-section">image injection (manual)</div>`,
-    `<button class="psyai-btn psyai-pick">📁 pick local image instead</button>`,
-    `<div id="psyai-picked-name" style="font-size:10px;color:#aaa;margin:2px 0 4px 2px;">(no file picked)</div>`,
-    `<div id="psyai-drag-thumb-holder" style="margin:2px 0;"></div>`,
-    `<button class="psyai-btn psyai-s1">1. set input[type=file].files</button>`,
-    `<button class="psyai-btn psyai-s2">2. paste into focused field</button>`,
-    `<button class="psyai-btn psyai-s3">3. drop on focused element</button>`,
-    `<button class="psyai-btn psyai-s4">4. click image btn + set input</button>`,
+    `<div class="doxyedit-section">image injection (manual)</div>`,
+    `<button class="doxyedit-btn doxyedit-pick">📁 pick local image instead</button>`,
+    `<div id="doxyedit-picked-name" style="font-size:10px;color:#aaa;margin:2px 0 4px 2px;">(no file picked)</div>`,
+    `<div id="doxyedit-drag-thumb-holder" style="margin:2px 0;"></div>`,
+    `<button class="doxyedit-btn doxyedit-s1">1. set input[type=file].files</button>`,
+    `<button class="doxyedit-btn doxyedit-s2">2. paste into focused field</button>`,
+    `<button class="doxyedit-btn doxyedit-s3">3. drop on focused element</button>`,
+    `<button class="doxyedit-btn doxyedit-s4">4. click image btn + set input</button>`,
     `<div style="font-size:10px;color:#aaa;margin-top:4px;">5. drag the thumb above onto the compose drop zone</div>`,
-    `<div id="psyai-upload-status" style="font-size:10px;margin-top:4px;min-height:14px;"></div>`,
-    `<div class="psyai-section">identity</div>`,
-    `<button class="psyai-btn" data-fill="displayName">display name</button>`,
-    `<button class="psyai-btn" data-fill="handle">handle</button>`,
-    `<button class="psyai-btn" data-fill="oneLine">one-liner</button>`,
-    `<button class="psyai-btn" data-fill="bioShort">short bio</button>`,
-    `<button class="psyai-btn" data-fill="bioMedium">medium bio</button>`,
-    `<button class="psyai-btn" data-fill="bioLong">long bio</button>`,
+    `<div id="doxyedit-upload-status" style="font-size:10px;margin-top:4px;min-height:14px;"></div>`,
+    `<div class="doxyedit-section">identity</div>`,
+    `<button class="doxyedit-btn" data-fill="displayName">display name</button>`,
+    `<button class="doxyedit-btn" data-fill="handle">handle</button>`,
+    `<button class="doxyedit-btn" data-fill="oneLine">one-liner</button>`,
+    `<button class="doxyedit-btn" data-fill="bioShort">short bio</button>`,
+    `<button class="doxyedit-btn" data-fill="bioMedium">medium bio</button>`,
+    `<button class="doxyedit-btn" data-fill="bioLong">long bio</button>`,
     postKeys.length
-      ? `<div class="psyai-section">posts for ${location.host}</div>`
+      ? `<div class="doxyedit-section">posts for ${location.host}</div>`
       : (allPostKeys.length
-          ? `<div class="psyai-source" style="margin-top:6px;">no posts tagged for ${location.host} — ${allPostKeys.length} post(s) hidden for other platforms</div>`
+          ? `<div class="doxyedit-source" style="margin-top:6px;">no posts tagged for ${location.host} - ${allPostKeys.length} post(s) hidden for other platforms</div>`
           : ""),
     ...postKeys.map(k => {
       const v = d.posts[k];
       const label = typeof v === "object"
         ? `${k} (title+body)` : `${k}`;
-      return `<button class="psyai-btn" data-post="${k}">${label}</button>`;
+      return `<button class="doxyedit-btn" data-post="${k}">${label}</button>`;
     }),
     `<div style="margin-top:8px;color:#888;font-size:10px;line-height:1.45;">`,
     `tip: click into the target field first, then click a button.<br>`,
@@ -1013,12 +1014,12 @@ function rebuildPanel() {
   ].join("\n");
   panelEl.innerHTML = html;
 
-  panelEl.querySelector(".psyai-close").addEventListener("click", () => {
+  panelEl.querySelector(".doxyedit-close").addEventListener("click", () => {
     panelEl.style.display = "none";
   });
-  panelEl.querySelector(".psyai-clipboard").addEventListener("click", pasteFromClipboard);
-  // Pushed-asset buttons — one-click attach, no OS picker.
-  panelEl.querySelectorAll(".psyai-asset").forEach((btn) => {
+  panelEl.querySelector(".doxyedit-clipboard").addEventListener("click", pasteFromClipboard);
+  // Pushed-asset buttons - one-click attach, no OS picker.
+  panelEl.querySelectorAll(".doxyedit-asset").forEach((btn) => {
     btn.addEventListener("click", () => {
       const idx = parseInt(btn.dataset.idx, 10);
       const asset = (currentData.assets || [])[idx];
@@ -1029,27 +1030,27 @@ function rebuildPanel() {
   // yet. When each lands we re-render the panel so the placeholder
   // swaps to the real <img>.
   preloadAssetThumbs(currentData.assets || []);
-  const pickBtn = panelEl.querySelector(".psyai-pick");
+  const pickBtn = panelEl.querySelector(".doxyedit-pick");
   if (pickBtn) pickBtn.addEventListener("click", triggerFilePick);
-  const s1 = panelEl.querySelector(".psyai-s1");
+  const s1 = panelEl.querySelector(".doxyedit-s1");
   if (s1) s1.addEventListener("click", strategyFileInput);
-  const s2 = panelEl.querySelector(".psyai-s2");
+  const s2 = panelEl.querySelector(".doxyedit-s2");
   if (s2) s2.addEventListener("click", strategyPaste);
-  const s3 = panelEl.querySelector(".psyai-s3");
+  const s3 = panelEl.querySelector(".doxyedit-s3");
   if (s3) s3.addEventListener("click", strategyDrop);
-  const s4 = panelEl.querySelector(".psyai-s4");
+  const s4 = panelEl.querySelector(".doxyedit-s4");
   if (s4) s4.addEventListener("click", strategyClickThenInput);
-  _uploadStatusEl = panelEl.querySelector("#psyai-upload-status");
+  _uploadStatusEl = panelEl.querySelector("#doxyedit-upload-status");
   // Re-render the picked badge + drag thumb from cached state after
   // a rebuild (e.g. after a CDP push repaints the panel).
   refreshPickedBadge();
   renderDragThumb();
-  panelEl.querySelectorAll(".psyai-btn[data-fill]").forEach(btn => {
+  panelEl.querySelectorAll(".doxyedit-btn[data-fill]").forEach(btn => {
     btn.addEventListener("click", () => {
       fillFocusedField(currentData[btn.dataset.fill] || "");
     });
   });
-  panelEl.querySelectorAll(".psyai-btn[data-post]").forEach(btn => {
+  panelEl.querySelectorAll(".doxyedit-btn[data-post]").forEach(btn => {
     btn.addEventListener("click", () => {
       const key = btn.dataset.post;
       const payload = currentData.posts[key];
@@ -1084,7 +1085,7 @@ document.addEventListener("keydown", (e) => {
 // ── INIT ───────────────────────────────────────────────────────────────────
 function init() {
   buildPanelScaffold();
-  applyData(PSYAI_FALLBACK, "fallback");
+  applyData(DOXYEDIT_FALLBACK, "fallback");
   tryCdpInjection();
   tryHttpBridge();
   // Restore saved FAB position (user may have moved it last session).

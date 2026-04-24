@@ -1,4 +1,4 @@
-"""psyai_worker.py — long-lived Playwright subprocess for the CDP bridge.
+"""bridge_worker.py - long-lived Playwright subprocess for the CDP bridge.
 
 Runs as a standalone Python process spawned by DoxyEdit
 (subprocess.Popen). Reads newline-delimited JSON commands on stdin,
@@ -46,7 +46,7 @@ async def _main():
     stop_event = asyncio.Event()
 
     def _reader_thread():
-        """Blocking readline loop on a thread executor — pushing each
+        """Blocking readline loop on a thread executor - pushing each
         parsed command into the async queue. Using a thread instead
         of loop.add_reader on stdin because Windows asyncio has no
         add_reader for pipes (only sockets)."""
@@ -64,13 +64,13 @@ async def _main():
                 continue
             asyncio.run_coroutine_threadsafe(
                 command_queue.put(cmd), loop)
-        # EOF on stdin — treat as stop request.
+        # EOF on stdin - treat as stop request.
         asyncio.run_coroutine_threadsafe(
             command_queue.put({"cmd": "stop"}), loop)
 
     import threading
     threading.Thread(target=_reader_thread, daemon=True,
-                     name="psyai-worker-stdin").start()
+                     name="bridge-worker-stdin").start()
 
     browser = None
     async with async_playwright() as pw:

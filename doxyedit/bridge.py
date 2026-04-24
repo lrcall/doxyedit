@@ -1,22 +1,22 @@
-"""psyai_bridge.py — three transports from DoxyEdit to the userscript.
+"""bridge.py - three transports from DoxyEdit to the userscript.
 
 Each transport consumes the dict produced by
-`psyai_data.build_psyai_data(project, composer_post)`. Running in
-parallel is fine — the userscript picks whichever source is live.
+`bridge_data.build_bridge_data(project, composer_post)`. Running in
+parallel is fine - the userscript picks whichever source is live.
 
-Track A — CDP push:
-    cdp_push(data) injects the dict as `window.__psyai_data` on the
+Track A - CDP push:
+    cdp_push(data) injects the dict as `window.__bridge_data` on the
     currently-open page in the Brave debug instance. Uses Playwright
     over the running CDP endpoint (http://localhost:9222 by default).
 
-Track B — OS clipboard:
+Track B - OS clipboard:
     copy_to_clipboard(data) writes a JSON blob with a magic marker
-    (`_psyai_panel_v1`). The userscript's paste button recognizes the
+    (`_bridge_panel_v1`). The userscript's paste button recognizes the
     marker and unpacks.
 
-Track C — Local HTTP server:
+Track C - Local HTTP server:
     start_http_server(port) runs a tiny stdlib `http.server` in a
-    daemon thread that serves the current snapshot at GET /psyai.json
+    daemon thread that serves the current snapshot at GET /doxyedit.json
     with CORS headers. `update_http_snapshot(data)` atomically swaps
     the bytes the next request returns.
 
@@ -37,13 +37,13 @@ from typing import Optional
 
 
 # ──────────────────────────────────────────────────────────────────
-# Persistent file log — every bridge call appends here so failures
+# Persistent file log - every bridge call appends here so failures
 # are captured without depending on DoxyEdit's UI. Readable by the
 # dev without screenshots. Path is stable so Claude / debuggers know
 # where to look.
 # ──────────────────────────────────────────────────────────────────
 _LOG_PATH = os.path.join(
-    tempfile.gettempdir(), "doxyedit_psyai_bridge.log")
+    tempfile.gettempdir(), "doxyedit_bridge.log")
 
 
 def _log(event: str, **fields) -> None:
@@ -69,16 +69,16 @@ def bridge_log_path() -> str:
 # clobber random clipboard contents or random HTTP responses with
 # DoxyEdit data.
 # ──────────────────────────────────────────────────────────────────
-PSYAI_PANEL_MARKER = "_psyai_panel_v1"
+DOXYEDIT_PANEL_MARKER = "_bridge_panel_v1"
 
 
 def _wrap_marker(data: dict, kind: str = "full") -> dict:
     """Add the marker + kind field that the userscript checks for."""
-    return {PSYAI_PANEL_MARKER: True, "kind": kind, "payload": data}
+    return {DOXYEDIT_PANEL_MARKER: True, "kind": kind, "payload": data}
 
 
 # ──────────────────────────────────────────────────────────────────
-# Track B — OS clipboard
+# Track B - OS clipboard
 # ──────────────────────────────────────────────────────────────────
 
 def copy_to_clipboard(data: dict, kind: str = "full") -> bool:
@@ -101,20 +101,20 @@ def copy_to_clipboard(data: dict, kind: str = "full") -> bool:
 
 
 # ──────────────────────────────────────────────────────────────────
-# Track C — local HTTP server
+# Track C - local HTTP server
 # ──────────────────────────────────────────────────────────────────
 
-class _PsyaiHTTPState:
+class _BridgeHTTPState:
     """Module-level container for the running server and its current
     payload bytes. `update_http_snapshot` swaps atomically under a
     lock so concurrent GETs never see a half-written JSON.
 
     asset_registry maps asset_id -> (abs_path, mime) so the
-    /psyai-asset endpoint can stream image bytes the userscript
+    /doxyedit-asset endpoint can stream image bytes the userscript
     turns into Files for one-click attach."""
 
     def __init__(self):
-        self.snapshot_bytes: bytes = b'{"' + PSYAI_PANEL_MARKER.encode() + b'": true, "kind": "empty", "payload": {}}'
+        self.snapshot_bytes: bytes = b'{"' + DOXYEDIT_PANEL_MARKER.encode() + b'": true, "kind": "empty", "payload": {}}'
         self.lock = threading.Lock()
         self.server: Optional[ThreadingHTTPServer] = None
         self.thread: Optional[threading.Thread] = None
@@ -122,11 +122,11 @@ class _PsyaiHTTPState:
         self.asset_registry: dict = {}
 
 
-_HTTP_STATE = _PsyaiHTTPState()
+_HTTP_STATE = _BridgeHTTPState()
 
 
 def register_asset(asset_id: str, path: str) -> dict:
-    """Whitelist a local file to be served via /psyai-asset?id=<id>.
+    """Whitelist a local file to be served via /doxyedit-asset?id=<id>.
     Returns a descriptor {id, name, url, mime} the data builder can
     embed in the payload so the userscript knows what to fetch."""
     import mimetypes
@@ -137,7 +137,7 @@ def register_asset(asset_id: str, path: str) -> dict:
     return {
         "id": asset_id,
         "name": os.path.basename(path),
-        "url": f"http://127.0.0.1:{port}/psyai-asset?id={asset_id}",
+        "url": f"http://127.0.0.1:{port}/doxyedit-asset?id={asset_id}",
         "mime": mime,
     }
 
@@ -153,33 +153,33 @@ def register_assets_bulk(items: list) -> list:
 
 
 def _userscript_path() -> Optional[str]:
-    """Absolute path to the bundled psyai-autofill.user.js. Resolves
+    """Absolute path to the bundled doxyedit-autofill.user.js. Resolves
     relative to this file so it works regardless of CWD. Returns
     None if the file isn't where we expect (e.g., a Nuitka onefile
     build that didn't include docs/)."""
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.dirname(here)
     candidate = os.path.join(root, "docs", "userscripts",
-                              "psyai-autofill.user.js")
+                              "doxyedit-autofill.user.js")
     return candidate if os.path.exists(candidate) else None
 
 
-class _PsyaiHandler(BaseHTTPRequestHandler):
+class _BridgeHandler(BaseHTTPRequestHandler):
     """Two-endpoint HTTP bridge.
 
-    GET /psyai.json   -> latest identity + posts snapshot (JSON).
-    GET /psyai-autofill.user.js
+    GET /doxyedit.json   -> latest identity + posts snapshot (JSON).
+    GET /doxyedit-autofill.user.js
                       -> bundled Tampermonkey userscript. Wired as
                          @updateURL on the userscript itself so
                          Tampermonkey's "Check for updates" pulls
-                         the LOCAL file — edits to the checkout are
+                         the LOCAL file - edits to the checkout are
                          picked up without a GitHub round-trip.
 
     CORS wide-open so the userscript's GM_xmlhttpRequest (or a plain
     fetch from the browser page) can read cross-origin."""
 
     def do_GET(self):  # noqa: N802  (stdlib convention)
-        if self.path in ("/psyai.json", "/"):
+        if self.path in ("/doxyedit.json", "/"):
             with _HTTP_STATE.lock:
                 body = _HTTP_STATE.snapshot_bytes
             self.send_response(200)
@@ -191,7 +191,7 @@ class _PsyaiHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
-        if self.path.startswith("/psyai-asset"):
+        if self.path.startswith("/doxyedit-asset"):
             from urllib.parse import urlparse, parse_qs
             qs = parse_qs(urlparse(self.path).query)
             asset_id = (qs.get("id") or [""])[0]
@@ -220,7 +220,7 @@ class _PsyaiHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
-        if self.path == "/psyai-autofill.user.js":
+        if self.path == "/doxyedit-autofill.user.js":
             us_path = _userscript_path()
             if us_path is None:
                 self.send_response(404)
@@ -258,7 +258,7 @@ class _PsyaiHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, format, *args):  # noqa: A002  (stdlib sig)
-        # Suppress stdout spam — DoxyEdit logs via its own channel.
+        # Suppress stdout spam - DoxyEdit logs via its own channel.
         return
 
 
@@ -269,12 +269,12 @@ def start_http_server(port: int = 0) -> int:
     if _HTTP_STATE.server is not None:
         return _HTTP_STATE.port
     try:
-        server = ThreadingHTTPServer(("127.0.0.1", port), _PsyaiHandler)
+        server = ThreadingHTTPServer(("127.0.0.1", port), _BridgeHandler)
         _HTTP_STATE.server = server
         _HTTP_STATE.port = server.server_address[1]
         thread = threading.Thread(
             target=server.serve_forever, daemon=True,
-            name="psyai-http-bridge")
+            name="bridge-http-bridge")
         thread.start()
         _HTTP_STATE.thread = thread
         return _HTTP_STATE.port
@@ -313,13 +313,13 @@ def http_bridge_port() -> int:
 
 
 # ──────────────────────────────────────────────────────────────────
-# Track A — CDP push via Playwright
+# Track A - CDP push via Playwright
 # ──────────────────────────────────────────────────────────────────
 
 def _cdp_push_worker(data: dict, cdp_url: str) -> tuple[bool, str]:
     """The actual Playwright work. Returns (ok, error_message).
     Split out from cdp_push so GUI callers can run it on a worker
-    thread — sync_playwright blocks on a subprocess handshake and
+    thread - sync_playwright blocks on a subprocess handshake and
     needs its own event loop, which collides with Qt's main loop
     if called directly from the GUI thread."""
     _log("cdp_push.begin",
@@ -335,9 +335,9 @@ def _cdp_push_worker(data: dict, cdp_url: str) -> tuple[bool, str]:
     try:
         wrapped = _wrap_marker(data, "full")
         init_script = (
-            "window.__psyai_data = " + json.dumps(wrapped) + ";"
-            "window.dispatchEvent(new CustomEvent('psyai-data-updated', "
-            "{detail: window.__psyai_data}));"
+            "window.__bridge_data = " + json.dumps(wrapped) + ";"
+            "window.dispatchEvent(new CustomEvent('doxyedit-data-updated', "
+            "{detail: window.__bridge_data}));"
         )
         pages_touched = 0
         with sync_playwright() as pw:
@@ -362,10 +362,10 @@ def _cdp_push_worker(data: dict, cdp_url: str) -> tuple[bool, str]:
 
 
 def cdp_push(data: dict, cdp_url: str = "http://127.0.0.1:9222") -> bool:
-    """Inject `data` as `window.__psyai_data` on every open page in
+    """Inject `data` as `window.__bridge_data` on every open page in
     the running Brave/Chrome debug instance. Also registers an init
     script so the data is present BEFORE userscripts run on future
-    navigations — the psyai userscript reads on document-idle, so
+    navigations - the bridge userscript reads on document-idle, so
     this is the only reliable delivery across page navigations.
 
     Runs Playwright synchronously (short-lived connection per call).
@@ -373,7 +373,7 @@ def cdp_push(data: dict, cdp_url: str = "http://127.0.0.1:9222") -> bool:
     blocked, Playwright missing) return False without raising.
 
     Callers in Qt apps should NOT call this from the main GUI
-    thread — use cdp_push_async or run on a QThreadPool worker so
+    thread - use cdp_push_async or run on a QThreadPool worker so
     Playwright's event loop doesn't deadlock against the Qt loop.
     """
     ok, _err = _cdp_push_worker(data, cdp_url)
@@ -385,19 +385,19 @@ def cdp_push_async(data: dict, on_done=None,
     """Run cdp_push on a background thread via QThreadPool. Designed
     for GUI callers: never blocks the main loop, never deadlocks
     against Qt's async machinery. `on_done(ok: bool, err: str)` is
-    invoked back on the thread pool worker — GUI updates inside the
+    invoked back on the thread pool worker - GUI updates inside the
     callback should re-marshal to the main thread (signal, or
     QMetaObject.invokeMethod with Qt.QueuedConnection).
 
     Short-lived push: each call spins up Playwright, pushes, tears
     down. Playwright clears init-script registrations on disconnect,
     so the data DIES on the next page navigation (F5 in the browser
-    zeros window.__psyai_data). For persistence across F5, use
+    zeros window.__bridge_data). For persistence across F5, use
     persistent_push() / ensure_persistent_session() below."""
     try:
         from PySide6.QtCore import QRunnable, QThreadPool
     except Exception:
-        # No Qt available (CLI / test context) — fall back to sync.
+        # No Qt available (CLI / test context) - fall back to sync.
         ok, err = _cdp_push_worker(data, cdp_url)
         if on_done:
             on_done(ok, err)
@@ -420,7 +420,7 @@ def cdp_push_async(data: dict, on_done=None,
 
 
 # ──────────────────────────────────────────────────────────────────
-# Persistent CDP session — a dedicated daemon thread holds one
+# Persistent CDP session - a dedicated daemon thread holds one
 # sync_playwright instance open for as long as DoxyEdit runs so
 # init-script registrations survive page navigations (F5 keeps the
 # data). Short-lived cdp_push clears those on every call because
@@ -441,7 +441,7 @@ def cdp_push_async(data: dict, on_done=None,
 from queue import Queue, Empty
 
 
-class _PsyaiPersistentSession:
+class _BridgePersistentSession:
     def __init__(self, cdp_url: str = "http://127.0.0.1:9222"):
         self._cdp_url = cdp_url
         self._cmd_queue: Queue = Queue()
@@ -460,7 +460,7 @@ class _PsyaiPersistentSession:
         self._stop_event.clear()
         self._thread = threading.Thread(
             target=self._run, daemon=True,
-            name="psyai-cdp-session")
+            name="bridge-cdp-session")
         self._thread.start()
 
     def stop(self) -> None:
@@ -488,7 +488,7 @@ class _PsyaiPersistentSession:
         Playwright spawns a node subprocess for its driver. Qt /
         PySide6 sometimes flips the default policy to
         WindowsSelectorEventLoopPolicy, which would make
-        asyncio.new_event_loop() return a SelectorEventLoop — that
+        asyncio.new_event_loop() return a SelectorEventLoop - that
         one can't spawn subprocesses and the driver connect fails
         with 'Connection closed while reading from the driver' the
         moment async_playwright() tries to start node.
@@ -568,7 +568,7 @@ class _PsyaiPersistentSession:
         the init-script on every context + pushes live to every open
         page. Re-registering repeatedly is wasteful but Playwright's
         async API doesn't expose remove_init_script either; the
-        duplicated scripts all set the same window.__psyai_data so
+        duplicated scripts all set the same window.__bridge_data so
         the last registration wins, and registered scripts are
         per-context memory only (<1KB each). Queue polled with a
         short sleep so the asyncio loop stays responsive to stop."""
@@ -588,9 +588,9 @@ class _PsyaiPersistentSession:
             on_done = cmd["on_done"]
             wrapped = _wrap_marker(data, "full")
             init_script = (
-                "window.__psyai_data = " + json.dumps(wrapped) + ";"
+                "window.__bridge_data = " + json.dumps(wrapped) + ";"
                 "window.dispatchEvent(new CustomEvent("
-                "'psyai-data-updated', {detail: window.__psyai_data}));"
+                "'doxyedit-data-updated', {detail: window.__bridge_data}));"
             )
             self._latest_script = init_script
             pages_touched = 0
@@ -616,18 +616,18 @@ class _PsyaiPersistentSession:
                 pass
 
 
-_persistent_session: Optional[_PsyaiPersistentSession] = None
+_persistent_session: Optional[_BridgePersistentSession] = None
 
 
 def ensure_persistent_session(
         cdp_url: str = "http://127.0.0.1:9222") -> bool:
     """Start the persistent CDP session if not already running.
     Idempotent. Returns True when the thread is alive (doesn't
-    guarantee CDP connected yet — the first push result indicates
+    guarantee CDP connected yet - the first push result indicates
     that)."""
     global _persistent_session
     if _persistent_session is None:
-        _persistent_session = _PsyaiPersistentSession(cdp_url)
+        _persistent_session = _BridgePersistentSession(cdp_url)
     if not (_persistent_session._thread
             and _persistent_session._thread.is_alive()):
         _persistent_session.start()
@@ -638,7 +638,7 @@ def persistent_push(data: dict, on_done=None,
                     cdp_url: str = "http://127.0.0.1:9222") -> None:
     """Push `data` through the persistent CDP session, starting it
     if needed. Init-script registrations survive page navigations
-    for the life of the session — F5 keeps the green indicator."""
+    for the life of the session - F5 keeps the green indicator."""
     ensure_persistent_session(cdp_url)
     assert _persistent_session is not None
     _persistent_session.push(data, on_done)
@@ -660,7 +660,7 @@ def persistent_session_connected() -> bool:
 
 
 # ──────────────────────────────────────────────────────────────────
-# Worker subprocess — Playwright in a SEPARATE Python process.
+# Worker subprocess - Playwright in a SEPARATE Python process.
 #
 # In-process async Playwright collides with Qt/PySide6's asyncio
 # state on Python 3.11 (driver subprocess pipe handles get corrupted
@@ -671,20 +671,20 @@ def persistent_session_connected() -> bool:
 # the subprocess (F5 keeps the userscript green).
 #
 # Protocol: newline-delimited JSON over stdin/stdout. See
-# doxyedit.psyai_worker for the worker side.
+# doxyedit.bridge_worker for the worker side.
 # ──────────────────────────────────────────────────────────────────
 
 import subprocess
 
 
-class _PsyaiWorkerProcess:
+class _BridgeWorkerProcess:
     def __init__(self, cdp_url: str = "http://127.0.0.1:9222"):
         self._cdp_url = cdp_url
         self._proc: Optional[subprocess.Popen] = None
         self._lock = threading.Lock()
         self._stdout_thread: Optional[threading.Thread] = None
         # Callbacks waiting for the next response. Order-preserving
-        # deque — worker replies in-order per push.
+        # deque - worker replies in-order per push.
         from collections import deque
         self._pending: deque = deque()
         self._pending_lock = threading.Lock()
@@ -701,7 +701,7 @@ class _PsyaiWorkerProcess:
             _log("worker.spawn", python=sys.executable)
             try:
                 self._proc = subprocess.Popen(
-                    [sys.executable, "-m", "doxyedit.psyai_worker"],
+                    [sys.executable, "-m", "doxyedit.bridge_worker"],
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -722,14 +722,14 @@ class _PsyaiWorkerProcess:
             self._connected = True
             self._stdout_thread = threading.Thread(
                 target=self._stdout_loop, daemon=True,
-                name="psyai-worker-stdout")
+                name="bridge-worker-stdout")
             self._stdout_thread.start()
             # Drain stderr so Playwright / Python warnings that bypass
             # the JSON protocol can't fill the 64 KiB pipe buffer and
             # block the worker mid-command.
             self._stderr_thread = threading.Thread(
                 target=self._stderr_loop, daemon=True,
-                name="psyai-worker-stderr")
+                name="bridge-worker-stderr")
             self._stderr_thread.start()
 
     def _stderr_loop(self) -> None:
@@ -798,9 +798,9 @@ class _PsyaiWorkerProcess:
             return
         wrapped = _wrap_marker(data, "full")
         init_script = (
-            "window.__psyai_data = " + json.dumps(wrapped) + ";"
+            "window.__bridge_data = " + json.dumps(wrapped) + ";"
             "window.dispatchEvent(new CustomEvent("
-            "'psyai-data-updated', {detail: window.__psyai_data}));"
+            "'doxyedit-data-updated', {detail: window.__bridge_data}));"
         )
         cmd = {
             "cmd": "push",
@@ -844,7 +844,7 @@ class _PsyaiWorkerProcess:
             self._connected = False
 
 
-_worker_process: Optional[_PsyaiWorkerProcess] = None
+_worker_process: Optional[_BridgeWorkerProcess] = None
 
 
 def ensure_worker_process(
@@ -852,7 +852,7 @@ def ensure_worker_process(
     """Start the Playwright subprocess worker if not already running."""
     global _worker_process
     if _worker_process is None:
-        _worker_process = _PsyaiWorkerProcess(cdp_url)
+        _worker_process = _BridgeWorkerProcess(cdp_url)
     _worker_process.start()
     return _worker_process.connected
 
@@ -860,7 +860,7 @@ def ensure_worker_process(
 def worker_push(data: dict, on_done=None,
                 cdp_url: str = "http://127.0.0.1:9222") -> None:
     """Push via the subprocess worker. Auto-starts the worker on
-    first call. Persistent — init-script registrations live for the
+    first call. Persistent - init-script registrations live for the
     life of the subprocess, so F5 keeps the userscript green."""
     ensure_worker_process(cdp_url)
     assert _worker_process is not None
@@ -936,7 +936,7 @@ def worker_upload_files(
 # path Python can exit through short of a hard crash.
 import atexit as _atexit
 
-def _psyai_bridge_atexit() -> None:
+def _bridge_atexit() -> None:
     for fn in (stop_worker_process, stop_persistent_session,
                stop_http_server):
         try:
@@ -944,4 +944,4 @@ def _psyai_bridge_atexit() -> None:
         except Exception:
             pass
 
-_atexit.register(_psyai_bridge_atexit)
+_atexit.register(_bridge_atexit)
