@@ -270,6 +270,18 @@ class CanvasOverlay:
     bubble_roundness: float = 0.0
     bubble_oval_stretch: float = 0.0
     bubble_wobble: float = 0.0
+    # Extra bubble modifiers stacked on top of the trio above.
+    # bubble_tail_width (default 1.0) scales the tail base length; >1
+    # makes a thicker, chunkier tail, <1 a narrow, needle-like tail.
+    # bubble_tail_taper biases the tip position along the tail;
+    # 0.0 = centered bezier/triangle, positive pulls the tip toward
+    # the tail's far side, negative toward the near side (think
+    # "skew the tip sideways relative to the base").
+    # bubble_skew_x applies a horizontal shear to the entire body so
+    # the bubble leans left or right without rotating its contents.
+    bubble_tail_width: float = 1.0
+    bubble_tail_taper: float = 0.0
+    bubble_skew_x: float = 0.0
     # Star / polygon shape params. shape_kind="star" -> n-pointed star,
     # "polygon" -> n-sided regular polygon. star_points doubles as
     # point-count for both. inner_ratio is the star's inner/outer
