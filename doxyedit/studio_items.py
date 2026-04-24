@@ -2053,27 +2053,38 @@ class OverlayShapeItem(QGraphicsItem):
             round_pad_y = round_overshoot * h * BUBBLE_ROUNDNESS_OVERSHOOT_OFFSET
             # Tail-curve bezier control points sit perpendicular to the
             # linear tail axis at offset `amt = tail_curve * base_len *
-            # BUBBLE_TAIL_CURVE_AMP_RATIO`. The bezier curve's peak
-            # excursion from the straight line is roughly amt/2; pad
-            # the entire tail region by that plus wobble_pad so the
-            # curved tail can sway in any direction without clipping.
+            # BUBBLE_TAIL_CURVE_AMP_RATIO`. Each bezier control is at
+            # the midpoint of its segment (b1->tip or tip->b2), shifted
+            # perpendicular by amt, so the farthest bezier point from
+            # the tip is at distance sqrt((base_len/2)^2 + amt^2). A
+            # conservative but tight upper bound for a radial pad
+            # around the tip is amt + base_len/2, which the bounding
+            # rect needs to cover so the curled tail isn't cropped.
             tail_curve = float(getattr(ov, "tail_curve", 0.0) or 0.0)
             tail_width_scale = float(getattr(ov, "bubble_tail_width", 1.0) or 1.0)
             tail_base_len = short_side * BUBBLE_TAIL_BASE_RATIO * tail_width_scale
-            tail_curve_pad = (abs(tail_curve) * tail_base_len
-                              * BUBBLE_TAIL_CURVE_AMP_RATIO * 0.5)
+            amt = abs(tail_curve) * tail_base_len * BUBBLE_TAIL_CURVE_AMP_RATIO
+            tail_curve_pad = amt + tail_base_len * 0.5
+            # tail_taper slides the painted tip sideways along the base
+            # axis (b1->b2 direction) by TAPER_FACTOR * base_len * taper.
+            # _tail_tip returns the unshifted tip, so without this pad
+            # extreme taper values push the drawn tip outside the rect.
+            tail_taper_val = float(getattr(ov, "bubble_tail_taper", 0.0) or 0.0)
+            taper_shift = (abs(tail_taper_val) * tail_base_len
+                           * BUBBLE_TAIL_TAPER_FACTOR)
             # Combine: grow the body rect by the union of every
             # deformer's worst-case extent, then union with a tail
-            # region inflated by tail_curve_pad + wobble_pad + stroke.
-            # Stroke half-width bakes in so half-pen-width outlines
-            # don't get invalidated inconsistently.
+            # region inflated by tail_curve_pad + taper_shift + wobble
+            # + stroke half-width so half-pen outlines don't get
+            # invalidated inconsistently.
             stroke_half = max(2.0, (ov.stroke_width or 0) / 2.0)
             body_left = x - ext_w / 2 - wobble_pad - skew_pad - round_pad_x - stroke_half
             body_top = y - ext_h / 2 - wobble_pad - round_pad_y - stroke_half
             body_right = x + w + ext_w / 2 + wobble_pad + skew_pad + round_pad_x + stroke_half
             body_bottom = y + h + ext_h / 2 + wobble_pad + round_pad_y + stroke_half
             tail_pad = (12 + int(wobble_pad) + int(skew_pad)
-                        + int(tail_curve_pad) + int(stroke_half))
+                        + int(tail_curve_pad) + int(taper_shift)
+                        + int(stroke_half))
             min_x = min(r.left(), body_left, tip.x() - tail_pad)
             min_y = min(r.top(), body_top, tip.y() - tail_pad)
             max_x = max(r.right(), body_right, tip.x() + tail_pad)
