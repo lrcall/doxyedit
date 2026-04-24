@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         psyai autofill (DoxyEdit bridge)
 // @namespace    https://psyai.game
-// @version      2.10
+// @version      2.11
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard — with the old hardcoded library as last-resort fallback.
 // @author       psyai
 // @updateURL    http://127.0.0.1:8910/psyai-autofill.user.js
@@ -409,6 +409,37 @@ async function autoInject() {
       setUploadStatus(`✓ attached via file input`, true);
       return;
     } catch (e) { /* fall through */ }
+  }
+  // Strategy 2: paste onto the focused compose area. Bluesky, X,
+  // Mastodon, and Threads all handle pasted image files natively
+  // and attach without opening a native file picker. Running this
+  // BEFORE strategy 4 avoids the "image attaches AND OS file picker
+  // pops open" UX on those hosts. Only fires when a relevant text
+  // field is focused, since ClipboardEvent paste needs a target.
+  const host = location.hostname.toLowerCase();
+  const pasteFriendly = (
+    host.endsWith("bsky.app") ||
+    host === "x.com" || host.endsWith(".x.com") ||
+    host.endsWith("twitter.com") ||
+    host.includes("mastodon") ||
+    host.endsWith("threads.net")
+  );
+  if (pasteFriendly) {
+    const active = document.activeElement;
+    if (active && (active.isContentEditable
+                    || active.tagName === "TEXTAREA"
+                    || active.tagName === "INPUT")) {
+      try {
+        const dt2 = new DataTransfer();
+        for (const f of _pickedFiles) dt2.items.add(f);
+        const pasteEv = new ClipboardEvent("paste", {
+          clipboardData: dt2, bubbles: true, cancelable: true,
+        });
+        active.dispatchEvent(pasteEv);
+        setUploadStatus(`✓ attached via paste (no dialog)`, true);
+        return;
+      } catch (e) { /* fall through to click strategy */ }
+    }
   }
   // Strategy 4: click image/photo/attach button, retry input.
   const btnPatterns = [
