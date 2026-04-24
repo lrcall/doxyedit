@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.16
+// @version      2.17
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -904,10 +904,18 @@ function buildPanelScaffold() {
   panelEl = panel;
 
   const styleEl = document.createElement("style");
+  // Explicit text-transform:none on every panel class so host CSS
+  // (Bluesky's shell applies uppercase to button{}, which leaked
+  // into our buttons post-rename and made everything SHOUT) can't
+  // override the intended casing.
   styleEl.textContent = `
+    #doxyedit-autofill-panel, #doxyedit-autofill-panel * {
+      text-transform: none;
+    }
     .doxyedit-btn { background:#222; color:#eee; border:1px solid #444; padding:6px 8px;
                  cursor:pointer; font:inherit; text-align:left; border-radius:3px;
-                 margin-top:2px; width:100%; box-sizing:border-box; }
+                 margin-top:2px; width:100%; box-sizing:border-box;
+                 text-transform: none; }
     .doxyedit-btn:hover { background:#333; border-color:#ff6b6b; }
     .doxyedit-btn.primary { border-color:#ff6b6b; background:#221818; }
     .doxyedit-section { color:#ff6b6b; font-size:10px; letter-spacing:0.1em;
