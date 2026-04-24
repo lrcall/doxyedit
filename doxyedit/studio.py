@@ -7277,19 +7277,25 @@ class StudioEditor(QWidget):
         self.slider_layer_opacity.setRange(0, 100)
         self.slider_layer_opacity.setValue(100)
         self.slider_layer_opacity.valueChanged.connect(self._on_layer_opacity_changed)
+        # Inline Enabled + Locked checkboxes on the same row as the
+        # Opacity slider to save vertical space in the sidebar. Shorter
+        # "Locked" label (drop "non-selectable") so it fits alongside
+        # the slider; the tooltip keeps the full explanation.
         _op_row.addWidget(self.slider_layer_opacity, 1)
-        _props_layout.addLayout(_op_row)
-        self.chk_layer_enabled = QCheckBox("Enabled")
+        self.chk_layer_enabled = QCheckBox("On")
         self.chk_layer_enabled.setObjectName("studio_layer_enabled_chk")
+        self.chk_layer_enabled.setToolTip("Enabled — uncheck to hide this layer")
         self.chk_layer_enabled.toggled.connect(self._on_layer_enabled_toggled)
-        _props_layout.addWidget(self.chk_layer_enabled)
-        self.chk_layer_locked = QCheckBox("Locked (non-selectable)")
+        _op_row.addWidget(self.chk_layer_enabled)
+        self.chk_layer_locked = QCheckBox("Lock")
         self.chk_layer_locked.setObjectName("studio_layer_locked_chk")
         self.chk_layer_locked.setToolTip(
-            "Lock this layer: can't be moved, resized, or selected in the canvas. "
-            "Useful for background watermarks you want to protect.")
+            "Locked (non-selectable): can't be moved, resized, or selected "
+            "in the canvas. Useful for background watermarks you want to "
+            "protect.")
         self.chk_layer_locked.toggled.connect(self._on_layer_locked_toggled)
-        _props_layout.addWidget(self.chk_layer_locked)
+        _op_row.addWidget(self.chk_layer_locked)
+        _props_layout.addLayout(_op_row)
 
         # Position X / Y / Rot share a 3-column layout:
         #   [ fixed-width label | stretchy slider | fixed-width spinbox ]
