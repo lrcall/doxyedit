@@ -2352,7 +2352,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         # — Browser Automation submenu —
         browser_menu = tools_menu.addMenu("Browser Posting")
-        browser_menu.addAction("Launch Debug Chrome", self._launch_debug_chrome)
+        browser_menu.addAction(
+            "Launch Debug Browser (isolated profile)",
+            self._launch_debug_chrome)
+        browser_menu.addAction(
+            "Launch Debug Browser (main profile, preserves logins)",
+            self._launch_debug_main_profile)
         browser_menu.addAction("Auto-Post to Subscriptions...", self._auto_post_subscriptions)
         browser_menu.addSeparator()
         browser_menu.addAction(
@@ -5524,6 +5529,68 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         else:
             QMessageBox.warning(self, "Chrome Not Found",
                 "Could not find Chrome. Set chrome_path in config.yaml under browser_automation:")
+
+    def _launch_debug_main_profile(self):
+        """Launch Debug Brave/Chrome pointed at the user's MAIN
+        profile so every existing login + session tab is preserved.
+
+        Chromium locks the profile directory to a single running
+        process; all other windows of the target browser MUST be
+        closed first or the launch silently no-ops (or produces a
+        second tab in the existing window without CDP enabled).
+        Confirm with the user before shelling out."""
+        from doxyedit.browserpost import (
+            is_chrome_running, launch_debug_browser,
+            _main_profile_dir_for, _detect_browser_binary,
+        )
+        if is_chrome_running():
+            self.status.showMessage(
+                "Debug browser already running on port 9222", 3000)
+            return
+        # Which browser are we about to drive?
+        preferred = "auto"
+        try:
+            from doxyedit.oneup import _find_config
+            project_dir = str(Path(self._project_path).parent) if self._project_path else "."
+            config_path = _find_config(project_dir)
+            if config_path.exists():
+                import yaml
+                cfg = yaml.safe_load(
+                    config_path.read_text(encoding="utf-8")) or {}
+                preferred = (
+                    cfg.get("browser_automation", {}).get("browser", "auto")
+                    or "auto")
+        except Exception:
+            pass
+        browser_name, _ = _detect_browser_binary(preferred)
+        display = {"brave": "Brave", "chrome": "Chrome"}.get(
+            browser_name, browser_name.capitalize() or "your browser")
+        main_dir = _main_profile_dir_for(browser_name)
+        reply = QMessageBox.warning(
+            self, f"Close {display} first",
+            f"To launch with CDP enabled on your main {display} profile, "
+            f"{display} must not be running.\n\n"
+            f"Close ALL {display} windows first, then press OK. "
+            f"{display} will restart with every tab and login restored, "
+            f"plus the debug port (9222) open for DoxyEdit.\n\n"
+            f"Cancel to use the isolated DoxyEdit profile instead.",
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QMessageBox.StandardButton.Ok:
+            return
+        proc, name = launch_debug_browser(
+            preferred=preferred, use_main_profile=True)
+        if proc:
+            self.status.showMessage(
+                f"Debug {name} launched on your main profile — CDP live on 9222",
+                6000)
+        else:
+            QMessageBox.warning(
+                self, "Launch Failed",
+                f"Could not start Debug {display}. "
+                f"Main profile dir not found or locked by a running "
+                f"process. Close {display} fully (check system tray) "
+                f"and try again.")
 
     # ──────────────────────────────────────────────────────────────
     # psyai userscript bridge — three transports from DoxyEdit into

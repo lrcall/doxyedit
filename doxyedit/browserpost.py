@@ -126,6 +126,26 @@ def _profile_dir_for(browser_name: str) -> str:
     return str(Path.home() / f".doxyedit_{browser_name}_profile")
 
 
+def _main_profile_dir_for(browser_name: str) -> str:
+    """Path to the browser's DEFAULT user-data-dir (the one the user's
+    normal browsing session uses). Pointing --user-data-dir at this
+    preserves every login / bookmark / session tab from their main
+    Brave or Chrome — at the cost of requiring ALL existing windows
+    of that browser to be closed first (Chromium locks the profile
+    dir to a single running process)."""
+    if sys.platform != "win32":
+        # Non-Windows paths would be $HOME/.config/BraveSoftware/... etc.
+        # Not wired up since the posting workflow is Windows-only today.
+        return ""
+    if browser_name == "brave":
+        return os.path.expandvars(
+            r"%LocalAppData%\BraveSoftware\Brave-Browser\User Data")
+    if browser_name == "chrome":
+        return os.path.expandvars(
+            r"%LocalAppData%\Google\Chrome\User Data")
+    return ""
+
+
 def is_chrome_running(cdp_url: str = DEFAULT_CDP) -> bool:
     """Check if a debug-mode Chromium browser (Chrome or Brave) is
     accessible on the CDP port. Name kept for back-compat with older
@@ -172,12 +192,22 @@ def launch_debug_browser(
     browser_path: str = "",
     port: int = 9222,
     preferred: str = "auto",
+    use_main_profile: bool = False,
 ) -> tuple[Optional[subprocess.Popen], str]:
     """Launch a Chromium-family browser with --remote-debugging-port.
 
-    browser_path: explicit binary path. Wins if set AND exists.
-    preferred:    'brave' / 'chrome' / 'auto' (Brave preferred, Chrome
-                  as fallback). Ignored when browser_path is set.
+    browser_path:      explicit binary path. Wins if set AND exists.
+    preferred:         'brave' / 'chrome' / 'auto' (Brave preferred,
+                       Chrome as fallback). Ignored when browser_path
+                       is set.
+    use_main_profile:  if True, point --user-data-dir at the OS
+                       default profile for the detected browser so
+                       every existing login / session tab is
+                       preserved. Requires the user to close ALL
+                       running windows of that browser first
+                       (Chromium locks the profile to a single
+                       running process). Default False uses an
+                       isolated .doxyedit_* profile dir.
 
     Returns (Popen, display_name). On failure returns (None, "").
     """
@@ -203,7 +233,17 @@ def launch_debug_browser(
         return None, ""
 
     display = _BROWSER_DISPLAY.get(browser_name, browser_name.capitalize())
-    profile_dir = _profile_dir_for(browser_name)
+    if use_main_profile:
+        main_dir = _main_profile_dir_for(browser_name)
+        if main_dir and os.path.exists(main_dir):
+            profile_dir = main_dir
+        else:
+            print(
+                f"[BrowserPost] Main {display} profile not found — "
+                f"falling back to the isolated DoxyEdit profile.")
+            profile_dir = _profile_dir_for(browser_name)
+    else:
+        profile_dir = _profile_dir_for(browser_name)
     args = [
         browser_path,
         f"--remote-debugging-port={port}",
