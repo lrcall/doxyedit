@@ -5661,7 +5661,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         auto-starts on first push. One-shot fallback is cdp_push_
         async if ever needed — but short-lived pushes lose the
         registration the instant Playwright disconnects."""
-        from doxyedit.psyai_bridge import persistent_push
+        from doxyedit.psyai_bridge import worker_push
         from doxyedit.browserpost import is_chrome_running
         if not is_chrome_running():
             QMessageBox.warning(
@@ -5685,7 +5685,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 self._psyai_push_done, Qt.ConnectionType.QueuedConnection)
         def _cb(ok, err):
             self._psyai_push_signal.done.emit(ok, err or "", posts)
-        persistent_push(data, on_done=_cb)
+        worker_push(data, on_done=_cb)
 
     def _psyai_push_done(self, ok: bool, err: str, posts: int):
         import sys as _sys
@@ -7564,8 +7564,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # interpreter shutdown" from Playwright's asyncio loop).
         try:
             from doxyedit.psyai_bridge import (
-                stop_persistent_session, stop_http_server)
+                stop_persistent_session, stop_worker_process,
+                stop_http_server)
             stop_persistent_session()
+            stop_worker_process()
             stop_http_server()
         except Exception:
             pass

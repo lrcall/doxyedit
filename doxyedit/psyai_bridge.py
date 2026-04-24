@@ -596,3 +596,201 @@ def persistent_session_connected() -> bool:
     """True iff the persistent session's Playwright connection is
     currently live. Useful for UI status indicators."""
     return bool(_persistent_session and _persistent_session.connected)
+
+
+# ──────────────────────────────────────────────────────────────────
+# Worker subprocess — Playwright in a SEPARATE Python process.
+#
+# In-process async Playwright collides with Qt/PySide6's asyncio
+# state on Python 3.11 (driver subprocess pipe handles get corrupted
+# by Qt's main-thread asyncio setup; every connect fails with
+# "Connection closed while reading from the driver"). Running
+# Playwright in a clean interpreter avoids the whole class of
+# interference and keeps the init-script registered for the life of
+# the subprocess (F5 keeps the userscript green).
+#
+# Protocol: newline-delimited JSON over stdin/stdout. See
+# doxyedit.psyai_worker for the worker side.
+# ──────────────────────────────────────────────────────────────────
+
+import subprocess
+
+
+class _PsyaiWorkerProcess:
+    def __init__(self, cdp_url: str = "http://127.0.0.1:9222"):
+        self._cdp_url = cdp_url
+        self._proc: Optional[subprocess.Popen] = None
+        self._lock = threading.Lock()
+        self._stdout_thread: Optional[threading.Thread] = None
+        # Callbacks waiting for the next response. Order-preserving
+        # deque — worker replies in-order per push.
+        from collections import deque
+        self._pending: deque = deque()
+        self._pending_lock = threading.Lock()
+        self._connected = False
+
+    @property
+    def connected(self) -> bool:
+        return self._connected and self._proc is not None and self._proc.poll() is None
+
+    def start(self) -> None:
+        with self._lock:
+            if self._proc is not None and self._proc.poll() is None:
+                return
+            _log("worker.spawn", python=sys.executable)
+            try:
+                self._proc = subprocess.Popen(
+                    [sys.executable, "-m", "doxyedit.psyai_worker"],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    # CREATE_NO_WINDOW on Windows so the helper
+                    # doesn't flash a console window (0x08000000).
+                    creationflags=(0x08000000
+                                   if sys.platform == "win32" else 0),
+                    text=True,
+                    encoding="utf-8",
+                    bufsize=1,  # line-buffered
+                )
+                _log("worker.spawned", pid=self._proc.pid)
+            except Exception as exc:
+                _log("worker.spawn_failed",
+                     error=repr(exc), traceback=traceback.format_exc())
+                self._proc = None
+                return
+            self._connected = True
+            self._stdout_thread = threading.Thread(
+                target=self._stdout_loop, daemon=True,
+                name="psyai-worker-stdout")
+            self._stdout_thread.start()
+
+    def _stdout_loop(self) -> None:
+        """Read worker responses line-by-line; dispatch to pending
+        callbacks in FIFO order."""
+        assert self._proc is not None and self._proc.stdout is not None
+        try:
+            for line in self._proc.stdout:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    resp = json.loads(line)
+                except Exception:
+                    _log("worker.bad_response", raw=line[:200])
+                    continue
+                cb = None
+                with self._pending_lock:
+                    if self._pending:
+                        cb = self._pending.popleft()
+                if cb is not None:
+                    try:
+                        cb(bool(resp.get("ok")), resp.get("err") or "")
+                    except Exception:
+                        pass
+                _log("worker.response",
+                     ok=resp.get("ok"), err=resp.get("err"),
+                     pages_touched=resp.get("pages_touched"))
+        except Exception as exc:
+            _log("worker.stdout_loop_crashed",
+                 error=repr(exc), traceback=traceback.format_exc())
+        finally:
+            self._connected = False
+            # Drain pending with a failure so no callback hangs.
+            with self._pending_lock:
+                while self._pending:
+                    cb = self._pending.popleft()
+                    try:
+                        cb(False, "worker exited")
+                    except Exception:
+                        pass
+
+    def push(self, data: dict, on_done=None) -> None:
+        """Send a push command to the worker. on_done(ok, err) fires
+        from the stdout reader thread when the response arrives."""
+        if self._proc is None or self._proc.poll() is not None:
+            self.start()
+        if self._proc is None or self._proc.stdin is None:
+            if on_done:
+                on_done(False, "worker not running")
+            return
+        wrapped = _wrap_marker(data, "full")
+        init_script = (
+            "window.__psyai_data = " + json.dumps(wrapped) + ";"
+            "window.dispatchEvent(new CustomEvent("
+            "'psyai-data-updated', {detail: window.__psyai_data}));"
+        )
+        cmd = {
+            "cmd": "push",
+            "cdp_url": self._cdp_url,
+            "script": init_script,
+        }
+        with self._pending_lock:
+            self._pending.append(on_done or (lambda ok, err: None))
+        try:
+            self._proc.stdin.write(json.dumps(cmd) + "\n")
+            self._proc.stdin.flush()
+        except Exception as exc:
+            _log("worker.stdin_write_failed", error=repr(exc))
+            # Roll back the callback we just enqueued.
+            with self._pending_lock:
+                try:
+                    self._pending.pop()
+                except IndexError:
+                    pass
+            if on_done:
+                on_done(False, f"stdin write failed: {exc!r}")
+
+    def stop(self) -> None:
+        with self._lock:
+            if self._proc is None:
+                return
+            if self._proc.poll() is None:
+                try:
+                    self._proc.stdin.write(json.dumps({"cmd": "stop"}) + "\n")
+                    self._proc.stdin.flush()
+                except Exception:
+                    pass
+                try:
+                    self._proc.wait(timeout=3.0)
+                except Exception:
+                    try:
+                        self._proc.kill()
+                    except Exception:
+                        pass
+            self._proc = None
+            self._connected = False
+
+
+_worker_process: Optional[_PsyaiWorkerProcess] = None
+
+
+def ensure_worker_process(
+        cdp_url: str = "http://127.0.0.1:9222") -> bool:
+    """Start the Playwright subprocess worker if not already running."""
+    global _worker_process
+    if _worker_process is None:
+        _worker_process = _PsyaiWorkerProcess(cdp_url)
+    _worker_process.start()
+    return _worker_process.connected
+
+
+def worker_push(data: dict, on_done=None,
+                cdp_url: str = "http://127.0.0.1:9222") -> None:
+    """Push via the subprocess worker. Auto-starts the worker on
+    first call. Persistent — init-script registrations live for the
+    life of the subprocess, so F5 keeps the userscript green."""
+    ensure_worker_process(cdp_url)
+    assert _worker_process is not None
+    _worker_process.push(data, on_done)
+
+
+def stop_worker_process() -> None:
+    """Tear down the subprocess on app exit."""
+    global _worker_process
+    if _worker_process is not None:
+        _worker_process.stop()
+        _worker_process = None
+
+
+def worker_process_connected() -> bool:
+    return bool(_worker_process and _worker_process.connected)
