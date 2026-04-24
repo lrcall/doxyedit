@@ -6643,7 +6643,7 @@ class StudioEditor(QWidget):
         props.addWidget(QLabel("LH:"))
         self.slider_line_height = QSlider(Qt.Orientation.Horizontal)
         self.slider_line_height.setObjectName("studio_line_height_slider")
-        self.slider_line_height.setRange(50, 300)  # 0.5x to 3.0x (stored as int * 100)
+        self.slider_line_height.setRange(50, 500)  # 0.5x to 5.0x (stored as int * 100)
         self.slider_line_height.setValue(120)       # default 1.2
         self.slider_line_height.setFixedWidth(_slider_sm)
         self.slider_line_height.setToolTip(

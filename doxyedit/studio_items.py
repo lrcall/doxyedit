@@ -1943,20 +1943,53 @@ class OverlayShapeItem(QGraphicsItem):
         w, h = ov.shape_w, ov.shape_h
         pad = max(4, (ov.stroke_width or 1))
         r = QRectF(x - pad, y - pad, w + 2 * pad, h + 2 * pad)
-        # Bubbles: extend bounding rect so the tail tip is part of the
-        # paint region. Without this, dragging the tail outside the body
-        # bounds leaves paint artifacts when the tail is cut off. Inline
-        # the shape_kind check (formerly _is_bubble) and reuse the x/y/w/h
-        # locals already read above instead of re-reading them through
-        # self.overlay.*.
+        # Bubbles: extend bounding rect so every deformer's final
+        # painted extent is inside the invalidation region. Without
+        # this, wobble / oval_stretch / skew_x / tail-taper all push
+        # paint outside the rect Qt clears on move, leaving ghost
+        # trails and clipping bubble edges against the selection
+        # outline.
         if ov.shape_kind in ("speech_bubble", "thought_bubble"):
             body = QRectF(x, y, w, h)
             tip = self._tail_tip(body)
-            tail_pad = 12
-            min_x = min(r.left(), tip.x() - tail_pad)
-            min_y = min(r.top(), tip.y() - tail_pad)
-            max_x = max(r.right(), tip.x() + tail_pad)
-            max_y = max(r.bottom(), tip.y() + tail_pad)
+            # oval_stretch expands the body rect around its center. The
+            # live path uses sx = 1 + stretch and sy = 1 - stretch * 0.5
+            # so the extent grows by up to |stretch| * max(w, h) on the
+            # stretched axis.
+            stretch = float(getattr(ov, "bubble_oval_stretch", 0.0) or 0.0)
+            if stretch > 0:
+                ext_w = w * (1.0 + stretch) - w
+                ext_h = 0.0
+            elif stretch < 0:
+                ext_w = 0.0
+                ext_h = h * (1.0 - stretch * 0.5) - h
+            else:
+                ext_w = ext_h = 0.0
+            # wobble pushes every outline point up to `amp` along its
+            # normal. amp = wobble * min(w, h) * 0.04.
+            wobble = float(getattr(ov, "bubble_wobble", 0.0) or 0.0)
+            wobble_pad = wobble * min(w, h) * 0.04
+            # skew_x shears x-coords by skew_x * (y - cy). Max shift at
+            # y = top or bottom is skew_x * (h / 2).
+            skew_x = float(getattr(ov, "bubble_skew_x", 0.0) or 0.0)
+            skew_pad = abs(skew_x) * h * 0.5
+            # roundness > 1 overshoots into a puffier ellipse that
+            # expands out of the body rect by up to 15% on each side.
+            roundness = float(getattr(ov, "bubble_roundness", 0.0) or 0.0)
+            round_pad_x = max(0.0, roundness - 1.0) * w * 0.15
+            round_pad_y = max(0.0, roundness - 1.0) * h * 0.15
+            # Combine: grow the body rect by the union of every
+            # deformer's worst-case extent, then union with the tail
+            # tip and a generous 12px tail_pad for stroke + anti-alias.
+            body_left = x - ext_w / 2 - wobble_pad - skew_pad - round_pad_x
+            body_top = y - ext_h / 2 - wobble_pad - round_pad_y
+            body_right = x + w + ext_w / 2 + wobble_pad + skew_pad + round_pad_x
+            body_bottom = y + h + ext_h / 2 + wobble_pad + round_pad_y
+            tail_pad = 12 + int(wobble_pad) + int(skew_pad)
+            min_x = min(r.left(), body_left, tip.x() - tail_pad)
+            min_y = min(r.top(), body_top, tip.y() - tail_pad)
+            max_x = max(r.right(), body_right, tip.x() + tail_pad)
+            max_y = max(r.bottom(), body_bottom, tip.y() + tail_pad)
             r = QRectF(min_x, min_y, max_x - min_x, max_y - min_y)
         # Rotate-handle padding is only needed when the handle is
         # actually drawn (selection-only). For non-selected shapes the
@@ -3224,19 +3257,23 @@ class OverlayTextItem(QGraphicsTextItem):
             self.setTextWidth(self.overlay.text_width)
         else:
             self.setTextWidth(-1)
-        # Line height via block format
+        # Line height via block format. ProportionalHeight below 100%
+        # shrinks the per-line layout box but the actual glyph
+        # descenders don't shrink with it — they bleed past the
+        # document's reported size and get clipped on the last line.
+        # The workaround has to be aggressive because mergeBlockFormat
+        # + Qt's documentSize() under-report by roughly one full
+        # line-box worth of descent at lh < 1.0, and by up to half
+        # that even at lh = 1.0 for fonts with tall descenders.
+        # Always reserve a full font-size worth of headroom at the
+        # bottom, scaling up further when lh drops below 1.0. The
+        # extra space is invisible to the reader (it's just padding
+        # inside the text overlay's boundingRect) and it's cheap.
         lh = self.overlay.line_height or 1.2
         fmt = QTextBlockFormat()
         fmt.setLineHeight(lh * 100, 1)  # 1 = ProportionalHeight (percentage)
-        # Add bottom margin to prevent last line from being clipped.
-        # When line_height drops below 1.0 Qt's ProportionalHeight
-        # shrinks the per-line layout box, but the actual glyph
-        # descenders don't shrink with it — they bleed past the
-        # document's reported size and get clipped. Inflate the
-        # bottom margin by the amount of per-line height we lost
-        # so the last line always has room for its full glyph.
-        bottom_extra = max(0.0, 1.0 - lh) * self.overlay.font_size
-        fmt.setBottomMargin(self.overlay.font_size * 0.3 + bottom_extra)
+        bottom_extra = self.overlay.font_size * (0.6 + max(0.0, 1.0 - lh))
+        fmt.setBottomMargin(bottom_extra)
         cursor = self.textCursor()
         cursor.select(QTextCursor.SelectionType.Document)
         cursor.mergeBlockFormat(fmt)
