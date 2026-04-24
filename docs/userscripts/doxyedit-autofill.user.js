@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.33
+// @version      2.34
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -1752,6 +1752,12 @@ function rebuildPanel() {
     (() => {
       const h = _postHistoryLoad();
       if (!h.length) return "";
+      // Attach a retry affordance to any entry that didn't come back
+      // verified. Clicking "retry" re-runs postNowOnCurrentPlatform
+      // for the same platformKey - only works on the original host
+      // (since that's where POST NOW knows how to target), but it
+      // saves the user from having to re-open the panel + click
+      // again on the main button.
       const rows = h.slice().reverse().slice(0, POST_HISTORY_MAX).map((e) => {
         const when = _formatPostAgo(e.t);
         const color = e.outcome === "verified" ? "#6bff6b"
@@ -1759,8 +1765,12 @@ function rebuildPanel() {
                     : e.outcome === "skipped" ? "#888"
                     : "#ff6b6b";
         const note = e.note ? ` <span style="color:#888;">(${e.note})</span>` : "";
+        const retry = (e.outcome !== "verified" && e.platformKey)
+          ? ` <a href="#" class="doxyedit-history-retry" data-plat="${e.platformKey}" `
+          + `style="color:#6bbcff;text-decoration:underline;">retry</a>`
+          : "";
         return `<div style="font-size:10px;color:${color};padding:1px 0;">`
-             + `${when} - ${e.platformKey} ${e.outcome}${note}`
+             + `${when} - ${e.platformKey} ${e.outcome}${note}${retry}`
              + `</div>`;
       }).join("");
       return `<details style="margin-top:4px;">`
@@ -1800,6 +1810,26 @@ function rebuildPanel() {
       }
     });
   }
+  // Retry links on history rows that failed or came back unverified.
+  // Each re-runs postNowOnCurrentPlatform only if the current host
+  // + platform key still match what the history row targeted -
+  // retrying a Bluesky row while on X isn't helpful.
+  panelEl.querySelectorAll(".doxyedit-history-retry").forEach((link) => {
+    link.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      const histPlat = link.dataset.plat || "";
+      const currentPlat = currentHostPostKey() || "";
+      if (currentPlat !== histPlat) {
+        setUploadStatus(
+          `retry skipped: on ${location.host} but row targets ${histPlat}`,
+          false);
+        return;
+      }
+      setUploadStatus(`retrying post for ${histPlat}...`, true);
+      try { await postNowOnCurrentPlatform(); }
+      catch (e) { logToBridge("error", "retry failed", String(e)); }
+    });
+  });
   // Pushed-asset buttons - one-click attach, no OS picker. The
   // cascade inside loadAssetFromBridge tries v4 -> v5 -> v6 fetch
   // paths automatically so there's no per-variant button UI.
