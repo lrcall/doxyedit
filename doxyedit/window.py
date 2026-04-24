@@ -5677,11 +5677,19 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         cdp_push_async(data, on_done=_cb)
 
     def _psyai_push_done(self, ok: bool, err: str, posts: int):
+        import sys as _sys
         if ok:
             self.status.showMessage(
                 f"Pushed identity + {posts} post(s) to debug browser", 4000)
         else:
+            from doxyedit.psyai_bridge import bridge_log_path
             detail = f"\n\nError: {err}" if err else ""
+            detail += f"\n\nFull log: {bridge_log_path()}"
+            if "ModuleNotFoundError" in err and "playwright" in err:
+                detail += (
+                    "\n\nFix: run this in a terminal —\n"
+                    f'  "{_sys.executable}" -m pip install playwright'
+                )
             QMessageBox.warning(
                 self, "CDP Push Failed",
                 "Could not inject into the debug browser. Playwright "

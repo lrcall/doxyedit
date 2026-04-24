@@ -26,9 +26,42 @@ callers get a bool indicating success.
 from __future__ import annotations
 
 import json
+import os
+import sys
+import tempfile
 import threading
+import time
+import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional
+
+
+# ──────────────────────────────────────────────────────────────────
+# Persistent file log — every bridge call appends here so failures
+# are captured without depending on DoxyEdit's UI. Readable by the
+# dev without screenshots. Path is stable so Claude / debuggers know
+# where to look.
+# ──────────────────────────────────────────────────────────────────
+_LOG_PATH = os.path.join(
+    tempfile.gettempdir(), "doxyedit_psyai_bridge.log")
+
+
+def _log(event: str, **fields) -> None:
+    """Append one line of JSON to the bridge log. Never raises."""
+    try:
+        payload = {"t": round(time.time(), 3), "event": event}
+        payload.update(fields)
+        line = json.dumps(payload, ensure_ascii=False, default=str)
+        with open(_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
+def bridge_log_path() -> str:
+    """Return the bridge log file path. UI callers can surface this
+    so the user can share / inspect it."""
+    return _LOG_PATH
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -180,10 +213,16 @@ def _cdp_push_worker(data: dict, cdp_url: str) -> tuple[bool, str]:
     thread — sync_playwright blocks on a subprocess handshake and
     needs its own event loop, which collides with Qt's main loop
     if called directly from the GUI thread."""
+    _log("cdp_push.begin",
+         cdp_url=cdp_url, python=sys.executable,
+         post_count=len((data or {}).get("posts") or {}))
     try:
         from playwright.sync_api import sync_playwright
     except Exception as exc:
-        return False, f"Playwright not installed: {exc!r}"
+        err = f"Playwright not installed: {exc!r}"
+        _log("cdp_push.no_playwright", error=err,
+             python=sys.executable, sys_path_head=sys.path[:3])
+        return False, err
     try:
         wrapped = _wrap_marker(data, "full")
         init_script = (
@@ -191,6 +230,7 @@ def _cdp_push_worker(data: dict, cdp_url: str) -> tuple[bool, str]:
             "window.dispatchEvent(new CustomEvent('psyai-data-updated', "
             "{detail: window.__psyai_data}));"
         )
+        pages_touched = 0
         with sync_playwright() as pw:
             browser = pw.chromium.connect_over_cdp(cdp_url)
             try:
@@ -199,12 +239,16 @@ def _cdp_push_worker(data: dict, cdp_url: str) -> tuple[bool, str]:
                     for page in context.pages:
                         try:
                             page.evaluate(init_script)
+                            pages_touched += 1
                         except Exception:
                             continue
             finally:
                 browser.close()
+        _log("cdp_push.ok", pages_touched=pages_touched)
         return True, ""
     except Exception as exc:
+        _log("cdp_push.failed",
+             error=repr(exc), traceback=traceback.format_exc())
         return False, repr(exc)
 
 
