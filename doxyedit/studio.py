@@ -12229,6 +12229,14 @@ class StudioEditor(QWidget):
             self._undo_stack.push(cmd)
         self._sync_censors_to_asset()
         self._sync_overlays_to_asset()
+        # Force a layer-panel rebuild. _sync_overlays_to_asset only
+        # schedules a rebuild when its structural diff detects a list-
+        # length or identity mismatch — but DeleteItemCmd.redo() already
+        # pruned both _overlay_items AND _asset.overlays in lockstep, so
+        # the structural diff sees no change and the scheduled rebuild
+        # would be skipped. The layer panel needs the rebuild regardless:
+        # the deleted item's row must disappear.
+        self._schedule_layer_rebuild()
         self._update_info()
 
     def _remove_censor_item(self, item: CensorRectItem):
