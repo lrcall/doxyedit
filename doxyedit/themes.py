@@ -1255,6 +1255,42 @@ def generate_stylesheet(theme: Theme) -> str:
             color: {theme.text_primary};
             border-bottom: 2px solid {theme.accent_bright};
         }}
+        /* Studio zoom-preset buttons (Fit / 50% / 100% / 200%) —
+           match the top menu button padding so the status bar reads
+           as a continuation of the chrome, not an alien toolbar. */
+        QPushButton#studio_zoom_btn {{
+            background: transparent;
+            color: {theme.text_secondary};
+            border: none;
+            padding: 3px 10px;
+            font-size: {f}px;
+        }}
+        QPushButton#studio_zoom_btn:hover {{
+            color: {theme.text_primary};
+            background: {theme.accent_dim};
+        }}
+        QPushButton#studio_zoom_btn:pressed {{
+            color: {theme.text_primary};
+            background: {theme.accent};
+        }}
+        /* Studio property-row buttons (quickbar fill/outline/opacity
+           row + bold/italic/etc.) — same padding so the property
+           controls visually align with the top menu and zoom bar. */
+        QPushButton#studio_prop_btn {{
+            background: transparent;
+            color: {theme.text_secondary};
+            border: none;
+            padding: 3px 10px;
+            font-size: {f}px;
+        }}
+        QPushButton#studio_prop_btn:hover {{
+            color: {theme.text_primary};
+            background: {theme.accent_dim};
+        }}
+        QPushButton#studio_prop_btn:checked {{
+            color: {theme.text_primary};
+            background: {theme.accent};
+        }}
         QWidget#folder_section, QWidget#folder_container,
         QScrollArea#folder_scroll, QScrollArea#folder_scroll > QWidget,
         QScrollArea#folder_scroll QWidget {{

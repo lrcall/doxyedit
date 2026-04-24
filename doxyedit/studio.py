@@ -7135,10 +7135,11 @@ class StudioEditor(QWidget):
         self.chk_notes.setChecked(_nv)
         self.chk_notes.blockSignals(False)
 
-        # Layer panel (right sidebar, collapsible)
+        # Layer panel (right sidebar, collapsible). No maximum width so
+        # the user can drag the splitter to any size — including full
+        # window width — without the panel refusing past ~200px.
         self._layer_panel = QListWidget()
         self._layer_panel.setObjectName("studio_layer_panel")
-        self._layer_panel.setMaximumWidth(int(_dt.font_size * LAYER_PANEL_MAX_WIDTH_RATIO))
         self._layer_panel.setDragDropMode(QListWidget.DragDropMode.InternalMove)
         # Accept external drops (from tray) to add files as overlays
         self._layer_panel.setAcceptDrops(True)
