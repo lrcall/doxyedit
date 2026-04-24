@@ -2611,8 +2611,10 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     row.addWidget(readout)
                     w = _QW(); w.setLayout(row)
                     return w
+                deform_form.addRow("Waves",
+                    _mk_int_slider("bubble_wobble_waves", 2, 32))
                 deform_form.addRow("Complexity",
-                    _mk_int_slider("bubble_wobble_complexity", 2, 32))
+                    _mk_int_slider("bubble_wobble_complexity", 16, 512))
                 deform_form.addRow("Seed",
                     _mk_int_slider("bubble_wobble_seed", 0, 999))
                 deform_form.addRow("Skew X",
@@ -2633,7 +2635,8 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     ov_r.bubble_roundness = 0.0
                     ov_r.bubble_oval_stretch = 0.0
                     ov_r.bubble_wobble = 0.0
-                    ov_r.bubble_wobble_complexity = 8
+                    ov_r.bubble_wobble_waves = 8
+                    ov_r.bubble_wobble_complexity = 72
                     ov_r.bubble_wobble_seed = 0
                     ov_r.bubble_skew_x = 0.0
                     ov_r.bubble_tail_width = 1.0

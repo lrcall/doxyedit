@@ -1067,7 +1067,8 @@ class CanvasSkia(QWidget):
             float(getattr(ov, "bubble_tail_width", 1.0) or 1.0),
             float(getattr(ov, "bubble_tail_taper", 0.0) or 0.0),
             float(getattr(ov, "bubble_skew_x", 0.0) or 0.0),
-            int(getattr(ov, "bubble_wobble_complexity", 8) or 8),
+            int(getattr(ov, "bubble_wobble_waves", 8) or 8),
+            int(getattr(ov, "bubble_wobble_complexity", 72) or 72),
             int(getattr(ov, "bubble_wobble_seed", 0) or 0),
         )
         key = id(ov)
@@ -1271,14 +1272,16 @@ class CanvasSkia(QWidget):
             float(getattr(ov, "bubble_wobble", 0.0) or 0.0)))
         if wobble > 0.01:
             amp = wobble * min(r_w, r_h) * 0.04
-            complexity = max(2, min(32,
-                int(getattr(ov, "bubble_wobble_complexity", 8) or 8)))
+            waves = max(2, min(32,
+                int(getattr(ov, "bubble_wobble_waves", 8) or 8)))
+            complexity = max(16, min(512,
+                int(getattr(ov, "bubble_wobble_complexity", 72) or 72)))
             seed_phase = float(
                 int(getattr(ov, "bubble_wobble_seed", 0) or 0)) * 0.1
             try:
                 pm = skia.PathMeasure(merged, True)
                 total = pm.getLength() or 1.0
-                n = max(32, complexity * 9)
+                n = complexity
                 wobbled = skia.Path()
                 for i in range(n + 1):
                     t_i = (i / n) * total
@@ -1291,7 +1294,7 @@ class CanvasSkia(QWidget):
                     nx = -tan.fY / tlen
                     ny = tan.fX / tlen
                     push = math.sin(
-                        (i / n) * math.pi * complexity + seed_phase) * amp
+                        (i / n) * math.pi * waves + seed_phase) * amp
                     px = pos.fX + nx * push
                     py = pos.fY + ny * push
                     if i == 0:

@@ -918,13 +918,17 @@ BUBBLE_ROUNDNESS_OVERSHOOT_OFFSET = 0.15
 BUBBLE_ROUNDNESS_OVERSHOOT_SCALE = 0.3
 # Oval stretch: sx = 1 + stretch; sy = 1 - stretch * this ratio.
 BUBBLE_OVAL_STRETCH_Y_COMPENSATION = 0.5
-# Minimum sample count for the wobble walk, and the per-complexity
-# multiplier used as max(MIN, complexity * MULTIPLIER).
-BUBBLE_WOBBLE_SAMPLE_MIN = 32
-BUBBLE_WOBBLE_SAMPLE_PER_COMPLEXITY = 9
-# Wobble "bump frequency" default (number of bumps around the path).
-BUBBLE_WOBBLE_COMPLEXITY_MIN = 2
-BUBBLE_WOBBLE_COMPLEXITY_MAX = 32
+# Wobble sin-wave cycle count around the perimeter. Low = slow
+# organic undulation, high = choppy. Used for the sin frequency, not
+# the vertex sample count.
+BUBBLE_WOBBLE_WAVES_MIN = 2
+BUBBLE_WOBBLE_WAVES_MAX = 32
+# Wobble vertex count along the outline — "how many points we sample."
+# Low = polygonal silhouette, high = smooth curves. Independent of the
+# wave count so a user can crank smoothness without changing the
+# bump shape.
+BUBBLE_WOBBLE_COMPLEXITY_MIN = 16
+BUBBLE_WOBBLE_COMPLEXITY_MAX = 512
 # Tail taper multiplier: max shift per axis is
 # (half base length) * tail_taper * this factor.
 BUBBLE_TAIL_TAPER_FACTOR = 0.5
@@ -1093,16 +1097,23 @@ def _build_speech_bubble_path(body: QRectF, tip: QPointF, ov) -> QPainterPath:
         float(getattr(ov, "bubble_wobble", 0.0) or 0.0)))
     if wobble > 0.01:
         amp = wobble * min(r.width(), r.height()) * BUBBLE_WOBBLE_AMP_RATIO
-        # Complexity = bump count around the perimeter. Higher values
-        # produce more sample points so high-frequency detail doesn't
-        # look scribbled with straight-line segments.
+        # Waves = sin-cycle count around the perimeter. Higher values
+        # produce more bumps; this used to be called "complexity" but
+        # that was a misnomer — it controls frequency, not vertex
+        # density.
+        waves = max(BUBBLE_WOBBLE_WAVES_MIN,
+                    min(BUBBLE_WOBBLE_WAVES_MAX,
+                        int(getattr(ov, "bubble_wobble_waves", 8) or 8)))
+        # Complexity = vertex count along the unioned outline. Low ->
+        # the path reads as a low-poly silhouette; high -> smooth
+        # curves. Clamped to a safe range; default 72 matches the
+        # prior behavior's derived sample count (waves * 9 at waves=8).
         complexity = max(BUBBLE_WOBBLE_COMPLEXITY_MIN,
                          min(BUBBLE_WOBBLE_COMPLEXITY_MAX,
-                             int(getattr(ov, "bubble_wobble_complexity", 8) or 8)))
+                             int(getattr(ov, "bubble_wobble_complexity", 72) or 72)))
         seed_phase = float(
             int(getattr(ov, "bubble_wobble_seed", 0) or 0)) * 0.1
-        n = max(BUBBLE_WOBBLE_SAMPLE_MIN,
-                complexity * BUBBLE_WOBBLE_SAMPLE_PER_COMPLEXITY)
+        n = complexity
         wobbled = QPainterPath()
         length = path.length() or 1.0
         for i in range(n + 1):
@@ -1111,7 +1122,7 @@ def _build_speech_bubble_path(body: QRectF, tip: QPointF, ov) -> QPainterPath:
             pt = path.pointAtPercent(pct)
             ang = path.angleAtPercent(pct)
             normal = _math.radians(ang + 90)
-            push = _math.sin(pct * _math.pi * complexity + seed_phase) * amp
+            push = _math.sin(pct * _math.pi * waves + seed_phase) * amp
             nx = pt.x() + _math.cos(normal) * push
             ny = pt.y() - _math.sin(normal) * push
             if i == 0:
@@ -1655,7 +1666,8 @@ class OverlayShapeItem(QGraphicsItem):
             getattr(ov, "bubble_tail_width", 1.0),
             getattr(ov, "bubble_tail_taper", 0.0),
             getattr(ov, "bubble_skew_x", 0.0),
-            int(getattr(ov, "bubble_wobble_complexity", 8) or 8),
+            int(getattr(ov, "bubble_wobble_waves", 8) or 8),
+            int(getattr(ov, "bubble_wobble_complexity", 72) or 72),
             int(getattr(ov, "bubble_wobble_seed", 0) or 0),
             tail_dx, tail_dy,
             getattr(ov, "star_points", 0),
