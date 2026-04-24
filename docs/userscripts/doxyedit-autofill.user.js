@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.15
+// @version      2.16
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -378,14 +378,23 @@ function triggerFilePick() {
 // @connect in the userscript header and bypasses that check.
 function loadAssetFromBridge(asset) {
   return new Promise((resolve) => {
-    if (!asset || !asset.url) { resolve(false); return; }
+    if (!asset || !asset.url) {
+      setUploadStatus(
+        "✗ asset has no url; was DoxyEdit restarted with the bridge?",
+        false);
+      resolve(false); return;
+    }
     if (typeof GM_xmlhttpRequest !== "function") {
       setUploadStatus(
         "✗ GM_xmlhttpRequest unavailable - userscript missing @grant", false);
       resolve(false);
       return;
     }
-    setUploadStatus(`fetching ${asset.name}...`, true);
+    // Show the URL we're about to hit so a 404 / no-route failure
+    // points the user straight at the mismatch (wrong port, stale
+    // cached URL from a pre-rename DoxyEdit, etc.).
+    console.log("[doxyedit] fetching asset:", asset.url);
+    setUploadStatus(`fetching ${asset.name} from ${asset.url}`, true);
     GM_xmlhttpRequest({
       method: "GET",
       url: asset.url,
@@ -394,14 +403,17 @@ function loadAssetFromBridge(asset) {
       onload: async (resp) => {
         if (resp.status !== 200) {
           setUploadStatus(
-            `✗ fetch ${asset.name} failed: HTTP ${resp.status}`, false);
+            `✗ ${asset.name}: HTTP ${resp.status} from ${asset.url}`,
+            false);
+          console.log("[doxyedit] fetch failed:", resp.status, asset.url);
           resolve(false);
           return;
         }
         const blob = resp.response;
         if (!blob || !(blob instanceof Blob)) {
           setUploadStatus(
-            `✗ fetch ${asset.name}: response not a blob`, false);
+            `✗ ${asset.name}: response not a blob (got ${typeof blob})`,
+            false);
           resolve(false);
           return;
         }
@@ -417,8 +429,9 @@ function loadAssetFromBridge(asset) {
       },
       onerror: (err) => {
         setUploadStatus(
-          `✗ fetch ${asset.name} network error - is the HTTP bridge running?`,
+          `✗ ${asset.name}: network error on ${asset.url} - bridge down?`,
           false);
+        console.log("[doxyedit] fetch network error:", err, asset.url);
         resolve(false);
       },
       ontimeout: () => {
