@@ -5645,7 +5645,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _psyai_build_data(self):
         """Assemble the userscript payload from the current project +
-        whichever post is being composed (if any)."""
+        whichever post is being composed (if any). When the composer
+        isn't open, fall back to the first post that has asset_ids so
+        the panel still shows a "📎 <filename>" one-click attach
+        button — skipping this would leave the user staring at a
+        manual-pick UI even though DoxyEdit knows which image to
+        post."""
         from doxyedit.psyai_data import build_psyai_data
         composer_post = None
         try:
@@ -5654,6 +5659,18 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     self._docked_composer, "_post", None)
         except Exception:
             composer_post = None
+        if composer_post is None and self.project:
+            # Prefer a queued post (soonest), then any draft with
+            # assets. Skip posts without asset_ids — they contribute
+            # nothing to the assets section.
+            posts_with_assets = [
+                p for p in (self.project.posts or [])
+                if getattr(p, "asset_ids", None)]
+            if posts_with_assets:
+                queued = [p for p in posts_with_assets
+                          if getattr(p, "status", "") in
+                          ("queued", "QUEUED")]
+                composer_post = queued[0] if queued else posts_with_assets[0]
         return build_psyai_data(self.project, composer_post)
 
     def _psyai_push_cdp(self):
