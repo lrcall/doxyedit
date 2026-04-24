@@ -5729,20 +5729,31 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if ok:
             self.status.showMessage(
                 f"Pushed identity + {posts} post(s) to debug browser", 4000)
-        else:
-            from doxyedit.psyai_bridge import bridge_log_path
-            detail = f"\n\nError: {err}" if err else ""
-            detail += f"\n\nFull log: {bridge_log_path()}"
-            if "ModuleNotFoundError" in err and "playwright" in err:
-                detail += (
-                    "\n\nFix: run this in a terminal —\n"
-                    f'  "{_sys.executable}" -m pip install playwright'
-                )
-            QMessageBox.warning(
-                self, "CDP Push Failed",
-                "Could not inject into the debug browser. Playwright "
-                "must be installed and the browser must have the debug "
-                "port (9222) open." + detail)
+            return
+        # CDP failed. If the HTTP bridge is live we already pushed the
+        # same snapshot to it in _psyai_push_cdp, so the userscript
+        # will fall back to amber mode automatically. Degrade the
+        # notice to a status-bar line instead of a modal dialog.
+        from doxyedit.psyai_bridge import bridge_log_path, http_bridge_port
+        http_port = http_bridge_port()
+        if http_port:
+            self.status.showMessage(
+                f"CDP push failed; userscript will fall back to HTTP "
+                f"bridge at 127.0.0.1:{http_port} ({posts} post(s))",
+                6000)
+            return
+        detail = f"\n\nError: {err}" if err else ""
+        detail += f"\n\nFull log: {bridge_log_path()}"
+        if "ModuleNotFoundError" in err and "playwright" in err:
+            detail += (
+                "\n\nFix: run this in a terminal -\n"
+                f'  "{_sys.executable}" -m pip install playwright'
+            )
+        QMessageBox.warning(
+            self, "CDP Push Failed",
+            "Could not inject into the debug browser. Playwright "
+            "must be installed and the browser must have the debug "
+            "port (9222) open." + detail)
 
     def _psyai_start_http_bridge(self):
         """Track C — run a tiny localhost HTTP server that the
