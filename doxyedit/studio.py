@@ -2585,13 +2585,19 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 # Wobble complexity = bump count around the perimeter.
                 # Slider stores its value as int*100 like the others
                 # but scales to the int range via _mk_int_slider.
+                # Slider + readout cell widths shared with _mk_slider
+                # above so the int and float deformer rows align
+                # visually. Defined once here; both helpers read the
+                # same value.
+                DEFORMER_SLIDER_MIN_WIDTH = 150
+                DEFORMER_READOUT_WIDTH = 52
                 def _mk_int_slider(attr, lo, hi, fmt="{:d}"):
                     sl = QSlider(Qt.Orientation.Horizontal)
                     sl.setRange(int(lo), int(hi))
                     sl.setValue(int(getattr(ov, attr, lo) or lo))
-                    sl.setMinimumWidth(150)
+                    sl.setMinimumWidth(DEFORMER_SLIDER_MIN_WIDTH)
                     readout = QLabel(fmt.format(int(getattr(ov, attr, lo) or lo)))
-                    readout.setFixedWidth(52)
+                    readout.setFixedWidth(DEFORMER_READOUT_WIDTH)
                     def _on_change(v, _it=item, _attr=attr, _r=readout):
                         setattr(_it.overlay, _attr, int(v))
                         _it.prepareGeometryChange()
