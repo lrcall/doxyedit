@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         psyai autofill (DoxyEdit bridge)
 // @namespace    https://psyai.game
-// @version      2.8
+// @version      2.9
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard — with the old hardcoded library as last-resort fallback.
 // @author       psyai
 // @updateURL    http://127.0.0.1:8910/psyai-autofill.user.js
@@ -353,11 +353,31 @@ async function autoInject() {
   // Strategy 1: existing input[type=file]
   const candidates = Array.from(
     document.querySelectorAll('input[type="file"]'));
+  // Exclude profile-picture uploaders that might be on the same page
+  // (settings tabs beside compose, user menus). Match is against the
+  // input's own name/id/class only; the compose-context match below
+  // handles container-level disambiguation.
+  const isNotAvatar = (el) => {
+    const attrs = [el.name, el.id, el.className].join(" ").toLowerCase();
+    return !/\b(avatar|banner|profile_pic|profilepic|header_image|headerimage|favicon)\b/.test(attrs);
+  };
+  // Compose-context selector list covers modal composers (X, Bluesky,
+  // Reddit new), inline composers that live in a plain <form> with a
+  // "compose" class or id (Mastodon: main form, no dialog wrapper),
+  // and upload forms (Newgrounds: form[action*=upload]).
+  const COMPOSE_CONTEXT = (
+    '[role="dialog"], [aria-modal="true"], ' +
+    '[data-testid*="compos" i], [data-testid*="post" i], ' +
+    'form[class*="compose" i], form[id*="compose" i], ' +
+    'form[action*="upload" i]'
+  );
   let target = candidates.find((el) => {
+    if (!isNotAvatar(el)) return false;
     const accept = (el.getAttribute("accept") || "").toLowerCase();
     if (accept && !accept.includes("image") && accept !== "*/*") return false;
-    return el.closest('[role="dialog"], [aria-modal="true"], [data-testid*="compos" i], [data-testid*="post" i]');
+    return el.closest(COMPOSE_CONTEXT);
   }) || candidates.find((el) => {
+    if (!isNotAvatar(el)) return false;
     const accept = (el.getAttribute("accept") || "").toLowerCase();
     return !accept || accept.includes("image") || accept === "*/*";
   });
