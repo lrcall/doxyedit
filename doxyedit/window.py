@@ -7046,6 +7046,27 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             f"Errors: {n_errors}"
         )
 
+    def createPopupMenu(self):
+        """Qt shows this menu on right-click of any QToolBar handle or
+        the menu-bar spacer. Default behavior lists every QToolBar as
+        a checkable entry (Main / Tabs / Tray). Extend that list with
+        the Project Tabs row, which is a plain QWidget and wouldn't
+        otherwise appear — the user asked for it here so the same
+        right-click context hides / shows every top-row strip.
+        """
+        menu = super().createPopupMenu()
+        if menu is None:
+            from PySide6.QtWidgets import QMenu
+            menu = QMenu(self)
+        tabs = getattr(self, "_proj_bar_widget", None)
+        if tabs is not None:
+            menu.addSeparator()
+            act = menu.addAction("Project Tabs")
+            act.setCheckable(True)
+            act.setChecked(tabs.isVisible())
+            act.toggled.connect(lambda v: tabs.setVisible(v))
+        return menu
+
     def showEvent(self, event):
         super().showEvent(event)
         # After window is fully shown, request thumbs — folder sections now have real heights
