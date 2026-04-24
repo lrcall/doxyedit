@@ -5951,6 +5951,12 @@ class StudioEditor(QWidget):
         self.chk_minimap.toggled.connect(self._on_minimap_toggled)
         toolbar.addWidget(self.chk_minimap)
 
+        # Focus toggle: created here (so _sync_tool_buttons / keyboard
+        # shortcuts can still reach it) but NOT added to the top
+        # toolbar. It lives in the layer-sidebar footer row (see
+        # _layer_sidebar below) so it stays visible in both normal
+        # and focus mode — otherwise toggling focus ON would hide the
+        # only way to toggle it OFF.
         self.btn_focus = QPushButton(" Focus")
         self.btn_focus.setIcon(_StudioIcons.focus())
         self.btn_focus.setIconSize(_ICO_SZ)
@@ -5959,7 +5965,6 @@ class StudioEditor(QWidget):
         self.btn_focus.setCheckable(True)
         self.btn_focus.setFixedWidth(_tog_w_ico)
         self.btn_focus.toggled.connect(self._on_focus_toggled)
-        toolbar.addWidget(self.btn_focus)
 
         self.btn_flip_view = QPushButton(" Flip")
         self.btn_flip_view.setIcon(_StudioIcons.flip())
@@ -7417,11 +7422,31 @@ class StudioEditor(QWidget):
         _layer_side.setStretchFactor(0, 1)
         _layer_side.setStretchFactor(1, 0)
 
+        # Sidebar container: splitter on top, always-visible footer bar
+        # at the bottom. The footer hosts the Focus toggle button so
+        # users can flip focus mode back off even when the splitter
+        # contents (layer list + props) are hidden.
+        _layer_sidebar = QWidget()
+        _layer_sidebar.setObjectName("studio_layer_sidebar")
+        _sidebar_layout = QVBoxLayout(_layer_sidebar)
+        _sidebar_layout.setContentsMargins(0, 0, 0, 0)
+        _sidebar_layout.setSpacing(2)
+        _sidebar_layout.addWidget(_layer_side, 1)
+        self._layer_sidebar_body = _layer_side
+        _footer = QWidget()
+        _footer.setObjectName("studio_layer_footer")
+        _footer_layout = QHBoxLayout(_footer)
+        _footer_layout.setContentsMargins(_pad, _pad, _pad, _pad)
+        _footer_layout.setSpacing(_pad)
+        _footer_layout.addWidget(self.btn_focus)
+        _footer_layout.addStretch(1)
+        _sidebar_layout.addWidget(_footer)
+
         self._canvas_split = QSplitter(Qt.Orientation.Horizontal)
         self._canvas_split.setObjectName("studio_canvas_split")
         self._canvas_wrap = _StudioCanvas(self._view, self._theme)
         self._canvas_split.addWidget(self._canvas_wrap)
-        self._canvas_split.addWidget(_layer_side)
+        self._canvas_split.addWidget(_layer_sidebar)
         # Restore the user's splitter sizes from the last session
         _split_state = QSettings("DoxyEdit", "DoxyEdit").value(
             "studio_canvas_split_state", None)
