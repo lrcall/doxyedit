@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         psyai autofill (DoxyEdit bridge)
 // @namespace    https://psyai.game
-// @version      2.9
+// @version      2.10
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard — with the old hardcoded library as last-resort fallback.
 // @author       psyai
 // @updateURL    http://127.0.0.1:8910/psyai-autofill.user.js
@@ -102,34 +102,52 @@ function tryHttpBridge() {
   for (const port of HTTP_BRIDGE_PORTS) {
     fetchFromPort(port, true);
   }
-  // Continuous poll on whichever port answered.
+  // Continuous poll. When a winning port is known, poll it. When
+  // the port is unknown (never found, or dropped after a miss)
+  // re-probe all candidates so the userscript rediscovers the
+  // bridge if DoxyEdit is started or restarted on a different port
+  // after this page loaded.
   if (httpPollTimer === null) {
     httpPollTimer = setInterval(() => {
-      if (httpBridgePort) fetchFromPort(httpBridgePort, false);
+      if (httpBridgePort) {
+        fetchFromPort(httpBridgePort, false);
+      } else {
+        for (const port of HTTP_BRIDGE_PORTS) {
+          fetchFromPort(port, true);
+        }
+      }
     }, HTTP_BRIDGE_POLL_MS);
   }
 }
 
 function fetchFromPort(port, isProbe) {
   if (typeof GM_xmlhttpRequest !== "function") return;
+  // If the cached winning port stops answering (bridge shut down,
+  // DoxyEdit restarted on a different port, wrong endpoint mounted),
+  // drop it so the next poll tick re-probes every candidate.
+  const handleMiss = () => {
+    if (!isProbe && httpBridgePort === port) {
+      httpBridgePort = null;
+    }
+  };
   GM_xmlhttpRequest({
     method: "GET",
     url: `http://127.0.0.1:${port}/psyai.json`,
     timeout: 1500,
     onload: (resp) => {
-      if (resp.status !== 200) return;
+      if (resp.status !== 200) { handleMiss(); return; }
       try {
         const parsed = JSON.parse(resp.responseText);
-        if (parsed[PSYAI_MARKER] !== true) return;
+        if (parsed[PSYAI_MARKER] !== true) { handleMiss(); return; }
         const payload = unwrapPayload(parsed);
         // CDP-injected data wins over HTTP (CDP is always more live).
         if (currentSource === "cdp") return;
         if (isProbe) httpBridgePort = port;
         applyData(payload, "http");
-      } catch (e) { /* not valid JSON, ignore */ }
+      } catch (e) { handleMiss(); }
     },
-    onerror: () => { /* bridge not up on this port, silent */ },
-    ontimeout: () => { /* same */ }
+    onerror: handleMiss,
+    ontimeout: handleMiss,
   });
 }
 
