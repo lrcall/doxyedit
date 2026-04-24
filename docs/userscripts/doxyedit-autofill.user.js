@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.22
+// @version      2.23
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -314,7 +314,9 @@ function fillFocusedField(text) {
 
 // Short keyword each host corresponds to in currentData.posts.
 // Same shape as HOST_POST_TAGS but narrower: 1:1 host->key, no
-// compound matching.
+// compound matching. Reddit is special-cased below because its posts
+// are keyed reddit_<subreddit> and resolve to {title, body} objects,
+// not plain strings.
 const HOST_TO_POST_KEY = {
   "bsky.app": "bluesky",
   "x.com": "x",
@@ -324,6 +326,13 @@ const HOST_TO_POST_KEY = {
 function currentHostPostKey() {
   const host = (location.host || "").toLowerCase();
   if (host.includes("mastodon")) return "mastodon";
+  // Reddit: pick the first reddit_<sub> caption the user has in their
+  // posts bag. User pre-navigates to the right subreddit's /submit
+  // page; we just fill and submit once they're there.
+  if (host === "reddit.com" || host.endsWith(".reddit.com")) {
+    const keys = Object.keys((currentData && currentData.posts) || {});
+    return keys.find((k) => k.startsWith("reddit_")) || null;
+  }
   for (const h in HOST_TO_POST_KEY) {
     if (host === h || host.endsWith("." + h)) return HOST_TO_POST_KEY[h];
   }
@@ -353,6 +362,21 @@ const POST_NOW_HOSTS = {
     'button.compose-form__publish-button-wrapper button',
     'button[type="submit"].button.button--block',
   ],
+  "reddit.com": [
+    // new.reddit.com (Shreddit web components)
+    'shreddit-composer button[type="submit"]',
+    'shreddit-post-composer button[type="submit"]',
+    'button[slot="submit-button"]',
+    // Generic modal submit
+    '[role="dialog"] button[type="submit"]',
+    // old.reddit.com
+    'button.btn[name="submit"]',
+    'button.submit-link',
+  ],
+  "old.reddit.com": [
+    'button.btn[name="submit"]',
+    'button.submit-link',
+  ],
 };
 function postNowSelectorsForHost() {
   const host = (location.host || "").toLowerCase();
@@ -380,59 +404,72 @@ async function postNowOnCurrentPlatform() {
       false);
     return false;
   }
-  // Step 1: attach the first asset if DoxyEdit pushed any. The
-  // cascade inside loadAssetFromBridge handles fetch fallbacks and
-  // paste-injection on our supported short-form hosts.
-  const asset = (currentData.assets || [])[0];
-  if (asset) {
-    setUploadStatus(`post 1/3: attaching ${asset.name}...`, true);
-    const ok = await loadAssetFromBridge(asset);
-    if (!ok) {
-      setUploadStatus(
-        `post 1/3 FAILED: image attach did not complete`, false);
-      return false;
-    }
+  // Reddit posts come through as {title, body} objects and need a
+  // separate fill path that targets both fields distinctly. Asset
+  // attach is skipped on Reddit because image posts require a
+  // different post-type tab we don't auto-select yet; user should
+  // start from /r/<sub>/submit for a text post.
+  const isReddit = postKey.startsWith("reddit_");
+  if (isReddit) {
+    setUploadStatus(`post 1/2: filling title + body...`, true);
+    fillPostPayload(Object.assign({}, caption, {platform: postKey}));
     await _wait(500);
-  }
-  // Step 2: fill the caption. For rich-text composers (Bluesky, X
-  // contentEditable, Threads) the image attach already focused the
-  // compose editor, so paste-style fill is safe. Plain text captions
-  // go straight in via insertText.
-  setUploadStatus(`post 2/3: filling caption...`, true);
-  const captionText = (typeof caption === "string")
-    ? caption : (caption.text || caption.body || caption.title || "");
-  const active = document.activeElement;
-  if (active && (active.isContentEditable || active.tagName === "TEXTAREA"
-                  || active.tagName === "INPUT")) {
-    if (active.isContentEditable) {
-      active.focus();
-      document.execCommand("insertText", false, captionText);
-    } else {
-      setReactValue(active, captionText);
-    }
   } else {
-    // Try paste on the compose editor found via DOM scan.
-    const editor = document.querySelector(
-      '[role="dialog"] [contenteditable="true"], ' +
-      '[role="dialog"] textarea, ' +
-      'form.compose-form textarea');
-    if (editor) {
-      editor.focus();
-      if (editor.isContentEditable) {
+    // Step 1: attach the first asset if DoxyEdit pushed any. The
+    // cascade inside loadAssetFromBridge handles fetch fallbacks and
+    // paste-injection on our supported short-form hosts.
+    const asset = (currentData.assets || [])[0];
+    if (asset) {
+      setUploadStatus(`post 1/3: attaching ${asset.name}...`, true);
+      const ok = await loadAssetFromBridge(asset);
+      if (!ok) {
+        setUploadStatus(
+          `post 1/3 FAILED: image attach did not complete`, false);
+        return false;
+      }
+      await _wait(500);
+    }
+    // Step 2: fill the caption. For rich-text composers (Bluesky, X
+    // contentEditable, Threads) the image attach already focused the
+    // compose editor, so paste-style fill is safe. Plain text captions
+    // go straight in via insertText.
+    setUploadStatus(`post 2/3: filling caption...`, true);
+    const captionText = (typeof caption === "string")
+      ? caption : (caption.text || caption.body || caption.title || "");
+    const active = document.activeElement;
+    if (active && (active.isContentEditable || active.tagName === "TEXTAREA"
+                    || active.tagName === "INPUT")) {
+      if (active.isContentEditable) {
+        active.focus();
         document.execCommand("insertText", false, captionText);
       } else {
-        setReactValue(editor, captionText);
+        setReactValue(active, captionText);
       }
     } else {
-      setUploadStatus(
-        `post 2/3 FAILED: no compose editor found`, false);
-      return false;
+      // Try paste on the compose editor found via DOM scan.
+      const editor = document.querySelector(
+        '[role="dialog"] [contenteditable="true"], ' +
+        '[role="dialog"] textarea, ' +
+        'form.compose-form textarea');
+      if (editor) {
+        editor.focus();
+        if (editor.isContentEditable) {
+          document.execCommand("insertText", false, captionText);
+        } else {
+          setReactValue(editor, captionText);
+        }
+      } else {
+        setUploadStatus(
+          `post 2/3 FAILED: no compose editor found`, false);
+        return false;
+      }
     }
+    await _wait(400);
   }
-  await _wait(400);
-  // Step 3: click the submit button. Pick the first visible match
+  // Final step: click the submit button. Pick the first visible match
   // from the host's selector list.
-  setUploadStatus(`post 3/3: clicking submit...`, true);
+  const stepLabel = isReddit ? "post 2/2" : "post 3/3";
+  setUploadStatus(`${stepLabel}: clicking submit...`, true);
   let btn = null;
   for (const sel of selectors) {
     try {
@@ -447,7 +484,7 @@ async function postNowOnCurrentPlatform() {
   }
   if (!btn) {
     setUploadStatus(
-      `post 3/3 FAILED: no submit button found - click it manually`,
+      `${stepLabel} FAILED: no submit button found - click it manually`,
       false);
     return false;
   }
