@@ -40,7 +40,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import (
     Qt, QRectF, QPointF, QLineF, Signal, QSettings, QSize,
-    QEvent, QMimeData, QTimer,
+    QEvent, QMimeData, QTimer, QRunnable, QThreadPool, QObject,
 )
 from PySide6.QtGui import (
     QPixmap, QPainter, QColor, QBrush, QPen, QFont, QWheelEvent,
@@ -3450,6 +3450,53 @@ class _StudioIcons:
             p.drawEllipse(QPointF(4, s // 2), 1.5, 1.5)
             p.drawEllipse(QPointF(4, s - 6), 1.5, 1.5)
         return _StudioIcons.make(d)
+
+
+class _ImageEnhanceSignals(QObject):
+    """Worker -> GUI-thread bridge for off-thread image enhancement.
+    Carries item_id, a monotonic token, and the enhanced QImage."""
+    done = Signal(int, int, QImage)
+
+
+class _ImageEnhanceWorker(QRunnable):
+    """QRunnable that runs PIL ImageEnhance (brightness/contrast/
+    saturation) on a QImage snapshot off the GUI thread. Emits the
+    enhanced QImage back via signal so the main thread can swap it
+    in. The token lets the slot reject stale results when the user
+    has already triggered a newer slider tick."""
+
+    def __init__(self, item_id: int, token: int, qimg: QImage,
+                 brightness: float, contrast: float, saturation: float,
+                 signals: _ImageEnhanceSignals):
+        super().__init__()
+        self._item_id = item_id
+        self._token = token
+        self._qimg = qimg
+        self._br = brightness
+        self._ct = contrast
+        self._st = saturation
+        self._signals = signals
+        self.setAutoDelete(True)
+
+    def run(self):
+        try:
+            from PIL import ImageEnhance
+            from doxyedit.imaging import qimage_to_pil, pil_to_qimage
+            pil_img = qimage_to_pil(self._qimg)
+            if self._br:
+                pil_img = ImageEnhance.Brightness(pil_img).enhance(
+                    1.0 + self._br)
+            if self._ct:
+                pil_img = ImageEnhance.Contrast(pil_img).enhance(
+                    1.0 + self._ct)
+            if self._st:
+                pil_img = ImageEnhance.Color(pil_img).enhance(
+                    1.0 + self._st)
+            out = pil_to_qimage(pil_img)
+            self._signals.done.emit(self._item_id, self._token, out)
+        except Exception:
+            # Emit a null QImage so the GUI can notice and ignore.
+            self._signals.done.emit(self._item_id, self._token, QImage())
 
 
 class _ColorSwatchButton(QPushButton):
@@ -9201,23 +9248,57 @@ class StudioEditor(QWidget):
             pil_img = qimage_to_pil(src.toImage())
             pil_img = pil_img.filter(ImageFilter.GaussianBlur(radius=radius))
             src = QPixmap.fromImage(pil_to_qimage(pil_img))
-        # Brightness / contrast / saturation via PIL ImageEnhance. Skip
-        # the round-trip entirely when all three are zero so simple
-        # overlays don't pay for the conversion cost.
+        # Brightness / contrast / saturation via PIL ImageEnhance.
+        # Skip the round-trip entirely when all three are zero so
+        # simple overlays don't pay for the conversion cost. When
+        # any are active, hand the post-scale/post-filter QImage to
+        # a QThreadPool worker so the GUI thread isn't blocked on
+        # PIL during slider drags — the 3 enhance calls on a 2K PSD
+        # are 80-200ms each, enough to drop drag FPS below 15.
         _br = float(ov.img_brightness or 0.0)
         _ct = float(ov.img_contrast or 0.0)
         _st = float(ov.img_saturation or 0.0)
         if _br or _ct or _st:
-            from PIL import ImageEnhance
-            pil_img = qimage_to_pil(src.toImage())
-            if _br:
-                pil_img = ImageEnhance.Brightness(pil_img).enhance(1.0 + _br)
-            if _ct:
-                pil_img = ImageEnhance.Contrast(pil_img).enhance(1.0 + _ct)
-            if _st:
-                pil_img = ImageEnhance.Color(pil_img).enhance(1.0 + _st)
-            src = QPixmap.fromImage(pil_to_qimage(pil_img))
+            self._schedule_image_enhance(item, src.toImage(), _br, _ct, _st)
+            # Fall-through: display the pre-enhance pixmap immediately.
+            # The worker will setPixmap again when done.
         item.setPixmap(src)
+        item.update()
+
+    def _schedule_image_enhance(self, item, qimg, brightness, contrast, saturation):
+        """Run PIL ImageEnhance off the GUI thread and swap in the
+        result when the worker completes. Each call increments the
+        per-item token so earlier (slower) workers can't overwrite
+        the latest slider position with stale pixels."""
+        if not hasattr(self, "_enhance_signals"):
+            self._enhance_signals = _ImageEnhanceSignals()
+            self._enhance_signals.done.connect(self._adopt_image_enhance)
+            self._enhance_tokens: dict[int, int] = {}
+        item_id = id(item)
+        self._enhance_tokens[item_id] = self._enhance_tokens.get(item_id, 0) + 1
+        token = self._enhance_tokens[item_id]
+        # Cache the item ref on the signals object's result mapping so
+        # the slot can find it without walking the scene.
+        if not hasattr(self, "_enhance_item_refs"):
+            self._enhance_item_refs: dict[int, object] = {}
+        self._enhance_item_refs[item_id] = item
+        QThreadPool.globalInstance().start(
+            _ImageEnhanceWorker(item_id, token, qimg,
+                                brightness, contrast, saturation,
+                                self._enhance_signals))
+
+    def _adopt_image_enhance(self, item_id: int, token: int, qimg: QImage):
+        """Worker thread completion slot. Adopt the enhanced QImage iff
+        this is still the most recent request for this item — otherwise
+        a newer slider tick has already been submitted and we'd regress
+        to stale pixels."""
+        latest = getattr(self, "_enhance_tokens", {}).get(item_id)
+        if latest != token:
+            return
+        item = getattr(self, "_enhance_item_refs", {}).get(item_id)
+        if item is None or qimg.isNull():
+            return
+        item.setPixmap(QPixmap.fromImage(qimg))
         item.update()
 
     def _replace_overlay_image(self, item):
