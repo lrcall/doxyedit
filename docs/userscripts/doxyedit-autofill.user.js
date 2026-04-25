@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.38
+// @version      2.39
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -482,6 +482,40 @@ function postNowSelectorsForHost() {
 
 function _wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
+// Poll for a selector match. Returns the element on success, null on
+// timeout. Defaults are conservative: 200ms poll cadence, 5s budget.
+// Borrowed from the UIvision selector-with-wait pattern - lets every
+// click site retry briefly when SPAs lazy-mount their compose UI.
+async function waitForElement(selector, opts) {
+  const o = opts || {};
+  const timeout = o.timeout != null ? o.timeout : 5000;
+  const poll = o.poll != null ? o.poll : 200;
+  const root = o.root || document;
+  const requireVisible = o.requireVisible !== false;
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    let el = null;
+    try { el = root.querySelector(selector); }
+    catch (e) { return null; }  // bad selector
+    if (el && (!requireVisible || el.offsetParent !== null)) return el;
+    await _wait(poll);
+  }
+  return null;
+}
+
+// Scroll an element into view before clicking it. Some sites only
+// register clicks when the element is in viewport (lazy-render
+// optimization, focus-traps, etc). block:"center" keeps the element
+// surrounded by context so the user can see what just got clicked.
+function scrollIntoViewSafely(el) {
+  if (!el || !el.scrollIntoView) return;
+  try {
+    el.scrollIntoView({block: "center", inline: "center", behavior: "auto"});
+  } catch (e) { /* old browser: bare scrollIntoView() */
+    try { el.scrollIntoView(); } catch (e2) {}
+  }
+}
+
 // Backchannel: POST an event to DoxyEdit's /doxyedit-feedback
 // endpoint. Used to tell DoxyEdit "I just posted on <platform>" so
 // the project can mark the post as POSTED and schedule engagement
@@ -744,6 +778,10 @@ async function postNowOnCurrentPlatform() {
                         note: "no submit button"});
     return false;
   }
+  // Bring the submit button into view before clicking so React-lazy-
+  // render hosts that only register clicks on in-viewport elements
+  // (Threads, some Mastodon clients) don't silently swallow it.
+  scrollIntoViewSafely(btn);
   btn.click();
   setUploadStatus(`${stepLabel}: clicked, verifying...`, true);
   // Post-submit verification: poll for the submit button to go away
@@ -1201,6 +1239,7 @@ async function autoInject() {
     if (imgBtn) break;
   }
   if (imgBtn) {
+    scrollIntoViewSafely(imgBtn);
     imgBtn.click();
     await new Promise((r) => setTimeout(r, 200));
     const inp = Array.from(
