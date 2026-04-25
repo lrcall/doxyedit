@@ -967,6 +967,7 @@ async function _postNowOnCurrentPlatformInner() {
       // Log for convenience - user can copy from DevTools console.
       console.log(`[doxyedit] navigate to ${suggestedUrl} to post`);
       recordPostAttempt({platformKey: postKey, outcome: "skipped",
+                          transport: "dom", step: "subreddit not in URL",
                           note: "subreddit not in URL"});
       recordTransportResult({platformKey: postKey, transport: "dom",
                              outcome: "skipped",
@@ -995,6 +996,7 @@ async function _postNowOnCurrentPlatformInner() {
         setUploadStatus(
           `post 1/3 FAILED: image attach did not complete`, false);
         recordPostAttempt({platformKey: postKey, outcome: "failed",
+                            transport: "dom", step: "image attach",
                             note: "image attach failed"});
         recordTransportResult({platformKey: postKey, transport: "dom",
                                outcome: "failed",
@@ -1036,6 +1038,8 @@ async function _postNowOnCurrentPlatformInner() {
         setUploadStatus(
           `post 2/3 FAILED: no compose editor found`, false);
         recordPostAttempt({platformKey: postKey, outcome: "failed",
+                            transport: "dom",
+                            step: "compose editor lookup",
                             note: "no compose editor"});
         recordTransportResult({platformKey: postKey, transport: "dom",
                                outcome: "failed",
@@ -1066,6 +1070,8 @@ async function _postNowOnCurrentPlatformInner() {
       `${stepLabel} FAILED: no submit button found - click it manually`,
       false);
     recordPostAttempt({platformKey: postKey, outcome: "failed",
+                        transport: "dom",
+                        step: "submit button lookup",
                         note: "no submit button"});
     recordTransportResult({platformKey: postKey, transport: "dom",
                            outcome: "failed",
@@ -1158,6 +1164,8 @@ async function _postNowOnCurrentPlatformInner() {
     notifyFeedback({type: "posted", platformKey: postKey,
                     verified: true, verifySignal: verifySignal});
     recordPostAttempt({platformKey: postKey, outcome: "verified",
+                        transport: "dom",
+                        step: "verified via " + verifySignal,
                         note: verifySignal});
     recordTransportResult({platformKey: postKey, transport: "dom",
                            outcome: "ok",
@@ -1169,7 +1177,9 @@ async function _postNowOnCurrentPlatformInner() {
     notifyFeedback({type: "posted", platformKey: postKey,
                     verified: false, verifySignal: "none",
                     note: "submit clicked; compose still open after 8s"});
-    recordPostAttempt({platformKey: postKey, outcome: "unverified"});
+    recordPostAttempt({platformKey: postKey, outcome: "unverified",
+                        transport: "dom",
+                        step: "submit clicked; compose still open"});
     recordTransportResult({platformKey: postKey, transport: "dom",
                            outcome: "unverified",
                            step: "submit clicked; compose still open"});
@@ -2507,13 +2517,20 @@ function rebuildPanel() {
                     : e.outcome === "unverified" ? "#ffd76b"
                     : e.outcome === "skipped" ? "#888"
                     : "#ff6b6b";
-        const note = e.note ? ` <span style="color:#888;">(${e.note})</span>` : "";
+        // Transport+step badge surfaces which dispatcher rung the
+        // attempt landed on. Dom-only attempts before transport
+        // recording was added show outcome alone (no badge).
+        const transport = e.transport
+          ? ` <span style="color:#6bbcff;font-size:9px;">[${e.transport}${e.step ? ": " + e.step : ""}]</span>`
+          : "";
+        const note = e.note && e.note !== e.step
+          ? ` <span style="color:#888;">(${e.note})</span>` : "";
         const retry = (e.outcome !== "verified" && e.platformKey)
           ? ` <a href="#" class="doxyedit-history-retry" data-plat="${e.platformKey}" `
           + `style="color:#6bbcff;text-decoration:underline;">retry</a>`
           : "";
         return `<div style="font-size:10px;color:${color};padding:1px 0;">`
-             + `${when} - ${e.platformKey} ${e.outcome}${note}${retry}`
+             + `${when} - ${e.platformKey} ${e.outcome}${transport}${note}${retry}`
              + `</div>`;
       }).join("");
       return `<details style="margin-top:4px;">`
