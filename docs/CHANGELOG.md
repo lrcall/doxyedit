@@ -1,5 +1,116 @@
 # DoxyEdit Changelog
 
+## v2.5.4 (2026-04-25) - Robust multi-path posting + canvas perf
+
+Long cron-driven session pushing the posting bridge into a real
+multi-path system (the dispatcher that tries [api -> dom-paste ->
+dom-click -> drag -> native] in priority order, falls back on
+failure, records the winner) plus a separate canvas paint-loop
+perf pass. Userscript moved 2.42 -> 2.49 across 8 fires.
+
+### Multi-path posting architecture
+
+- **Transport-priority dispatcher** (`dispatchPost`) walks each
+  platform's ordered transport list, records every attempt to
+  `/doxyedit-dom-result`, returns `{ok, transport, url}` on the
+  first success. Per-platform priorities match the spec
+  exactly: bluesky/mastodon lead with `api`, x/twitter/threads
+  skip api (paid), reddit prefers `dom-fill`, the long tail
+  (kofi/newgrounds/itch/indiedb/gamejolt/tumblr/linkedin/buttondown)
+  is `[dom-fill, drag, native]`. Console-callable as
+  `window.__doxyedit_dispatchPost({platformKey: "bluesky"})`.
+- **`/doxyedit-api-post`** API-direct path implemented for
+  Bluesky (createSession, createRecord, uploadBlob) and
+  Mastodon (statuses + multipart `/api/v2/media`). Image
+  attachments via `asset_ids` resolved server-side from the
+  bridge's existing asset registry.
+- **Project-stored API credentials.** `CollectionIdentity`
+  gains a `credentials: dict` field plus a
+  `get_credentials(platform_id)` helper. Bridge holds the map
+  in `_HTTP_STATE.credentials`; `_rebind_project` pushes it on
+  every project load. `/doxyedit-api-post` falls back to the
+  stored map when the request body's credentials are empty,
+  closing the recurring HTTP 401 loop.
+- **`/doxyedit-dom-result`** transport-result endpoint accepts
+  `{platformKey, transport, outcome, step?, error?, durationMs?}`.
+  Logs as `dom_result.<outcome>`. The userscript helper
+  `recordTransportResult(...)` is fire-and-forget; every
+  POST NOW success/failure path emits one.
+- **Multi-tab run-queue** ported from the autofill repo.
+  Server-side `runqueue` list with 60s heartbeat purge + 4
+  endpoints (`/doxyedit-runqueue/{claim,heartbeat,release,status}`).
+  Userscript-side `DOXYEDIT_TAB_ID` per-tab UUID and
+  claim/wait/heartbeat/release helpers wrap
+  `postNowOnCurrentPlatform`. Solo-tab use unchanged; with
+  multiple tabs staged, each waits in line showing
+  `"waiting in queue: N of M tab(s)..."` in the panel strip.
+- **`native_input` Python module** + `/doxyedit-native-input`
+  endpoint. Pyautogui gated by `NativeInputUnavailable` so
+  installs without it cleanly report `available=false`. Probe /
+  type / click / paste actions; paste prefers Qt's
+  `QGuiApplication.clipboard()` with Windows `clip.exe`
+  fallback.
+- **Truthful skip reasons** on dispatcher rungs: `_nativeTransport`
+  probes `/doxyedit-native-input` and reports
+  available / not-installed / unreachable; `_dragTransport`
+  uses `findDropZone()` to report selector-match-found vs
+  no-host-coverage. Bridge log's `dom_result.*` entries now
+  reflect what's actually missing per host instead of
+  hardcoded "not yet wired".
+- **LinkedIn + Buttondown DOM selectors** added to
+  `POST_NOW_HOSTS` to close the dispatcher's coverage gap (both
+  were in `TRANSPORT_PRIORITY_BY_PLATFORM` but had no
+  postNowSelectorsForHost match). LinkedIn host_permissions
+  added to manifest + userscript @match.
+- **History rows surface transport+step.** The recent-posts
+  panel now renders a small `[transport: step]` badge after the
+  outcome on each row so the user can see which dispatcher rung
+  the attempt landed on at a glance. Pre-existing entries
+  (without transport) render outcome-only - graceful
+  degradation.
+
+### Canvas perf
+
+CanvasSkia + CanvasSkiaGL paint-loop micro-opts. Three commits:
+
+- **Bubble + opacity getattr cleanup.** `getattr(ov, "bubble_*",
+  default)` and `getattr(ov, "opacity", 1.0)` patterns replaced
+  with direct attribute access. `CanvasOverlay` is a dataclass
+  with declared defaults so direct access is safe and skips the
+  per-call dict lookup. Selection-decor walk skipped entirely
+  when no overlays are selected (typical paint case). Bubble
+  wobble loop hoists the sin-argument coefficient out of the
+  per-sample inner loop.
+- **Text + censor overlay pass.** `_draw_overlay_text` was
+  recomputing `widest = max(measureText)` and `total_h` up to
+  three times per overlay (rotation + flip + bg) - hoist once
+  on demand. `_draw_line` skips `font.measureText` entirely on
+  the common left-aligned no-pin path (halves the per-line
+  measure cost since stroke + fill passes both call into it).
+  `_draw_overlay_image` checks `enabled` before the image cache
+  lookup. `_draw_censor` drops getattrs against `CensorRegion`
+  dataclass fields.
+- **Selection-handle paint cache.** `_draw_handle_dot` was
+  allocating two fresh `skia.Paint`s per dot, fired 4-8 times
+  per selection paint frame. Now caches fill + border paints
+  on `self` (lazy-init mirroring the `_hud_paint` pattern);
+  only the border's stroke width is mutated per call since it
+  scales with zoom. `_draw_selection_decor` hoists
+  `inv_zoom = 1.0 / max(0.01, self._zoom)` once instead of
+  recomputing it 7 times.
+
+### Other
+
+- **PlatformPanel package-shadow fix.** Creating
+  `doxyedit/platforms/` to host the API client modules silently
+  shadowed the existing `doxyedit/platforms.py` so
+  `from doxyedit.platforms import PlatformPanel` in
+  window.py:39 raised ImportError on every CLI launch. The
+  whole app was unlaunchable for that stretch of the session
+  and only surfaced when the user pushed back. Fix: `git mv`
+  the file into the package + re-export from `__init__.py`.
+  Memory entry on launch-test discipline reinforced.
+
 ## v2.5.3 (2026-04-24) - Posting bridge polish + resilience
 
 Follow-up session to v2.5.2. Keeps the one-click flow working
