@@ -144,6 +144,16 @@ class _BridgeHTTPState:
         # or UI button) doesn't pass them explicitly. Shape:
         # platform_id -> {"handle": ..., "app_password": ...} etc.
         self.credentials: dict = {}
+        # Multi-tab run queue. Several browser tabs (one per platform
+        # the user is reviewing follow-ups on) claim a slot before
+        # firing their batch action; entries take turns so concurrent
+        # clicks across tabs don't all fire at once. Shape per entry:
+        # {tab_id, host, count, claimed_at, last_seen, status}. Stale
+        # entries (heartbeat older than RUNQUEUE_HEARTBEAT_TIMEOUT)
+        # are auto-purged on every endpoint hit so a closed tab
+        # doesn't pin the slot. Pattern lifted from sibling autofill
+        # repo's /runqueue/* endpoints.
+        self.runqueue: list = []
 
 
 _HTTP_STATE = _BridgeHTTPState()
@@ -198,6 +208,48 @@ def set_credentials(creds_by_platform: dict) -> None:
     was there before. Safe to call with {} to clear."""
     with _HTTP_STATE.lock:
         _HTTP_STATE.credentials = dict(creds_by_platform or {})
+
+
+# Multi-tab run-queue support. Tabs claim a slot before firing their
+# batch action and release when finished; entries serialize so the
+# user can stage follow-up replies on Bluesky / X / Reddit / Mastodon
+# all at once and watch them go out one tab at a time. Pattern lifted
+# from autofill repo's /runqueue/* design.
+_RUNQUEUE_HEARTBEAT_TIMEOUT = 60  # seconds without ping before auto-release
+
+
+def _runqueue_purge_stale_locked() -> int:
+    """Drop queue entries whose owning tab hasn't pinged in a while.
+    Caller must hold _HTTP_STATE.lock. Returns number dropped (for
+    log telemetry). The tab itself dies with its browser window; the
+    server-side purge is what frees the slot for the next tab."""
+    import time
+    now = time.time()
+    alive = []
+    dropped = 0
+    for entry in _HTTP_STATE.runqueue:
+        last = entry.get("last_seen") or entry.get("claimed_at") or 0
+        if (now - last) > _RUNQUEUE_HEARTBEAT_TIMEOUT:
+            dropped += 1
+            continue
+        alive.append(entry)
+    _HTTP_STATE.runqueue[:] = alive
+    return dropped
+
+
+def _runqueue_snapshot_locked() -> list:
+    """Return a JSON-safe snapshot of the queue. Caller holds lock."""
+    return [
+        {
+            "tab_id": e.get("tab_id"),
+            "host": e.get("host", ""),
+            "count": int(e.get("count", 0)),
+            "status": e.get("status", "waiting"),
+            "claimed_at": e.get("claimed_at"),
+            "last_seen": e.get("last_seen"),
+        }
+        for e in _HTTP_STATE.runqueue
+    ]
 
 
 def _userscript_path() -> Optional[str]:
@@ -284,6 +336,29 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             # application/javascript) to recognize the install
             # banner on page load.
             self._send_bytes(body, "text/javascript; charset=utf-8")
+            return
+        if self.path.startswith("/doxyedit-runqueue/status"):
+            # Snapshot of the multi-tab run queue plus the calling
+            # tab's position. Position 0 = your turn (or queue empty).
+            # Browser tabs poll this every 3s while waiting.
+            from urllib.parse import urlparse, parse_qs
+            qs = parse_qs(urlparse(self.path).query)
+            tab_id = (qs.get("tab") or [""])[0]
+            with _HTTP_STATE.lock:
+                _runqueue_purge_stale_locked()
+                queue = _runqueue_snapshot_locked()
+            position = -1
+            turn = False
+            if tab_id:
+                for i, e in enumerate(queue):
+                    if e["tab_id"] == tab_id:
+                        position = i
+                        turn = (i == 0)
+                        break
+            self._send_bytes(
+                json.dumps({"queue": queue, "size": len(queue),
+                             "position": position, "turn": turn}).encode(),
+                "application/json; charset=utf-8")
             return
         self._send_status(404)
 
@@ -467,6 +542,123 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             self._send_bytes(b'{"ok":true}',
                              "application/json; charset=utf-8",
                              methods="POST, OPTIONS")
+            return
+        if self.path == "/doxyedit-runqueue/claim":
+            # Tab requests to be added to the run queue. Idempotent:
+            # claiming twice with the same tab_id just bumps the
+            # heartbeat. Body: {tab_id, host?, count?}. Returns
+            # {turn, position, size, queue}.
+            import time
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length else b""
+            try:
+                data = json.loads(raw.decode("utf-8") or "{}")
+            except Exception:
+                data = {}
+            tab_id = data.get("tab_id") if isinstance(data, dict) else None
+            if not isinstance(tab_id, str) or not tab_id.strip():
+                self._send_bytes(
+                    json.dumps({"ok": False,
+                                 "error": "tab_id required"}).encode(),
+                    "application/json; charset=utf-8",
+                    methods="POST, OPTIONS")
+                return
+            with _HTTP_STATE.lock:
+                _runqueue_purge_stale_locked()
+                existing = next(
+                    (e for e in _HTTP_STATE.runqueue
+                     if e["tab_id"] == tab_id),
+                    None)
+                now = time.time()
+                if existing:
+                    existing["last_seen"] = now
+                else:
+                    _HTTP_STATE.runqueue.append({
+                        "tab_id": tab_id,
+                        "host": (data.get("host") or "")
+                                if isinstance(data, dict) else "",
+                        "count": int(data.get("count", 0))
+                                  if isinstance(data, dict) else 0,
+                        "claimed_at": now,
+                        "last_seen": now,
+                        "status": "waiting",
+                    })
+                position = next(
+                    (i for i, e in enumerate(_HTTP_STATE.runqueue)
+                     if e["tab_id"] == tab_id),
+                    -1)
+                turn = (position == 0)
+                queue = _runqueue_snapshot_locked()
+            _log("runqueue.claim", tab_id=tab_id[:64],
+                 host=str(data.get("host", ""))[:64],
+                 turn=turn, position=position, size=len(queue))
+            self._send_bytes(
+                json.dumps({"turn": turn, "position": position,
+                             "size": len(queue),
+                             "queue": queue}).encode(),
+                "application/json; charset=utf-8",
+                methods="POST, OPTIONS")
+            return
+        if self.path == "/doxyedit-runqueue/heartbeat":
+            # Tab pings while waiting or running so its slot doesn't
+            # get auto-purged. Body: {tab_id, status?}. Returns {ok}.
+            import time
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length else b""
+            try:
+                data = json.loads(raw.decode("utf-8") or "{}")
+            except Exception:
+                data = {}
+            tab_id = data.get("tab_id") if isinstance(data, dict) else None
+            if not isinstance(tab_id, str) or not tab_id.strip():
+                self._send_bytes(
+                    json.dumps({"ok": False,
+                                 "error": "tab_id required"}).encode(),
+                    "application/json; charset=utf-8",
+                    methods="POST, OPTIONS")
+                return
+            with _HTTP_STATE.lock:
+                _runqueue_purge_stale_locked()
+                for e in _HTTP_STATE.runqueue:
+                    if e["tab_id"] == tab_id:
+                        e["last_seen"] = time.time()
+                        new_status = data.get("status")
+                        if isinstance(new_status, str) and new_status:
+                            e["status"] = new_status
+                        break
+            self._send_bytes(
+                b'{"ok":true}',
+                "application/json; charset=utf-8",
+                methods="POST, OPTIONS")
+            return
+        if self.path == "/doxyedit-runqueue/release":
+            # Tab is done (or cancelling). Removes from queue so the
+            # next tab takes the front slot. Body: {tab_id}.
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length else b""
+            try:
+                data = json.loads(raw.decode("utf-8") or "{}")
+            except Exception:
+                data = {}
+            tab_id = data.get("tab_id") if isinstance(data, dict) else None
+            if not isinstance(tab_id, str) or not tab_id.strip():
+                self._send_bytes(
+                    json.dumps({"ok": False,
+                                 "error": "tab_id required"}).encode(),
+                    "application/json; charset=utf-8",
+                    methods="POST, OPTIONS")
+                return
+            with _HTTP_STATE.lock:
+                _HTTP_STATE.runqueue[:] = [
+                    e for e in _HTTP_STATE.runqueue
+                    if e["tab_id"] != tab_id
+                ]
+                size = len(_HTTP_STATE.runqueue)
+            _log("runqueue.release", tab_id=tab_id[:64], size=size)
+            self._send_bytes(
+                json.dumps({"ok": True, "size": size}).encode(),
+                "application/json; charset=utf-8",
+                methods="POST, OPTIONS")
             return
         if self.path == "/doxyedit-native-input":
             # OS-level input fallback. The dispatcher's `native` rung

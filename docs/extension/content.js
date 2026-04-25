@@ -64,6 +64,19 @@ const HTTP_BRIDGE_PORTS = [8910, 8911, 8912];  // DoxyEdit tries first free
 const HTTP_BRIDGE_POLL_MS = 8000;              // refetch every 8s if active
 const DOXYEDIT_PANEL_MARKER = "_bridge_panel_v1";        // matches bridge.py
 
+// Per-tab unique ID used by the multi-tab run queue. Different tabs
+// claim their own slot so several POST NOW actions across browser
+// tabs serialize through the bridge instead of all firing at once.
+// Lifted from autofill repo's AUTOFILL_TAB_ID pattern.
+const DOXYEDIT_TAB_ID = (() => {
+  try {
+    if (window.crypto && window.crypto.randomUUID) {
+      return "tab-" + window.crypto.randomUUID();
+    }
+  } catch (e) {}
+  return "tab-" + Math.random().toString(36).slice(2) + "-" + Date.now();
+})();
+
 // ── HARDCODED FALLBACK ─────────────────────────────────────────────────────
 // Used only when no DoxyEdit transport is live. Lets the script work
 // standalone on a machine that doesn't have DoxyEdit running.
@@ -809,7 +822,91 @@ function recordTransportResult(entry) {
   } catch (e) { /* host blocks fetch, fine */ }
 }
 
-async function postNowOnCurrentPlatform() {
+// ── MULTI-TAB RUN QUEUE ────────────────────────────────────────────────
+// When the user has POST NOW staged on several browser tabs (one per
+// platform on follow-up review), each tab claims a slot from the
+// bridge before its action runs. Tabs at position > 0 wait, polling
+// every 3s with 20s heartbeats, until the leader releases. Lets the
+// user stage Bluesky / X / Reddit / Mastodon all at once and watch
+// them post in turn instead of all firing simultaneously. Pattern
+// lifted from sibling autofill repo.
+const RUNQUEUE_POLL_MS = 3000;
+const RUNQUEUE_HEARTBEAT_MS = 20000;
+
+async function _runqueueClaim(count) {
+  const port = httpBridgePort || HTTP_BRIDGE_PORTS[0];
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/doxyedit-runqueue/claim`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({tab_id: DOXYEDIT_TAB_ID,
+                              host: location.host,
+                              count: count || 1}),
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) { return null; /* bridge offline */ }
+}
+
+async function _runqueueHeartbeat(status) {
+  const port = httpBridgePort || HTTP_BRIDGE_PORTS[0];
+  try {
+    await fetch(`http://127.0.0.1:${port}/doxyedit-runqueue/heartbeat`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({tab_id: DOXYEDIT_TAB_ID,
+                              status: status || "running"}),
+    });
+  } catch (e) { /* one missed beat won't drop us */ }
+}
+
+async function _runqueueStatus() {
+  const port = httpBridgePort || HTTP_BRIDGE_PORTS[0];
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/doxyedit-runqueue/status`
+                            + `?tab=${encodeURIComponent(DOXYEDIT_TAB_ID)}`
+                            + `&t=${Date.now()}`);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) { return null; }
+}
+
+async function _runqueueRelease() {
+  const port = httpBridgePort || HTTP_BRIDGE_PORTS[0];
+  try {
+    await fetch(`http://127.0.0.1:${port}/doxyedit-runqueue/release`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({tab_id: DOXYEDIT_TAB_ID}),
+    });
+  } catch (e) { /* bridge gone, slot will time out anyway */ }
+}
+
+// Poll status every 3s with 20s heartbeats until our turn arrives.
+// Returns true on turn, false if abortFn() goes truthy. Caller is
+// expected to setUploadStatus on every tick so the user can see the
+// position update without having to refresh the panel.
+async function _runqueueWaitForTurn(initialClaim, statusFn, abortFn) {
+  let claim = initialClaim;
+  let lastBeat = Date.now();
+  while (claim && !claim.turn) {
+    if (abortFn && abortFn()) return false;
+    if (statusFn) {
+      try { statusFn(claim.position, claim.size); } catch (e) {}
+    }
+    await new Promise(res => setTimeout(res, RUNQUEUE_POLL_MS));
+    if (Date.now() - lastBeat >= RUNQUEUE_HEARTBEAT_MS) {
+      _runqueueHeartbeat("waiting");
+      lastBeat = Date.now();
+    }
+    claim = await _runqueueStatus();
+  }
+  return !!(claim && claim.turn);
+}
+
+// Inner POST NOW logic; the public postNowOnCurrentPlatform wrapper
+// adds the multi-tab run-queue claim/wait/release dance around this.
+async function _postNowOnCurrentPlatformInner() {
   const postKey = currentHostPostKey();
   const selectors = postNowSelectorsForHost();
   if (!postKey || !selectors) {
@@ -1058,6 +1155,46 @@ async function postNowOnCurrentPlatform() {
                            step: "submit clicked; compose still open"});
   }
   return verified;
+}
+
+// Public POST NOW: wraps the inner logic with the multi-tab run-queue
+// dance. Solo-tab use is identical to before (claim returns turn=true
+// immediately, runs, releases). With several tabs staged, each one
+// waits in line; the panel status strip shows the live position as
+// "waiting in queue: X of Y tabs..." and the heartbeat keeps the slot
+// alive while waiting. Always releases on the way out, even on error,
+// so a failure on one tab doesn't block the rest of the queue.
+let _postNowAbort = false;
+async function postNowOnCurrentPlatform() {
+  const claim = await _runqueueClaim(1);
+  // Bridge unreachable: degrade to legacy non-queued behavior so the
+  // user can still POST NOW on a single tab without a running bridge.
+  if (claim === null) {
+    return await _postNowOnCurrentPlatformInner();
+  }
+  let heartbeatTimer = null;
+  try {
+    if (!claim.turn) {
+      const ok = await _runqueueWaitForTurn(
+        claim,
+        (pos, size) => setUploadStatus(
+          `waiting in queue: ${pos + 1} of ${size} tab(s)...`, true),
+        () => _postNowAbort);
+      if (!ok) {
+        setUploadStatus("cancelled while waiting in queue.", false);
+        return false;
+      }
+    }
+    // Heartbeat at "running" once we hold the slot so the bridge
+    // doesn't auto-purge us mid-post if the inner step is slow.
+    _runqueueHeartbeat("running");
+    heartbeatTimer = setInterval(
+      () => _runqueueHeartbeat("running"), RUNQUEUE_HEARTBEAT_MS);
+    return await _postNowOnCurrentPlatformInner();
+  } finally {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    await _runqueueRelease();
+  }
 }
 
 // ── TRANSPORT-PRIORITY DISPATCHER ──────────────────────────────────────
