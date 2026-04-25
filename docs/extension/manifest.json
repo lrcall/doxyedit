@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "doxyedit autofill",
-  "version": "2.39.0",
+  "version": "2.40.0",
   "description": "DoxyEdit bridge content script. Fills identity, captions, and attaches images on social compose pages; one-click POST NOW on supported hosts. Talks to the DoxyEdit HTTP bridge on localhost:8910.",
   "permissions": [
     "activeTab",

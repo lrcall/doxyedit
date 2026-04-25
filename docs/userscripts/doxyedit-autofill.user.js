@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.39
+// @version      2.40
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -516,6 +516,82 @@ function scrollIntoViewSafely(el) {
   }
 }
 
+// Per-host "open compose" button selector ladder. POST NOW calls
+// tryOpenCompose() when no compose dialog is currently mounted, so
+// the user doesn't have to click the +/pencil/new-post button
+// themselves before hitting POST NOW.
+const COMPOSE_OPEN_SELECTORS_BY_HOST = {
+  "bsky.app": [
+    '[data-testid="composeFAB"]',
+    'button[aria-label*="New post" i]',
+    'button[aria-label*="Compose" i]',
+  ],
+  "x.com": [
+    '[data-testid="SideNav_NewTweet_Button"]',
+    'a[href="/compose/tweet"]',
+    '[aria-label*="Post" i][role="link"]',
+  ],
+  "twitter.com": [
+    '[data-testid="SideNav_NewTweet_Button"]',
+    'a[href="/compose/tweet"]',
+  ],
+  "threads.net": [
+    'div[aria-label*="Create" i]',
+    'div[aria-label*="New thread" i]',
+    'div[role="button"][aria-label*="Post" i]',
+  ],
+  // mastodon: compose-form is always inline visible, no open step needed
+  // reddit: /submit URL is the open step, handled by subreddit-aware
+  //   pathInSub guard before this hook runs
+};
+
+// Selector that identifies "compose dialog is now open" per host. If
+// already mounted we skip the click. waitForElement uses these too
+// so we can confirm the open click actually opened something.
+const COMPOSE_PRESENT_SELECTORS_BY_HOST = {
+  "bsky.app": '[role="dialog"], [aria-modal="true"]',
+  "x.com": '[data-testid="tweetTextarea_0"], [aria-modal="true"]',
+  "twitter.com": '[data-testid="tweetTextarea_0"], [aria-modal="true"]',
+  "threads.net": '[role="dialog"], div[contenteditable="true"][aria-label*="thread" i]',
+};
+
+async function tryOpenCompose() {
+  const host = (location.host || "").toLowerCase();
+  let openSelectors = null;
+  let presentSelector = null;
+  for (const h in COMPOSE_OPEN_SELECTORS_BY_HOST) {
+    if (host === h || host.endsWith("." + h)) {
+      openSelectors = COMPOSE_OPEN_SELECTORS_BY_HOST[h];
+      presentSelector = COMPOSE_PRESENT_SELECTORS_BY_HOST[h] || null;
+      break;
+    }
+  }
+  if (!openSelectors) return false;  // host unsupported, fall through
+  // Already open? skip the click.
+  if (presentSelector && document.querySelector(presentSelector)) {
+    return true;
+  }
+  // Find + click the new-post button.
+  for (const sel of openSelectors) {
+    try {
+      const btn = document.querySelector(sel);
+      if (btn && btn.offsetParent !== null) {
+        scrollIntoViewSafely(btn);
+        btn.click();
+        logToBridge("info", "compose open clicked: " + sel);
+        // Wait for the compose dialog to actually mount.
+        if (presentSelector) {
+          const opened = await waitForElement(presentSelector, {timeout: 3000});
+          return !!opened;
+        }
+        await _wait(500);
+        return true;
+      }
+    } catch (e) { /* bad selector or click failed; keep trying */ }
+  }
+  return false;
+}
+
 // Backchannel: POST an event to DoxyEdit's /doxyedit-feedback
 // endpoint. Used to tell DoxyEdit "I just posted on <platform>" so
 // the project can mark the post as POSTED and schedule engagement
@@ -699,6 +775,13 @@ async function postNowOnCurrentPlatform() {
     fillPostPayload(Object.assign({}, caption, {platform: postKey}));
     await _wait(500);
   } else {
+    // Step 0: auto-open the compose dialog if it isn't visible yet.
+    // POST NOW shouldn't require the user to first click the +/post
+    // FAB on Bluesky / X / Threads themselves - tryOpenCompose finds
+    // the button per host and waits for the dialog to mount before
+    // proceeding. No-op when the dialog is already open or the host
+    // doesn't have a known open-compose pattern (mastodon, reddit).
+    try { await tryOpenCompose(); } catch (e) {}
     // Step 1: attach the first asset if DoxyEdit pushed any. The
     // cascade inside loadAssetFromBridge handles fetch fallbacks and
     // paste-injection on our supported short-form hosts.
