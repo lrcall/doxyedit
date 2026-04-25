@@ -321,9 +321,17 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             except Exception as exc:
                 _log("api_post.failed", platform=plat, error=repr(exc)[:300])
                 out = {"ok": False, "error": repr(exc)[:300]}
-            else:
+            # Distinguish three log states: the no-exception success path
+            # (ok=True), the no-exception unsupported-platform path
+            # (ok=False, no client found), and the exception path (already
+            # logged above). Previously the try/except/else pattern logged
+            # api_post.ok for the unsupported branch because no exception
+            # was raised, mislabeling refusals as successes in the log.
+            if out.get("ok"):
                 _log("api_post.ok", platform=plat,
                      url=out.get("url", "")[:200])
+            elif "error" in out and "no API client" in out.get("error", ""):
+                _log("api_post.unsupported", platform=plat)
             self._send_bytes(
                 json.dumps(out).encode(),
                 "application/json; charset=utf-8",
