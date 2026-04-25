@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.37
+// @version      2.38
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -1164,6 +1164,23 @@ async function autoInject() {
       return;
     } catch (e) { /* fall through */ }
   }
+  // Strategy 3: drag-and-drop synthesis. Tried before Strategy 4
+  // because drop never opens an OS file dialog (whereas Strategy 4
+  // clicks an "add image" button which usually does, even though
+  // the file we set on the input afterwards lands fine). Reddit's
+  // composer reads e.dataTransfer.items off the drop event, and
+  // findDropZone() returns the right per-host target; on hosts
+  // without a known drop zone the generic compose contenteditable
+  // fallback kicks in.
+  const zone = findDropZone();
+  if (zone) {
+    try {
+      synthesizeDragDrop(_pickedFiles, zone.el);
+      logToBridge("info", "drop dispatched on " + zone.selector);
+      setUploadStatus(`✓ attached via drag-drop -> ${zone.selector}`, true);
+      return;
+    } catch (e) { /* fall through to click strategy */ }
+  }
   // Strategy 4: click image/photo/attach button, retry input.
   const btnPatterns = [
     'button[aria-label*="image" i]',
@@ -1412,22 +1429,101 @@ function strategyPaste() {
 }
 
 // Strategy 3 - drop event on the focused element.
+// Per-host drop-zone selectors. First visible match wins. Reddit's
+// React composer reads e.dataTransfer.items, so DataTransfer must
+// carry both .files and .items; .items.add(file) populates both.
+const DROP_ZONE_SELECTORS_BY_HOST = {
+  "reddit.com": [
+    '[data-testid="image-card-add-image"]',
+    '[aria-label*="upload" i]',
+    'shreddit-composer [role="textbox"]',
+    '[role="dialog"] [role="textbox"]',
+    'div[contenteditable="true"]',
+  ],
+  "old.reddit.com": [
+    '[id="image-upload"]',
+    'form#newlink',
+  ],
+  "itch.io": [
+    '.post_content_editor [contenteditable]',
+    '.dropbox',
+    '[role="textbox"]',
+  ],
+  "newgrounds.com": [
+    '#upload_drop',
+    'form[action*="upload" i]',
+  ],
+};
+
+function findDropZone() {
+  const host = (location.host || "").toLowerCase();
+  let zoneList = [];
+  for (const h in DROP_ZONE_SELECTORS_BY_HOST) {
+    if (host === h || host.endsWith("." + h)) {
+      zoneList = DROP_ZONE_SELECTORS_BY_HOST[h];
+      break;
+    }
+  }
+  // Generic fallbacks for hosts without a per-host map: any compose-
+  // context contenteditable / textarea we can find.
+  if (!zoneList.length) {
+    zoneList = [
+      '[role="dialog"] [contenteditable="true"]',
+      '[aria-modal="true"] [contenteditable="true"]',
+      'form.compose-form textarea',
+      '[role="textbox"]',
+    ];
+  }
+  for (const sel of zoneList) {
+    try {
+      for (const el of document.querySelectorAll(sel)) {
+        if (el.offsetParent !== null) {
+          return {el, selector: sel};
+        }
+      }
+    } catch (e) { /* bad selector, skip */ }
+  }
+  return null;
+}
+
+// Fire the full HTML5 drag chain so sites that validate the
+// sequence (dragstart -> dragenter -> dragover -> drop -> dragend)
+// see real-looking events. DataTransfer.items.add populates both
+// .items and .files, so consumers reading either path work.
+function synthesizeDragDrop(files, target, sourceEl) {
+  const dt = new DataTransfer();
+  for (const f of files) dt.items.add(f);
+  const opts = {dataTransfer: dt, bubbles: true, cancelable: true};
+  // dragstart fires on a "source" (some sites cache the active drag
+  // by listening on document; we use a real <img> when available so
+  // the event has a sensible target).
+  const src = sourceEl || document.body;
+  try { src.dispatchEvent(new DragEvent("dragstart", opts)); }
+  catch (e) {}
+  for (const type of ["dragenter", "dragover", "drop"]) {
+    target.dispatchEvent(new DragEvent(type, opts));
+  }
+  try { src.dispatchEvent(new DragEvent("dragend", opts)); }
+  catch (e) {}
+  return dt;
+}
+
 function strategyDrop() {
   if (!requirePicked()) return;
-  const active = document.activeElement;
-  if (!active) {
-    setUploadStatus("✗ nothing focused - click compose first", false);
+  // Prefer a per-host drop zone over activeElement so the user
+  // doesn't need to focus the right element first - that's what
+  // makes drag-drop a useful BACKUP path: it should just work.
+  const zone = findDropZone();
+  const target = zone ? zone.el : document.activeElement;
+  if (!target) {
+    setUploadStatus("✗ no drop zone found and nothing focused", false);
     return;
   }
   try {
-    const dt = new DataTransfer();
-    for (const f of _pickedFiles) dt.items.add(f);
-    const dropEv = new DragEvent("drop", {
-      dataTransfer: dt, bubbles: true, cancelable: true,
-    });
-    active.dispatchEvent(dropEv);
-    setUploadStatus(
-      `✓ strategy 3 (drop) - dispatched on ${active.tagName}`, true);
+    synthesizeDragDrop(_pickedFiles, target);
+    const where = zone ? zone.selector : (target.tagName + " (active)");
+    logToBridge("info", "drop dispatched on " + where);
+    setUploadStatus(`✓ strategy 3 (drag-drop) -> ${where}`, true);
   } catch (e) {
     setUploadStatus(`✗ strategy 3 failed: ${e.message}`, false);
   }
