@@ -538,12 +538,15 @@ class ContentPanel(QWidget):
         # from the composer without hunting through the timeline.
         urls = getattr(post, "published_urls", {}) or {}
         if urls:
+            theme_id = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
+            warning_color = THEMES.get(theme_id, THEMES[DEFAULT_THEME]).warning
             lines = []
             for plat, url in sorted(urls.items()):
                 if not url:
                     continue
                 status = (getattr(post, "platform_status", {}) or {}).get(plat, "")
-                mark = " <b style=\"color:#ffd76b;\">[UNVERIFIED]</b>" if status == "posted_unverified" else ""
+                mark = (f' <b style="color:{warning_color};">[UNVERIFIED]</b>'
+                        if status == "posted_unverified" else "")
                 lines.append(f'<b>{plat}</b>: <a href="{url}">{url}</a>{mark}')
             if lines:
                 self._published_urls_label.setText("<br>".join(lines))

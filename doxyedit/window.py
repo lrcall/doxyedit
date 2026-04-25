@@ -288,6 +288,7 @@ class MainWindow(SaveLoadMixin, QMainWindow):
     WORK_TRAY_MIN_WIDTH_RATIO = 12.5  # work tray minimum width
     DIALOG_MIN_WIDTH_RATIO = 35.0     # standard dialog minimum width
     DIALOG_WIDE_MIN_WIDTH_RATIO = 37.5  # wide dialog minimum width
+    DIALOG_PROGRESS_WIDTH_RATIO = 26.7  # progress dialogs (claude_modal, F6 push)
 
     def __init__(self, _skip_autoload: bool = False):
         super().__init__()
@@ -5747,7 +5748,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
         dlg.setCancelButton(None)
         dlg.setMinimumDuration(0)
-        dlg.setMinimumWidth(int(ui_font_size() * 26.7))
+        dlg.setMinimumWidth(int(ui_font_size() * self.DIALOG_PROGRESS_WIDTH_RATIO))
         dlg.show()
         self._bridge_push_dialog = dlg
         # Theme the title bar on Windows so the caption area matches
