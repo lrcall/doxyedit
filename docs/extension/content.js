@@ -541,6 +541,45 @@ function scrollIntoViewSafely(el) {
   }
 }
 
+// Per-host "post landed" signals. Stronger evidence than the
+// button-detached fallback because they confirm the platform
+// actually accepted the post: a "Posted!" toast appeared, the URL
+// changed to a permalink, or the compose stack popped. Any one
+// matching = verified, no need to wait the full 8s timeout.
+const POST_SUCCESS_SELECTORS_BY_HOST = {
+  "bsky.app": [
+    '[role="status"]',                          // "Posted" toast
+    'a[href*="/profile/"][href*="/post/"]',     // permalink in feed
+  ],
+  "x.com": [
+    'a[href*="/status/"]',                      // tweet permalink
+    '[data-testid="toast"]',
+  ],
+  "twitter.com": [
+    'a[href*="/status/"]',
+    '[data-testid="toast"]',
+  ],
+  "threads.net": [
+    'a[href*="/post/"]',
+    '[role="status"]',
+  ],
+  "mastodon": [
+    '[role="status"]',
+    'div.notification-bar',
+  ],
+};
+
+function _postSuccessSelectorsForHost() {
+  const host = (location.host || "").toLowerCase();
+  if (host.includes("mastodon")) return POST_SUCCESS_SELECTORS_BY_HOST.mastodon;
+  for (const h in POST_SUCCESS_SELECTORS_BY_HOST) {
+    if (host === h || host.endsWith("." + h)) {
+      return POST_SUCCESS_SELECTORS_BY_HOST[h];
+    }
+  }
+  return [];
+}
+
 // Per-host "open compose" button selector ladder. POST NOW calls
 // tryOpenCompose() when no compose dialog is currently mounted, so
 // the user doesn't have to click the +/pencil/new-post button
@@ -900,11 +939,40 @@ async function postNowOnCurrentPlatform() {
   // warn instead of showing a false-positive POSTED.
   const verifyDeadline = Date.now() + 8000;
   const btnRef = btn;
+  const successSelectors = _postSuccessSelectorsForHost();
+  const startUrl = location.href;
   let verified = false;
+  let verifySignal = "";
   while (Date.now() < verifyDeadline) {
     await _wait(400);
+    // Toast / permalink check first - the platform's affirmative
+    // success indicator beats button-state inference.
+    for (const sel of successSelectors) {
+      try {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null) {
+          verified = true;
+          verifySignal = "selector:" + sel;
+          break;
+        }
+      } catch (e) { /* bad selector */ }
+    }
+    if (verified) break;
+    // URL changed to something containing /post/ or /status/ ?
+    // Cheap second signal: SPA composers route to the permalink on
+    // success.
+    if (location.href !== startUrl
+        && /\/(post|status|comments|@[^/]+\/\d)/i.test(location.href)) {
+      verified = true;
+      verifySignal = "url-change";
+      break;
+    }
     // Detached from the document tree entirely?
-    if (!document.body.contains(btnRef)) { verified = true; break; }
+    if (!document.body.contains(btnRef)) {
+      verified = true;
+      verifySignal = "btn-detached";
+      break;
+    }
     // Disabled / aria-disabled after click? (X, Bluesky do this while
     // the request is in flight and then remove the button on success.)
     if (btnRef.disabled
@@ -925,8 +993,17 @@ async function postNowOnCurrentPlatform() {
         } catch (e) {}
         if (stillVisible) break;
       }
-      if (!stillVisible) { verified = true; break; }
+      if (!stillVisible) {
+        verified = true;
+        verifySignal = "compose-closed";
+        break;
+      }
     }
+  }
+  if (verified) {
+    logToBridge("info", "post verified", {host: location.host,
+                                            signal: verifySignal,
+                                            platformKey: postKey});
   }
   if (verified) {
     setUploadStatus(`✓ posted to ${postKey} (verified)`, true);
