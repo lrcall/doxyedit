@@ -274,6 +274,61 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         self._send_status(404)
 
     def do_POST(self):  # noqa: N802
+        if self.path == "/doxyedit-api-post":
+            # API-direct posting bypassing the userscript+browser DOM. Body:
+            #   {platformKey: "bluesky"|"mastodon",
+            #    text: str,
+            #    parent_url?: str (for replies; omit for top-level),
+            #    credentials: {handle, app_password} | {instance, access_token}}
+            # Returns {ok: true, url: str} or {ok: false, error: str}.
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length else b""
+            try:
+                body_in = json.loads(raw.decode("utf-8") or "{}")
+            except Exception as exc:
+                self._send_bytes(
+                    json.dumps({"ok": False, "error": f"bad json: {exc!r}"}).encode(),
+                    "application/json; charset=utf-8",
+                    methods="POST, OPTIONS")
+                return
+            plat = (body_in.get("platformKey") or "").lower()
+            text = body_in.get("text") or ""
+            parent_url = body_in.get("parent_url") or ""
+            creds = body_in.get("credentials") or {}
+            try:
+                if plat in ("bluesky", "bsky"):
+                    from doxyedit.platforms import bluesky as _bsky
+                    session = _bsky.create_session(
+                        creds["handle"], creds["app_password"])
+                    if parent_url:
+                        result = _bsky.post_reply(session, parent_url, text)
+                        url = result.get("uri", "")
+                    else:
+                        result = _bsky.create_post(session, text)
+                        url = _bsky.post_url_for(session, result)
+                    out = {"ok": True, "url": url, "platform": "bluesky"}
+                elif plat == "mastodon":
+                    from doxyedit.platforms import mastodon as _masto
+                    if parent_url:
+                        result = _masto.post_reply(creds, parent_url, text)
+                    else:
+                        result = _masto.create_post(creds, text)
+                    out = {"ok": True, "url": result.get("url", ""),
+                           "platform": "mastodon"}
+                else:
+                    out = {"ok": False,
+                           "error": f"no API client for platform: {plat}"}
+            except Exception as exc:
+                _log("api_post.failed", platform=plat, error=repr(exc)[:300])
+                out = {"ok": False, "error": repr(exc)[:300]}
+            else:
+                _log("api_post.ok", platform=plat,
+                     url=out.get("url", "")[:200])
+            self._send_bytes(
+                json.dumps(out).encode(),
+                "application/json; charset=utf-8",
+                methods="POST, OPTIONS")
+            return
         if self.path == "/doxyedit-log":
             # Userscript-side diagnostics. Lands in the same
             # doxyedit_bridge.log file everything else writes to so
