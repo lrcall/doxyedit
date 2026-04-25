@@ -508,6 +508,26 @@ const POST_NOW_HOSTS = {
     'button[aria-label*="Post" i]',
     'button[type="submit"]',
   ],
+  "linkedin.com": [
+    // LinkedIn share modal. The primary action is "Post" (or
+    // "Schedule"); modern LinkedIn uses Ember component data attrs
+    // for the share affordance and an aria-label fallback.
+    'button[data-control-name="share.post"]',
+    '.share-actions__primary-action',
+    '.share-box_actions button.share-actions__primary-action',
+    'button[aria-label*="Post" i]',
+    'button[type="submit"]',
+  ],
+  "buttondown.com": [
+    // Buttondown's draft editor's primary action is "Schedule" /
+    // "Send"; the form-level submit covers both. data-action covers
+    // the rich-text composer toolbar's send button.
+    'button[type="submit"][name*="send" i]',
+    'button[type="submit"][name*="schedule" i]',
+    'form button[type="submit"]',
+    'button[aria-label*="Send" i]',
+    'button[aria-label*="Schedule" i]',
+  ],
 };
 function postNowSelectorsForHost() {
   const host = (location.host || "").toLowerCase();

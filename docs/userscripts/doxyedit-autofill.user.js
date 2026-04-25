@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.45
+// @version      2.46
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -20,6 +20,8 @@
 // @match        https://*.newgrounds.com/*
 // @match        https://itch.io/*
 // @match        https://buttondown.com/*
+// @match        https://www.linkedin.com/*
+// @match        https://linkedin.com/*
 // @match        https://lemmasoft.renai.us/*
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
@@ -482,6 +484,26 @@ const POST_NOW_HOSTS = {
     'button[data-testid*="post" i]',
     'button[aria-label*="Post" i]',
     'button[type="submit"]',
+  ],
+  "linkedin.com": [
+    // LinkedIn share modal. The primary action is "Post" (or
+    // "Schedule"); modern LinkedIn uses Ember component data attrs
+    // for the share affordance and an aria-label fallback.
+    'button[data-control-name="share.post"]',
+    '.share-actions__primary-action',
+    '.share-box_actions button.share-actions__primary-action',
+    'button[aria-label*="Post" i]',
+    'button[type="submit"]',
+  ],
+  "buttondown.com": [
+    // Buttondown's draft editor's primary action is "Schedule" /
+    // "Send"; the form-level submit covers both. data-action covers
+    // the rich-text composer toolbar's send button.
+    'button[type="submit"][name*="send" i]',
+    'button[type="submit"][name*="schedule" i]',
+    'form button[type="submit"]',
+    'button[aria-label*="Send" i]',
+    'button[aria-label*="Schedule" i]',
   ],
 };
 function postNowSelectorsForHost() {
