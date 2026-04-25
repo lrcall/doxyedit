@@ -77,6 +77,18 @@ def _wrap_marker(data: dict, kind: str = "full") -> dict:
     return {DOXYEDIT_PANEL_MARKER: True, "kind": kind, "payload": data}
 
 
+def _build_init_script(data: dict) -> str:
+    """Render the JS the CDP push / persistent session / worker
+    subprocess all inject: assigns `window.__bridge_data` and fires
+    a custom event so the userscript reapplies without polling."""
+    wrapped = _wrap_marker(data, "full")
+    return (
+        "window.__bridge_data = " + json.dumps(wrapped) + ";"
+        "window.dispatchEvent(new CustomEvent("
+        "'doxyedit-data-updated', {detail: window.__bridge_data}));"
+    )
+
+
 # ──────────────────────────────────────────────────────────────────
 # Track B - OS clipboard
 # ──────────────────────────────────────────────────────────────────
@@ -184,18 +196,30 @@ class _BridgeHandler(BaseHTTPRequestHandler):
     CORS wide-open so the userscript's GM_xmlhttpRequest (or a plain
     fetch from the browser page) can read cross-origin."""
 
+    def _send_bytes(self, body, content_type, methods="GET, OPTIONS",
+                    cache="no-store"):
+        """Reply with body + standard CORS + Content-Length headers."""
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", methods)
+        self.send_header("Cache-Control", cache)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_status(self, status):
+        """Empty reply with just a status code + CORS origin. Used for
+        404 / 500 paths where there's no body to write."""
+        self.send_response(status)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
     def do_GET(self):  # noqa: N802  (stdlib convention)
         if self.path in ("/doxyedit.json", "/"):
             with _HTTP_STATE.lock:
                 body = _HTTP_STATE.snapshot_bytes
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self._send_bytes(body, "application/json; charset=utf-8")
             return
         if self.path.startswith("/doxyedit-asset"):
             from urllib.parse import urlparse, parse_qs
@@ -204,58 +228,34 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             with _HTTP_STATE.lock:
                 entry = _HTTP_STATE.asset_registry.get(asset_id)
             if entry is None:
-                self.send_response(404)
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
+                self._send_status(404)
                 return
             path, mime = entry
             try:
                 with open(path, "rb") as f:
                     body = f.read()
             except Exception:
-                self.send_response(500)
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
+                self._send_status(500)
                 return
-            self.send_response(200)
-            self.send_header("Content-Type", mime)
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
-            self.send_header("Cache-Control", "public, max-age=3600")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self._send_bytes(body, mime, cache="public, max-age=3600")
             return
         if self.path == "/doxyedit-autofill.user.js":
             us_path = _userscript_path()
             if us_path is None:
-                self.send_response(404)
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
+                self._send_status(404)
                 return
             try:
                 with open(us_path, "rb") as f:
                     body = f.read()
             except Exception:
-                self.send_response(500)
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
+                self._send_status(500)
                 return
-            self.send_response(200)
             # Tampermonkey needs text/javascript (NOT
             # application/javascript) to recognize the install
             # banner on page load.
-            self.send_header("Content-Type", "text/javascript; charset=utf-8")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self._send_bytes(body, "text/javascript; charset=utf-8")
             return
-        self.send_response(404)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
+        self._send_status(404)
 
     def do_POST(self):  # noqa: N802
         if self.path == "/doxyedit-log":
@@ -276,13 +276,9 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 url=str(data.get("url", ""))[:300],
                 detail=str(data.get("detail", ""))[:500],
             )
-            body = b'{"ok":true}'
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self._send_bytes(b'{"ok":true}',
+                             "application/json; charset=utf-8",
+                             methods="POST, OPTIONS")
             return
         if self.path == "/doxyedit-feedback":
             import time
@@ -300,18 +296,11 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     _HTTP_STATE.feedback = _HTTP_STATE.feedback[-1000:]
             _log("feedback.received",
                  type=entry.get("type"), host=entry.get("host"))
-            body = b'{"ok":true}'
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self._send_bytes(b'{"ok":true}',
+                             "application/json; charset=utf-8",
+                             methods="POST, OPTIONS")
             return
-        self.send_response(404)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
+        self._send_status(404)
 
     def do_OPTIONS(self):  # noqa: N802
         self.send_response(204)
@@ -414,12 +403,7 @@ def _cdp_push_worker(data: dict, cdp_url: str) -> tuple[bool, str]:
              python=sys.executable, sys_path_head=sys.path[:3])
         return False, err
     try:
-        wrapped = _wrap_marker(data, "full")
-        init_script = (
-            "window.__bridge_data = " + json.dumps(wrapped) + ";"
-            "window.dispatchEvent(new CustomEvent('doxyedit-data-updated', "
-            "{detail: window.__bridge_data}));"
-        )
+        init_script = _build_init_script(data)
         pages_touched = 0
         with sync_playwright() as pw:
             browser = pw.chromium.connect_over_cdp(cdp_url)
@@ -667,12 +651,7 @@ class _BridgePersistentSession:
                 continue
             data = cmd["data"]
             on_done = cmd["on_done"]
-            wrapped = _wrap_marker(data, "full")
-            init_script = (
-                "window.__bridge_data = " + json.dumps(wrapped) + ";"
-                "window.dispatchEvent(new CustomEvent("
-                "'doxyedit-data-updated', {detail: window.__bridge_data}));"
-            )
+            init_script = _build_init_script(data)
             self._latest_script = init_script
             pages_touched = 0
             err_msg = ""
@@ -877,12 +856,7 @@ class _BridgeWorkerProcess:
             if on_done:
                 on_done(False, "worker not running")
             return
-        wrapped = _wrap_marker(data, "full")
-        init_script = (
-            "window.__bridge_data = " + json.dumps(wrapped) + ";"
-            "window.dispatchEvent(new CustomEvent("
-            "'doxyedit-data-updated', {detail: window.__bridge_data}));"
-        )
+        init_script = _build_init_script(data)
         cmd = {
             "cmd": "push",
             "cdp_url": self._cdp_url,
