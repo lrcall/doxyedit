@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.36
+// @version      2.37
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -1276,6 +1276,18 @@ function setUploadStatus(msg, ok) {
   }, 6000);
 }
 
+// Microtask debouncer so a burst of N thumbnail loads collapses to
+// a single rebuildPanel rather than re-rendering once per asset.
+let _rebuildPanelPending = false;
+function _scheduleRebuildPanel() {
+  if (_rebuildPanelPending) return;
+  _rebuildPanelPending = true;
+  Promise.resolve().then(() => {
+    _rebuildPanelPending = false;
+    rebuildPanel();
+  });
+}
+
 function preloadAssetThumbs(assets) {
   // Use plain fetch first (v4 in the cascade) since it's confirmed
   // working on this install. Fall back to XHR then GM_xmlhttpRequest
@@ -1286,7 +1298,7 @@ function preloadAssetThumbs(assets) {
     _assetThumbCache[a.id] = "loading";
     _preloadOneThumb(a).then((objectUrl) => {
       _assetThumbCache[a.id] = objectUrl || "error";
-      rebuildPanel();
+      _scheduleRebuildPanel();
     });
   }
 }

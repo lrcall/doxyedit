@@ -143,13 +143,29 @@ class _BridgeHTTPState:
 _HTTP_STATE = _BridgeHTTPState()
 
 
+_ASSET_REGISTRY_MAX = 500
+
+
 def register_asset(asset_id: str, path: str) -> dict:
     """Whitelist a local file to be served via /doxyedit-asset?id=<id>.
     Returns a descriptor {id, name, url, mime} the data builder can
-    embed in the payload so the userscript knows what to fetch."""
+    embed in the payload so the userscript knows what to fetch.
+
+    Bounded at _ASSET_REGISTRY_MAX entries via FIFO eviction so a
+    long-running session that touches thousands of distinct assets
+    doesn't grow the registry without bound."""
     import mimetypes
     mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
     with _HTTP_STATE.lock:
+        # Re-registering the same id refreshes its position; new ids
+        # past the cap evict the oldest entry (insertion order in
+        # py3.7+ dict). Cheap enough that the data builder calling
+        # this on every F6 push doesn't notice.
+        if asset_id in _HTTP_STATE.asset_registry:
+            del _HTTP_STATE.asset_registry[asset_id]
+        elif len(_HTTP_STATE.asset_registry) >= _ASSET_REGISTRY_MAX:
+            oldest = next(iter(_HTTP_STATE.asset_registry))
+            del _HTTP_STATE.asset_registry[oldest]
         _HTTP_STATE.asset_registry[asset_id] = (path, mime)
     port = _HTTP_STATE.port or 8910
     return {
