@@ -898,7 +898,7 @@ class CanvasSkia(QWidget):
         # Build the base paint (fill).
         color_hex = (ov.color or "#ffffff")
         fill_color = self._parse_hex(color_hex, (255, 255, 255, 255))
-        opacity = float(getattr(ov, "opacity", 1.0) or 1.0)
+        opacity = float(ov.opacity or 1.0)
         alpha = int(max(0.0, min(1.0, opacity)) * 255)
         # Background pill if configured.
         bg_hex = ov.background_color
@@ -1060,16 +1060,16 @@ class CanvasSkia(QWidget):
             # the Qt-side bug we fixed in studio_items.py. Include them
             # for every kind; on non-bubble shapes they stay at defaults
             # so the cache still hits.
-            float(getattr(ov, "bubble_roundness", 0.0) or 0.0),
-            float(getattr(ov, "bubble_oval_stretch", 0.0) or 0.0),
-            float(getattr(ov, "bubble_wobble", 0.0) or 0.0),
-            float(getattr(ov, "tail_curve", 0.0) or 0.0),
-            float(getattr(ov, "bubble_tail_width", 1.0) or 1.0),
-            float(getattr(ov, "bubble_tail_taper", 0.0) or 0.0),
-            float(getattr(ov, "bubble_skew_x", 0.0) or 0.0),
-            int(getattr(ov, "bubble_wobble_waves", 8) or 8),
-            int(getattr(ov, "bubble_wobble_complexity", 72) or 72),
-            int(getattr(ov, "bubble_wobble_seed", 0) or 0),
+            float(ov.bubble_roundness or 0.0),
+            float(ov.bubble_oval_stretch or 0.0),
+            float(ov.bubble_wobble or 0.0),
+            float(ov.tail_curve or 0.0),
+            float(ov.bubble_tail_width or 1.0),
+            float(ov.bubble_tail_taper or 0.0),
+            float(ov.bubble_skew_x or 0.0),
+            int(ov.bubble_wobble_waves or 8),
+            int(ov.bubble_wobble_complexity or 72),
+            int(ov.bubble_wobble_seed or 0),
         )
         key = id(ov)
         cached = self._skia_path_cache.get(key)
@@ -1171,12 +1171,12 @@ class CanvasSkia(QWidget):
         dx, dy = tip_x - cx, tip_y - cy
         horiz = abs(dx) > abs(dy)
         tail_width_scale = max(0.2, min(3.0,
-            float(getattr(ov, "bubble_tail_width", 1.0) or 1.0)))
+            float(ov.bubble_tail_width or 1.0)))
         base_len = min(w, h) * 0.25 * tail_width_scale
         overlap = max(4.0, min(w, h) * 0.08)
         # Oval stretch reshapes the body rect around its center.
         stretch = max(-1.2, min(1.2,
-            float(getattr(ov, "bubble_oval_stretch", 0.0) or 0.0)))
+            float(ov.bubble_oval_stretch or 0.0)))
         if stretch != 0:
             sx = 1.0 + stretch
             sy = 1.0 - stretch * 0.5
@@ -1195,7 +1195,7 @@ class CanvasSkia(QWidget):
         # Body path: roundness 0..1 blends rounded-rect -> ellipse;
         # >1 overshoots into a wider/taller ellipse puff.
         roundness = max(0.0, min(2.0,
-            float(getattr(ov, "bubble_roundness", 0.0) or 0.0)))
+            float(ov.bubble_roundness or 0.0)))
         body = skia.Path()
         if roundness >= 0.99:
             over = max(0.0, roundness - 1.0)
@@ -1226,7 +1226,7 @@ class CanvasSkia(QWidget):
             b2 = (mid_x + base_len / 2, edge_y)
         # Tail taper slides the tip sideways along the base axis.
         tail_taper = max(-1.0, min(1.0,
-            float(getattr(ov, "bubble_tail_taper", 0.0) or 0.0)))
+            float(ov.bubble_tail_taper or 0.0)))
         if tail_taper != 0:
             side_dx = b2[0] - b1[0]
             side_dy = b2[1] - b1[1]
@@ -1235,7 +1235,7 @@ class CanvasSkia(QWidget):
         tail = skia.Path()
         tail.moveTo(*b1)
         tail_curve = max(-2.0, min(2.0,
-            float(getattr(ov, "tail_curve", 0.0) or 0.0)))
+            float(ov.tail_curve or 0.0)))
         if abs(tail_curve) > 0.02:
             amt = tail_curve * base_len * 1.2
             def _perp(src, dst, a):
@@ -1269,19 +1269,24 @@ class CanvasSkia(QWidget):
         # over the outline's line segments by converting to a polygon
         # via pathmeasure.
         wobble = max(0.0, min(2.0,
-            float(getattr(ov, "bubble_wobble", 0.0) or 0.0)))
+            float(ov.bubble_wobble or 0.0)))
         if wobble > 0.01:
             amp = wobble * min(r_w, r_h) * 0.04
             waves = max(2, min(32,
-                int(getattr(ov, "bubble_wobble_waves", 8) or 8)))
+                int(ov.bubble_wobble_waves or 8)))
             complexity = max(16, min(512,
-                int(getattr(ov, "bubble_wobble_complexity", 72) or 72)))
+                int(ov.bubble_wobble_complexity or 72)))
             seed_phase = float(
-                int(getattr(ov, "bubble_wobble_seed", 0) or 0)) * 0.1
+                int(ov.bubble_wobble_seed or 0)) * 0.1
             try:
                 pm = skia.PathMeasure(merged, True)
                 total = pm.getLength() or 1.0
                 n = complexity
+                # Hoist loop-invariant sin-argument coefficient: the per
+                # iter argument `(i / n) * math.pi * waves` reduces to
+                # `i * freq` once freq is precomputed, dropping one
+                # multiply per sample (n+1 samples per cache miss).
+                freq = math.pi * waves / n
                 wobbled = skia.Path()
                 for i in range(n + 1):
                     t_i = (i / n) * total
@@ -1293,8 +1298,7 @@ class CanvasSkia(QWidget):
                     tlen = math.hypot(tan.fX, tan.fY) or 1.0
                     nx = -tan.fY / tlen
                     ny = tan.fX / tlen
-                    push = math.sin(
-                        (i / n) * math.pi * waves + seed_phase) * amp
+                    push = math.sin(i * freq + seed_phase) * amp
                     px = pos.fX + nx * push
                     py = pos.fY + ny * push
                     if i == 0:
@@ -1310,7 +1314,7 @@ class CanvasSkia(QWidget):
                 pass
         # Horizontal skew as a final transform around the body center.
         skew_x = max(-1.0, min(1.0,
-            float(getattr(ov, "bubble_skew_x", 0.0) or 0.0)))
+            float(ov.bubble_skew_x or 0.0)))
         if abs(skew_x) > 0.001:
             try:
                 t = skia.Matrix()
@@ -1365,7 +1369,7 @@ class CanvasSkia(QWidget):
             canvas.translate(w / 2, h / 2)
             canvas.rotate(rot)
             canvas.translate(-w / 2, -h / 2)
-        opacity = float(getattr(ov, "opacity", 1.0) or 1.0)
+        opacity = float(ov.opacity or 1.0)
         kind = (ov.shape_kind or "rect")
         blend_mode = self._blend_mode_for(
             (ov.blend_mode or "normal"))
@@ -1679,7 +1683,7 @@ class CanvasSkia(QWidget):
             return
         color_hex = (ov.color or "#000000")
         rgba = self._parse_hex(color_hex, (0, 0, 0, 255))
-        opacity = float(getattr(ov, "opacity", 1.0) or 1.0)
+        opacity = float(ov.opacity or 1.0)
         stroke_w = max(1.0, float(ov.stroke_width or 4))
         # Line paint
         lp = skia.Paint()
@@ -1852,7 +1856,7 @@ class CanvasSkia(QWidget):
             s = target_w / max(1, w)
             canvas.scale(s, s)
         paint = skia.Paint()
-        opacity = float(getattr(ov, "opacity", 1.0) or 1.0)
+        opacity = float(ov.opacity or 1.0)
         # Skia takes alpha via paint.setAlpha(0..255).
         paint.setAlpha(max(0, min(255, int(opacity * 255))))
         mode = self._blend_mode_for((ov.blend_mode or "normal"))
@@ -1924,10 +1928,12 @@ class CanvasSkia(QWidget):
             self._draw_censor(canvas, cr, self._base_image)
         # Day 7: selection decorators (dashed bbox + corner handles +
         # rotate handle) drawn above everything so they're visible
-        # even when the selected overlay is under another.
-        for ov in self._overlays:
-            if id(ov) in self._selected_ids:
-                self._draw_selection_decor(canvas, ov)
+        # even when the selected overlay is under another. Skip the
+        # walk entirely when nothing is selected (typical paint case).
+        if self._selected_ids:
+            for ov in self._overlays:
+                if id(ov) in self._selected_ids:
+                    self._draw_selection_decor(canvas, ov)
         # Draft shape (in-progress tool drag) drawn above everything
         # except snap guides so it remains visible during creation.
         if self._draft_shape is not None:
@@ -2297,9 +2303,10 @@ if _QOGW_OK and _SKIA_OK:
                         self._draw_overlay_arrow(canvas, ov)
                 for cr in self._censors:
                     self._draw_censor(canvas, cr, self._base_image)
-                for ov in self._overlays:
-                    if id(ov) in self._selected_ids:
-                        self._draw_selection_decor(canvas, ov)
+                if self._selected_ids:
+                    for ov in self._overlays:
+                        if id(ov) in self._selected_ids:
+                            self._draw_selection_decor(canvas, ov)
                 if self._draft_shape is not None:
                     self._draw_draft_shape(canvas, self._draft_shape)
                 if self._snap_guides:
