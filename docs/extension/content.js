@@ -1309,11 +1309,38 @@ async function _dragTransport(platformKey) {
 }
 
 async function _nativeTransport(platformKey) {
-  // pyautogui-driven native input ships in a follow-up fire, gated
-  // by ImportError on the Python side so headless installs degrade
-  // cleanly to "skip" rather than crashing.
+  // pyautogui-driven native input. The Python side
+  // (doxyedit/platforms/native_input.py + /doxyedit-native-input
+  // endpoint) is wired and probe-able. Caption / coordinate piping
+  // for the actual type+click sequence still needs the compose
+  // textbox bounding rect to be reported up so pyautogui clicks the
+  // right pixel - that's the next slice. Until then the dispatcher
+  // probes availability and reports a clean skip with the real
+  // reason (pyautogui present / not installed / Python side broken)
+  // instead of the prior hardcoded "not yet wired".
+  const port = httpBridgePort || HTTP_BRIDGE_PORTS[0];
+  let available = null;
+  try {
+    const r = await fetch(
+      `http://127.0.0.1:${port}/doxyedit-native-input`,
+      {method: "POST",
+       headers: {"Content-Type": "application/json"},
+       body: JSON.stringify({action: "probe"})});
+    if (r.ok) {
+      const j = await r.json().catch(() => ({}));
+      if (j && j.ok) available = !!j.available;
+    }
+  } catch (e) { /* bridge offline */ }
+  if (available === true) {
+    return {ok: false, skip: true,
+            error: "native input available; type+click coord piping not yet wired"};
+  }
+  if (available === false) {
+    return {ok: false, skip: true,
+            error: "pyautogui not installed (pip install pyautogui)"};
+  }
   return {ok: false, skip: true,
-          error: "native input not yet wired"};
+          error: "native_input bridge endpoint unreachable"};
 }
 
 const _TRANSPORT_HANDLERS = {
