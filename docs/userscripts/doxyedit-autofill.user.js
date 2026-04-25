@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         doxyedit autofill (DoxyEdit bridge)
 // @namespace    https://doxyedit.local
-// @version      2.43
+// @version      2.44
 // @description  Auto-fills bio / display name / post content on social platforms. Reads live data from DoxyEdit via CDP-injected globals, a local HTTP bridge, or the OS clipboard - with the old hardcoded library as last-resort fallback.
 // @author       doxyedit
 // @updateURL    http://127.0.0.1:8910/doxyedit-autofill.user.js
@@ -1033,6 +1033,162 @@ async function postNowOnCurrentPlatform() {
                            step: "submit clicked; compose still open"});
   }
   return verified;
+}
+
+// ── TRANSPORT-PRIORITY DISPATCHER ──────────────────────────────────────
+// Every supported platform gets an ordered transport list. dispatchPost
+// walks the list, tries each handler, records outcome via
+// /doxyedit-dom-result, and returns {ok, transport, url} on the first
+// success or {ok: false, errors: [...]} when every transport refuses.
+//
+// Today this is callable from DevTools (await window.__doxyedit_dispatchPost
+// ({platformKey: "bluesky"})) so the architecture is exercisable before
+// POST NOW is migrated to invoke it. Migration of the POST NOW button
+// follows in a separate fire once the API + drag + native handlers are
+// fleshed out beyond their stubs.
+const TRANSPORT_PRIORITY_BY_PLATFORM = {
+  bluesky:    ["api", "dom-paste", "dom-click", "drag", "native"],
+  mastodon:   ["api", "dom-paste", "dom-click", "drag", "native"],
+  reddit:     ["dom-fill", "drag", "dom-click", "native"],
+  x:          ["dom-paste", "dom-click", "drag", "native"],
+  twitter:    ["dom-paste", "dom-click", "drag", "native"],
+  threads:    ["dom-paste", "dom-click", "drag", "native"],
+  kofi:       ["dom-fill", "drag", "native"],
+  newgrounds: ["dom-fill", "drag", "native"],
+  itch:       ["dom-fill", "drag", "native"],
+  indiedb:    ["dom-fill", "drag", "native"],
+  gamejolt:   ["dom-fill", "drag", "native"],
+  tumblr:     ["dom-fill", "drag", "native"],
+  linkedin:   ["dom-fill", "drag", "native"],
+  buttondown: ["dom-fill", "drag", "native"],
+};
+
+function _transportPriority(platformKey) {
+  // Reddit posts are keyed reddit_<sub>; collapse to the bare platform
+  // for the lookup. Unknown platforms get a safe DOM-first fallback.
+  const k = (platformKey || "").toLowerCase();
+  if (k.startsWith("reddit_")) return TRANSPORT_PRIORITY_BY_PLATFORM.reddit;
+  return TRANSPORT_PRIORITY_BY_PLATFORM[k]
+      || ["dom-fill", "drag", "native"];
+}
+
+async function _apiTransport(platformKey) {
+  // Bridge resolves credentials from the active project's
+  // CollectionIdentity.credentials map and asset bytes from the
+  // already-registered asset_registry; the request body just names
+  // the platform, the text, and the asset ids.
+  const port = httpBridgePort || HTTP_BRIDGE_PORTS[0];
+  const caption = (currentData.posts || {})[platformKey];
+  const text = (typeof caption === "string")
+      ? caption
+      : ((caption && (caption.text || caption.body || caption.title))
+         || "");
+  if (!text) return {ok: false, error: "no caption for " + platformKey};
+  const asset_ids = (currentData.assets || []).map(a => a.id);
+  try {
+    const r = await fetch(
+      `http://127.0.0.1:${port}/doxyedit-api-post`,
+      {method: "POST",
+       headers: {"Content-Type": "application/json"},
+       body: JSON.stringify({platformKey, text, asset_ids})});
+    const j = await r.json().catch(() => ({}));
+    if (j && j.ok) return {ok: true, url: j.url || ""};
+    const err = (j && j.error) || `HTTP ${r.status}`;
+    // "no API client for platform" is a definitive skip not a fail;
+    // dispatcher should keep walking without counting it as an error.
+    if (/no API client/i.test(err)) {
+      return {ok: false, skip: true, error: err};
+    }
+    return {ok: false, error: err};
+  } catch (e) {
+    return {ok: false, error: String((e && e.message) || e)};
+  }
+}
+
+async function _domTransport(platformKey) {
+  // Today the three DOM transports (paste/click/fill) all collapse
+  // to the same postNowOnCurrentPlatform helper. Future fires will
+  // split them when the difference matters per host (e.g., Mastodon
+  // accepts paste but Bluesky requires a focus+insertText sequence).
+  try {
+    const ok = await postNowOnCurrentPlatform();
+    return {ok: !!ok};
+  } catch (e) {
+    return {ok: false, error: String((e && e.message) || e)};
+  }
+}
+
+async function _dragTransport(platformKey) {
+  // Drag-drop synthesizer (commit 6a065d0) is wired only inside the
+  // image-attach cascade; standalone "drag as transport" (compose
+  // open + caption fill + drop file + submit) lands as a follow-up.
+  return {ok: false, skip: true,
+          error: "drag transport not yet wired"};
+}
+
+async function _nativeTransport(platformKey) {
+  // pyautogui-driven native input ships in a follow-up fire, gated
+  // by ImportError on the Python side so headless installs degrade
+  // cleanly to "skip" rather than crashing.
+  return {ok: false, skip: true,
+          error: "native input not yet wired"};
+}
+
+const _TRANSPORT_HANDLERS = {
+  "api":       _apiTransport,
+  "dom-paste": _domTransport,
+  "dom-click": _domTransport,
+  "dom-fill":  _domTransport,
+  "drag":      _dragTransport,
+  "drag-drop": _dragTransport,
+  "native":    _nativeTransport,
+};
+
+async function dispatchPost(opts) {
+  opts = opts || {};
+  const platformKey = opts.platformKey || currentHostPostKey() || "";
+  if (!platformKey) {
+    return {ok: false, errors: [{transport: "?",
+                                  error: "no platformKey"}]};
+  }
+  const list = _transportPriority(platformKey);
+  const errors = [];
+  for (const transport of list) {
+    const handler = _TRANSPORT_HANDLERS[transport];
+    if (!handler) {
+      errors.push({transport, error: "no handler"});
+      recordTransportResult({platformKey, transport,
+                             outcome: "skipped",
+                             step: "no handler"});
+      continue;
+    }
+    const t0 = Date.now();
+    let res;
+    try { res = await handler(platformKey); }
+    catch (e) {
+      res = {ok: false, error: String((e && e.message) || e)};
+    }
+    const durationMs = Date.now() - t0;
+    if (res && res.ok) {
+      recordTransportResult({platformKey, transport,
+                             outcome: "ok",
+                             step: res.url ? ("url:" + res.url) : "ok",
+                             durationMs});
+      return {ok: true, transport, url: res.url || ""};
+    }
+    const outcome = (res && res.skip) ? "skipped" : "failed";
+    errors.push({transport, error: (res && res.error) || "unknown"});
+    recordTransportResult({platformKey, transport,
+                           outcome,
+                           step: (res && res.error) || "",
+                           durationMs});
+  }
+  return {ok: false, errors};
+}
+
+if (typeof window !== "undefined") {
+  // Console-callable for early testing without rewiring POST NOW yet.
+  window.__doxyedit_dispatchPost = dispatchPost;
 }
 
 // ── IMAGE INJECTION ──────────────────────────────────────────────────────
