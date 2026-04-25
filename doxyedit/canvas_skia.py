@@ -877,21 +877,29 @@ class CanvasSkia(QWidget):
         # with OverlayTextItem).
         canvas.translate(float(ov.x), float(ov.y))
         rot = float(ov.rotation)
-        if rot:
-            # Pivot around the middle of the text block
+        flip_h = ov.flip_h
+        flip_v = ov.flip_v
+        bg_hex = ov.background_color
+        # widest + total_h are needed by up to three of the rotation /
+        # flip / background blocks below. Compute on demand once and
+        # reuse, avoiding the prior pattern of iterating font.measureText
+        # over every line up to three times per text overlay per frame.
+        widest = None
+        total_h = None
+        if rot or flip_h or flip_v or bg_hex:
             total_h = line_step * len(lines)
             widest = max((font.measureText(l) for l in lines), default=0)
+        if rot:
+            # Pivot around the middle of the text block
             cx = (pinned_w if pinned_w > 0 else widest) / 2
             cy = total_h / 2
             canvas.translate(cx, cy)
             canvas.rotate(rot)
             canvas.translate(-cx, -cy)
         # Flip
-        sx = -1.0 if ov.flip_h else 1.0
-        sy = -1.0 if ov.flip_v else 1.0
+        sx = -1.0 if flip_h else 1.0
+        sy = -1.0 if flip_v else 1.0
         if sx < 0 or sy < 0:
-            widest = max((font.measureText(l) for l in lines), default=0)
-            total_h = line_step * len(lines)
             canvas.translate(widest / 2, total_h / 2)
             canvas.scale(sx, sy)
             canvas.translate(-widest / 2, -total_h / 2)
@@ -901,13 +909,10 @@ class CanvasSkia(QWidget):
         opacity = float(ov.opacity or 1.0)
         alpha = int(max(0.0, min(1.0, opacity)) * 255)
         # Background pill if configured.
-        bg_hex = ov.background_color
         if bg_hex:
             bg_paint = skia.Paint()
             bg_paint.setColor(skia.Color(*self._parse_hex(bg_hex, (0, 0, 0, 200))))
             bg_paint.setAntiAlias(True)
-            widest = max((font.measureText(l) for l in lines), default=0)
-            total_h = line_step * len(lines)
             pad = max(4.0, size * 0.2)
             rect = skia.Rect.MakeXYWH(-pad, -pad - ascent,
                                        (pinned_w if pinned_w > 0 else widest) + pad * 2,
@@ -952,8 +957,19 @@ class CanvasSkia(QWidget):
         # each character advanced manually; cheap for short text.
         letter_spacing = float(ov.letter_spacing or 0)
 
+        # Cheap left-aligned-no-pin path skips the measureText. For
+        # the common case of unstyled body text this halves the
+        # per-line work since stroke + fill passes both call into
+        # _draw_line and each call here used to measure regardless of
+        # whether the result was used.
+        skip_measure = (letter_spacing == 0 and pinned_w <= 0
+                         and align == "left")
         def _draw_line(line_str, base_y, paint):
             if letter_spacing == 0:
+                if skip_measure:
+                    canvas.drawSimpleText(
+                        line_str, 0, base_y, font, paint)
+                    return
                 # Alignment offset based on line width
                 w = font.measureText(line_str)
                 pin = pinned_w if pinned_w > 0 else w
@@ -1740,14 +1756,14 @@ class CanvasSkia(QWidget):
         base image. style='pixelate' scales down-then-up via nearest
         to produce the blocky pixelate effect.
         """
-        x = float(getattr(censor, "x", 0) or 0)
-        y = float(getattr(censor, "y", 0) or 0)
-        w = float(getattr(censor, "w", 0) or 0)
-        h = float(getattr(censor, "h", 0) or 0)
+        x = float(censor.x)
+        y = float(censor.y)
+        w = float(censor.w)
+        h = float(censor.h)
         if w <= 0 or h <= 0:
             return
         rect = skia.Rect.MakeXYWH(x, y, w, h)
-        style = getattr(censor, "style", "black") or "black"
+        style = censor.style or "black"
         if style == "black":
             p = skia.Paint()
             p.setColor(skia.Color(0, 0, 0, 255))
@@ -1763,7 +1779,7 @@ class CanvasSkia(QWidget):
         if style == "blur":
             if base_image is None:
                 return
-            radius = float(getattr(censor, "blur_radius", 20) or 20)
+            radius = float(censor.blur_radius or 20)
             # Crop the base image to the censor rect, blur, draw back.
             src_rect = skia.Rect.MakeXYWH(x, y, w, h)
             paint = skia.Paint()
@@ -1777,7 +1793,7 @@ class CanvasSkia(QWidget):
         if style == "pixelate":
             if base_image is None:
                 return
-            ratio = max(2, int(getattr(censor, "pixelate_ratio", 10) or 10))
+            ratio = max(2, int(censor.pixelate_ratio or 10))
             # Downscale-upscale via drawImageRect with nearest sampling.
             small_w = max(1, int(w / ratio))
             small_h = max(1, int(h / ratio))
@@ -1823,10 +1839,13 @@ class CanvasSkia(QWidget):
         per-pixel filter effects (grayscale / blur / brightness) yet —
         those arrive with Day 4 text + filter pipeline infrastructure.
         """
+        # Disabled-first: skip the image cache lookup when the overlay
+        # is hidden. Other _draw_overlay_* methods already follow this
+        # order; this one had it inverted.
+        if not ov.enabled:
+            return
         img = self._skia_image_for_overlay(ov)
         if img is None:
-            return
-        if not ov.enabled:
             return
         canvas.save()
         # Translate to overlay position.
