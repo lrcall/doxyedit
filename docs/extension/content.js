@@ -1303,9 +1303,22 @@ async function _domTransport(platformKey) {
 async function _dragTransport(platformKey) {
   // Drag-drop synthesizer (commit 6a065d0) is wired only inside the
   // image-attach cascade; standalone "drag as transport" (compose
-  // open + caption fill + drop file + submit) lands as a follow-up.
+  // open + caption fill + drop file + submit) needs its own pipeline.
+  // Until that lands, probe whether a drop zone exists for the
+  // current host so the dispatcher's recorded reason on
+  // /doxyedit-dom-result reflects reality. matters when debugging
+  // why drag was skipped: "no drop zone" is a host-coverage gap;
+  // "drop zone exists" means the standalone wiring is what's
+  // missing.
+  let zone = null;
+  try { zone = findDropZone(); } catch (e) {}
+  if (zone && zone.selector) {
+    return {ok: false, skip: true,
+            error: "drop zone matches " + zone.selector
+                   + "; standalone drag transport not yet wired"};
+  }
   return {ok: false, skip: true,
-          error: "drag transport not yet wired"};
+          error: "no drop zone selector matches on " + location.host};
 }
 
 async function _nativeTransport(platformKey) {
