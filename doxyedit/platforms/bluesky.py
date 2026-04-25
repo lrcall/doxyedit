@@ -51,6 +51,29 @@ def _request_json(url: str, data: dict | None = None, headers: dict | None = Non
         raise BlueskyError(f"network error: {e.reason}") from e
 
 
+def _request_raw(url: str, body: bytes, content_type: str,
+                 headers: dict | None = None, method: str = "POST") -> dict:
+    """POST raw bytes with a non-JSON Content-Type. Used by uploadBlob
+    where the body is the image file itself, not a JSON envelope."""
+    headers = dict(headers or {})
+    headers["Content-Type"] = content_type
+    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=DEFAULT_TIMEOUT) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = e.read().decode("utf-8")
+            err_data = json.loads(err_body)
+            raise BlueskyError(
+                f"HTTP {e.code} {err_data.get('error', '?')}: {err_data.get('message', err_body)}"
+            ) from e
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            raise BlueskyError(f"HTTP {e.code}: {e.reason}") from e
+    except urllib.error.URLError as e:
+        raise BlueskyError(f"network error: {e.reason}") from e
+
+
 def create_session(identifier: str, password: str) -> dict:
     """Login. `identifier` is handle or email. `password` is an app password."""
     return _request_json(
@@ -144,12 +167,42 @@ def post_reply(session: dict, parent_url: str, text: str) -> dict:
     )
 
 
-def create_post(session: dict, text: str) -> dict:
+def upload_blob(session: dict, image_bytes: bytes, mime_type: str) -> dict:
+    """Upload a binary blob (image) to the user's repo. Returns the
+    blob descriptor `{$type:"blob", ref:{$link}, mimeType, size}` that
+    callers embed in a post record under app.bsky.embed.images.
+
+    Bluesky's documented per-blob cap is ~1MB for images; larger blobs
+    are rejected with a clear error from the upstream API which we
+    surface verbatim as BlueskyError.
+    """
+    if not image_bytes:
+        raise BlueskyError("upload_blob: empty image bytes")
+    if not mime_type or not mime_type.startswith("image/"):
+        raise BlueskyError(
+            f"upload_blob: mime_type must start with image/, got {mime_type!r}")
+    resp = _request_raw(
+        f"{BSKY_BASE}/com.atproto.repo.uploadBlob",
+        image_bytes,
+        mime_type,
+        headers={"Authorization": f"Bearer {session['accessJwt']}"},
+        method="POST",
+    )
+    return resp["blob"]
+
+
+def create_post(session: dict, text: str,
+                images: list | None = None) -> dict:
     """Create a new top-level post (no reply parent). Returns {uri, cid}.
 
     Same 300-grapheme cap as replies; raise BlueskyError if over. Posts
     show up at https://bsky.app/profile/<handle>/post/<rkey> where rkey
     is the trailing segment of the returned uri.
+
+    `images` is an optional list of `(bytes, mime_type, alt_text)`
+    tuples. Each is uploaded via upload_blob and embedded as
+    app.bsky.embed.images. Bluesky allows up to 4 images per post -
+    extras are silently dropped.
     """
     if not text or not text.strip():
         raise BlueskyError("post text is empty")
@@ -161,6 +214,20 @@ def create_post(session: dict, text: str) -> dict:
         "text": text,
         "createdAt": now,
     }
+    if images:
+        embed_images = []
+        for img in images[:4]:  # bsky cap
+            if len(img) == 2:
+                img_bytes, mime = img
+                alt = ""
+            else:
+                img_bytes, mime, alt = img[0], img[1], img[2]
+            blob = upload_blob(session, img_bytes, mime)
+            embed_images.append({"alt": alt or "", "image": blob})
+        record["embed"] = {
+            "$type": "app.bsky.embed.images",
+            "images": embed_images,
+        }
     return _request_json(
         f"{BSKY_BASE}/com.atproto.repo.createRecord",
         {

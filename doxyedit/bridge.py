@@ -279,7 +279,10 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             #   {platformKey: "bluesky"|"mastodon",
             #    text: str,
             #    parent_url?: str (for replies; omit for top-level),
-            #    credentials: {handle, app_password} | {instance, access_token}}
+            #    credentials: {handle, app_password} | {instance, access_token},
+            #    asset_ids?: [str] (DoxyEdit asset registry ids; resolved
+            #                       to bytes locally and uploaded as
+            #                       images/media via the platform API)}
             # Returns {ok: true, url: str} or {ok: false, error: str}.
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length) if length else b""
@@ -295,6 +298,23 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             text = body_in.get("text") or ""
             parent_url = body_in.get("parent_url") or ""
             creds = body_in.get("credentials") or {}
+            # Resolve asset_ids -> [(bytes, mime, alt)] using the
+            # registry the userscript bridge already populates. Top-
+            # level posts that include images go through the platform's
+            # blob upload before record creation.
+            asset_ids = body_in.get("asset_ids") or []
+            images: list = []
+            for aid in asset_ids[:4]:  # API caps usually 4 images
+                with _HTTP_STATE.lock:
+                    entry = _HTTP_STATE.asset_registry.get(aid)
+                if not entry:
+                    continue
+                path, mime = entry
+                try:
+                    with open(path, "rb") as f:
+                        images.append((f.read(), mime, ""))
+                except Exception:
+                    continue
             try:
                 if plat in ("bluesky", "bsky"):
                     from doxyedit.platforms import bluesky as _bsky
@@ -304,7 +324,8 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         result = _bsky.post_reply(session, parent_url, text)
                         url = result.get("uri", "")
                     else:
-                        result = _bsky.create_post(session, text)
+                        result = _bsky.create_post(session, text,
+                                                    images=images or None)
                         url = _bsky.post_url_for(session, result)
                     out = {"ok": True, "url": url, "platform": "bluesky"}
                 elif plat == "mastodon":
