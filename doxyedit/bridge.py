@@ -427,6 +427,47 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                              "application/json; charset=utf-8",
                              methods="POST, OPTIONS")
             return
+        if self.path == "/doxyedit-dom-result":
+            # Per-attempt transport result reporting. The userscript's
+            # POST NOW dispatcher walks a priority list (api -> dom-paste
+            # -> dom-click -> drag -> native) and POSTs one of these on
+            # every attempt so we can see, in the bridge log, exactly
+            # which transport won and which steps failed before we
+            # fell through. Body shape:
+            #   {platformKey, transport, outcome, step?, error?,
+            #    durationMs?}
+            # outcome is one of: "ok", "failed", "skipped". The per-
+            # platform transport (api / dom-paste / drag / native) lives
+            # in `transport`. Logged as dom_result.<outcome> so log
+            # filters can split successes from failures cheaply.
+            import time
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length else b""
+            try:
+                payload = json.loads(raw.decode("utf-8") or "{}")
+            except Exception:
+                payload = {"_raw": raw.decode("utf-8", errors="replace")[:500]}
+            entry = {"t": time.time(),
+                     **(payload if isinstance(payload, dict)
+                        else {"payload": payload})}
+            with _HTTP_STATE.lock:
+                _HTTP_STATE.feedback.append(
+                    {**entry, "type": "transport_result"})
+                if len(_HTTP_STATE.feedback) > 1000:
+                    _HTTP_STATE.feedback = _HTTP_STATE.feedback[-1000:]
+            outcome = str(entry.get("outcome") or "unknown")[:32]
+            _log(
+                "dom_result." + outcome,
+                platform=str(entry.get("platformKey") or "")[:64],
+                transport=str(entry.get("transport") or "")[:32],
+                step=str(entry.get("step") or "")[:120],
+                error=str(entry.get("error") or "")[:200],
+                durationMs=entry.get("durationMs"),
+            )
+            self._send_bytes(b'{"ok":true}',
+                             "application/json; charset=utf-8",
+                             methods="POST, OPTIONS")
+            return
         self._send_status(404)
 
     def do_OPTIONS(self):  # noqa: N802

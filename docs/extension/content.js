@@ -791,6 +791,24 @@ function notifyFeedback(entry) {
   });
 }
 
+// Record a single transport attempt to the bridge so the eventual
+// dispatcher (api -> dom-paste -> dom-click -> drag -> native) can
+// be reasoned about post-hoc from the bridge log. Distinct from
+// notifyFeedback which signals "the post landed"; this signals
+// "transport X for platform Y outcome Z". Fire-and-forget; the
+// bridge swallows it on its own. Never throws.
+function recordTransportResult(entry) {
+  try {
+    const port = httpBridgePort || HTTP_BRIDGE_PORTS[0];
+    const body = Object.assign({host: location.host}, entry || {});
+    fetch(`http://127.0.0.1:${port}/doxyedit-dom-result`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body),
+    }).catch(() => { /* bridge down, fine */ });
+  } catch (e) { /* host blocks fetch, fine */ }
+}
+
 async function postNowOnCurrentPlatform() {
   const postKey = currentHostPostKey();
   const selectors = postNowSelectorsForHost();
@@ -833,6 +851,9 @@ async function postNowOnCurrentPlatform() {
       console.log(`[doxyedit] navigate to ${suggestedUrl} to post`);
       recordPostAttempt({platformKey: postKey, outcome: "skipped",
                           note: "subreddit not in URL"});
+      recordTransportResult({platformKey: postKey, transport: "dom",
+                             outcome: "skipped",
+                             step: "subreddit not in URL"});
       return false;
     }
     setUploadStatus(`post 1/2: filling title + body on r/${subredditFromKey}...`, true);
@@ -858,6 +879,9 @@ async function postNowOnCurrentPlatform() {
           `post 1/3 FAILED: image attach did not complete`, false);
         recordPostAttempt({platformKey: postKey, outcome: "failed",
                             note: "image attach failed"});
+        recordTransportResult({platformKey: postKey, transport: "dom",
+                               outcome: "failed",
+                               step: "image attach"});
         return false;
       }
       await _wait(500);
@@ -896,6 +920,9 @@ async function postNowOnCurrentPlatform() {
           `post 2/3 FAILED: no compose editor found`, false);
         recordPostAttempt({platformKey: postKey, outcome: "failed",
                             note: "no compose editor"});
+        recordTransportResult({platformKey: postKey, transport: "dom",
+                               outcome: "failed",
+                               step: "compose editor lookup"});
         return false;
       }
     }
@@ -923,6 +950,9 @@ async function postNowOnCurrentPlatform() {
       false);
     recordPostAttempt({platformKey: postKey, outcome: "failed",
                         note: "no submit button"});
+    recordTransportResult({platformKey: postKey, transport: "dom",
+                           outcome: "failed",
+                           step: "submit button lookup"});
     return false;
   }
   // Bring the submit button into view before clicking so React-lazy-
@@ -1012,6 +1042,9 @@ async function postNowOnCurrentPlatform() {
                     verified: true, verifySignal: verifySignal});
     recordPostAttempt({platformKey: postKey, outcome: "verified",
                         note: verifySignal});
+    recordTransportResult({platformKey: postKey, transport: "dom",
+                           outcome: "ok",
+                           step: "verified via " + verifySignal});
   } else {
     setUploadStatus(
       `submitted to ${postKey} but compose didn't close - check the page`,
@@ -1020,6 +1053,9 @@ async function postNowOnCurrentPlatform() {
                     verified: false, verifySignal: "none",
                     note: "submit clicked; compose still open after 8s"});
     recordPostAttempt({platformKey: postKey, outcome: "unverified"});
+    recordTransportResult({platformKey: postKey, transport: "dom",
+                           outcome: "unverified",
+                           step: "submit clicked; compose still open"});
   }
   return verified;
 }
