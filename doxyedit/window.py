@@ -5649,7 +5649,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 f"and try again.")
 
     # ──────────────────────────────────────────────────────────────
-    # bridge userscript bridge — three transports from DoxyEdit into
+    # bridge userscript bridge - three transports from DoxyEdit into
     # the Tampermonkey "doxyedit autofill" script. See bridge.py
     # for the push / HTTP / clipboard implementations.
     # ──────────────────────────────────────────────────────────────
@@ -5659,7 +5659,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         whichever post is being composed (if any). When the composer
         isn't open, fall back to the first post that has asset_ids so
         the panel still shows a "📎 <filename>" one-click attach
-        button — skipping this would leave the user staring at a
+        button - skipping this would leave the user staring at a
         manual-pick UI even though DoxyEdit knows which image to
         post."""
         from doxyedit.bridge_data import build_bridge_data
@@ -5672,20 +5672,20 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             composer_post = None
         if composer_post is None and self.project:
             # Prefer a queued post (soonest), then any draft with
-            # assets. Skip posts without asset_ids — they contribute
+            # assets. Skip posts without asset_ids - they contribute
             # nothing to the assets section.
             posts_with_assets = [
                 p for p in (self.project.posts or [])
                 if getattr(p, "asset_ids", None)]
             if posts_with_assets:
+                from doxyedit.models import SocialPostStatus
                 queued = [p for p in posts_with_assets
-                          if getattr(p, "status", "") in
-                          ("queued", "QUEUED")]
+                          if p.status == SocialPostStatus.QUEUED]
                 composer_post = queued[0] if queued else posts_with_assets[0]
         return build_bridge_data(self.project, composer_post)
 
     def _bridge_push_cdp(self):
-        """Track A — inject identity + posts into the running Brave /
+        """Track A - inject identity + posts into the running Brave /
         Chrome debug instance as window.__bridge_data. Uses the
         persistent CDP session so init-script registrations survive
         page reloads (F5 keeps the userscript green); the worker
@@ -5693,7 +5693,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         Also auto-starts the HTTP bridge if not already running so
         /doxyedit-asset endpoints for one-click image attach are live
-        without a separate setup step — removes one click from the
+        without a separate setup step - removes one click from the
         foolproof path."""
         from doxyedit.bridge import (
             worker_push, start_http_server, http_bridge_port,
@@ -5960,7 +5960,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 f"posted: {' | '.join(summary)}", 8000)
 
     def _bridge_start_http(self):
-        """Track C — run a tiny localhost HTTP server that the
+        """Track C - run a tiny localhost HTTP server that the
         userscript can GET /doxyedit.json from. Returns the bound port
         so the user can paste it into the userscript if needed."""
         from doxyedit.bridge import (
@@ -5990,7 +5990,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         on without needing to click any UI button.
 
         Flow:
-        1. Gather file paths — composer post's asset_ids -> source_
+        1. Gather file paths - composer post's asset_ids -> source_
            path, fall back to a QFileDialog.
         2. Ask the user which tab to target (URL substring) so a
            Reddit upload doesn't hit Bluesky by accident.
@@ -6077,7 +6077,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 f"Full log: {bridge_log_path()}")
 
     def _bridge_copy_clipboard(self):
-        """Track B — serialize identity + posts as JSON with the magic
+        """Track B - serialize identity + posts as JSON with the magic
         marker to the OS clipboard. The userscript's 'paste from
         DoxyEdit' button reads it."""
         from doxyedit.bridge import copy_to_clipboard
@@ -6085,7 +6085,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if copy_to_clipboard(data):
             posts = len((data.get("posts") or {}))
             self.status.showMessage(
-                f"Copied identity + {posts} post(s) to clipboard — "
+                f"Copied identity + {posts} post(s) to clipboard - "
                 f"click 'paste from DoxyEdit' in the userscript panel",
                 6000)
         else:

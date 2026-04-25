@@ -822,20 +822,19 @@ class ContentPanel(QWidget):
         self._per_platform_container.setVisible(checked)
         self._refresh_pp_toggle_label()
 
-    def _refresh_pp_toggle_label(self, count=None) -> None:
+    def _refresh_pp_toggle_label(self) -> None:
         """Update the per-platform toggle text with arrow +
-        override count. When count is None the count is read
-        from live widgets (when rebuilt) or the captions dict
-        cached at set_post time. Non-zero count renders as
+        override count. Reads from live widgets when the
+        section is expanded, otherwise from _pp_caption_cache
+        captured at set_post time. Non-zero count renders as
         " (N set)" so the user sees overrides exist without
         expanding the section."""
-        if count is None:
-            if self._platform_captions:
-                count = sum(
-                    1 for te in self._platform_captions.values()
-                    if te.toPlainText().strip())
-            else:
-                count = len(getattr(self, "_pp_caption_cache", {}) or {})
+        if self._platform_captions:
+            count = sum(
+                1 for te in self._platform_captions.values()
+                if te.toPlainText().strip())
+        else:
+            count = len(getattr(self, "_pp_caption_cache", {}) or {})
         arrow = "\u25b2" if self._per_platform_toggle.isChecked() else "\u25bc"
         suffix = f" ({count} set)" if count else ""
         self._per_platform_toggle.setText(
