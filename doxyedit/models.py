@@ -465,6 +465,20 @@ class CollectionIdentity:
     bio_blurb: str = ""
     content_notes: str = ""
     chrome_profiles: dict = field(default_factory=dict)  # account_id -> Chrome profile directory name
+    # Per-platform API credentials. Shape: platform_id -> {key: value}.
+    # Only populated for free-tier APIs (app passwords / personal
+    # access tokens). Examples:
+    #   bluesky:  {"handle": "alice.bsky.social", "app_password": "..."}
+    #   mastodon: {"instance": "mastodon.example", "access_token": "..."}
+    # Read via get_credentials(); the bridge's /doxyedit-api-post
+    # endpoint uses these when the caller doesn't supply its own.
+    credentials: dict = field(default_factory=dict)
+
+    def get_credentials(self, platform_id: str) -> dict:
+        """Return the per-platform credential dict, empty if missing.
+        Always returns a dict so callers can safely do `.get(key)`."""
+        creds = self.credentials.get(platform_id)
+        return creds if isinstance(creds, dict) else {}
 
 
 @dataclass

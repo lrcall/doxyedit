@@ -138,6 +138,12 @@ class _BridgeHTTPState:
         # drains this list via drain_feedback(). Keeping it at the
         # HTTP state so browser POSTs and Python UI share one list.
         self.feedback: list = []
+        # Per-platform API credentials populated by the main window
+        # from the active project's CollectionIdentity.credentials. Lets
+        # /doxyedit-api-post resolve creds when the caller (userscript
+        # or UI button) doesn't pass them explicitly. Shape:
+        # platform_id -> {"handle": ..., "app_password": ...} etc.
+        self.credentials: dict = {}
 
 
 _HTTP_STATE = _BridgeHTTPState()
@@ -184,6 +190,14 @@ def register_assets_bulk(items: list) -> list:
             continue
         out.append(register_asset(asset_id, path))
     return out
+
+
+def set_credentials(creds_by_platform: dict) -> None:
+    """Replace the bridge's per-platform credential map. Called by the
+    main window after a project loads; the new map shadows whatever
+    was there before. Safe to call with {} to clear."""
+    with _HTTP_STATE.lock:
+        _HTTP_STATE.credentials = dict(creds_by_platform or {})
 
 
 def _userscript_path() -> Optional[str]:
@@ -298,6 +312,18 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             text = body_in.get("text") or ""
             parent_url = body_in.get("parent_url") or ""
             creds = body_in.get("credentials") or {}
+            # Fallback: userscript and quickpost callers don't carry
+            # credentials in the body (the main window does). Resolve
+            # from the bridge-side map populated at project load. Both
+            # bluesky and bsky map to the same slot so /doxyedit-api-post
+            # callers can use either platformKey.
+            if not creds:
+                with _HTTP_STATE.lock:
+                    stored = _HTTP_STATE.credentials
+                    creds = dict(stored.get(plat) or {})
+                    if not creds and plat in ("bluesky", "bsky"):
+                        creds = dict(stored.get("bsky") or
+                                      stored.get("bluesky") or {})
             # Resolve asset_ids -> [(bytes, mime, alt)] using the
             # registry the userscript bridge already populates. Top-
             # level posts that include images go through the platform's

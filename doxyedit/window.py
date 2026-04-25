@@ -7398,6 +7398,19 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 row = self.tag_panel._rows[tag_id]
                 row.checkbox.setText(f"{row.tag.label} [{key}]")
 
+        # Hand the project's API credentials to the bridge so
+        # /doxyedit-api-post can resolve them when the userscript or
+        # quickpost call doesn't carry them in the request body. This
+        # is what closes the recurring HTTP 401 loop seen when the
+        # bridge had no creds to substitute. Defensive: bridge module
+        # may not be importable in headless test runs.
+        try:
+            from doxyedit.bridge import set_credentials
+            ident = self.project.identity or {}
+            set_credentials(ident.get("credentials") or {})
+        except Exception:
+            pass
+
     def _deferred_rebind(self):
         """Heavy I/O deferred from _rebind_project — runs after the UI paints."""
         self._watch_asset_files()
