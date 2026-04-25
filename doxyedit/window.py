@@ -5848,6 +5848,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             page_url = ev.get("pageUrl") or ""
             verified = ev.get("verified", True)  # default True for
                                                   # older userscripts
+            # verifySignal records WHICH signal won (selector, url-
+            # change, btn-detached, compose-closed, or "none" when
+            # unverified). Userscripts older than v2.42 don't send it
+            # so default to empty string.
+            verify_signal = ev.get("verifySignal") or ""
             if etype != "posted" or not plat_key:
                 # Other event types (scan_result, action_done, etc)
                 # land here later; for now log + skip so we don't
@@ -5886,6 +5891,13 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             # clearly instead of flipping the post to POSTED on a
             # submit-click that may not have landed.
             status_value = "posted" if verified else "posted_unverified"
+            # Suffix the status with the verify signal so the Socials
+            # tab can show "posted (toast)" vs "posted (url-change)"
+            # vs "posted (btn-detached)" without parsing notes. Older
+            # userscripts that don't send verifySignal land here with
+            # an empty suffix, identical to the prior shape.
+            if verify_signal:
+                status_value = f"{status_value}:{verify_signal}"
             target.platform_status[matched_entry] = status_value
             target.platform_status[plat_key] = status_value
             if page_url:
@@ -5897,7 +5909,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             # level so the user can see which specific ones need a
             # manual check.
             def _is_posted(s):
-                return s in ("posted", "posted_unverified")
+                # Status values may carry a ":<verifySignal>" suffix
+                # (e.g. "posted:url-change", "posted_unverified")
+                # so prefix-match the canonical heads.
+                return (s.startswith("posted:") or s.startswith("posted_unverified")
+                        or s == "posted" or s == "posted_unverified")
             all_done = all(
                 _is_posted(target.platform_status.get(p, ""))
                 for p in (target.platforms or []))

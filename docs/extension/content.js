@@ -1006,16 +1006,18 @@ async function postNowOnCurrentPlatform() {
                                             platformKey: postKey});
   }
   if (verified) {
-    setUploadStatus(`✓ posted to ${postKey} (verified)`, true);
+    setUploadStatus(
+      `✓ posted to ${postKey} (verified via ${verifySignal})`, true);
     notifyFeedback({type: "posted", platformKey: postKey,
-                    verified: true});
-    recordPostAttempt({platformKey: postKey, outcome: "verified"});
+                    verified: true, verifySignal: verifySignal});
+    recordPostAttempt({platformKey: postKey, outcome: "verified",
+                        note: verifySignal});
   } else {
     setUploadStatus(
       `submitted to ${postKey} but compose didn't close - check the page`,
       false);
     notifyFeedback({type: "posted", platformKey: postKey,
-                    verified: false,
+                    verified: false, verifySignal: "none",
                     note: "submit clicked; compose still open after 8s"});
     recordPostAttempt({platformKey: postKey, outcome: "unverified"});
   }
