@@ -468,6 +468,69 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                              "application/json; charset=utf-8",
                              methods="POST, OPTIONS")
             return
+        if self.path == "/doxyedit-native-input":
+            # OS-level input fallback. The dispatcher's `native` rung
+            # POSTs here when API + DOM + drag all refused. pyautogui
+            # is an optional dep; available()=False on installs that
+            # didn't pip install it, in which case typed/clicked
+            # actions return ok=false with a clear "unavailable" error
+            # so the userscript records the skip cleanly rather than
+            # paying a traceback.
+            #
+            # Body shape:
+            #   action: "probe" | "type" | "click" | "paste"
+            #   text?: str       (type / paste)
+            #   delay_ms?: int   (type, per-character delay)
+            #   x?, y?: int      (click, screen coords)
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length else b""
+            try:
+                payload = json.loads(raw.decode("utf-8") or "{}")
+            except Exception:
+                payload = {}
+            if not isinstance(payload, dict):
+                payload = {}
+            action = str(payload.get("action") or "probe").lower()
+            try:
+                from doxyedit.platforms import native_input as _ni
+            except Exception as exc:
+                out = {"ok": False,
+                       "error": "native_input import: " + repr(exc)[:200]}
+            else:
+                try:
+                    if action == "probe":
+                        out = {"ok": True, "available": _ni.available()}
+                    elif action == "type":
+                        _ni.type_text(
+                            payload.get("text") or "",
+                            int(payload.get("delay_ms") or 20))
+                        out = {"ok": True}
+                    elif action == "click":
+                        _ni.click_at(
+                            int(payload.get("x") or 0),
+                            int(payload.get("y") or 0))
+                        out = {"ok": True}
+                    elif action == "paste":
+                        _ni.paste_text(payload.get("text") or "")
+                        out = {"ok": True}
+                    else:
+                        out = {"ok": False,
+                               "error": "unknown action: " + action}
+                except _ni.NativeInputUnavailable as exc:
+                    out = {"ok": False, "error": str(exc),
+                           "unavailable": True}
+                except Exception as exc:
+                    out = {"ok": False,
+                           "error": repr(exc)[:200]}
+            _log("native_input." + action,
+                 ok=out.get("ok"),
+                 available=out.get("available"),
+                 error=str(out.get("error", ""))[:200])
+            self._send_bytes(
+                json.dumps(out).encode(),
+                "application/json; charset=utf-8",
+                methods="POST, OPTIONS")
+            return
         self._send_status(404)
 
     def do_OPTIONS(self):  # noqa: N802
