@@ -333,7 +333,8 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     if parent_url:
                         result = _masto.post_reply(creds, parent_url, text)
                     else:
-                        result = _masto.create_post(creds, text)
+                        result = _masto.create_post(creds, text,
+                                                     images=images or None)
                     out = {"ok": True, "url": result.get("url", ""),
                            "platform": "mastodon"}
                 else:
