@@ -170,6 +170,12 @@ class CanvasSkia(QWidget):
         # instead of getattr-with-None probes.
         self._hud_paint = None
         self._hud_font = None
+        # Selection-handle paints get reused across frames; only the
+        # border's stroke width changes per call (zoom-dependent).
+        # Pre-init to None so the lazy branch in _draw_handle_dot is
+        # hit at most once per backend.
+        self._handle_fill_paint = None
+        self._handle_border_paint = None
         self._pixelate_cache: dict = {}
         self._readback_info = None
         self._readback_info_key = None
@@ -1537,6 +1543,9 @@ class CanvasSkia(QWidget):
         top-center for shapes/texts/images. Arrows get endpoint dots."""
         ox, oy, w, h = self._selection_bbox_local(ov)
         ov_type = ov.type
+        # Inverse zoom is read 7+ times across the function (stroke
+        # widths, handle radii, rotate-handle offset); compute once.
+        inv_zoom = 1.0 / max(0.01, self._zoom)
         # Dashed outline. Paint rebuilt per call (stroke width is zoom-
         # dependent so reusing one would require pre-draw mutation);
         # DashPathEffect is cached since it's pattern-keyed and immutable.
@@ -1544,7 +1553,7 @@ class CanvasSkia(QWidget):
         outline.setAntiAlias(True)
         outline.setStyle(skia.Paint.kStroke_Style)
         outline.setColor(skia.Color(*self._SEL_LINE_COLOR))
-        outline.setStrokeWidth(max(1.0, 1.2 / max(0.01, self._zoom)))
+        outline.setStrokeWidth(max(1.0, 1.2 * inv_zoom))
         dash = self._get_dash_effect((6.0, 4.0))
         if dash is not None:
             outline.setPathEffect(dash)
@@ -1555,12 +1564,12 @@ class CanvasSkia(QWidget):
             y1 = float(ov.y)
             x2 = float(ov.end_x)
             y2 = float(ov.end_y)
-            r = max(3.0, 5.0 / max(0.01, self._zoom))
+            r = max(3.0, 5.0 * inv_zoom)
             for px, py in ((x1, y1), (x2, y2)):
                 self._draw_handle_dot(canvas, px, py, r)
             return
         # Corner + edge handles (up to 8) plus rotate handle for shapes
-        r = max(3.0, 4.0 / max(0.01, self._zoom))
+        r = max(3.0, 4.0 * inv_zoom)
         corners = [
             (ox, oy), (ox + w, oy),
             (ox, oy + h), (ox + w, oy + h),
@@ -1569,7 +1578,7 @@ class CanvasSkia(QWidget):
             self._draw_handle_dot(canvas, px, py, r)
         if ov_type == "shape":
             # Rotate handle ~20 screen-px above the top edge
-            rh_off = 20.0 / max(0.01, self._zoom)
+            rh_off = 20.0 * inv_zoom
             rhx = ox + w / 2
             rhy = oy - rh_off
             # Connector line (dashed)
@@ -1577,27 +1586,24 @@ class CanvasSkia(QWidget):
             conn.setAntiAlias(True)
             conn.setStyle(skia.Paint.kStroke_Style)
             conn.setColor(skia.Color(*self._SEL_LINE_COLOR))
-            conn.setStrokeWidth(max(1.0, 1.0 / max(0.01, self._zoom)))
+            conn.setStrokeWidth(max(1.0, inv_zoom))
             conn_dash = self._get_dash_effect((3.0, 3.0))
             if conn_dash is not None:
                 conn.setPathEffect(conn_dash)
             canvas.drawLine(rhx, oy, rhx, rhy, conn)
             # Rotate handle circle
+            rot_radius = max(4.0, 6.0 * inv_zoom)
             rot_fill = skia.Paint()
             rot_fill.setAntiAlias(True)
             rot_fill.setStyle(skia.Paint.kFill_Style)
             rot_fill.setColor(skia.Color(*self._ROTATE_FILL))
-            canvas.drawCircle(rhx, rhy,
-                              max(4.0, 6.0 / max(0.01, self._zoom)),
-                              rot_fill)
+            canvas.drawCircle(rhx, rhy, rot_radius, rot_fill)
             rot_border = skia.Paint()
             rot_border.setAntiAlias(True)
             rot_border.setStyle(skia.Paint.kStroke_Style)
-            rot_border.setStrokeWidth(max(1.0, 1.0 / max(0.01, self._zoom)))
+            rot_border.setStrokeWidth(max(1.0, inv_zoom))
             rot_border.setColor(skia.Color(*self._HANDLE_BORDER))
-            canvas.drawCircle(rhx, rhy,
-                              max(4.0, 6.0 / max(0.01, self._zoom)),
-                              rot_border)
+            canvas.drawCircle(rhx, rhy, rot_radius, rot_border)
             # Tail handle for bubbles
             if ov.shape_kind in ("speech_bubble", "thought_bubble"):
                 tx = float(ov.tail_x or 0)
@@ -1608,22 +1614,31 @@ class CanvasSkia(QWidget):
                     tp.setStyle(skia.Paint.kFill_Style)
                     tp.setColor(skia.Color(*self._TAIL_FILL))
                     canvas.drawCircle(tx, ty,
-                                      max(4.0, 6.0 / max(0.01, self._zoom)),
-                                      tp)
+                                      max(4.0, 6.0 * inv_zoom), tp)
 
     def _draw_handle_dot(self, canvas, cx, cy, r):
-        """Filled white square with dark border — standard corner handle."""
+        """Filled white square with dark border, the standard corner
+        handle. Reuses cached fill + border paints across calls; only
+        the border's stroke width is mutated per call since it scales
+        with zoom. Was allocating two fresh skia.Paints per dot which
+        fired 4-8 times per selection paint frame."""
         rect = skia.Rect.MakeLTRB(cx - r, cy - r, cx + r, cy + r)
-        fp = skia.Paint()
-        fp.setAntiAlias(True)
-        fp.setStyle(skia.Paint.kFill_Style)
-        fp.setColor(skia.Color(*self._HANDLE_FILL))
+        fp = self._handle_fill_paint
+        if fp is None:
+            fp = skia.Paint()
+            fp.setAntiAlias(True)
+            fp.setStyle(skia.Paint.kFill_Style)
+            fp.setColor(skia.Color(*self._HANDLE_FILL))
+            self._handle_fill_paint = fp
         canvas.drawRect(rect, fp)
-        bp = skia.Paint()
-        bp.setAntiAlias(True)
-        bp.setStyle(skia.Paint.kStroke_Style)
+        bp = self._handle_border_paint
+        if bp is None:
+            bp = skia.Paint()
+            bp.setAntiAlias(True)
+            bp.setStyle(skia.Paint.kStroke_Style)
+            bp.setColor(skia.Color(*self._HANDLE_BORDER))
+            self._handle_border_paint = bp
         bp.setStrokeWidth(max(1.0, 1.0 / max(0.01, self._zoom)))
-        bp.setColor(skia.Color(*self._HANDLE_BORDER))
         canvas.drawRect(rect, bp)
 
     def _draw_draft_shape(self, canvas, draft):
@@ -2136,6 +2151,9 @@ if _QOGW_OK and _SKIA_OK:
             # pattern but pre-create so paint-path reads are direct.
             self._hud_paint = None
             self._hud_font = None
+            # Selection-handle paint cache, mirrors CanvasSkia.
+            self._handle_fill_paint = None
+            self._handle_border_paint = None
             self._pixelate_cache: dict = {}
             self.backend_name = "skia_gl"
             # Error trail for context loss / init failure. Surfaced
