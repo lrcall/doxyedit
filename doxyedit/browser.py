@@ -2613,6 +2613,20 @@ class AssetBrowser(QWidget):
         """Rebuild per-folder QListView sections, grouped under import-source roots."""
         from collections import defaultdict
 
+        # Short-circuit: if the filter-cache returned the SAME list object as
+        # last build AND the user-controlled visibility/collapse sets haven't
+        # changed, the rebuild would produce identical widgets. Skip the 3-4s
+        # Qt widget-construction cost. The cached filter ensures list-identity
+        # holds across refresh calls when nothing relevant changed.
+        last_for = getattr(self, "_folder_last_for", None)
+        last_hidden = getattr(self, "_folder_last_hidden", None)
+        last_collapsed = getattr(self, "_folder_last_collapsed", None)
+        if (last_for is self._filtered_assets
+                and last_hidden == self._hidden_folders
+                and last_collapsed == self._collapsed_folders
+                and self._folder_sections):
+            return
+
         # Group assets by folder (order preserved from sorted filtered list).
         # os.path.dirname is ~3x faster than Path(p).parent.as_posix(); at
         # 67k assets that single-line swap is worth ~50ms.
@@ -2786,6 +2800,13 @@ class AssetBrowser(QWidget):
         if not self._folder_scroll_vp_installed:
             self._folder_scroll.viewport().installEventFilter(self)
             self._folder_scroll_vp_installed = True
+
+        # Record the inputs that produced this build so the next call can
+        # short-circuit if they're identical. Snapshot the sets (don't share
+        # references — the user can mutate them without rebuilding).
+        self._folder_last_for = self._filtered_assets
+        self._folder_last_hidden = frozenset(self._hidden_folders)
+        self._folder_last_collapsed = frozenset(self._collapsed_folders)
 
     def _finalize_folder_layout(self):
         """One-shot layout finalization after folder sections are created."""
