@@ -102,6 +102,7 @@ class FileBrowserPanel(QWidget):
     folder_selected = Signal(str)       # folder path — filter main grid to this folder
     import_requested = Signal(str)      # folder path — import into project
     filter_cleared = Signal()           # clear folder filter
+    remove_folder_requested = Signal(str, bool)  # folder path, recursive — remove its assets from project
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -256,6 +257,24 @@ class FileBrowserPanel(QWidget):
                         lambda: self.folder_selected.emit(path))
         menu.addAction("Import This Folder",
                         lambda: self.import_requested.emit(path))
+
+        # Removal options - only meaningful when this folder actually has
+        # assets in the project. Show direct count vs recursive count
+        # separately so the user knows exactly what they're acting on.
+        norm = path.replace("\\", "/").rstrip("/")
+        direct = self._folder_counts.get(norm, 0)
+        recursive = self._recursive_counts.get(norm, 0)
+        if direct or recursive:
+            menu.addSeparator()
+            if direct:
+                menu.addAction(
+                    f"Remove {direct} Asset(s) in This Folder from Project",
+                    lambda: self.remove_folder_requested.emit(path, False))
+            if recursive > direct:
+                menu.addAction(
+                    f"Remove All {recursive} Asset(s) in Folder + Subfolders",
+                    lambda: self.remove_folder_requested.emit(path, True))
+
         menu.addSeparator()
 
         if path in self._pinned:

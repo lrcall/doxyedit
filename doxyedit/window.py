@@ -419,6 +419,8 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         self._file_browser.import_requested.connect(
             lambda f: self.browser.import_folder(f))
         self._file_browser.filter_cleared.connect(self._clear_file_browser_filter)
+        self._file_browser.remove_folder_requested.connect(
+            self._on_file_browser_remove_folder)
         self._file_browser.hide()
         self._browse_split.addWidget(self._file_browser)
         self._browse_split.addWidget(self.tag_panel)
@@ -3612,6 +3614,46 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         """Clear any folder filter on the main grid."""
         self.browser.set_folder_filter(None)
         self._file_browser.clear_active()
+
+    def _on_file_browser_remove_folder(self, folder: str, recursive: bool):
+        """User right-clicked a folder in the files viewer and chose Remove
+        from Project. Removes assets matching that folder (or any descendant
+        when recursive) and adds the folder to excluded_paths so a re-import
+        won't bring them straight back."""
+        if not self.project:
+            return
+        norm = folder.replace("\\", "/").rstrip("/")
+        prefix = norm + "/"
+        ids_to_remove = set()
+        for a in self.project.assets:
+            sf = (a.source_folder or os.path.dirname(a.source_path)
+                  ).replace("\\", "/").rstrip("/")
+            if sf == norm or (recursive and sf.startswith(prefix)):
+                ids_to_remove.add(a.id)
+        if not ids_to_remove:
+            self.status.showMessage("No matching assets to remove", 2500)
+            return
+        scope = "and subfolders " if recursive else ""
+        reply = QMessageBox.question(
+            self, "Remove from Project",
+            f"Remove {len(ids_to_remove)} asset(s) in this folder {scope}"
+            f"from the project?\n\n(Files are NOT deleted from disk.)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        # Mark the folder excluded so the next folder-scan / re-import skips it.
+        self.project.excluded_paths.add(norm)
+        if recursive:
+            # Also exclude direct child folders that contained assets, so a
+            # narrower re-import won't bypass the user's intent.
+            for a in self.project.assets:
+                sf = (a.source_folder or os.path.dirname(a.source_path)
+                      ).replace("\\", "/").rstrip("/")
+                if sf.startswith(prefix):
+                    self.project.excluded_paths.add(sf)
+        self._remove_assets_by_ids(ids_to_remove)
+        self.status.showMessage(
+            f"Removed {len(ids_to_remove)} asset(s) from project", 4000)
 
     def _refresh_file_browser(self):
         """Refresh file browser counts after project data changes."""

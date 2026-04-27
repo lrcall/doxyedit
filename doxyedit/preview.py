@@ -17,6 +17,16 @@ from doxyedit.models import CropRegion, PLATFORMS
 from doxyedit.themes import THEMES, DEFAULT_THEME, ui_font_size
 
 
+def _preview_xform_mode():
+    """Return the QGraphicsPixmapItem.TransformationMode the user last chose.
+    Used at every point we (re)build a pixmap item so the saved 'preview_bilinear'
+    setting isn't clobbered when navigating between images / reopening preview."""
+    bilinear = QSettings("DoxyEdit", "DoxyEdit").value(
+        "preview_bilinear", True, type=bool)
+    return (Qt.TransformationMode.SmoothTransformation if bilinear
+            else Qt.TransformationMode.FastTransformation)
+
+
 class HoverPreview(QWidget):
     """Floating preview that appears near the cursor on hover."""
 
@@ -545,7 +555,7 @@ class ImagePreviewDialog(QDialog):
         self._pixmap_item = None
         if not pm.isNull():
             self._pixmap_item = QGraphicsPixmapItem(pm)
-            self._pixmap_item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+            self._pixmap_item.setTransformationMode(self._preview_xform_mode())
             self.scene.addItem(self._pixmap_item)
             self._expand_scene_rect(pm.width(), pm.height())
 
@@ -910,7 +920,7 @@ class ImagePreviewDialog(QDialog):
         self._pixmap_item = None
         if not pm.isNull():
             self._pixmap_item = QGraphicsPixmapItem(pm)
-            self._pixmap_item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+            self._pixmap_item.setTransformationMode(self._preview_xform_mode())
             self.scene.addItem(self._pixmap_item)
             self._expand_scene_rect(pm.width(), pm.height())
             self.view.fitInView(self._pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
@@ -998,6 +1008,9 @@ class ImagePreviewDialog(QDialog):
             QSettings("DoxyEdit", "DoxyEdit").setValue(
                 "preview_bilinear", new_val)
             self._apply_preview_smoothing(new_val)
+
+    def _preview_xform_mode(self):
+        return _preview_xform_mode()
 
     def _apply_preview_smoothing(self, bilinear: bool):
         """Swap the QGraphicsView's render hints between smooth bilinear
@@ -1137,7 +1150,7 @@ class PreviewPane(QWidget):
         self._scene.clear()
         if not pm.isNull():
             item = QGraphicsPixmapItem(pm)
-            item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+            item.setTransformationMode(_preview_xform_mode())
             self._scene.addItem(item)
             margin = max(w, h, 4000)
             self._scene.setSceneRect(
