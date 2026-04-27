@@ -8035,6 +8035,14 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.status.showMessage(f"Opened {len(targets)} file(s)", 2000)
 
     def closeEvent(self, event):
+        # Mark this exit as graceful so the next launch knows the previous
+        # session ended cleanly (no autoload-skip needed). The atexit hook
+        # in main also does this, but doing it early gives a better signal.
+        try:
+            from doxyedit.main import _release_running_lock
+            _release_running_lock()
+        except Exception:
+            pass
         # Tear down the persistent bridge CDP session + HTTP bridge
         # so the daemon threads don't outlive Qt (otherwise Python's
         # thread cleanup at interpreter shutdown can raise ugly

@@ -14,6 +14,34 @@ from doxyedit.window import MainWindow
 
 _LOG_PATH = Path.home() / ".doxyedit" / "doxyedit.log"
 _FAULT_PATH = Path.home() / ".doxyedit" / "faulthandler.log"
+_RUNNING_LOCK = Path.home() / ".doxyedit" / "running.lock"
+_AUTOLOAD_HARD_TIMEOUT_S = 60.0
+
+
+def _previous_launch_crashed() -> bool:
+    """True if the running-lock sentinel from the previous launch is still
+    on disk - i.e. the prior process didn't reach its closeEvent (kill,
+    OOM, segfault). Used to default the splash to skip-autoload so a bad
+    project file or a stuck filesystem can't trap us in a hang loop."""
+    try:
+        return _RUNNING_LOCK.exists()
+    except Exception:
+        return False
+
+
+def _arm_running_lock():
+    try:
+        _RUNNING_LOCK.parent.mkdir(parents=True, exist_ok=True)
+        _RUNNING_LOCK.write_text(str(int(__import__('time').time())), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _release_running_lock():
+    try:
+        _RUNNING_LOCK.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 def _setup_logging():
     """File logger for all warnings/errors — survives windowless mode."""
@@ -138,6 +166,26 @@ class _Splash(QWidget):
         btn_row.addStretch(1)
         layout.addLayout(btn_row)
 
+        # Heartbeat: even when the loader is silent (e.g. mid JSON parse),
+        # show elapsed seconds so the user can tell hang from progress.
+        # Stops as soon as status text is set by the worker.
+        import time as _t
+        self._t0 = _t.monotonic()
+        self._last_real_status = ""
+        self._heartbeat = QTimer(self)
+        self._heartbeat.timeout.connect(self._tick)
+        self._heartbeat.start(500)
+
+    def _tick(self):
+        import time as _t
+        elapsed = _t.monotonic() - self._t0
+        # Append elapsed only when the worker hasn't pushed a fresh status
+        # in a while. Avoids stomping on its messages.
+        cur = self._status.text()
+        base = self._last_real_status or cur
+        if elapsed >= 2:
+            self._status.setText(f"{base}   ({elapsed:.0f}s)")
+
     def _on_cancel(self):
         self._cancelled = True
         self._cancel_btn.setEnabled(False)
@@ -159,6 +207,7 @@ class _Splash(QWidget):
         self._cancel_binding = fn
 
     def set_status(self, text: str):
+        self._last_real_status = text
         self._status.setText(text)
         QApplication.processEvents()
 
@@ -199,7 +248,20 @@ def main():
     splash.show()
     splash.set_status("Starting DoxyEdit…")
 
-    skip_autoload = "--new" in sys.argv
+    # Crash-detection: if a sentinel from a previous launch is still on
+    # disk, that launch never reached closeEvent (killed, OOM, segfault).
+    # Default to skip-autoload so we don't loop into the same hang. The
+    # user can still hit any of the splash buttons to load manually.
+    crashed_last_time = _previous_launch_crashed()
+    _arm_running_lock()
+    # Always clear the sentinel on Python exit, even on crashes that
+    # bypass closeEvent. atexit fires before interpreter teardown.
+    import atexit as _atexit
+    _atexit.register(_release_running_lock)
+
+    skip_autoload = ("--new" in sys.argv) or crashed_last_time
+    if crashed_last_time:
+        splash.set_status("Previous session ended uncleanly - skipping autoload")
 
     # Build window with autoload deferred so the UI paints before disk I/O
     splash.set_status("Building interface…")
@@ -254,6 +316,22 @@ def main():
 
         # Wire the splash's Cancel button to the in-flight loader.
         splash.bind_cancel(handle.cancel)
+
+        # Hard timeout: if the autoload doesn't complete in N seconds, we
+        # auto-cancel. Slow filesystems (Dropbox sync, network share, dead
+        # process residue) can stretch a normal load into minutes - users
+        # see "frozen" and force-kill, which leaves the running.lock and
+        # we can't tell if it was actually a crash. The hard cap turns
+        # "indefinite hang" into "graceful blank project" every time.
+        def _timeout_cancel():
+            if not done["flag"]:
+                splash.set_status(
+                    f"Autoload timed out ({_AUTOLOAD_HARD_TIMEOUT_S:.0f}s) - cancelling")
+                try:
+                    handle.cancel()
+                except Exception:
+                    pass
+        QTimer.singleShot(int(_AUTOLOAD_HARD_TIMEOUT_S * 1000), _timeout_cancel)
 
         # Block the startup flow while the worker runs, but keep the Qt
         # event loop spinning so splash button clicks are handled. If the
