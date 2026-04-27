@@ -1141,10 +1141,17 @@ class Project:
         return dict(PLATFORMS)
 
     def invalidate_index(self):
-        """Call after adding/removing assets or changing tags/source_paths."""
+        """Clear cached indexes. Idempotent - does NOT bump version. Safe
+        to call from non-mutating refresh paths."""
         self._asset_index = None
         self._path_index = None
         self._tag_users = None
+
+    def mark_mutated(self):
+        """Call this after any mutation of self.assets or asset.tags /
+        source_path. Clears indexes AND bumps version so filter caches
+        keyed on version know to recompute."""
+        self.invalidate_index()
         self._version = getattr(self, '_version', 0) + 1
 
     def _ensure_indexes(self):

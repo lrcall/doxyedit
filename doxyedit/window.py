@@ -2681,6 +2681,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     self.project.assets.append(asset)
                     added += 1
                 if added:
+                    self.project.mark_mutated()
                     self.browser.refresh()
                     self._dirty = True
                     self.status.showMessage(
@@ -2706,6 +2707,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     source_folder="clipboard",
                 )
                 self.project.assets.append(asset)
+                self.project.mark_mutated()
                 self.browser.refresh()
                 self.browser.scroll_to_asset(asset.id)
                 self.status.showMessage("Pasted image from clipboard")
@@ -3412,7 +3414,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         """Rebuild both tag locations: browser tag bar + side panel."""
         self.browser.rebuild_tag_bar()
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
-        self.tag_panel.update_tag_counts(self.project.assets)
+        self.tag_panel.update_tag_counts(self.project.assets, self.project)
         if hasattr(self, '_info_panel'):
             tags = self.project.get_tags() if self.project else {}
             self._info_panel.set_available_tags(sorted(tags.keys()))
@@ -4547,7 +4549,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             return
         missing_ids = {a.id for a in missing}
         self.project.assets = [a for a in self.project.assets if a.id not in missing_ids]
-        self.project.invalidate_index()
+        self.project.mark_mutated()
         self._after_missing_removed(n)
 
     def _on_missing_removed(self, count: int):
@@ -4939,7 +4941,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _remove_assets_by_ids(self, ids: set):
         """Remove assets from current project by ID and refresh."""
         self.project.assets = [a for a in self.project.assets if a.id not in ids]
-        self.project.invalidate_index()
+        self.project.mark_mutated()
         self._refresh_all_tags()
         self.browser.refresh()
         self._dirty = True
@@ -5099,6 +5101,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             ids = {a.id for a in assets}
             self.project.assets = [a for a in self.project.assets if a.id not in ids]
             self.browser._selected_ids -= ids
+            self.project.mark_mutated()
             self.browser.refresh()
             self._dirty = True
             self.status.showMessage(f"Removed {len(assets)} asset(s)")
@@ -6328,6 +6331,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
             if cb_assets.isChecked():
                 self.project.assets.extend(new_assets)
+                self.project.mark_mutated()
                 merged += len(new_assets)
 
             if cb_tags.isChecked():
@@ -6463,7 +6467,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                         if "duplicate" not in asset.tags:
                             asset.tags.append("duplicate")
                             n += 1
-                self.project.invalidate_index()
+                self.project.mark_mutated()
                 self.browser._refresh_grid()
                 self._dirty = True
                 self.status.showMessage(f"Tagged {n} assets as 'duplicate'", 3000)
@@ -6483,7 +6487,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 if reply != QMessageBox.StandardButton.Yes:
                     return
                 self.project.assets = [a for a in self.project.assets if a.id not in extra_ids]
-                self.project.invalidate_index()
+                self.project.mark_mutated()
                 self.browser._refresh_grid()
                 self._dirty = True
                 self.status.showMessage(f"Removed {len(extra_ids)} duplicate asset records", 3000)
@@ -6659,7 +6663,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 f"Remove {len(variant_ids)} variant assets from project?\n(Files remain on disk)") != QMessageBox.StandardButton.Yes:
                 return
             self.project.assets = [a for a in self.project.assets if a.id not in variant_ids]
-            self.project.invalidate_index()
+            self.project.mark_mutated()
             self._dirty = True
             self._refresh_all_tags()
             self.browser.refresh()
@@ -7334,7 +7338,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._info_panel.set_tag_palette({tid: tp.color for tid, tp in tags.items()})
         self.tag_panel.set_assets([])
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
-        self.tag_panel.update_tag_counts(self.project.assets)
+        self.tag_panel.update_tag_counts(self.project.assets, self.project)
         if self._notes_edit.isVisible():
             self._notes_edit.blockSignals(True)
             self._notes_edit.setPlainText(self.project.notes)

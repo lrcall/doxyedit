@@ -4,7 +4,7 @@ from PIL import Image
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox,
     QFrame, QScrollArea, QTextEdit, QPushButton, QSplitter, QColorDialog,
-    QMenu, QInputDialog,
+    QMenu, QInputDialog, QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal, QPoint, QRect
 from PySide6.QtGui import QColor, QPainter, QPen, QBrush
@@ -444,6 +444,15 @@ class TagPanel(QWidget):
         self.header.setObjectName("tagpanel_header")
         _bold = self.header.font(); _bold.setBold(True); self.header.setFont(_bold)
         self.header.setWordWrap(True)
+        # Filenames have no spaces, so QLabel's word-wrap can't break them
+        # and the long token forces the whole panel wider. Allow the label
+        # to shrink below its natural sizeHint so wrapping (with the
+        # zero-width-space insertions in _refresh) actually kicks in.
+        self.header.setSizePolicy(QSizePolicy.Policy.Ignored,
+                                  QSizePolicy.Policy.Preferred)
+        self.header.setMinimumWidth(0)
+        self.header.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
         root.addWidget(self.header)
 
         self.hint_label = QLabel("Click an image on the left, then check tags below")
@@ -456,7 +465,6 @@ class TagPanel(QWidget):
         root.addWidget(self.dim_label)
 
         # Batch buttons - short labels so the whole panel can collapse narrow
-        from PySide6.QtWidgets import QSizePolicy
         batch_row = QHBoxLayout()
         btn_ignore = QPushButton("Ignore")
         btn_ignore.setObjectName("tagpanel_action_btn")
@@ -609,8 +617,12 @@ class TagPanel(QWidget):
     def refresh_discovered_tags(self, assets: list, project=None):
         """Add rows for tags found in assets and custom_tags, sorted into sections."""
         existing_ids = set(self._rows.keys())
-        # Un-hide any previously deleted rows whose tag has reappeared in assets
-        tags_in_assets = {t for a in assets for t in a.tags}
+        # Un-hide any previously deleted rows whose tag has reappeared in assets.
+        # Prefer the inverted index when we have a project — O(tags) vs O(assets).
+        if project is not None and hasattr(project, "tag_users"):
+            tags_in_assets = set(project.tag_users.keys())
+        else:
+            tags_in_assets = {t for a in assets for t in a.tags}
         for tid in list(self._hidden_tags):
             if tid in existing_ids and tid in tags_in_assets:
                 self._hidden_tags.discard(tid)
@@ -627,17 +639,20 @@ class TagPanel(QWidget):
                 if tid not in existing_ids and tid not in TAG_PRESETS and tid not in TAG_SIZED:
                     custom_tags[tid] = preset
 
-        # From asset tags
-        for asset in assets:
-            for t in asset.tags:
-                if t not in existing_ids and t not in custom_tags and t not in visual_tags:
-                    preset = TagPreset(id=t, label=t,
-                        color=VINIK_COLORS[color_idx % len(VINIK_COLORS)])
-                    color_idx += 1
-                    if t in VISUAL_TAGS:
-                        visual_tags[t] = preset
-                    else:
-                        custom_tags[t] = preset
+        # From asset tags - use the inverted index when we have it (O(tags))
+        if project is not None and hasattr(project, "tag_users"):
+            tag_iter = iter(project.tag_users.keys())
+        else:
+            tag_iter = (t for asset in assets for t in asset.tags)
+        for t in tag_iter:
+            if t not in existing_ids and t not in custom_tags and t not in visual_tags:
+                preset = TagPreset(id=t, label=t,
+                    color=VINIK_COLORS[color_idx % len(VINIK_COLORS)])
+                color_idx += 1
+                if t in VISUAL_TAGS:
+                    visual_tags[t] = preset
+                else:
+                    custom_tags[t] = preset
 
         # Add custom/project tags — insert after _sep2_label, ordered by "order" field then label
         if custom_tags:
@@ -747,7 +762,15 @@ class TagPanel(QWidget):
         if len(assets) == 1:
             a = assets[0]
             name = Path(a.source_path).stem
-            self.header.setText(name)
+            # Insert zero-width-spaces at common token boundaries so
+            # QLabel can wrap long filenames instead of forcing the
+            # whole panel wider than the user-set width.
+            ZWSP = "​"
+            wrappable = name
+            for ch in ("_", "-", ".", "(", ")", "@"):
+                wrappable = wrappable.replace(ch, ch + ZWSP)
+            self.header.setText(wrappable)
+            self.header.setToolTip(name)
             if a.tags:
                 self.hint_label.hide()
             else:
@@ -1056,8 +1079,19 @@ class TagPanel(QWidget):
             row.set_checked(False)
         self.tags_changed.emit()
 
-    def update_tag_counts(self, all_assets: list):
-        """Update the usage count badge on each tag row."""
+    def update_tag_counts(self, all_assets: list, project=None):
+        """Update the usage count badge on each tag row.
+
+        Uses Project.tag_users (inverted index) when available — O(tags)
+        instead of O(assets x tags_per_asset). Falls back to the scan
+        when called without a project (legacy callers / tests).
+        """
+        if project is not None and hasattr(project, "tag_users"):
+            tu = project.tag_users
+            for tag_id, row in self._rows.items():
+                n = len(tu.get(tag_id, ()))
+                row._count_lbl.setText(str(n) if n else "")
+            return
         counts: dict[str, int] = {}
         for a in all_assets:
             for t in a.tags:

@@ -455,7 +455,7 @@ class HealthPanel(LazyRefreshMixin, QWidget):
 
         asset.source_path = str(new_path)
         asset.source_folder = str(new_path.parent)
-        self.project.invalidate_index()
+        self.project.mark_mutated()
         self.run_scan()
 
     def _browse_for_rename(self, asset):
@@ -470,7 +470,7 @@ class HealthPanel(LazyRefreshMixin, QWidget):
             return
         asset.source_path = new_path
         asset.source_folder = str(Path(new_path).parent)
-        self.project.invalidate_index()
+        self.project.mark_mutated()
         self.run_scan()
 
     def _auto_locate_all(self):
@@ -496,7 +496,7 @@ class HealthPanel(LazyRefreshMixin, QWidget):
             else:
                 not_found += 1
         if updated:
-            self.project.invalidate_index()
+            self.project.mark_mutated()
         parts = [f"{updated} updated"]
         if ambiguous:
             parts.append(f"{ambiguous} ambiguous (use Update Path per row)")
@@ -520,7 +520,7 @@ class HealthPanel(LazyRefreshMixin, QWidget):
             return
         missing_ids = {a.id for a in missing}
         self.project.assets = [a for a in self.project.assets if a.id not in missing_ids]
-        self.project.invalidate_index()
+        self.project.mark_mutated()
         self._missing_assets = []
         self._remove_missing_btn.setEnabled(False)
         self._summary_lbl.setText(f"Removed {n} missing asset record{'s' if n != 1 else ''}.")

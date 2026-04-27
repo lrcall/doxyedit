@@ -1935,6 +1935,7 @@ class AssetBrowser(QWidget):
                     ex.add(path_str)
                     added += 1
             if added:
+                self.project.mark_mutated()
                 self._refresh_grid()
                 self.tags_modified.emit()
                 try:
@@ -2311,7 +2312,41 @@ class AssetBrowser(QWidget):
         # Refresh
         self._refresh_grid()
 
+    def _filter_signature(self) -> tuple:
+        """Hashable snapshot of every filter + sort input. Must include all
+        state _compute_filtered_uncached reads. Mismatch => cache miss."""
+        return (
+            id(self.project),
+            getattr(self.project, "version", 0),
+            frozenset(self._folder_filter) if self._folder_filter else None,
+            self.search_box.text().strip().lower(),
+            self.search_tags_check.isChecked(),
+            bool(self.filter_starred.isChecked()),
+            bool(self.filter_untagged.isChecked()),
+            bool(self.filter_tagged.isChecked()),
+            self._format_filter,
+            bool(self.filter_show_ignored.isChecked()),
+            bool(self.filter_assigned.isChecked()),
+            bool(self.filter_posted.isChecked()),
+            bool(self.filter_needs_censor.isChecked()),
+            frozenset(self._bar_tag_filters),
+            frozenset(self._eye_hidden_tags),
+            bool(self.show_hidden_only),
+            frozenset(self._temp_hidden_ids),
+            self.sort_combo.currentText(),
+            getattr(self, "_prev_sort_mode", ""),
+        )
+
     def _compute_filtered(self) -> list[Asset]:
+        sig = self._filter_signature()
+        cached = getattr(self, "_filter_cache", None)
+        if cached is not None and cached[0] == sig:
+            return cached[1]
+        result = self._compute_filtered_uncached()
+        self._filter_cache = (sig, result)
+        return result
+
+    def _compute_filtered_uncached(self) -> list[Asset]:
         # Build predicates, then do ONE pass over all assets (avoids 11+ list copies).
         preds = []
 
@@ -2384,10 +2419,26 @@ class AssetBrowser(QWidget):
             _thi = self._temp_hidden_ids
             preds.append(lambda a, thi=_thi: a.id not in thi)
 
+        # Tag-bar candidate prefilter: when the user is filtering by 1+ tags,
+        # use the inverted index so we walk |union of tag users| instead of
+        # all 67k+ assets. Massive win on large projects with selective tags.
+        candidates = None
+        if self._bar_tag_filters:
+            tu = self.project.tag_users
+            ids: set = set()
+            for tid in self._bar_tag_filters:
+                ids |= tu.get(tid, set())
+            if ids:
+                get = self.project.get_asset
+                candidates = [a for aid in ids if (a := get(aid)) is not None]
+            else:
+                candidates = []
+
+        source = candidates if candidates is not None else self.project.assets
         if preds:
-            assets = [a for a in self.project.assets if all(p(a) for p in preds)]
+            assets = [a for a in source if all(p(a) for p in preds)]
         else:
-            assets = list(self.project.assets)
+            assets = list(source)
 
         sort_mode = self.sort_combo.currentText()
         if sort_mode == "By Folder":
@@ -2795,7 +2846,7 @@ class AssetBrowser(QWidget):
             return
         self.project.assets = [a for a in self.project.assets if a.source_folder != folder]
         self.project.excluded_paths.add(folder)
-        self.project.invalidate_index()
+        self.project.mark_mutated()
         self._refresh_grid()
 
     def _on_folder_date_filter(self, folder: str):
@@ -3076,6 +3127,7 @@ class AssetBrowser(QWidget):
                 count += 1
         self._record_import_source("folder", str(folder_path), recursive)
         if count:
+            self.project.mark_mutated()
             self._refresh_grid()
         return count
 
@@ -3111,6 +3163,7 @@ class AssetBrowser(QWidget):
             dlg.close()
             if added[0]:
                 self._record_import_source("folder", folder, recursive)
+                self.project.mark_mutated()
                 self._refresh_grid()
             self.folder_opened.emit(folder)
             self._active_import_worker = None
@@ -3151,6 +3204,7 @@ class AssetBrowser(QWidget):
         for f in new_files:
             self._record_import_source("file", f)
         if added:
+            self.project.mark_mutated()
             self._refresh_grid()
             if first_id:
                 self.scroll_to_asset(first_id)
@@ -3585,6 +3639,7 @@ class AssetBrowser(QWidget):
         self.project.assets = [a for a in self.project.assets if a.id != asset.id]
         if asset.id in self._selected_ids:
             self._selected_ids.remove(asset.id)
+        self.project.mark_mutated()
         self._refresh_grid()
 
     def _remove_selected(self):
@@ -3596,6 +3651,7 @@ class AssetBrowser(QWidget):
         ids = set(self._selected_ids)
         self.project.assets = [a for a in self.project.assets if a.id not in ids]
         self._selected_ids.clear()
+        self.project.mark_mutated()
         self._refresh_grid()
         self._mark_dirty()
 
@@ -3622,6 +3678,7 @@ class AssetBrowser(QWidget):
         ids = {a.id for a in assets}
         self.project.assets = [a for a in self.project.assets if a.id not in ids]
         self._selected_ids.clear()
+        self.project.mark_mutated()
         self._refresh_grid()
         self._mark_dirty()
 
