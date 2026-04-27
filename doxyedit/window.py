@@ -1532,16 +1532,28 @@ class MainWindow(SaveLoadMixin, QMainWindow):
 
     def _apply_theme(self, theme_id: str, persist: bool = True):
         from dataclasses import replace
-        self._current_theme_id = theme_id
         base = THEMES.get(theme_id, THEMES[DEFAULT_THEME])
-        overrides = {"font_size": getattr(self, '_theme', base).font_size}
-        # Apply project accent color if set
         proj_accent = getattr(getattr(self, 'project', None), 'accent_color', '')
+        font_size = getattr(self, '_theme', base).font_size
+        # Short-circuit: project rebinds re-call _apply_theme even when nothing
+        # changed. setStyleSheet on the main window cascades style re-eval to
+        # every nested widget — at our widget count that's ~370ms wasted per
+        # rebind. Skip when (theme_id, project accent, font size) all match.
+        sig = (theme_id, proj_accent, font_size)
+        if getattr(self, "_theme_sig", None) == sig:
+            # Same theme as last apply - skip the cascading stylesheet
+            # re-evaluation. Settings persist + project.theme_id assignment
+            # are no-ops when value is unchanged, so skipping is safe.
+            return
+        self._current_theme_id = theme_id
+        overrides = {"font_size": font_size}
+        # Apply project accent color if set
         if proj_accent:
             overrides.update({"accent": proj_accent, "accent_bright": proj_accent,
                                "selection_border": proj_accent})
         self._theme = replace(base, **overrides)
         self.setStyleSheet(generate_stylesheet(self._theme))
+        self._theme_sig = sig
         if persist:
             self._settings.setValue("theme", theme_id)
             self._settings.sync()
