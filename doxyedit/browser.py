@@ -2730,35 +2730,42 @@ class AssetBrowser(QWidget):
         insert_before_stretch = lambda w: self._folder_container_layout.insertWidget(
             max(0, self._folder_container_layout.count() - 1), w)
 
+        # Build plan: flatten the per-root loop into a list of section build
+        # ops so we can drain it across UI-thread ticks. Headers are built
+        # eagerly (cheap) so the user sees structure immediately; the heavy
+        # FolderSection construction (QListView + ThumbnailModel + ~12 signal
+        # connects per section) is the part we chunk.
+        plan: list = []
+        hdr_children: dict = {}  # root_hdr -> [child_sections]
         for root in root_order:
             entries = root_groups[root]
             has_multiple = len(entries) > 1
-
             if root and has_multiple:
-                # Root header + indented child sections
                 total = sum(len(a) for _, a, _ in entries)
                 hdr = RootFolderHeader(root, total, parent=self._folder_container,
                                       on_expand=self._request_visible_thumbs)
                 insert_before_stretch(hdr)
                 self._root_headers.append(hdr)
-
-                child_sections = []
+                hdr_children[hdr] = []
                 for folder, assets, depth in entries:
-                    section = _make_section(folder, assets, depth + 1)
-                    if section is None:
-                        continue
-                    insert_before_stretch(section)
-                    self._folder_sections.append(section)
-                    child_sections.append(section)
-                hdr.set_children(child_sections)
+                    plan.append(("sec", folder, assets, depth + 1, hdr))
             else:
-                # Single folder or no matching root — show flat at depth 0
                 for folder, assets, depth in entries:
-                    section = _make_section(folder, assets, 0)
-                    if section is None:
-                        continue
-                    insert_before_stretch(section)
-                    self._folder_sections.append(section)
+                    plan.append(("sec", folder, assets, 0, None))
+
+        # Stash plan + drivers so the chunk processor can resume between ticks.
+        self._folder_build_plan = plan
+        self._folder_build_idx = 0
+        self._folder_build_hdr_children = hdr_children
+        self._folder_build_make = _make_section
+        self._folder_build_insert = insert_before_stretch
+
+        # First chunk: build enough to fill an initial viewport. The remaining
+        # sections drain on QTimer.singleShot(0) ticks so the UI stays
+        # responsive while construction continues in the background.
+        self._build_folder_chunk(_initial=8)
+        if self._folder_build_idx < len(plan):
+            QTimer.singleShot(0, self._drain_folder_build)
 
 
         # Re-apply hidden subfolders from right-click Hide Subfolders
@@ -2813,6 +2820,41 @@ class AssetBrowser(QWidget):
         self._folder_last_for = self._filtered_assets
         self._folder_last_hidden = frozenset(self._hidden_folders)
         self._folder_last_collapsed = frozenset(self._collapsed_folders)
+
+    def _build_folder_chunk(self, _initial: int = 0, _per_tick: int = 4):
+        """Build the next batch of FolderSections from the queue."""
+        n = _initial if _initial else _per_tick
+        plan = self._folder_build_plan
+        end = min(self._folder_build_idx + n, len(plan))
+        make = self._folder_build_make
+        insert = self._folder_build_insert
+        hdr_children = self._folder_build_hdr_children
+        touched_hdrs: set = set()
+        for i in range(self._folder_build_idx, end):
+            kind, folder, assets, depth, parent_hdr = plan[i]
+            section = make(folder, assets, depth)
+            if section is None:
+                continue
+            insert(section)
+            self._folder_sections.append(section)
+            if parent_hdr is not None:
+                hdr_children[parent_hdr].append(section)
+                touched_hdrs.add(parent_hdr)
+        # Update root headers whose child set just grew so the count badge
+        # tracks reality during incremental builds.
+        for hdr in touched_hdrs:
+            hdr.set_children(hdr_children[hdr])
+        self._folder_build_idx = end
+
+    def _drain_folder_build(self):
+        """Drain the build queue across UI-thread ticks. Yields between
+        chunks so user input + scrolling stay responsive while we construct
+        the remaining FolderSections in the background."""
+        if self._folder_build_idx >= len(self._folder_build_plan):
+            return
+        self._build_folder_chunk()
+        if self._folder_build_idx < len(self._folder_build_plan):
+            QTimer.singleShot(0, self._drain_folder_build)
 
     def _finalize_folder_layout(self):
         """One-shot layout finalization after folder sections are created."""
