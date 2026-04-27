@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import time as _perf_time_mod
 import tempfile
 import uuid
 try:
@@ -35,7 +36,7 @@ from PySide6.QtGui import (
 from doxyedit.models import Project, PLATFORMS, TAG_ALL, TAG_SHORTCUTS, toggle_tags
 from doxyedit import windroptarget
 from doxyedit.browser import AssetBrowser, IMAGE_EXTS, THUMB_GEN_SIZE
-from doxyedit.perf import perf_time
+from doxyedit.perf import perf_time, perf_block
 from doxyedit.themes import THEMES, THEME_GROUPS, DEFAULT_THEME, generate_stylesheet
 from doxyedit.platforms import PlatformPanel
 from doxyedit.timeline import TimelineStream
@@ -7295,16 +7296,23 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._project_slots[self._current_slot]["project"] = self.project
 
         # Re-apply theme so project accent color takes effect
+        _ph = _perf_time_mod.perf_counter
+        _t = _ph()
         tid = self.project.theme_id if (self.project.theme_id and self.project.theme_id in THEMES) \
             else self._settings.value("theme", DEFAULT_THEME)
         self._apply_theme(tid)
+        perf_block("rebind.apply_theme", (_ph() - _t) * 1000.0)
+        _t = _ph()
         shared = self._settings.value("shared_cache", "true") == "true"
         cache_name = "shared" if shared else self.project.name
         self.browser._thumb_cache.set_project(cache_name)
+        perf_block("rebind.thumbcache_set_project", (_ph() - _t) * 1000.0)
         self.browser.project = self.project
         self.work_tray._project = self.project
         self.browser.rebuild_tag_bar()
+        _t = _ph()
         self.browser._model.update_post_status(self.project.posts)
+        perf_block("rebind.update_post_status", (_ph() - _t) * 1000.0)
         # Restore eye-hidden tags + sort mode BEFORE refresh so we only refresh once
         if self.project.eye_hidden_tags:
             self.browser._eye_hidden_tags = set(self.project.eye_hidden_tags)
@@ -7317,32 +7325,58 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.browser.refresh()
         # Lazy panels: mark stale via set_project. Their refresh runs when
         # the containing tab becomes active (see _on_inner_tab_changed).
+        _t = _ph()
         self.platform_panel.set_project(self.project)
+        perf_block("rebind.platform_panel", (_ph() - _t) * 1000.0)
+        _t = _ph()
         self.stats_panel.set_project(self.project)
         self.stats_panel.folder_bar_color = self._theme.accent_bright
+        perf_block("rebind.stats_panel", (_ph() - _t) * 1000.0)
+        _t = _ph()
         self.checklist_panel.set_project(self.project)
+        perf_block("rebind.checklist_panel", (_ph() - _t) * 1000.0)
+        _t = _ph()
         self.health_panel.set_project(self.project)
+        perf_block("rebind.health_panel", (_ph() - _t) * 1000.0)
+        _t = _ph()
         self._file_browser.set_project(self.project)
+        perf_block("rebind.file_browser", (_ph() - _t) * 1000.0)
         if hasattr(self, '_timeline'):
+            _t = _ph()
             self._timeline.set_project(self.project)
+            perf_block("rebind.timeline", (_ph() - _t) * 1000.0)
         if hasattr(self, '_calendar_pane'):
+            _t = _ph()
             self._calendar_pane.set_project(self.project)
+            perf_block("rebind.calendar_pane", (_ph() - _t) * 1000.0)
         if hasattr(self, '_gantt_panel'):
+            _t = _ph()
             self._gantt_panel.set_project(self.project)
+            perf_block("rebind.gantt_panel", (_ph() - _t) * 1000.0)
         # If the user is ALREADY on a tab containing lazy panels, refresh them now
         # so they see fresh data without switching away and back.
+        _t = _ph()
         self._refresh_lazy_panels_on_current_tab()
+        perf_block("rebind.refresh_lazy_panels", (_ph() - _t) * 1000.0)
         if hasattr(self, 'studio'):
+            _t = _ph()
             self.studio.set_project(self.project, self._project_path or "")
+            perf_block("rebind.studio", (_ph() - _t) * 1000.0)
         if hasattr(self, '_smart_folder_menu'):
+            _t = _ph()
             self._rebuild_smart_folder_menu()
+            perf_block("rebind.smart_folder_menu", (_ph() - _t) * 1000.0)
         if hasattr(self, '_info_panel'):
+            _t = _ph()
             tags = self.project.get_tags() if self.project else {}
             self._info_panel.set_available_tags(sorted(tags.keys()))
             self._info_panel.set_tag_palette({tid: tp.color for tid, tp in tags.items()})
+            perf_block("rebind.info_panel", (_ph() - _t) * 1000.0)
+        _t = _ph()
         self.tag_panel.set_assets([])
         self.tag_panel.refresh_discovered_tags(self.project.assets, self.project)
         self.tag_panel.update_tag_counts(self.project.assets, self.project)
+        perf_block("rebind.tag_panel", (_ph() - _t) * 1000.0)
         if self._notes_edit.isVisible():
             self._notes_edit.blockSignals(True)
             self._notes_edit.setPlainText(self.project.notes)
@@ -7357,6 +7391,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         QTimer.singleShot(0, self._deferred_rebind)
         # Restore work tray
         if self.project.tray_items:
+            _t = _ph()
             self.work_tray.load_state(self.project.tray_items, self.project)
             # Feed any already-cached pixmaps to the tray
             tray_data = self.project.tray_items
@@ -7385,6 +7420,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     self._toggle_tray_action.setText("Hide Work Tray")
                     if hasattr(self, "_tray_btn"):
                         self._tray_btn.setChecked(True)
+            perf_block("rebind.tray_restore", (_ph() - _t) * 1000.0)
 
         # Update tag panel eye buttons to match restored eye_hidden_tags
         if self.project.eye_hidden_tags:
