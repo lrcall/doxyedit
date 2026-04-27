@@ -1031,7 +1031,11 @@ class Project:
 
     @classmethod
     def load(cls, path: str) -> "Project":
+        from doxyedit.perf import perf_block
+        import time as _t
+        _t0 = _t.perf_counter()
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        perf_block("project_load.json_parse", (_t.perf_counter() - _t0) * 1000.0)
         base = Path(path).parent
         local = bool(raw.get("local_mode", False))
         proj = cls(
@@ -1131,6 +1135,7 @@ class Project:
         # Eager-build indexes so the first refresh after load doesn't pay
         # the index-build cost during the user's first interaction.
         proj._ensure_indexes()
+        perf_block("project_load.total", (_t.perf_counter() - _t0) * 1000.0)
         return proj
 
     def get_post(self, post_id: str) -> Optional[SocialPost]:

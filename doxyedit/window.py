@@ -35,6 +35,7 @@ from PySide6.QtGui import (
 from doxyedit.models import Project, PLATFORMS, TAG_ALL, TAG_SHORTCUTS, toggle_tags
 from doxyedit import windroptarget
 from doxyedit.browser import AssetBrowser, IMAGE_EXTS, THUMB_GEN_SIZE
+from doxyedit.perf import perf_time
 from doxyedit.themes import THEMES, THEME_GROUPS, DEFAULT_THEME, generate_stylesheet
 from doxyedit.platforms import PlatformPanel
 from doxyedit.timeline import TimelineStream
@@ -7259,6 +7260,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.setWindowTitle("DoxyEdit — New Project")
         self.status.showMessage("New project")
 
+    @perf_time("rebind_project")
     def _rebind_project(self, clear_folder_state: bool = False):
         # Clear per-project browser state
         self.browser._bar_tag_filters.clear()

@@ -31,6 +31,7 @@ from doxyedit.models import (
 from doxyedit.themes import THEMES, DEFAULT_THEME
 from doxyedit.preview import HoverPreview
 from doxyedit.thumbcache import ThumbCache, THUMB_SIZE
+from doxyedit.perf import perf_time
 
 from PySide6.QtWidgets import QLayout, QProgressDialog
 
@@ -1721,6 +1722,7 @@ class AssetBrowser(QWidget):
             self._tag_button_map[tag_id] = btn
             self._tag_flow.addWidget(btn)
 
+    @perf_time("rebuild_tag_bar")
     def rebuild_tag_bar(self):
         self._rebuild_tag_buttons()
         # _add_tag_btn and _clear_filter_btn are created once in _build; just re-append
@@ -2348,6 +2350,7 @@ class AssetBrowser(QWidget):
         self._filter_cache = (sig, result)
         return result
 
+    @perf_time("compute_filtered")
     def _compute_filtered_uncached(self) -> list[Asset]:
         # Build predicates, then do ONE pass over all assets (avoids 11+ list copies).
         # os.path.basename / dirname / splitext are C-implemented and ~3x faster
@@ -2535,6 +2538,7 @@ class AssetBrowser(QWidget):
             assets.sort(key=lambda a, k=_stem: k(a.source_path), reverse=True)
         return assets
 
+    @perf_time("refresh_grid")
     def _refresh_grid(self):
         # Auto-reduce thumb size for large projects so the initial load is fast
         n = len(self.project.assets)
@@ -2604,6 +2608,7 @@ class AssetBrowser(QWidget):
                 self._variant_sets.setdefault(vs, []).append(a.id)
         self._used_tag_ids = used_tags
 
+    @perf_time("rebuild_folder_sections")
     def _rebuild_folder_sections(self, saved_ids=None):
         """Rebuild per-folder QListView sections, grouped under import-source roots."""
         from collections import defaultdict

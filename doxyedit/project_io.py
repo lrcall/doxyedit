@@ -24,6 +24,7 @@ from pathlib import Path
 from PySide6.QtCore import QThread, QMutex, QMutexLocker, QWaitCondition, Signal
 
 from doxyedit.models import Project
+from doxyedit.perf import perf_time
 
 
 class BackgroundSaver(QThread):
@@ -172,6 +173,7 @@ class SaveLoadMixin:
         except Exception:
             pass
 
+    @perf_time("autosave_uithread")
     def _autosave(self):
         if not (self._dirty and self._project_path):
             return
