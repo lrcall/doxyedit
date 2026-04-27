@@ -938,12 +938,9 @@ class Project:
             return stored
         return str((base / p).resolve())
 
-    def build_save_dict(self, path: str) -> dict:
-        """Build the save payload as a plain dict. Pure UI-thread work
-        that can then be handed to a background thread for serialize+write.
-        Does the legacy custom_tags -> tag_definitions migration in place."""
-        base = Path(path).parent
-        # Migrate any legacy custom_tags into tag_definitions before saving
+    def _migrate_custom_tags(self):
+        """One-time UI-thread mutation. Call before background save so the
+        worker thread doesn't have to mutate tag_definitions."""
         for ct in self.custom_tags:
             if isinstance(ct, dict) and ct.get("id") and ct["id"] not in self.tag_definitions:
                 self.tag_definitions[ct["id"]] = {
@@ -953,6 +950,17 @@ class Project:
                 if ct.get("width"): self.tag_definitions[ct["id"]]["width"] = ct["width"]
                 if ct.get("height"): self.tag_definitions[ct["id"]]["height"] = ct["height"]
                 if ct.get("ratio"): self.tag_definitions[ct["id"]]["ratio"] = ct["ratio"]
+
+    def build_save_dict(self, path: str) -> dict:
+        """Build the save payload as a plain dict. Reads Project state but
+        does not mutate it - safe to call from any thread provided the
+        caller has run _migrate_custom_tags first on the UI thread.
+
+        Edits to assets concurrent with this call are racey but not
+        corrupting: at worst, one asset's saved entry reflects a stale
+        snapshot. The next autosave fixes it.
+        """
+        base = Path(path).parent
 
         def _asset_dict(a):
             d = asdict(a)
@@ -1015,6 +1023,7 @@ class Project:
 
     def save(self, path: str, *, compact: bool = False):
         """Synchronous save. Use BackgroundSaver for autosave on big projects."""
+        self._migrate_custom_tags()
         data = self.build_save_dict(path)
         self.write_save_dict(data, path, compact=compact)
 

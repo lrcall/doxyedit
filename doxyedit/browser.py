@@ -2348,25 +2348,30 @@ class AssetBrowser(QWidget):
 
     def _compute_filtered_uncached(self) -> list[Asset]:
         # Build predicates, then do ONE pass over all assets (avoids 11+ list copies).
+        # os.path.basename / dirname / splitext are C-implemented and ~3x faster
+        # than pathlib.Path on hot paths - this matters at 67k assets.
+        _bn = os.path.basename
+        _dn = os.path.dirname
+        _sp = os.path.splitext
         preds = []
 
         if self._folder_filter:
             _ff = {p.replace("\\", "/") for p in self._folder_filter}
-            preds.append(lambda a, ff=_ff:
-                         (a.source_folder or str(Path(a.source_path).parent)).replace("\\", "/") in ff)
+            preds.append(lambda a, ff=_ff, dn=_dn:
+                         (a.source_folder or dn(a.source_path)).replace("\\", "/") in ff)
 
         query = self.search_box.text().strip().lower()
         if query:
             if self.search_tags_check.isChecked():
                 preds.append(lambda a, q=query: any(q in t.lower() for t in a.tags))
             elif "*" in query or "?" in query:
-                preds.append(lambda a, q=query:
-                             fnmatch.fnmatch(Path(a.source_path).name.lower(), q) or
-                             fnmatch.fnmatch((a.source_folder or str(Path(a.source_path).parent)).lower(), q))
+                preds.append(lambda a, q=query, bn=_bn, dn=_dn:
+                             fnmatch.fnmatch(bn(a.source_path).lower(), q) or
+                             fnmatch.fnmatch((a.source_folder or dn(a.source_path)).lower(), q))
             else:
-                preds.append(lambda a, q=query:
-                             q in Path(a.source_path).name.lower() or
-                             q in (a.source_folder or str(Path(a.source_path).parent)).lower())
+                preds.append(lambda a, q=query, bn=_bn, dn=_dn:
+                             q in bn(a.source_path).lower() or
+                             q in (a.source_folder or dn(a.source_path)).lower())
 
         if self.filter_starred.isChecked():
             preds.append(lambda a: a.starred > 0)
@@ -2396,13 +2401,13 @@ class AssetBrowser(QWidget):
             _known = {".psd", ".png", ".jpg", ".jpeg", ".sai", ".sai2", ".webp", ".clip", ".csp"}
             _ff = self._format_filter
             if _ff == "other":
-                preds.append(lambda a: Path(a.source_path).suffix.lower() not in _known)
+                preds.append(lambda a, sp=_sp, k=_known: sp(a.source_path)[1].lower() not in k)
             elif _ff == "jpg":
-                preds.append(lambda a: Path(a.source_path).suffix.lower() in (".jpg", ".jpeg"))
+                preds.append(lambda a, sp=_sp: sp(a.source_path)[1].lower() in (".jpg", ".jpeg"))
             elif _ff == "sai":
-                preds.append(lambda a: Path(a.source_path).suffix.lower() in (".sai", ".sai2"))
+                preds.append(lambda a, sp=_sp: sp(a.source_path)[1].lower() in (".sai", ".sai2"))
             else:
-                preds.append(lambda a, ext="." + _ff: Path(a.source_path).suffix.lower() == ext)
+                preds.append(lambda a, ext="." + _ff, sp=_sp: sp(a.source_path)[1].lower() == ext)
 
         if self._bar_tag_filters:
             _btf = self._bar_tag_filters
