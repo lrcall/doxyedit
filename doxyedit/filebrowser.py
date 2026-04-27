@@ -1,4 +1,5 @@
 """File browser panel — QTreeView + QFileSystemModel for filesystem browsing."""
+import os
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTreeView,
@@ -361,14 +362,24 @@ class FileBrowserPanel(QWidget):
         parent chain. O(K * avg_depth) where K = unique folders, vs prior
         O(K^2) prefix-match implementation.
         """
+        # Cache by (project identity, version) - set_project is called on
+        # every rebind, but counts only change when assets actually change.
+        if self._project:
+            sig = (id(self._project), getattr(self._project, "version", 0))
+            if getattr(self, "_folder_count_sig", None) == sig:
+                return
         self._folder_counts.clear()
         self._recursive_counts: dict[str, int] = {}
         if not self._project:
             return
+        # os.path.dirname is ~3x faster than Path().parent across 67k assets.
+        _dn = os.path.dirname
+        _fc = self._folder_counts
         for asset in self._project.assets:
-            folder = asset.source_folder or str(Path(asset.source_path).parent)
+            folder = asset.source_folder or _dn(asset.source_path)
             folder = folder.replace("\\", "/")
-            self._folder_counts[folder] = self._folder_counts.get(folder, 0) + 1
+            _fc[folder] = _fc.get(folder, 0) + 1
+        self._folder_count_sig = (id(self._project), getattr(self._project, "version", 0))
 
         # Propagate direct counts up each path's ancestor chain.
         for folder, direct in self._folder_counts.items():
