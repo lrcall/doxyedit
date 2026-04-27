@@ -1084,11 +1084,24 @@ class Project:
         else:
             proj._custom_platforms = {}
 
+        # Hoist locals so the per-asset loop doesn't pay attribute / global
+        # lookup costs 67k+ times. None of these change inside the loop.
         aliases = proj.tag_aliases
+        _censor_fields = set(CensorRegion.__dataclass_fields__)
+        _to_abs = cls._to_abs
+        _digit_re = re.compile(r'^\d+x\d+')
+        _CropRegion = CropRegion
+        _CensorRegion = CensorRegion
+        _CanvasOverlay_from = CanvasOverlay.from_dict
+        _PlatformAssignment = PlatformAssignment
+        _Asset = Asset
+        _proj_assets = proj.assets
+        _PostStatus_PENDING = PostStatus.PENDING
         for a in raw.get("assets", []):
+            _aget = a.get
             # Resolve tag aliases
-            raw_tags = a.get("tags", [])
-            if aliases:
+            raw_tags = _aget("tags", [])
+            if aliases and raw_tags:
                 seen: set[str] = set()
                 resolved = []
                 for t in raw_tags:
@@ -1097,41 +1110,58 @@ class Project:
                         seen.add(canonical)
                         resolved.append(canonical)
                 raw_tags = resolved
-            raw_notes = a.get("notes", "")
-            raw_specs = a.get("specs", {})
+            raw_notes = _aget("notes", "")
+            raw_specs = _aget("specs", {})
             # Auto-migrate CLI-generated notes to specs
-            if raw_notes and not raw_specs and re.match(r'^\d+x\d+', raw_notes.strip()):
+            if raw_notes and not raw_specs and _digit_re.match(raw_notes.strip()):
                 raw_specs["cli_info"] = raw_notes.strip()
                 raw_notes = ""
-            raw_sp = a.get("source_path", "")
-            raw_sf = a.get("source_folder", "")
-            asset = Asset(
-                id=a.get("id", ""),
-                source_path=cls._to_abs(raw_sp, base) if local and raw_sp else raw_sp,
-                source_folder=cls._to_abs(raw_sf, base) if local and raw_sf else raw_sf,
-                starred=int(a.get("starred", 0)) if not isinstance(a.get("starred"), bool) else (1 if a.get("starred") else 0),
+            raw_sp = _aget("source_path", "")
+            raw_sf = _aget("source_folder", "")
+            # starred: one .get() call, not three
+            raw_starred = _aget("starred", 0)
+            starred_val = 1 if (raw_starred is True) else (0 if (raw_starred is False) else int(raw_starred))
+            asset = _Asset(
+                id=_aget("id", ""),
+                source_path=_to_abs(raw_sp, base) if (local and raw_sp) else raw_sp,
+                source_folder=_to_abs(raw_sf, base) if (local and raw_sf) else raw_sf,
+                starred=starred_val,
                 tags=raw_tags,
                 notes=raw_notes,
                 specs=raw_specs,
             )
-            for c in a.get("crops", []):
-                asset.crops.append(CropRegion(**c))
-            for c in a.get("censors", []):
-                asset.censors.append(CensorRegion(**{k: v for k, v in c.items() if k in CensorRegion.__dataclass_fields__}))
-            for ov in a.get("overlays", []):
-                asset.overlays.append(CanvasOverlay.from_dict(ov))
-            for p in a.get("assignments", []):
-                pa = PlatformAssignment(
-                    platform=p.get("platform", ""),
-                    slot=p.get("slot", ""),
-                    status=p.get("status", PostStatus.PENDING),
-                    notes=p.get("notes", ""),
-                    campaign_id=p.get("campaign_id", ""),
-                )
-                if p.get("crop"):
-                    pa.crop = CropRegion(**p["crop"])
-                asset.assignments.append(pa)
-            proj.assets.append(asset)
+            crops_in = _aget("crops")
+            if crops_in:
+                _ac = asset.crops.append
+                for c in crops_in:
+                    _ac(_CropRegion(**c))
+            censors_in = _aget("censors")
+            if censors_in:
+                _ac = asset.censors.append
+                for c in censors_in:
+                    _ac(_CensorRegion(**{k: v for k, v in c.items() if k in _censor_fields}))
+            overlays_in = _aget("overlays")
+            if overlays_in:
+                _ac = asset.overlays.append
+                for ov in overlays_in:
+                    _ac(_CanvasOverlay_from(ov))
+            assignments_in = _aget("assignments")
+            if assignments_in:
+                _ac = asset.assignments.append
+                for p in assignments_in:
+                    _pget = p.get
+                    pa = _PlatformAssignment(
+                        platform=_pget("platform", ""),
+                        slot=_pget("slot", ""),
+                        status=_pget("status", _PostStatus_PENDING),
+                        notes=_pget("notes", ""),
+                        campaign_id=_pget("campaign_id", ""),
+                    )
+                    pcrop = _pget("crop")
+                    if pcrop:
+                        pa.crop = _CropRegion(**pcrop)
+                    _ac(pa)
+            _proj_assets.append(asset)
         # Eager-build indexes so the first refresh after load doesn't pay
         # the index-build cost during the user's first interaction.
         proj._ensure_indexes()
