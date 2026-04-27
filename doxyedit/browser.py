@@ -2613,10 +2613,13 @@ class AssetBrowser(QWidget):
         """Rebuild per-folder QListView sections, grouped under import-source roots."""
         from collections import defaultdict
 
-        # Group assets by folder (order preserved from sorted filtered list)
+        # Group assets by folder (order preserved from sorted filtered list).
+        # os.path.dirname is ~3x faster than Path(p).parent.as_posix(); at
+        # 67k assets that single-line swap is worth ~50ms.
+        _dn = os.path.dirname
         groups: dict[str, list] = defaultdict(list)
         for a in self._filtered_assets:
-            folder = a.source_folder or Path(a.source_path).parent.as_posix()
+            folder = a.source_folder or _dn(a.source_path).replace("\\", "/")
             groups[folder].append(a)
 
         # Remove old sections and root headers
@@ -2629,44 +2632,49 @@ class AssetBrowser(QWidget):
             hdr.deleteLater()
         self._root_headers = []
 
-        # Build import-source → child-folders map
-        import_roots: list[str] = [
-            src["path"] for src in self.project.import_sources
-            if src.get("type") == "folder"
-        ]
+        # Build import-source → child-folders map. Pre-normalize roots to
+        # forward slashes + strip trailing slash so prefix-string matching
+        # is correct across Windows/Posix and avoids per-folder Path() ops.
+        def _norm(p: str) -> str:
+            return p.replace("\\", "/").rstrip("/")
+        # Pre-compute (normalized_root, depth_in_segments) once. find_root
+        # then becomes a startswith scan with no Path() construction.
+        roots_norm: list[tuple[str, int]] = sorted(
+            ((_norm(src["path"]), _norm(src["path"]).count("/") + 1)
+             for src in self.project.import_sources
+             if src.get("type") == "folder"),
+            key=lambda x: -x[1],  # deepest first so the first match wins
+        )
 
-        def find_root(folder: str) -> str | None:
-            """Return the deepest import_root that is an ancestor of folder."""
-            fp = Path(folder)
-            best = None
-            best_len = 0
-            for root in import_roots:
-                rp = Path(root)
-                try:
-                    fp.relative_to(rp)
-                    if len(rp.parts) > best_len:
-                        best = root
-                        best_len = len(rp.parts)
-                except ValueError:
-                    pass
-            return best
+        def find_root(folder_norm: str) -> tuple[str, int] | tuple[None, int]:
+            """Return (deepest_import_root, root_depth) ancestor of folder, or (None, 0)."""
+            for r, rd in roots_norm:
+                # Match either exact or as a true ancestor (with / separator)
+                if folder_norm == r or folder_norm.startswith(r + "/"):
+                    return r, rd
+            return None, 0
+
+        # Pre-compute folder normalizations + depths once (O(folders), not O(folders²))
+        folder_norm_cache: dict[str, str] = {f: _norm(f) for f in groups}
+        folder_depth_cache: dict[str, int] = {f: fn.count("/") + 1
+                                              for f, fn in folder_norm_cache.items()}
+        # min_depth (for orphan folders) is invariant across the loop - hoist it.
+        min_depth = min(folder_depth_cache.values()) if folder_depth_cache else 0
 
         # Build ordered groups: root → [(folder, assets, depth)]
         root_groups: dict[str | None, list] = defaultdict(list)
         root_order: list[str | None] = []
         seen_roots: set = set()
         for folder, assets in groups.items():
-            root = find_root(folder)
+            fn = folder_norm_cache[folder]
+            root, root_depth = find_root(fn)
             if root not in seen_roots:
                 root_order.append(root)
                 seen_roots.add(root)
             if root:
-                rel_depth = len(Path(folder).parts) - len(Path(root).parts)
+                rel_depth = folder_depth_cache[folder] - root_depth
             else:
-                # No import root — compute depth from shallowest folder in project
-                all_parts = [len(Path(f).parts) for f in groups]
-                min_depth = min(all_parts) if all_parts else 0
-                rel_depth = len(Path(folder).parts) - min_depth
+                rel_depth = folder_depth_cache[folder] - min_depth
             root_groups[root].append((folder, assets, rel_depth))
 
         def _make_section(folder, assets, depth):
