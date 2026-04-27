@@ -641,9 +641,11 @@ class SocialPost:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class Asset:
-    """A single image asset in the project."""
+    """A single image asset in the project.
+    slots=True saves ~30% memory per instance and speeds up attribute
+    access. At 67k assets the dict-overhead saving is real."""
     id: str = ""
     source_path: str = ""       # original file path
     source_folder: str = ""     # which folder it came from
@@ -1126,6 +1128,9 @@ class Project:
                     pa.crop = CropRegion(**p["crop"])
                 asset.assignments.append(pa)
             proj.assets.append(asset)
+        # Eager-build indexes so the first refresh after load doesn't pay
+        # the index-build cost during the user's first interaction.
+        proj._ensure_indexes()
         return proj
 
     def get_post(self, post_id: str) -> Optional[SocialPost]:

@@ -1267,6 +1267,8 @@ class AssetBrowser(QWidget):
         self._collapsed_folders: set[str] = set()
         self._hidden_folders: set[str] = set()
         self._folder_filter: set[str] | None = None  # None = show all
+        # Persistent path -> (mtime, size). Survives refresh; cleared on project switch.
+        self._stat_cache: dict[str, tuple[float, int]] = {}
         self._folder_sections: list[FolderSection] = []
         self._prev_sort_mode: str = "Name A-Z"  # last non-folder sort; used as within-folder secondary sort
         self._current_font_size = 10
@@ -2452,14 +2454,21 @@ class AssetBrowser(QWidget):
             if secondary in ("Newest", "Oldest", "Largest", "Smallest"):
                 mtime_cache: dict[str, float] = {}
                 fsize_cache: dict[str, int] = {}
+                # Persistent stat cache - on Dropbox/network paths each
+                # os.stat can be ~ms. 67k of those is several seconds.
+                # Cache by path; only re-stat paths we haven't seen.
+                _sc = self._stat_cache
                 for a in assets:
-                    try:
-                        st = os.stat(a.source_path)
-                        mtime_cache[a.id] = st.st_mtime
-                        fsize_cache[a.id] = st.st_size
-                    except OSError:
-                        mtime_cache[a.id] = 0
-                        fsize_cache[a.id] = 0
+                    cached = _sc.get(a.source_path)
+                    if cached is None:
+                        try:
+                            st = os.stat(a.source_path)
+                            cached = (st.st_mtime, st.st_size)
+                        except OSError:
+                            cached = (0, 0)
+                        _sc[a.source_path] = cached
+                    mtime_cache[a.id] = cached[0]
+                    fsize_cache[a.id] = cached[1]
                 sec_funcs = {
                     "Newest":   (lambda a: mtime_cache[a.id], True),
                     "Oldest":   (lambda a: mtime_cache[a.id], False),
@@ -2468,32 +2477,38 @@ class AssetBrowser(QWidget):
                 }
                 fn, rev = sec_funcs[secondary]
                 assets.sort(key=fn, reverse=rev)
-            elif secondary == "Name Z-A":
-                assets.sort(key=lambda a: Path(a.source_path).stem.lower(), reverse=True)
+            _stem = lambda p: os.path.splitext(os.path.basename(p))[0].lower()
+            if secondary == "Name Z-A":
+                assets.sort(key=lambda a, k=_stem: k(a.source_path), reverse=True)
             elif secondary == "Starred First":
-                assets.sort(key=lambda a: (0 if a.starred > 0 else 1,
-                                           Path(a.source_path).stem.lower()))
+                assets.sort(key=lambda a, k=_stem:
+                            (0 if a.starred > 0 else 1, k(a.source_path)))
             elif secondary == "Most Tagged":
-                assets.sort(key=lambda a: (-len(a.tags), Path(a.source_path).stem.lower()))
+                assets.sort(key=lambda a, k=_stem: (-len(a.tags), k(a.source_path)))
             else:  # Name A-Z (default)
-                assets.sort(key=lambda a: Path(a.source_path).stem.lower())
+                assets.sort(key=lambda a, k=_stem: k(a.source_path))
             # Stable sort by folder groups each section while preserving within-folder order
-            assets.sort(key=lambda a: (a.source_folder or
-                                       Path(a.source_path).parent.as_posix()).lower())
+            assets.sort(key=lambda a:
+                        (a.source_folder or
+                         os.path.dirname(a.source_path).replace("\\", "/")).lower())
             return assets  # collapse handled by FolderSection visibility
 
         # For stat-based sorts, batch all os.stat calls once (O(n)) before sort
         if sort_mode in ("Newest", "Oldest", "Largest", "Smallest"):
             mtime_cache: dict[str, float] = {}
             fsize_cache: dict[str, int] = {}
+            _sc = self._stat_cache
             for a in assets:
-                try:
-                    st = os.stat(a.source_path)
-                    mtime_cache[a.id] = st.st_mtime
-                    fsize_cache[a.id] = st.st_size
-                except OSError:
-                    mtime_cache[a.id] = 0
-                    fsize_cache[a.id] = 0
+                cached = _sc.get(a.source_path)
+                if cached is None:
+                    try:
+                        st = os.stat(a.source_path)
+                        cached = (st.st_mtime, st.st_size)
+                    except OSError:
+                        cached = (0, 0)
+                    _sc[a.source_path] = cached
+                mtime_cache[a.id] = cached[0]
+                fsize_cache[a.id] = cached[1]
             stat_funcs = {
                 "Newest":   (lambda a: mtime_cache[a.id], True),
                 "Oldest":   (lambda a: mtime_cache[a.id], False),
@@ -2504,21 +2519,20 @@ class AssetBrowser(QWidget):
             assets.sort(key=fn, reverse=rev)
             return assets
 
+        _stem = lambda p: os.path.splitext(os.path.basename(p))[0].lower()
+
         if sort_mode == "Starred First":
-            assets.sort(key=lambda a: (0 if a.starred > 0 else 1, Path(a.source_path).stem.lower()))
+            assets.sort(key=lambda a, k=_stem: (0 if a.starred > 0 else 1, k(a.source_path)))
             return assets
 
         if sort_mode == "Most Tagged":
-            assets.sort(key=lambda a: (-len(a.tags), Path(a.source_path).stem.lower()))
+            assets.sort(key=lambda a, k=_stem: (-len(a.tags), k(a.source_path)))
             return assets
 
-        key_funcs = {
-            "Name A-Z": (lambda a: Path(a.source_path).stem.lower(), False),
-            "Name Z-A": (lambda a: Path(a.source_path).stem.lower(), True),
-        }
-        if sort_mode in key_funcs:
-            fn, rev = key_funcs[sort_mode]
-            assets.sort(key=fn, reverse=rev)
+        if sort_mode == "Name A-Z":
+            assets.sort(key=lambda a, k=_stem: k(a.source_path))
+        elif sort_mode == "Name Z-A":
+            assets.sort(key=lambda a, k=_stem: k(a.source_path), reverse=True)
         return assets
 
     def _refresh_grid(self):

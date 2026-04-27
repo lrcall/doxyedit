@@ -7264,6 +7264,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.browser._bar_tag_filters.clear()
         self.browser._clear_filter_btn.setVisible(False)
         self.browser._temp_hidden_ids.clear()
+        self.browser._stat_cache.clear()
+        self.browser._filter_cache = None
         if clear_folder_state:
             self.browser._collapsed_folders.clear()
             self.browser._hidden_folders.clear()
