@@ -160,6 +160,9 @@ class _Splash(QWidget):
         self._cancel_btn = QPushButton("Cancel Load", card)
         self._cancel_btn.clicked.connect(self._on_cancel)
         btn_row.addWidget(self._cancel_btn)
+        self._empty_btn = QPushButton("Open Empty Project", card)
+        self._empty_btn.clicked.connect(self._on_open_empty)
+        btn_row.addWidget(self._empty_btn)
         self._quit_btn = QPushButton("Quit", card)
         self._quit_btn.clicked.connect(self._on_quit)
         btn_row.addWidget(self._quit_btn)
@@ -189,6 +192,7 @@ class _Splash(QWidget):
     def _on_cancel(self):
         self._cancelled = True
         self._cancel_btn.setEnabled(False)
+        self._empty_btn.setEnabled(False)
         self._status.setText("Cancelling...")
         # Forward immediately to the active loader so it stops on its
         # next chokepoint instead of waiting for the main-thread poll.
@@ -197,6 +201,12 @@ class _Splash(QWidget):
                 self._cancel_binding()
             except Exception:
                 pass
+
+    def _on_open_empty(self):
+        """Same end state as Cancel - blank project - but the button label
+        tells the user what they'll get instead of just "what they're
+        leaving". Reaches the same code path."""
+        self._on_cancel()
 
     def _on_quit(self):
         self._quit = True
