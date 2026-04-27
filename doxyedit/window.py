@@ -1697,7 +1697,11 @@ class MainWindow(SaveLoadMixin, QMainWindow):
                 nxt = (cur - 1) % n if backward else (cur + 1) % n
                 self.tabs.setCurrentIndex(nxt)
                 return True
-        return super().eventFilter(obj, event)
+        try:
+            return super().eventFilter(obj, event)
+        except RuntimeError:
+            # obj was C++-deleted but a queued event still arrived
+            return False
 
     def _refresh_dirty_marker(self):
         """Prepend '*' to the window title + current project-tab label
@@ -7952,7 +7956,18 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             if hasattr(self, '_hotkey_filter'):
                 QApplication.instance().removeNativeEventFilter(self._hotkey_filter)
         if self._dirty and self._project_path:
+            # Synchronous final save on close - we want it durable, and
+            # the user is already waiting for the window to close.
             self._save_project_silently(self._project_path)
+        # Drain any pending background saves before shutdown so we don't
+        # truncate the file by killing the worker mid-write.
+        bs = getattr(self, "_bg_saver", None)
+        if bs is not None:
+            try:
+                bs.flush(timeout_ms=15_000)
+                bs.stop()
+            except Exception:
+                pass
         # Save splitter and window position/size
         self._settings.setValue("splitter_sizes", self._browse_split.sizes())
         self._settings.setValue("social_splitter_v", self._social_split.sizes())

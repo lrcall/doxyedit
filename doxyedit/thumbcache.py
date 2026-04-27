@@ -430,7 +430,18 @@ class ThumbWorker(QThread):
                 _global_index.save()
 
 
-_LRU_MAX = 2000  # max pixmaps kept in memory — prioritize speed over footprint
+_LRU_MAX = 2000  # legacy item-count cap — kept for migration / floor
+_LRU_BYTES_MAX = 800 * 1024 * 1024  # 800 MB pixmap RAM budget. A 4K canvas
+# page is ~32 MB while a 256px grid thumb is ~256 KB — counting items isn't
+# meaningful, so evict by approximate byte size instead.
+
+
+def _pixmap_bytes(pm) -> int:
+    """Approximate RAM cost of a QPixmap (4 bytes per pixel for RGBA)."""
+    try:
+        return max(0, pm.width()) * max(0, pm.height()) * 4
+    except Exception:
+        return 0
 
 
 def _safe_name(project_name: str) -> str:
@@ -458,7 +469,10 @@ class ThumbCache:
 
     def __init__(self):
         self._lru_max = _LRU_MAX
+        self._lru_bytes_max = _LRU_BYTES_MAX
         self._pixmaps: OrderedDict[str, QPixmap] = OrderedDict()
+        self._pixmap_bytes: dict[str, int] = {}
+        self._bytes_used: int = 0
         self._gen_sizes: dict[str, int] = {}
         self._dims: dict[str, tuple[int, int]] = {}
         self._base_cache_dir: Path | None = (
@@ -479,6 +493,18 @@ class ThumbCache:
         """Set the max number of pixmaps kept in memory."""
         self._lru_max = max(100, n)
 
+    def set_lru_bytes_max(self, n: int):
+        """Set the byte budget for the in-memory pixmap cache."""
+        self._lru_bytes_max = max(64 * 1024 * 1024, n)
+        self._evict_to_budget()
+
+    def memory_report(self) -> dict:
+        return {
+            "items": len(self._pixmaps),
+            "bytes": self._bytes_used,
+            "budget": self._lru_bytes_max,
+        }
+
     def set_project(self, project_name: str):
         """Switch disk cache to a per-project subfolder.
         Keeps in-memory cache when the disk folder doesn't change (shared cache)."""
@@ -494,6 +520,8 @@ class ThumbCache:
             self._disk_cache = new_disk
             # Different folder — clear in-memory cache to avoid stale thumbnails
             self._pixmaps.clear()
+            self._pixmap_bytes.clear()
+            self._bytes_used = 0
             self._gen_sizes.clear()
             self._dims.clear()
 
@@ -505,9 +533,23 @@ class ThumbCache:
 
     def invalidate(self, asset_id: str):
         """Remove cached pixmap so the next request regenerates it."""
-        self._pixmaps.pop(asset_id, None)
+        if asset_id in self._pixmaps:
+            self._bytes_used -= self._pixmap_bytes.pop(asset_id, 0)
+            self._pixmaps.pop(asset_id, None)
         self._gen_sizes.pop(asset_id, None)
         self._dims.pop(asset_id, None)
+
+    def _evict_to_budget(self):
+        """Evict oldest entries until under both item-count and byte budgets."""
+        while self._pixmaps and (
+            len(self._pixmaps) > self._lru_max
+            or self._bytes_used > self._lru_bytes_max
+        ):
+            evicted = next(iter(self._pixmaps))
+            self._bytes_used -= self._pixmap_bytes.pop(evicted, 0)
+            del self._pixmaps[evicted]
+            self._gen_sizes.pop(evicted, None)
+            self._dims.pop(evicted, None)
 
     def request(self, asset_id: str, path: str, size: int = THUMB_SIZE):
         if self._gen_sizes.get(asset_id, 0) >= size:
@@ -544,17 +586,17 @@ class ThumbCache:
             pixmap = img_or_pm
             if pixmap.isNull():
                 return False
+        # Update byte accounting before insert (replace counts the delta)
+        old_bytes = self._pixmap_bytes.pop(asset_id, 0)
+        new_bytes = _pixmap_bytes(pixmap)
+        self._bytes_used += new_bytes - old_bytes
+        self._pixmap_bytes[asset_id] = new_bytes
         self._pixmaps[asset_id] = pixmap
         self._pixmaps.move_to_end(asset_id)
         self._gen_sizes[asset_id] = gen_size
         if w and h:
             self._dims[asset_id] = (w, h)
-        # Evict oldest entries if over limit
-        while len(self._pixmaps) > self._lru_max:
-            evicted = next(iter(self._pixmaps))
-            del self._pixmaps[evicted]
-            self._gen_sizes.pop(evicted, None)
-            self._dims.pop(evicted, None)
+        self._evict_to_budget()
         return True
 
     def clear_queue(self):
@@ -568,6 +610,8 @@ class ThumbCache:
     def clear(self):
         self._worker.clear_queue()
         self._pixmaps.clear()
+        self._pixmap_bytes.clear()
+        self._bytes_used = 0
         self._gen_sizes.clear()
         self._dims.clear()
 

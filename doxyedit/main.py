@@ -2,6 +2,7 @@
 import sys
 import traceback
 import logging
+import faulthandler
 from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
@@ -12,6 +13,7 @@ from doxyedit.themes import THEMES, DEFAULT_THEME
 from doxyedit.window import MainWindow
 
 _LOG_PATH = Path.home() / ".doxyedit" / "doxyedit.log"
+_FAULT_PATH = Path.home() / ".doxyedit" / "faulthandler.log"
 
 def _setup_logging():
     """File logger for all warnings/errors — survives windowless mode."""
@@ -23,6 +25,15 @@ def _setup_logging():
             format="%(asctime)s %(levelname)s %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
+        # Catch native segfaults that bypass sys.excepthook. File is kept open
+        # for the lifetime of the process so the kernel can flush on crash.
+        _fh = open(str(_FAULT_PATH), "a", buffering=1, encoding="utf-8")
+        _fh.write(f"\n=== faulthandler armed {Path(__file__).name} ===\n")
+        faulthandler.enable(file=_fh, all_threads=True)
+        # Defensive: deep recursion has bitten us (browser._mark_dirty self-call).
+        # Lift the cap modestly so the next case still raises but doesn't exhaust
+        # the stack mid-paint.
+        sys.setrecursionlimit(max(sys.getrecursionlimit(), 3000))
     except Exception as e:
         print(f"Logging setup failed: {e}", file=sys.stderr)
 

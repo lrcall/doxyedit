@@ -1,6 +1,7 @@
 """Central data model — everything saves to readable JSON."""
 from __future__ import annotations
 import json
+import os
 import re
 from dataclasses import dataclass, field, asdict, MISSING
 from enum import Enum
@@ -937,7 +938,10 @@ class Project:
             return stored
         return str((base / p).resolve())
 
-    def save(self, path: str):
+    def build_save_dict(self, path: str) -> dict:
+        """Build the save payload as a plain dict. Pure UI-thread work
+        that can then be handed to a background thread for serialize+write.
+        Does the legacy custom_tags -> tag_definitions migration in place."""
         base = Path(path).parent
         # Migrate any legacy custom_tags into tag_definitions before saving
         for ct in self.custom_tags:
@@ -995,7 +999,24 @@ class Project:
             "subreddits": [s.to_dict() for s in self.subreddits],
             "assets": [_asset_dict(a) for a in self.assets],
         }
-        Path(path).write_text(json.dumps(data, indent=2, default=str, ensure_ascii=False), encoding="utf-8")
+        return data
+
+    @staticmethod
+    def write_save_dict(data: dict, path: str, *, compact: bool = False):
+        """Serialize a save payload + atomic write. Safe to call from a
+        background thread - touches no Project state, no Qt objects."""
+        if compact:
+            payload = json.dumps(data, separators=(",", ":"), default=str, ensure_ascii=False)
+        else:
+            payload = json.dumps(data, indent=2, default=str, ensure_ascii=False)
+        tmp = Path(path).with_suffix(Path(path).suffix + ".tmp")
+        tmp.write_text(payload, encoding="utf-8")
+        os.replace(str(tmp), str(path))
+
+    def save(self, path: str, *, compact: bool = False):
+        """Synchronous save. Use BackgroundSaver for autosave on big projects."""
+        data = self.build_save_dict(path)
+        self.write_save_dict(data, path, compact=compact)
 
     @classmethod
     def load(cls, path: str) -> "Project":
@@ -1120,13 +1141,44 @@ class Project:
         return dict(PLATFORMS)
 
     def invalidate_index(self):
-        """Call after adding/removing assets."""
+        """Call after adding/removing assets or changing tags/source_paths."""
         self._asset_index = None
+        self._path_index = None
+        self._tag_users = None
+        self._version = getattr(self, '_version', 0) + 1
 
-    def get_asset(self, asset_id: str) -> Optional[Asset]:
+    def _ensure_indexes(self):
         if not getattr(self, '_asset_index', None):
             self._asset_index = {a.id: a for a in self.assets}
+        if getattr(self, '_path_index', None) is None:
+            self._path_index = {a.source_path for a in self.assets}
+        if getattr(self, '_tag_users', None) is None:
+            d: dict[str, set] = {}
+            for a in self.assets:
+                for t in a.tags:
+                    d.setdefault(t, set()).add(a.id)
+            self._tag_users = d
+
+    def get_asset(self, asset_id: str) -> Optional[Asset]:
+        self._ensure_indexes()
         return self._asset_index.get(asset_id)
+
+    @property
+    def path_index(self) -> set:
+        """Set of source_paths for fast existence checks during import."""
+        self._ensure_indexes()
+        return self._path_index
+
+    @property
+    def tag_users(self) -> dict:
+        """tag_id -> set[asset_id]. Inverted index."""
+        self._ensure_indexes()
+        return self._tag_users
+
+    @property
+    def version(self) -> int:
+        """Mutation counter for cache invalidation keys."""
+        return getattr(self, '_version', 0)
 
     def summary(self) -> dict:
         """Quick status summary — useful for Claude CLI queries."""

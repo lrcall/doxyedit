@@ -1233,7 +1233,7 @@ class AssetBrowser(QWidget):
     # ── Layout ratios (change here to rescale browser toolbar) ──
     ZOOM_SLIDER_WIDTH_RATIO = 9.0      # thumbnail size slider
     ZOOM_LABEL_WIDTH_RATIO = 2.8       # "NNpx" label next to slider
-    SEARCH_MIN_WIDTH_RATIO = 10.0      # search box minimum width
+    SEARCH_MIN_WIDTH_RATIO = 20.0      # search box minimum width
     files_toggled = Signal(bool)
 
     def __init__(self, project: Project, parent=None):
@@ -1677,7 +1677,7 @@ class AssetBrowser(QWidget):
         self._tag_buttons.clear()
         self._tag_button_map.clear()
 
-        all_used = {t for a in self.project.assets for t in a.tags}
+        all_used = set(self.project.tag_users.keys())
         all_tags = self.project.get_tags()
         bar_tags = {}
         for tid, preset in all_tags.items():
@@ -1880,7 +1880,7 @@ class AssetBrowser(QWidget):
             per_recursive = bool(src.get("recursive", False)) and recursive_ui
             folder_entries.append((p, per_recursive))
 
-        existing = frozenset(a.source_path for a in self.project.assets)
+        existing = self.project.path_index
         excluded = frozenset(getattr(self.project, 'excluded_paths', set()))
 
         # Collect all folders into one worker to avoid spawning many threads
@@ -1923,7 +1923,7 @@ class AssetBrowser(QWidget):
             self._scan_running = False
             if not new_files:
                 return
-            ex = {a.source_path for a in self.project.assets}
+            ex = self.project.path_index
             added = 0
             for path_str in new_files:
                 if path_str not in ex:
@@ -1983,7 +1983,18 @@ class AssetBrowser(QWidget):
 
     def _mark_dirty(self):
         """Signal the main window that project data changed."""
-        self._mark_dirty()
+        if getattr(self, "_in_mark_dirty", False):
+            return
+        self._in_mark_dirty = True
+        try:
+            win = self.window()
+            if win is not None:
+                try:
+                    win._dirty = True
+                except Exception:
+                    pass
+        finally:
+            self._in_mark_dirty = False
 
     def _on_link_mode_toggled(self, checked: bool):
         self._link_mode = checked
@@ -2811,8 +2822,12 @@ class AssetBrowser(QWidget):
             self.window().status.showMessage("Date filter cleared", 3000)
 
     def _on_folder_selection_changed(self, active_section=None):
-        # Clear other sections so cross-folder sticky selection doesn't accumulate
-        if active_section is not None:
+        # Preserve cross-folder selection when Ctrl/Shift is held; otherwise
+        # clear other sections so a plain click acts like a fresh selection.
+        mods = QApplication.keyboardModifiers()
+        keep_others = bool(mods & (Qt.KeyboardModifier.ControlModifier
+                                   | Qt.KeyboardModifier.ShiftModifier))
+        if active_section is not None and not keep_others:
             for section in self._folder_sections:
                 if section is not active_section:
                     section.view.selectionModel().blockSignals(True)
@@ -2914,7 +2929,8 @@ class AssetBrowser(QWidget):
             self.asset_preview.emit(asset.id)
 
     def get_selected_assets(self) -> list:
-        return [a for a in self.project.assets if a.id in self._selected_ids]
+        get = self.project.get_asset
+        return [a for aid in self._selected_ids if (a := get(aid)) is not None]
 
     # --- Tag bar filter ---
 
@@ -3033,7 +3049,7 @@ class AssetBrowser(QWidget):
         if recursive is None:
             recursive = self.recursive_check.isChecked()
         folder_path = Path(folder)
-        existing = {a.source_path for a in self.project.assets}
+        existing = self.project.path_index
         excluded = getattr(self.project, 'excluded_paths', set())
         count = 0
         it = folder_path.rglob("*") if recursive else folder_path.iterdir()
@@ -3065,7 +3081,7 @@ class AssetBrowser(QWidget):
 
     def _import_folder_async(self, folder: str, recursive: bool):
         """Non-blocking folder import with progress dialog — use for interactive picker."""
-        existing = frozenset(a.source_path for a in self.project.assets)
+        existing = self.project.path_index
         excluded = frozenset(getattr(self.project, 'excluded_paths', set()))
 
         dlg = QProgressDialog(
@@ -3116,7 +3132,7 @@ class AssetBrowser(QWidget):
         self.import_files(files)
 
     def import_files(self, files: list[str]):
-        existing = {a.source_path for a in self.project.assets}
+        existing = self.project.path_index
         excluded = getattr(self.project, 'excluded_paths', set())
         added = 0
         first_id = None
@@ -3326,14 +3342,17 @@ class AssetBrowser(QWidget):
             menu.addAction(f"Star All ({n})", self._star_all_selected)
             menu.addAction(f"Unstar All ({n})", self._unstar_all_selected)
             menu.addSeparator()
-        # Quick Tag submenu — used/custom tags flat at top, unused presets in "More Tags"
+        # Quick Tag submenu — user-created tags flat at top, then used presets, unused presets in "More Tags"
         all_tags_map = self.project.get_tags()
+        # User-created = anything in tag_definitions OR legacy custom_tags array
         custom_tag_ids = set(self.project.tag_definitions.keys())
+        for ct in self.project.custom_tags:
+            if isinstance(ct, dict) and ct.get("id"):
+                custom_tag_ids.add(ct["id"])
         used_tag_ids = getattr(self, '_used_tag_ids', set())
-        # "Active" = custom-defined OR actually used on assets — shown flat
-        active_tags = [t for t in all_tags_map.values()
-                       if t.id in custom_tag_ids or t.id in used_tag_ids]
-        # "Other" = preset tags not used and not custom — buried in More Tags
+        user_tags = [t for t in all_tags_map.values() if t.id in custom_tag_ids]
+        used_preset_tags = [t for t in all_tags_map.values()
+                            if t.id not in custom_tag_ids and t.id in used_tag_ids]
         other_tags = [t for t in all_tags_map.values()
                       if t.id not in custom_tag_ids and t.id not in used_tag_ids]
         if all_tags_map:
@@ -3345,13 +3364,20 @@ class AssetBrowser(QWidget):
                 a = parent_menu.addAction(f"{'✓ ' if checked else '   '}{tag.label}")
                 a.triggered.connect(lambda _, tid=tag.id: self._toggle_tag_multi(asset, tid))
 
-            # Active tags — flat, always first
-            for tag in active_tags:
+            # User-created tags — always first, flat
+            for tag in user_tags:
                 _add_tag_action(qt_menu, tag)
+
+            # Used presets — after a separator
+            if used_preset_tags:
+                if user_tags:
+                    qt_menu.addSeparator()
+                for tag in used_preset_tags:
+                    _add_tag_action(qt_menu, tag)
 
             # Unused preset tags — in "More Tags" submenu if any
             if other_tags:
-                if active_tags:
+                if user_tags or used_preset_tags:
                     qt_menu.addSeparator()
                 if len(other_tags) <= MAX_PER_COL:
                     for tag in other_tags:
@@ -3361,7 +3387,7 @@ class AssetBrowser(QWidget):
                     for col_start in range(0, len(other_tags), MAX_PER_COL):
                         chunk = other_tags[col_start:col_start + MAX_PER_COL]
                         first, last = chunk[0].label, chunk[-1].label
-                        col_menu = presets_menu.addMenu(f"{first} – {last}")
+                        col_menu = presets_menu.addMenu(f"{first} - {last}")
                         for tag in chunk:
                             _add_tag_action(col_menu, tag)
 
@@ -3789,7 +3815,7 @@ class AssetBrowser(QWidget):
                 self._post_press_restore(view)
                 # If we armed for drag but no drag happened,
                 # treat as normal click — deselect to just this item
-                if self._drag_snapshot_ids and self._drag_start_pos is not None:
+                if getattr(self, '_drag_snapshot_ids', None) and getattr(self, '_drag_start_pos', None) is not None:
                     pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
                     index = view.indexAt(pos)
                     if index.isValid():
