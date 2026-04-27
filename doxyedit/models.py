@@ -156,7 +156,7 @@ def check_fitness(img_w: int, img_h: int, tag: TagPreset) -> str:
         return "yellow"  # usable with cropping since image is large enough
 
 
-@dataclass
+@dataclass(slots=True)
 class CropRegion:
     """A rectangular crop selection on an asset.
 
@@ -174,7 +174,7 @@ class CropRegion:
     slot_name: str = ""
 
 
-@dataclass
+@dataclass(slots=True)
 class CensorRegion:
     """A non-destructive censor overlay rectangle."""
     x: int = 0
@@ -188,7 +188,7 @@ class CensorRegion:
     platforms: list[str] = field(default_factory=list)  # empty = all platforms
 
 
-@dataclass
+@dataclass(slots=True)
 class CanvasOverlay:
     """Non-destructive overlay (watermark, text, or logo) applied on export."""
     type: str = "watermark"  # "watermark", "text", "logo"
@@ -435,7 +435,7 @@ class Campaign:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class PlatformAssignment:
     """Tracks an asset assigned to a specific platform slot."""
     platform: str = ""
