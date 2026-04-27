@@ -994,17 +994,23 @@ class FolderSection(QWidget):
         self._chip_color = None
         self._thumb_size = thumb_size
         self._depth = depth
-        _s = QSettings("DoxyEdit", "DoxyEdit")
-        _f = _s.value("font_size", 12, type=int)
+        # ui_font_size() is process-cached; FolderSection.__init__ fires per
+        # folder (potentially hundreds), so the old QSettings(...) per-call
+        # was hitting the Windows registry hundreds of times per rebuild.
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, max(2, _pad // 2), 0, 0)
         layout.setSpacing(0)
 
-        # Header
-        parts = Path(folder).parts
-        short = str(Path(*parts[-2:])) if len(parts) >= 2 else folder
+        # Header — string ops faster than Path() per section
+        normalized = folder.replace("\\", "/")
+        if "/" in normalized:
+            tail = normalized.rsplit("/", 2)
+            short = "/".join(tail[-2:]) if len(tail) >= 2 else folder
+        else:
+            short = folder
         self._short = short
         self._header = QPushButton()
         self._header.setFlat(True)
