@@ -227,10 +227,20 @@ class FileBrowserPanel(QWidget):
 
     def _on_folder_clicked(self, index: QModelIndex):
         path = self._model.filePath(index)
-        if path:
-            self._active_folder = path.replace("\\", "/")
-            self.folder_selected.emit(path)
-            self._tree.viewport().update()  # repaint badges
+        if not path:
+            return
+        norm = path.replace("\\", "/")
+        # Toggle: clicking the already-active folder clears the filter and
+        # deselects the row, returning the grid to the whole-project view.
+        if norm == self._active_folder:
+            self._active_folder = None
+            self._tree.selectionModel().clearSelection()
+            self.filter_cleared.emit()
+            self._tree.viewport().update()
+            return
+        self._active_folder = norm
+        self.folder_selected.emit(path)
+        self._tree.viewport().update()  # repaint badges
 
     def clear_active(self):
         """Clear the active folder highlight (called when filter is cleared)."""
