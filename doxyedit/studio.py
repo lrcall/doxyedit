@@ -10851,6 +10851,16 @@ class StudioEditor(QWidget):
             self.slider_shadow_offset.blockSignals(False)
         self._sync_overlays_to_asset()
 
+    def _refresh_text_cache(self, it):
+        """Force OverlayTextItem to invalidate its DeviceCoordinateCache so
+        attribute changes that affect paint output actually become visible.
+        Without this, slider ticks set the field but the cached pixmap keeps
+        rendering the old style."""
+        it.prepareGeometryChange()
+        it.setCacheMode(QGraphicsTextItem.CacheMode.NoCache)
+        it.setCacheMode(QGraphicsTextItem.CacheMode.DeviceCoordinateCache)
+        it.update()
+
     def _on_shadow_offset_changed(self, value: int):
         sel = [it for it in self._scene.selectedItems()
                if isinstance(it, OverlayTextItem)]
@@ -10862,7 +10872,7 @@ class StudioEditor(QWidget):
                 it.overlay.shadow_color = "#000000"
             if hasattr(it, "_apply_font"):
                 it._apply_font()
-            it.update()
+            self._refresh_text_cache(it)
         self._sync_overlays_to_asset()
 
     def _on_shadow_blur_changed(self, value: int):
@@ -10876,7 +10886,7 @@ class StudioEditor(QWidget):
                 it.overlay.shadow_color = "#000000"
             if hasattr(it, "_apply_font"):
                 it._apply_font()
-            it.update()
+            self._refresh_text_cache(it)
         self._sync_overlays_to_asset()
 
     def _pick_shadow_color(self):
@@ -11488,11 +11498,21 @@ class StudioEditor(QWidget):
 
     def _on_outline_changed(self, value: int):
         # Text: outline stroke_width; Arrow: line stroke_width.
+        def _refresh_text(it, _v):
+            # OverlayTextItem uses DeviceCoordinateCache. Without an explicit
+            # cache toggle the cached pixmap retains the OLD outline pass and
+            # subsequent slider ticks look like nothing changed. Toggle the
+            # cache mode + prepareGeometryChange so bounding rect (which
+            # depends on stroke_width) recalculates too.
+            it.prepareGeometryChange()
+            it.setCacheMode(QGraphicsTextItem.CacheMode.NoCache)
+            it.setCacheMode(QGraphicsTextItem.CacheMode.DeviceCoordinateCache)
+            it.update()
         for item in self._selected_overlay_items():
             if isinstance(item, OverlayTextItem):
                 self._push_overlay_attr(
                     item, "stroke_width", value,
-                    apply_cb=lambda it, _v: it.update(),
+                    apply_cb=_refresh_text,
                     description="Change outline",
                 )
             elif isinstance(item, OverlayArrowItem):
@@ -14416,7 +14436,10 @@ class StudioEditor(QWidget):
         stem = src_path.stem
         if stem.isdigit() and src_path.parent.name:
             stem = f"{src_path.parent.name}_{stem}"
-        out_base = Path(output_dir) if output_dir else Path("_exports")
+        # Mirror pipeline.py's safe fallback: drop beside the source image
+        # if the project path was missing, never the cwd-relative "_exports"
+        # which lands next to the doxyedit exe.
+        out_base = Path(output_dir) if output_dir else (src_path.parent / "_exports")
         out_base.mkdir(parents=True, exist_ok=True)
 
         total = len(self._asset.crops) + 2  # +2 for full + censored

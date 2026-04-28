@@ -357,7 +357,12 @@ def prepare_for_platform(
     if output_dir:
         out_base = Path(output_dir)
     else:
-        out_base = Path("_exports")
+        # NEVER fall back to a cwd-relative path. The launcher's cwd is
+        # the doxyedit install folder, and exports there are user-hostile
+        # (lost in the program directory, often inside a Dropbox sync).
+        # Drop next to the source image instead - always meaningful and
+        # always discoverable.
+        out_base = Path(asset.source_path).parent / "_exports"
 
     # Use full source filename (without extension) for the output name
     src = Path(asset.source_path)
