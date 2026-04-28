@@ -2852,9 +2852,25 @@ class AssetBrowser(QWidget):
         the remaining FolderSections in the background."""
         if self._folder_build_idx >= len(self._folder_build_plan):
             return
+        prev_count = len(self._folder_sections)
         self._build_folder_chunk()
+        # Finalize the chunk we just added: assign view heights so newly-
+        # built sections actually paint thumbnails. Without this, sections
+        # built after the initial _finalize_folder_layout fired stayed at
+        # zero-height and looked empty until the user scrolled / resized.
+        if len(self._folder_sections) > prev_count:
+            vp_w = self._folder_scroll.viewport().width()
+            vp_h = self._folder_scroll.viewport().height()
+            for section in self._folder_sections[prev_count:]:
+                if vp_h > 100:
+                    section._max_section_height = vp_h
+                section.update_view_height(vp_w)
         if self._folder_build_idx < len(self._folder_build_plan):
             QTimer.singleShot(0, self._drain_folder_build)
+        else:
+            # All chunks done - one full finalization pass to recompute
+            # container size and request thumbs for whatever's now visible.
+            self._finalize_folder_layout()
 
     def _finalize_folder_layout(self):
         """One-shot layout finalization after folder sections are created."""
