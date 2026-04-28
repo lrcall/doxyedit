@@ -613,14 +613,15 @@ class ImagePreviewDialog(QDialog):
                     self._hint_lbl.setText("Copied to clipboard")
                 return True
 
-        # Navigation keys — intercept before any child widget
+        # Navigation keys — intercept before any child widget. Arrow keys
+        # are reserved for text-field cursor movement per user preference;
+        # only Space / Tab / Backspace navigate between previewed assets.
         if event.type() == QEvent.Type.KeyPress and self._assets:
             key = event.key()
-            if key in (Qt.Key.Key_Space, Qt.Key.Key_Right, Qt.Key.Key_Tab,
-                       Qt.Key.Key_Down):
+            if key in (Qt.Key.Key_Space, Qt.Key.Key_Tab):
                 self._navigate(1)
                 return True
-            if key in (Qt.Key.Key_Backspace, Qt.Key.Key_Left, Qt.Key.Key_Up):
+            if key == Qt.Key.Key_Backspace:
                 self._navigate(-1)
                 return True
         return super().eventFilter(obj, event)
@@ -1179,10 +1180,12 @@ class PreviewPane(QWidget):
             self.studio_requested.emit()
             return
         if self._assets:
-            if key in (Qt.Key.Key_Right, Qt.Key.Key_Down, Qt.Key.Key_Space):
+            # Arrow keys reserved for text fields. Space / Backspace step
+            # through assets in the preview pane.
+            if key == Qt.Key.Key_Space:
                 self._navigate(1)
                 return
-            if key in (Qt.Key.Key_Left, Qt.Key.Key_Up, Qt.Key.Key_Backspace):
+            if key == Qt.Key.Key_Backspace:
                 self._navigate(-1)
                 return
         super().keyPressEvent(event)

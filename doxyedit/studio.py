@@ -5073,14 +5073,9 @@ class StudioEditor(QWidget):
         # shadowing the real Ctrl+G = 'group selection' shortcut, so the
         # Ctrl+G grid alias has been dropped.)
         alt = bool(mods & Qt.KeyboardModifier.AltModifier)
-        # Alt+Up / Alt+Down — reorder selected layer by 1 in z-order.
-        # Alias of Ctrl+] / Ctrl+[ for users who find bracket keys awkward.
-        if alt and not ctrl and not shift and key == Qt.Key.Key_Up:
-            self._z_shift_selected(+1)
-            return
-        if alt and not ctrl and not shift and key == Qt.Key.Key_Down:
-            self._z_shift_selected(-1)
-            return
+        # Alt+Up / Alt+Down z-shift removed - arrow keys reserved for text
+        # field cursor movement per user preference. Use Ctrl+] / Ctrl+[
+        # for layer z-order changes instead.
         # Ctrl+Alt+L / Ctrl+Alt+E — align selected text left / center
         # (Ctrl+Shift+R is rotate; Ctrl+Alt keeps the combo unique.)
         if ctrl and alt and key in (Qt.Key.Key_L, Qt.Key.Key_E, Qt.Key.Key_R):
@@ -5741,62 +5736,9 @@ class StudioEditor(QWidget):
         shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
         alt = bool(mods & Qt.KeyboardModifier.AltModifier)
 
-        # Arrow nudge — plain = 1, Shift = 10, Shift+Ctrl = 100
-        if key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
-            if shift and ctrl:
-                delta = 100
-            elif shift:
-                delta = 10
-            else:
-                delta = 1
-            dx, dy = 0, 0
-            if key == Qt.Key.Key_Left:
-                dx = -delta
-            elif key == Qt.Key.Key_Right:
-                dx = delta
-            elif key == Qt.Key.Key_Up:
-                dy = -delta
-            elif key == Qt.Key.Key_Down:
-                dy = delta
-            moved = False
-            moved_crop = False
-            moved_note = False
-            for item in self._scene.selectedItems():
-                if isinstance(item, (CensorRectItem, OverlayImageItem, OverlayTextItem)):
-                    item.moveBy(dx, dy)
-                    if isinstance(item, (OverlayImageItem, OverlayTextItem)):
-                        item.overlay.x = int(item.pos().x())
-                        item.overlay.y = int(item.pos().y())
-                    moved = True
-                elif isinstance(item, OverlayArrowItem):
-                    # Arrows: translate both endpoints
-                    item.overlay.x += dx
-                    item.overlay.y += dy
-                    item.overlay.end_x += dx
-                    item.overlay.end_y += dy
-                    item.prepareGeometryChange()
-                    item.update()
-                    moved = True
-                elif isinstance(item, OverlayShapeItem):
-                    item.overlay.x += dx
-                    item.overlay.y += dy
-                    item.prepareGeometryChange()
-                    item.update()
-                    moved = True
-                elif isinstance(item, ResizableCropItem):
-                    item.moveBy(dx, dy)
-                    moved_crop = True
-                    if getattr(item, "on_changed", None):
-                        item.on_changed(item)
-                elif isinstance(item, NoteRectItem):
-                    item.moveBy(dx, dy)
-                    moved_note = True
-            if moved:
-                self._sync_censors_to_asset()
-                self._sync_overlays_to_asset()
-            if moved_note:
-                self._save_notes_to_asset()
-            return
+        # Arrow-key nudges removed per user preference - arrow keys are
+        # reserved for cursor movement inside text fields. Drag overlays
+        # with the mouse to reposition.
 
         # Escape: force-clear selection + exit any active tool even when
         # focus is on a sidebar button (previously the widget-level
