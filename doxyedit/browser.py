@@ -2735,6 +2735,12 @@ class AssetBrowser(QWidget):
         # eagerly (cheap) so the user sees structure immediately; the heavy
         # FolderSection construction (QListView + ThumbnailModel + ~12 signal
         # connects per section) is the part we chunk.
+        #
+        # Critical: each section's eventual layout slot is reserved with a
+        # 0-height placeholder QWidget inserted in plan order. When the drain
+        # builds the real section, replaceWidget() swaps it in place. Without
+        # placeholders, late-built sections all pile up at the bottom of the
+        # layout instead of nesting under their root header.
         plan: list = []
         hdr_children: dict = {}  # root_hdr -> [child_sections]
         for root in root_order:
@@ -2748,17 +2754,22 @@ class AssetBrowser(QWidget):
                 self._root_headers.append(hdr)
                 hdr_children[hdr] = []
                 for folder, assets, depth in entries:
-                    plan.append(("sec", folder, assets, depth + 1, hdr))
+                    placeholder = QWidget(self._folder_container)
+                    placeholder.setFixedHeight(0)
+                    insert_before_stretch(placeholder)
+                    plan.append(("sec", folder, assets, depth + 1, hdr, placeholder))
             else:
                 for folder, assets, depth in entries:
-                    plan.append(("sec", folder, assets, 0, None))
+                    placeholder = QWidget(self._folder_container)
+                    placeholder.setFixedHeight(0)
+                    insert_before_stretch(placeholder)
+                    plan.append(("sec", folder, assets, 0, None, placeholder))
 
         # Stash plan + drivers so the chunk processor can resume between ticks.
         self._folder_build_plan = plan
         self._folder_build_idx = 0
         self._folder_build_hdr_children = hdr_children
         self._folder_build_make = _make_section
-        self._folder_build_insert = insert_before_stretch
 
         # First chunk: build enough to fill an initial viewport. The remaining
         # sections drain on QTimer.singleShot(0) ticks so the UI stays
@@ -2827,15 +2838,23 @@ class AssetBrowser(QWidget):
         plan = self._folder_build_plan
         end = min(self._folder_build_idx + n, len(plan))
         make = self._folder_build_make
-        insert = self._folder_build_insert
+        layout = self._folder_container_layout
         hdr_children = self._folder_build_hdr_children
         touched_hdrs: set = set()
         for i in range(self._folder_build_idx, end):
-            kind, folder, assets, depth, parent_hdr = plan[i]
+            kind, folder, assets, depth, parent_hdr, placeholder = plan[i]
             section = make(folder, assets, depth)
             if section is None:
+                # Section was hidden - drop the placeholder slot.
+                layout.removeWidget(placeholder)
+                placeholder.deleteLater()
                 continue
-            insert(section)
+            # Swap the placeholder for the real section. replaceWidget
+            # preserves layout position so the section ends up exactly
+            # where the eager pass reserved its slot - nested under the
+            # right root header.
+            layout.replaceWidget(placeholder, section)
+            placeholder.deleteLater()
             self._folder_sections.append(section)
             if parent_hdr is not None:
                 hdr_children[parent_hdr].append(section)
