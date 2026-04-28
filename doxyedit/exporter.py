@@ -587,8 +587,90 @@ def _wrap_text_to_width(text: str, font, max_width: int, draw) -> str:
     return "\n".join(out_lines)
 
 
+def _qt_render_text_tile(ov: CanvasOverlay):
+    """Render an OverlayTextItem to a transparent PIL.Image using the
+    same Qt code path that draws the canvas. This is the only way to
+    guarantee export pixels match what the user sees, because PIL's
+    font metrics + word-wrap diverge from Qt's QTextDocument layout
+    (so a width that wraps on canvas often doesn't wrap in PIL).
+
+    Returns (pil_tile, x_offset, y_offset) where the offsets are how
+    far the rendered tile's top-left sits from the item origin (positive
+    or negative depending on stroke / shadow / blur extents).
+    Returns None when the GUI is unavailable (e.g. headless test run).
+    """
+    try:
+        from PySide6.QtWidgets import QApplication, QGraphicsScene
+        from PySide6.QtGui import QImage, QPainter
+        from PySide6.QtCore import QRectF
+    except Exception:
+        return None
+    if QApplication.instance() is None:
+        return None
+    try:
+        from doxyedit.studio_items import OverlayTextItem
+    except Exception:
+        return None
+    try:
+        scene = QGraphicsScene()
+        item = OverlayTextItem(ov)
+        # Render at item-local origin; we'll position the tile ourselves.
+        item.setPos(0, 0)
+        # Disable cache for one-shot offscreen render (cache requires a view
+        # to invalidate properly).
+        try:
+            item.setCacheMode(item.CacheMode.NoCache)
+        except Exception:
+            pass
+        scene.addItem(item)
+        br = item.boundingRect()
+        w = max(1, int(br.width()) + 1)
+        h = max(1, int(br.height()) + 1)
+        qimg = QImage(w, h, QImage.Format.Format_ARGB32_Premultiplied)
+        qimg.fill(0)
+        painter = QPainter(qimg)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        scene.render(painter, QRectF(0, 0, w, h), br)
+        painter.end()
+        # Convert ARGB32_Premultiplied (BGRA byte order on little-endian)
+        # to a PIL RGBA image. PySide6 returns a sized memoryview so no
+        # setsize call (PyQt5 needed it).
+        bits = qimg.constBits()
+        pil = Image.frombuffer(
+            "RGBA", (w, h), bytes(bits), "raw", "BGRA", 0, 1)
+        return pil, int(br.x()), int(br.y())
+    except Exception:
+        return None
+
+
 def _composite_text_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
-    """Render text overlay onto the base image."""
+    """Render text overlay onto the base image. Tries Qt first (matches
+    canvas exactly) and falls back to PIL drawing if Qt isn't available."""
+    qt_tile = _qt_render_text_tile(ov)
+    if qt_tile is not None:
+        tile, ox, oy = qt_tile
+        x, y = _resolve_position(
+            img.size, tile.size, ov.position, ov.x, ov.y)
+        # Item-local offset (negative when stroke/blur extends past origin)
+        x += ox
+        y += oy
+        img = img.convert("RGBA")
+        layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        # Apply per-overlay opacity by scaling the tile's alpha channel.
+        if ov.opacity < 1.0:
+            r, g, b, a = tile.split()
+            a = a.point(lambda v, o=ov.opacity: int(v * o))
+            tile = Image.merge("RGBA", (r, g, b, a))
+        layer.paste(tile, (x, y), tile)
+        return Image.alpha_composite(img, layer)
+    return _composite_text_overlay_pil(img, ov)
+
+
+def _composite_text_overlay_pil(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
+    """PIL fallback render path. Used only when Qt isn't available
+    (headless test runs). Less faithful to canvas but works."""
     from PIL import ImageDraw, ImageFont
 
     try:
