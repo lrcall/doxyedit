@@ -7382,8 +7382,17 @@ class StudioEditor(QWidget):
         if _geom_blob:
             try:
                 _dlg.restoreGeometry(_geom_blob)
+                # Self-heal: if the restored geometry is degenerate (saved
+                # while the dialog was malformed in a prior session), drop
+                # it and use the dialog's natural size instead. Otherwise
+                # the dialog opens invisibly and the user has no recourse.
+                _g = _dlg.geometry()
+                if _g.width() < 200 or _g.height() < 200:
+                    _qs_geom.remove("studio_text_controls_geom")
+                    _dlg.resize(_dlg.sizeHint())
+                    _dlg._positioned_once = False
             except Exception:
-                pass
+                _qs_geom.remove("studio_text_controls_geom")
         # _props_row keeps a hidden shell so setEnabled call sites stay valid.
         self._props_row.hide()
 
@@ -7396,8 +7405,14 @@ class StudioEditor(QWidget):
         if _geom_blob:
             try:
                 self._shape_controls_dlg.restoreGeometry(_geom_blob)
+                _g = self._shape_controls_dlg.geometry()
+                if _g.width() < 200 or _g.height() < 200:
+                    _qs_geom.remove(_ShapeControlsDialog._GEOM_KEY)
+                    self._shape_controls_dlg.resize(
+                        self._shape_controls_dlg.sizeHint())
+                    self._shape_controls_dlg._positioned_once = False
             except Exception:
-                pass
+                _qs_geom.remove(_ShapeControlsDialog._GEOM_KEY)
 
         # Scene + View
         self._scene = StudioScene()
