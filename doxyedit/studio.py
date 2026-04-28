@@ -47,20 +47,22 @@ from PySide6.QtGui import (
     QKeyEvent, QTransform, QUndoCommand, QUndoStack, QIcon,
     QPolygonF, QPainterPath, QImage, QShortcut, QKeySequence,
     QTextCursor, QLinearGradient, QRadialGradient, QTextOption,
-    QTextBlockFormat,
+    QTextBlockFormat, QCursor,
 )
 import bisect
 import copy
 import json
 import math
+import os
 import re
+import subprocess
 import uuid
 from PIL import Image
 
 from doxyedit.models import Asset, Project, CensorRegion, CanvasOverlay, CropRegion, PLATFORMS
 from doxyedit.exporter import apply_censors, apply_overlays
 from doxyedit.imaging import pil_to_qimage, qimage_to_pil
-from doxyedit.preview import NoteRectItem, ResizableCropItem
+from doxyedit.preview import NoteRectItem, ResizableCropItem, HoverPreview
 from doxyedit.themes import THEMES, DEFAULT_THEME
 
 # ---------------------------------------------------------------------------
@@ -7007,7 +7009,12 @@ class StudioEditor(QWidget):
         self._tc_content_edit.setObjectName("studio_tc_content")
         self._tc_content_edit.setPlaceholderText(
             "Text content (edits selected text overlay)")
-        self._tc_content_edit.setFixedHeight(int(_dt.font_size * 4.4))
+        # Min height ~4 rows so the field opens at a reasonable size,
+        # but expanding policy lets the user drag the dialog taller and
+        # the field grows with it (instead of staying squashed at 4 rows).
+        self._tc_content_edit.setMinimumHeight(int(_dt.font_size * 4.4))
+        self._tc_content_edit.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._tc_content_edit.textChanged.connect(self._on_tc_content_changed)
         _dlg_layout.addRow("Text", self._tc_content_edit)
         # Character / word / line count on its own form row so it can
@@ -14545,6 +14552,113 @@ class StudioEditor(QWidget):
             creationflags=0x08000000, encoding="utf-8", errors="replace",
         )
 
+    def _wire_filmstrip_thumb(self, frame, file_path: str):
+        """Attach hover-preview + right-click context menu to a filmstrip
+        thumbnail frame. Mirrors what the main asset grid offers - hover
+        shows a full-size preview, right-click gives Open / Reveal / Copy /
+        Delete actions on the export file itself."""
+        frame.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        frame.setMouseTracking(True)
+        frame.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        frame.setCursor(Qt.CursorShape.PointingHandCursor)
+        frame.setToolTip(file_path)
+        # Filter both Enter/Leave (for hover preview) and right-click event.
+        def _ev_filter(obj, ev, _path=file_path, _self=self):
+            t = ev.type()
+            if t == QEvent.Type.Enter:
+                try:
+                    HoverPreview.instance().show_for(_path, QCursor.pos())
+                except Exception:
+                    pass
+            elif t == QEvent.Type.Leave:
+                try:
+                    HoverPreview.instance().hide_preview()
+                except Exception:
+                    pass
+            return False
+        frame.installEventFilter(_self._make_obj_filter(_ev_filter))
+        frame.customContextMenuRequested.connect(
+            lambda pos, _p=file_path, _f=frame:
+                self._filmstrip_context_menu(_f, pos, _p))
+
+    def _make_obj_filter(self, fn):
+        """Wrap a (obj, ev) callable in a QObject so installEventFilter works.
+        Stores the wrapper on self so it isn't GC'd while the source widget
+        lives - filmstrip frames are rebuilt on every export."""
+        from PySide6.QtCore import QObject
+        class _F(QObject):
+            def eventFilter(self_inner, obj, ev):
+                return fn(obj, ev)
+        f = _F(self)
+        if not hasattr(self, "_filmstrip_filters"):
+            self._filmstrip_filters = []
+        # Keep recent filters alive; old ones get reaped when the strip
+        # rebuilds and Qt deletes the source widgets (Qt parent ownership
+        # handles cleanup since we pass self as parent).
+        self._filmstrip_filters.append(f)
+        # Cap the list so it doesn't grow unbounded across many exports.
+        if len(self._filmstrip_filters) > 500:
+            self._filmstrip_filters = self._filmstrip_filters[-100:]
+        return f
+
+    def _filmstrip_context_menu(self, frame, pos, file_path: str):
+        """Right-click menu on a filmstrip thumb. Acts on the exported file
+        rather than the source asset, since this is the export preview."""
+        menu = QMenu(frame)
+        menu.addAction("Open Image", lambda: self._open_with_default(file_path))
+        menu.addAction("Reveal in Explorer",
+                       lambda: self._reveal_in_explorer(file_path))
+        menu.addAction("Copy File Path",
+                       lambda: QApplication.clipboard().setText(file_path))
+        menu.addAction("Copy Image to Clipboard",
+                       lambda: self._copy_image_to_clipboard(file_path))
+        menu.addSeparator()
+        menu.addAction("Re-export", lambda: self._export_current_platform())
+        menu.addSeparator()
+        del_act = menu.addAction("Delete Export File")
+        del_act.triggered.connect(lambda: self._delete_export_file(file_path))
+        menu.exec(frame.mapToGlobal(pos))
+
+    def _open_with_default(self, path: str):
+        try:
+            os.startfile(path)
+        except Exception as e:
+            self.info_label.setText(f"Open failed: {e}")
+
+    def _reveal_in_explorer(self, path: str):
+        try:
+            subprocess.Popen(
+                ["explorer", "/select,", str(Path(path).resolve())],
+                creationflags=0x08000000)
+        except Exception as e:
+            self.info_label.setText(f"Reveal failed: {e}")
+
+    def _copy_image_to_clipboard(self, path: str):
+        try:
+            pm = QPixmap(path)
+            if not pm.isNull():
+                QApplication.clipboard().setPixmap(pm)
+                self.info_label.setText("Image copied to clipboard")
+        except Exception as e:
+            self.info_label.setText(f"Copy failed: {e}")
+
+    def _delete_export_file(self, path: str):
+        from PySide6.QtWidgets import QMessageBox
+        if QMessageBox.question(
+            self, "Delete Export",
+            f"Delete this export file?\n\n{path}\n\n(Source asset is not affected.)"
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            os.remove(path)
+            # Refresh strip from the same folder so the deleted thumb vanishes.
+            p = Path(path)
+            self._show_filmstrip_from_files(
+                p.parent, p.stem.split("_")[0] if "_" in p.stem else p.stem)
+            self.info_label.setText(f"Deleted {p.name}")
+        except Exception as e:
+            self.info_label.setText(f"Delete failed: {e}")
+
     def _populate_preview_strip(self, results):
         """Fill the preview strip with thumbnails from export results."""
         # Clear old thumbnails
@@ -14580,6 +14694,7 @@ class StudioEditor(QWidget):
             txt.setObjectName("studio_preview_thumb_label")
             txt.setAlignment(Qt.AlignmentFlag.AlignCenter)
             vl.addWidget(txt)
+            self._wire_filmstrip_thumb(frame, r.output_path)
             self._preview_strip_layout.addWidget(frame)
             any_shown = True
 
@@ -14612,6 +14727,7 @@ class StudioEditor(QWidget):
             txt.setObjectName("studio_preview_thumb_label")
             txt.setAlignment(Qt.AlignmentFlag.AlignCenter)
             vl.addWidget(txt)
+            self._wire_filmstrip_thumb(frame, str(f))
             self._preview_strip_layout.addWidget(frame)
             any_shown = True
         self._preview_strip_layout.addStretch()

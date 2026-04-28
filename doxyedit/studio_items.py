@@ -3420,6 +3420,7 @@ class OverlayTextItem(QGraphicsTextItem):
         # attribute access is safe — no getattr fallback needed.
         stroke_w = ov.stroke_width
         shadow_off = ov.shadow_offset
+        shadow_b = max(0, min(8, int(getattr(ov, "shadow_blur", 0) or 0)))
         bg = ov.background_color
         # When the user drops line_height below 1.0, Qt's
         # ProportionalHeight shrinks the per-line layout height. The
@@ -3435,16 +3436,18 @@ class OverlayTextItem(QGraphicsTextItem):
         line_pad = 0
         if lh < 1.0:
             line_pad = int(ov.font_size * (1.0 - lh))
-        if not stroke_w and not shadow_off and not bg and not line_pad:
+        if not stroke_w and not shadow_off and not shadow_b and not bg and not line_pad:
             return super().boundingRect()
         r = super().boundingRect()
         pad_stroke = int(stroke_w or 0)
         pad_shadow = int(shadow_off or 0)
         pad_bg = max(4, int(ov.font_size * 0.2)) if bg else 0
-        base_pad = max(pad_stroke, pad_bg)
+        # Blur extends in all 4 directions, not just shadow's bottom-right.
+        base_pad = max(pad_stroke, pad_bg, shadow_b)
         return r.adjusted(
             -base_pad, -base_pad,
-            base_pad + pad_shadow, base_pad + pad_shadow + line_pad,
+            base_pad + pad_shadow + shadow_b,
+            base_pad + pad_shadow + shadow_b + line_pad,
         )
 
     def _draw_document(self, painter, color: QColor):
@@ -3502,12 +3505,33 @@ class OverlayTextItem(QGraphicsTextItem):
         # Drop shadow: draw the document layout at offset in shadow color.
         # Never call setDefaultTextColor here - it relayouts the doc and
         # causes visible jitter while dragging.
-        if (self.overlay.shadow_color and self.overlay.shadow_offset
+        if (self.overlay.shadow_color
+                and (self.overlay.shadow_offset or self.overlay.shadow_blur)
                 and not _is_editing):
+            off = self.overlay.shadow_offset or 0
+            blur_r = max(0, min(8, int(self.overlay.shadow_blur or 0)))
             painter.save()
-            off = self.overlay.shadow_offset
-            painter.translate(off, off)
-            self._draw_document(painter, QColor(self.overlay.shadow_color))
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            if blur_r > 0:
+                # Multi-pass fake-blur: draw the shadow document at every
+                # offset in a (2R+1)x(2R+1) grid, each pass with reduced
+                # alpha so they sum to a soft falloff. No QImage round-
+                # trip, no private Qt APIs - cheap and Qt-stable.
+                shadow_c = QColor(self.overlay.shadow_color)
+                steps = (blur_r * 2 + 1) ** 2
+                # Boost per-pass alpha a bit so the blurred shadow is still
+                # visible (pure 1/N looks washed out next to non-blur).
+                per_alpha = max(8, min(64, int(255 * 1.4 / steps)))
+                shadow_c.setAlpha(per_alpha)
+                for dy in range(-blur_r, blur_r + 1):
+                    for dx in range(-blur_r, blur_r + 1):
+                        painter.save()
+                        painter.translate(off + dx, off + dy)
+                        self._draw_document(painter, shadow_c)
+                        painter.restore()
+            else:
+                painter.translate(off, off)
+                self._draw_document(painter, QColor(self.overlay.shadow_color))
             painter.restore()
         # Text outline via 8-directional offset passes.
         if (self.overlay.stroke_width > 0 and self.overlay.stroke_color
