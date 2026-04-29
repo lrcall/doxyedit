@@ -6124,7 +6124,9 @@ class StudioEditor(QWidget):
         self.slider_opacity = QSlider(Qt.Orientation.Horizontal)
         self.slider_opacity.setObjectName("studio_opacity_slider")
         self.slider_opacity.setRange(0, 100)
-        self.slider_opacity.setValue(30)
+        # Default to fully opaque - users want crisp text/watermarks. The
+        # slider is for explicit transparency, not a perpetual nag.
+        self.slider_opacity.setValue(100)
         self.slider_opacity.setFixedWidth(_slider_w)
         self.slider_opacity.valueChanged.connect(self._on_opacity_changed)
         toolbar.addWidget(self.slider_opacity)
@@ -9389,8 +9391,9 @@ class StudioEditor(QWidget):
             return {}
         try:
             d = json.loads(raw)
+            # Strip opacity - new watermarks always start fully opaque.
             return {k: v for k, v in d.items()
-                    if k in self._WATERMARK_STYLE_FIELDS}
+                    if k in self._WATERMARK_STYLE_FIELDS and k != "opacity"}
         except Exception:
             return {}
 
@@ -9623,13 +9626,16 @@ class StudioEditor(QWidget):
     )
 
     def _load_text_style_defaults(self) -> dict:
-        """Return the user's saved default text style (or {} if none)."""
+        """Return the user's saved default text style (or {} if none).
+        Opacity is intentionally stripped - new text always starts opaque
+        regardless of what an old saved default may contain."""
         raw = QSettings("DoxyEdit", "DoxyEdit").value("studio_text_defaults", "", type=str)
         if not raw:
             return {}
         try:
             d = json.loads(raw)
-            return {k: v for k, v in d.items() if k in self._TEXT_STYLE_FIELDS}
+            return {k: v for k, v in d.items()
+                    if k in self._TEXT_STYLE_FIELDS and k != "opacity"}
         except Exception:
             return {}
 

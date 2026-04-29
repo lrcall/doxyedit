@@ -198,7 +198,7 @@ class CanvasOverlay:
     font_family: str = "Segoe UI"
     font_size: int = 24
     color: str = "#ffffff"
-    opacity: float = 0.3
+    opacity: float = 1.0
     position: str = "bottom-right"  # bottom-right, bottom-left, center, custom
     x: int = 0
     y: int = 0
