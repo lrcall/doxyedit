@@ -14533,7 +14533,7 @@ class StudioEditor(QWidget):
                 except Exception:
                     pass
             return False
-        frame.installEventFilter(_self._make_obj_filter(_ev_filter))
+        frame.installEventFilter(self._make_obj_filter(_ev_filter))
         frame.customContextMenuRequested.connect(
             lambda pos, _p=file_path, _f=frame:
                 self._filmstrip_context_menu(_f, pos, _p))
