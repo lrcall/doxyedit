@@ -612,10 +612,16 @@ def _qt_render_text_tile(ov: CanvasOverlay):
     except Exception:
         return None
     try:
+        # CRITICAL: deep-copy the overlay before constructing the item.
+        # OverlayTextItem.__init__ does setPos(x, y), and itemChange writes
+        # the new position back to overlay.x/y. If we used the user's
+        # actual overlay, any subsequent setPos / item construction would
+        # mutate their data - Export All did this in a loop and silently
+        # nuked every text overlay's position to 0.
+        import copy as _copy
+        ov_copy = _copy.deepcopy(ov)
         scene = QGraphicsScene()
-        item = OverlayTextItem(ov)
-        # Render at item-local origin; we'll position the tile ourselves.
-        item.setPos(0, 0)
+        item = OverlayTextItem(ov_copy)
         # Disable cache for one-shot offscreen render (cache requires a view
         # to invalidate properly).
         try:
@@ -623,17 +629,24 @@ def _qt_render_text_tile(ov: CanvasOverlay):
         except Exception:
             pass
         scene.addItem(item)
-        br = item.boundingRect()
-        w = max(1, int(br.width()) + 1)
-        h = max(1, int(br.height()) + 1)
+        # Use sceneBoundingRect so the render's source rect tracks the
+        # item's actual scene location (the ctor placed it at ov.x, ov.y);
+        # bounding-rect-in-item-coords would have us trying to render an
+        # empty scene region instead of where the item sits.
+        sbr = item.sceneBoundingRect()
+        w = max(1, int(sbr.width()) + 1)
+        h = max(1, int(sbr.height()) + 1)
         qimg = QImage(w, h, QImage.Format.Format_ARGB32_Premultiplied)
         qimg.fill(0)
         painter = QPainter(qimg)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        scene.render(painter, QRectF(0, 0, w, h), br)
+        scene.render(painter, QRectF(0, 0, w, h), sbr)
         painter.end()
+        # Offset of bounding rect from item origin (negative when stroke /
+        # blur extends past the text origin) - in item-local coords.
+        br = item.boundingRect()
         # Convert ARGB32_Premultiplied (BGRA byte order on little-endian)
         # to a PIL RGBA image. PySide6 returns a sized memoryview so no
         # setsize call (PyQt5 needed it).
