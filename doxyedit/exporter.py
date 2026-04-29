@@ -651,8 +651,18 @@ def _composite_text_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
     qt_tile = _qt_render_text_tile(ov)
     if qt_tile is not None:
         tile, ox, oy = qt_tile
-        x, y = _resolve_position(
-            img.size, tile.size, ov.position, ov.x, ov.y)
+        # Canvas places the text item at scene position (ov.x, ov.y)
+        # unconditionally - OverlayTextItem.__init__ does setPos(x, y)
+        # regardless of ov.position. Match that here so export aligns
+        # with what the user sees on the canvas. Only fall back to the
+        # _resolve_position presets when ov.x/ov.y are both 0 AND a
+        # named position is set (legacy overlays from before drag-to-
+        # place existed).
+        if ov.x or ov.y or not ov.position or ov.position == "custom":
+            x, y = int(ov.x), int(ov.y)
+        else:
+            x, y = _resolve_position(
+                img.size, tile.size, ov.position, ov.x, ov.y)
         # Item-local offset (negative when stroke/blur extends past origin)
         x += ox
         y += oy
