@@ -3385,6 +3385,32 @@ class _StudioIcons:
         return _StudioIcons.make(d)
 
     @staticmethod
+    def color():
+        """Half-filled circle for the 'Color' picker action so it sizes
+        like the other tool buttons in the left toolbar (icon, not text
+        glyph). Without an icon, the action sized to its text bounds and
+        rendered taller / different proportions than its neighbors."""
+        def d(p, s):
+            from PySide6.QtCore import QRectF
+            r = QRectF(3, 3, s - 6, s - 6)
+            # Outline
+            p.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+            p.drawEllipse(r)
+            # Fill the right half
+            p.setBrush(QBrush(QColor(_StudioIcons._fg())))
+            p.drawChord(r, 90 * 16, -180 * 16)
+        return _StudioIcons.make(d)
+
+    @staticmethod
+    def delete():
+        """X glyph as an icon (not a text action) so the Delete action
+        in the left toolbar matches every other tool's sizing."""
+        def d(p, s):
+            p.drawLine(4, 4, s - 4, s - 4)
+            p.drawLine(s - 4, 4, 4, s - 4)
+        return _StudioIcons.make(d)
+
+    @staticmethod
     def undo():
         def d(p, s):
             # Curved arrow left
@@ -7143,11 +7169,11 @@ class StudioEditor(QWidget):
             return line
         _dlg_layout.addRow("", _hdivider())
         # Outline row: slider + Clear button
-        _ol_row = QHBoxLayout()
-        _ol_row.setContentsMargins(0, 0, 0, 0)
-        _ol_row.addWidget(self.slider_outline, 1)
-        _ol_clear_btn = QPushButton("Clr")
-        _ol_clear_btn.setFixedWidth(36)
+        # Outline row: live slider readout + × clear button. The X glyph
+        # reads cleanly at any size, where "Clr" got cut to ":I" inside
+        # the 36px button.
+        _ol_clear_btn = QPushButton("×")  # multiplication sign
+        _ol_clear_btn.setFixedWidth(28)
         _ol_clear_btn.setToolTip("Clear text outline (stroke color + width)")
         def _clear_outline():
             sel = [it for it in self._scene.selectedItems()
@@ -7167,10 +7193,10 @@ class StudioEditor(QWidget):
             self._sync_overlays_to_asset()
             self.info_label.setText("Text outline cleared")
         _ol_clear_btn.clicked.connect(_clear_outline)
-        _ol_row.addWidget(_ol_clear_btn)
-        _ol_w = QWidget(_dlg)
-        _ol_w.setLayout(_ol_row)
-        _dlg_layout.addRow("Outline", _ol_w)
+        _dlg_layout.addRow("Outline",
+            _slider_row(self.slider_outline,
+                        lambda v: f"{v}px",
+                        extras=[_ol_clear_btn]))
         # These sliders were frozen to the narrow width from the top-of-
         # Studio props bar. Clear the fixed width + expand policy so they
         # fill the dialog row (same as the Font Size slider above).
@@ -7181,10 +7207,15 @@ class StudioEditor(QWidget):
             _sl.setMaximumWidth(16777215)
             _sl.setSizePolicy(
                 QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        _dlg_layout.addRow("Kerning", self.slider_kerning)
-        _dlg_layout.addRow("Line Height", self.slider_line_height)
-        _dlg_layout.addRow("Rotation", self.slider_rotation)
-        _dlg_layout.addRow("Width", self.slider_text_width)
+        _dlg_layout.addRow("Kerning",
+            _slider_row(self.slider_kerning, lambda v: f"{v:+d}"))
+        _dlg_layout.addRow("Line Height",
+            _slider_row(self.slider_line_height, lambda v: f"{v / 100:.2f}"))
+        _dlg_layout.addRow("Rotation",
+            _slider_row(self.slider_rotation, lambda v: f"{v}°"))
+        _dlg_layout.addRow("Width",
+            _slider_row(self.slider_text_width,
+                        lambda v: ("auto" if v <= 0 else f"{v}px")))
         _dlg_layout.addRow("", _hdivider())
         # Shadow toggles - persist through the overlay's shadow_color/
         # shadow_offset/shadow_blur fields so they round-trip on save.
@@ -7228,8 +7259,9 @@ class StudioEditor(QWidget):
         self.btn_shadow_color.on_color_picked = self._apply_shadow_color
         _shadow_row.addWidget(self.btn_shadow_color)
         # Reset button — clears shadow_color / offset / blur together.
-        _shadow_reset_btn = QPushButton("Clr")
-        _shadow_reset_btn.setFixedWidth(36)
+        # × renders as a clean clear-button glyph at the small size.
+        _shadow_reset_btn = QPushButton("×")
+        _shadow_reset_btn.setFixedWidth(28)
         _shadow_reset_btn.setToolTip("Clear shadow (color / offset / blur)")
         def _clear_shadow():
             sel = [it for it in self._scene.selectedItems()

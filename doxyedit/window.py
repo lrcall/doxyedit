@@ -2222,12 +2222,23 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._tool_actions.append((action, tool))
         self._tool_actions[0][0].setChecked(True)
 
-        self._color_action = QAction("◑", self, triggered=self._change_color)
+        # Use proper QIcons for Color + Delete so they size to the
+        # toolbar's iconSize like every other tool button. Text-glyph
+        # actions sized to text bounds and stuck out as taller / wider.
+        self._color_action = QAction(self, triggered=self._change_color)
+        try:
+            self._color_action.setIcon(_StudioIcons.color())
+        except Exception:
+            self._color_action.setText("◑")
         self._color_action.setToolTip("Color")
         tb.addAction(self._color_action)
         self._canvas_sep_after = tb.addSeparator()
 
-        _del_action = QAction("✕", self, triggered=self._handle_delete)
+        _del_action = QAction(self, triggered=self._handle_delete)
+        try:
+            _del_action.setIcon(_StudioIcons.delete())
+        except Exception:
+            _del_action.setText("✕")
         _del_action.setToolTip("Delete selected")
         tb.addAction(_del_action)
 
