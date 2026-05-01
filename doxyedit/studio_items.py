@@ -103,6 +103,36 @@ def _attach_ctx_menu(label, populate_fn):
     label.customContextMenuRequested.connect(_ctx)
 
 
+def _exec_menu_clamped(menu, target):
+    """Execute a QMenu after clamping its position so it fits on the
+    available screen rect. Avoids the canvas-context-menu-clipped-near-
+    bottom class of bug. Accepts QPoint or anything with x()/y().
+    Returns the chosen QAction (or None)."""
+    try:
+        from PySide6.QtCore import QPoint
+        from PySide6.QtGui import QGuiApplication
+        try:
+            tx, ty = int(target.x()), int(target.y())
+        except Exception:
+            tx, ty = int(target[0]), int(target[1])
+        target_pt = QPoint(tx, ty)
+        screen = (QGuiApplication.screenAt(target_pt)
+                  or QGuiApplication.primaryScreen())
+        if screen is not None:
+            avail = screen.availableGeometry()
+            menu.adjustSize()
+            mh = menu.sizeHint().height()
+            mw = menu.sizeHint().width()
+            if ty + mh > avail.bottom():
+                ty = max(avail.top(), avail.bottom() - mh)
+            if tx + mw > avail.right():
+                tx = max(avail.left(), avail.right() - mw)
+            target_pt = QPoint(tx, ty)
+    except Exception:
+        target_pt = target
+    return menu.exec(target_pt)
+
+
 def _themed_menu(parent=None) -> QMenu:
     """Create a QMenu styled from the current theme (same pattern as window.py)."""
     t = THEMES[DEFAULT_THEME]

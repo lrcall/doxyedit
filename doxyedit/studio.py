@@ -17,7 +17,7 @@ from doxyedit.studio_items import (
     OverlayTextItem, AnnotationTextItem,
     AddCensorCmd, SetAttrCmd, SetZValueCmd, DeleteItemCmd,
     _OVERLAY_ITEM_TYPES, _SELECTABLE_ITEM_TYPES, _CANVAS_ITEM_TYPES,
-    _attach_ctx_menu, _themed_menu,
+    _attach_ctx_menu, _themed_menu, _exec_menu_clamped,
     _add_platform_submenu, _resolve_platform_menu,
 )
 
@@ -928,28 +928,7 @@ class StudioScene(QGraphicsScene):
         snap_threshold_act = menu.addAction("Snap Proximity...")
         snap_pixel_act = menu.addAction("Snap Selection to Pixel Grid")
         snap_pixel_act.setEnabled(bool(editor._scene.selectedItems()))
-        # Manually fit-to-screen: this menu has many entries and Qt's
-        # automatic edge-flip wasn't kicking in cleanly when the user
-        # right-clicked near the bottom of the canvas - the menu
-        # extended past the screen and items were clipped.
-        target = event.screenPos()
-        try:
-            from PySide6.QtGui import QGuiApplication
-            menu.adjustSize()
-            mh = menu.sizeHint().height()
-            mw = menu.sizeHint().width()
-            screen = QGuiApplication.screenAt(target) or QGuiApplication.primaryScreen()
-            avail = screen.availableGeometry()
-            tx, ty = int(target.x()), int(target.y())
-            if ty + mh > avail.bottom():
-                ty = max(avail.top(), avail.bottom() - mh)
-            if tx + mw > avail.right():
-                tx = max(avail.left(), avail.right() - mw)
-            from PySide6.QtCore import QPoint
-            target = QPoint(tx, ty)
-        except Exception:
-            pass
-        chosen = menu.exec(target)
+        chosen = _exec_menu_clamped(menu, event.screenPos())
         pos = event.scenePos()
         if chosen is add_text_act:
             editor._add_text_overlay(int(pos.x()), int(pos.y()))
@@ -6975,12 +6954,7 @@ class StudioEditor(QWidget):
                    self.btn_color, self.btn_outline_color,
                    self.slider_outline, self.slider_kerning,
                    self.slider_line_height, self.slider_rotation,
-                   self.slider_text_width,
-                   # The font size readout label - reparenting just the
-                   # slider left the "24" label orphaned in props_row,
-                   # which is why text controls appeared to have no
-                   # numeric readout for font size.
-                   self._font_size_label):
+                   self.slider_text_width):
             _w.setParent(_dlg)
             _w.show()
         # Font combo forced to not exceed the form's field column so it
@@ -7063,7 +7037,32 @@ class StudioEditor(QWidget):
         self.slider_font_size.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX
         self.slider_font_size.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        _dlg_layout.addRow("Size", self.slider_font_size)
+
+        # Local helper: every slider in this dialog gets a live numeric
+        # readout on its right edge so the user can see the current
+        # value. Returns a QWidget container; the slider is reparented
+        # into it and a QLabel is wired to valueChanged. Optional extras
+        # are appended to the right of the label (e.g. clear-button).
+        def _slider_row(slider, fmt=lambda v: str(v), extras=None, lbl_w=44):
+            wrap = QWidget(_dlg)
+            row = QHBoxLayout(wrap)
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(max(4, _pad // 2))
+            row.addWidget(slider, 1)
+            lbl = QLabel(fmt(slider.value()), wrap)
+            lbl.setMinimumWidth(lbl_w)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignRight
+                             | Qt.AlignmentFlag.AlignVCenter)
+            slider.valueChanged.connect(lambda v, _l=lbl, _f=fmt:
+                                        _l.setText(_f(v)))
+            row.addWidget(lbl)
+            if extras:
+                for w in extras:
+                    row.addWidget(w)
+            return wrap
+
+        _dlg_layout.addRow("Size",
+            _slider_row(self.slider_font_size, lambda v: f"{v}px"))
         _bi_widget = QWidget(_dlg)
         _bi_row = QHBoxLayout(_bi_widget)
         _bi_row.setContentsMargins(0, 0, 0, 0)
