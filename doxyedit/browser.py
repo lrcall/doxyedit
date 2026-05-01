@@ -649,18 +649,27 @@ class ThumbnailDelegate(QStyledItemDelegate):
                 scaled = self._scaled_cache[cache_key]
                 self._scaled_cache.move_to_end(cache_key)  # mark as recently used
             else:
+                # When the source thumbnail is SMALLER than the target cell,
+                # we're upscaling - smooth filtering turns it into a blurry
+                # mush. Nearest-neighbor preserves crisp pixels (especially
+                # for pixel art / low-res sources). Smooth is still right
+                # for the common downscale case.
+                upscaling = (pixmap.width() < ts or pixmap.height() < ts)
+                xform = (Qt.TransformationMode.FastTransformation
+                         if upscaling
+                         else Qt.TransformationMode.SmoothTransformation)
                 if self.fill_mode:
                     # Fill: scale to cover, then crop center
                     scaled = pixmap.scaled(
                         ts, ts, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                        Qt.TransformationMode.SmoothTransformation)
+                        xform)
                     cx = (scaled.width() - ts) // 2
                     cy = (scaled.height() - ts) // 2
                     scaled = scaled.copy(cx, cy, ts, ts)
                 else:
                     scaled = pixmap.scaled(
                         ts, ts, Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation)
+                        xform)
                 self._scaled_cache[cache_key] = scaled
                 if len(self._scaled_cache) > self._scaled_cache_max:
                     self._scaled_cache.popitem(last=False)  # evict oldest
@@ -2756,12 +2765,26 @@ class AssetBrowser(QWidget):
                 for folder, assets, depth in entries:
                     placeholder = QWidget(self._folder_container)
                     placeholder.setFixedHeight(0)
+                    # Hidden so QVBoxLayout does NOT allocate its inter-widget
+                    # spacing for this slot. With hundreds of folders that
+                    # spacing summed into a tall empty region above the first
+                    # built section. setVisible(False) makes the layout skip
+                    # the slot entirely; replaceWidget still preserves order
+                    # when the real section comes in (and is visible).
+                    placeholder.setVisible(False)
                     insert_before_stretch(placeholder)
                     plan.append(("sec", folder, assets, depth + 1, hdr, placeholder))
             else:
                 for folder, assets, depth in entries:
                     placeholder = QWidget(self._folder_container)
                     placeholder.setFixedHeight(0)
+                    # Hidden so QVBoxLayout does NOT allocate its inter-widget
+                    # spacing for this slot. With hundreds of folders that
+                    # spacing summed into a tall empty region above the first
+                    # built section. setVisible(False) makes the layout skip
+                    # the slot entirely; replaceWidget still preserves order
+                    # when the real section comes in (and is visible).
+                    placeholder.setVisible(False)
                     insert_before_stretch(placeholder)
                     plan.append(("sec", folder, assets, 0, None, placeholder))
 
