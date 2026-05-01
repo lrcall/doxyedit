@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
 )
 from PySide6.QtGui import QFont, QIcon
-from PySide6.QtCore import Qt, QTimer, QEventLoop, QSettings
+from PySide6.QtCore import Qt, QTimer, QEventLoop, QSettings, QObject, QEvent
 from doxyedit.themes import THEMES, DEFAULT_THEME
 from doxyedit.window import MainWindow
 
@@ -16,6 +16,99 @@ _LOG_PATH = Path.home() / ".doxyedit" / "doxyedit.log"
 _FAULT_PATH = Path.home() / ".doxyedit" / "faulthandler.log"
 _RUNNING_LOCK = Path.home() / ".doxyedit" / "running.lock"
 _AUTOLOAD_HARD_TIMEOUT_S = 60.0
+
+
+class _WindowMemoryFilter(QObject):
+    """App-wide geometry persistence for every top-level window.
+
+    Hooks QShowEvent / QResizeEvent / QMoveEvent on QWidgets that are
+    their own window (QDialog, popup tools, the main window itself).
+    Saves geometry under a key derived from the widget's objectName,
+    or its class name as a fallback. Subsequent shows of the same
+    window class restore the saved geometry without each dialog
+    needing to wire up its own _GEOM_KEY plumbing.
+
+    Key per widget: "win_geom/<objectName-or-className>"
+    """
+
+    _SAVE_DEBOUNCE_MS = 250
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._qs = QSettings("DoxyEdit", "DoxyEdit")
+        # Per-widget pending-save timer to avoid registry spam during drag.
+        self._pending: dict[int, QTimer] = {}
+        # Track widgets we've already restored once this session so we
+        # don't fight a widget that programmatically resizes itself
+        # mid-show.
+        self._restored: set[int] = set()
+
+    @staticmethod
+    def _key_for(widget) -> str:
+        from PySide6.QtWidgets import QWidget
+        if not isinstance(widget, QWidget):
+            return ""
+        # Prefer objectName so renames don't lose user state. Fall back
+        # to the class name when objectName isn't set.
+        name = widget.objectName() or widget.__class__.__name__
+        if not name or name == "QWidget":
+            return ""
+        return f"win_geom/{name}"
+
+    def _schedule_save(self, widget):
+        from PySide6.QtCore import QTimer
+        wid = id(widget)
+        timer = self._pending.get(wid)
+        if timer is None:
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.setInterval(self._SAVE_DEBOUNCE_MS)
+            timer.timeout.connect(lambda w=widget: self._save_now(w))
+            self._pending[wid] = timer
+        timer.start()
+
+    def _save_now(self, widget):
+        try:
+            key = self._key_for(widget)
+            if not key:
+                return
+            # Don't save degenerate sizes (minimized / not laid out yet).
+            if widget.width() < 50 or widget.height() < 50:
+                return
+            self._qs.setValue(key, widget.saveGeometry())
+        except Exception:
+            pass
+
+    def _maybe_restore(self, widget):
+        wid = id(widget)
+        if wid in self._restored:
+            return
+        try:
+            key = self._key_for(widget)
+            if not key:
+                return
+            blob = self._qs.value(key, None)
+            if blob:
+                widget.restoreGeometry(blob)
+            self._restored.add(wid)
+        except Exception:
+            pass
+
+    def eventFilter(self, obj, ev):
+        from PySide6.QtWidgets import QWidget
+        try:
+            t = ev.type()
+            # Only act on top-level widgets - the things with their own
+            # frame that the user perceives as "windows".
+            if (t in (QEvent.Type.Show, QEvent.Type.Move, QEvent.Type.Resize)
+                    and isinstance(obj, QWidget) and obj.isWindow()):
+                if t == QEvent.Type.Show:
+                    self._maybe_restore(obj)
+                else:
+                    self._schedule_save(obj)
+        except Exception:
+            pass
+        return False
 
 
 def _previous_launch_crashed() -> bool:
@@ -237,6 +330,12 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("DoxyEdit")
     app.setOrganizationName("DoxyEdit")
+    # Global window-geometry memory: every top-level window/dialog
+    # remembers position + size automatically without each one wiring
+    # up its own _GEOM_KEY plumbing. Keyed by objectName / className.
+    _win_mem = _WindowMemoryFilter(app)
+    app.installEventFilter(_win_mem)
+    app._doxy_win_mem = _win_mem  # keep alive
     # Use the user's saved theme (same QSettings MainWindow reads) so the
     # splash matches the main window, not the soot default.
     _saved_tid = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
