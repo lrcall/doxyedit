@@ -14810,7 +14810,11 @@ class StudioEditor(QWidget):
         menu.addSeparator()
         del_act = menu.addAction("Delete Export File")
         del_act.triggered.connect(lambda: self._delete_export_file(file_path))
-        menu.exec(frame.mapToGlobal(pos))
+        # Always show at the actual cursor. The customContextMenuRequested
+        # signal's pos can be (0,0) when the right-click landed on a
+        # child QLabel inside the frame, which mapped to the frame's top
+        # corner = ended up roughly screen-center for the popup.
+        menu.exec(QCursor.pos())
 
     def _add_current_asset_to_tray(self):
         """Send the current source asset (the one being studio-edited) to
