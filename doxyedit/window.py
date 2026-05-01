@@ -2303,6 +2303,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         edit_menu.addSeparator()
         edit_menu.addAction("&Rename File on Disk", self._rename_selected).setShortcut(QKeySequence("F2"))
         edit_menu.addAction("&Delete Selected (Ignore)", self._handle_delete).setShortcut(QKeySequence("Delete"))
+        edit_menu.addAction("Permanently Delete from Disk",
+                            self._handle_shift_delete).setShortcut(QKeySequence("Shift+Delete"))
         edit_menu.addAction("&Remove from Project", self._remove_selected)
         edit_menu.addSeparator()
         edit_menu.addAction("Move to Another Project...", self._move_to_project)
@@ -4843,6 +4845,16 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.browser.refresh()
         self._dirty = True
         self.status.showMessage(f"Renamed → {new_path.name}", 3000)
+
+    def _handle_shift_delete(self):
+        """Shift+Delete - permanently delete selected files from disk.
+        Matches OS-shell convention (Explorer Shift+Delete bypasses the
+        Recycle Bin). Browser handles its own confirmation dialog."""
+        if self.tabs.currentIndex() != 0:
+            return
+        if not self.browser.get_selected_assets():
+            return
+        self.browser._delete_selected_from_disk()
 
     def _handle_delete(self):
         """Delete key — context-aware. Assets tab: soft-delete. Canvas: remove items."""

@@ -4105,8 +4105,14 @@ class AssetBrowser(QWidget):
             # Key events — pass special keys to browser handlers
             if event.type() == event.Type.KeyPress:
                 if event.key() == Qt.Key.Key_Delete:
+                    shift = bool(event.modifiers()
+                                  & Qt.KeyboardModifier.ShiftModifier)
                     try:
-                        self.window()._handle_delete()
+                        win = self.window()
+                        if shift and hasattr(win, "_handle_shift_delete"):
+                            win._handle_shift_delete()
+                        else:
+                            win._handle_delete()
                     except Exception:
                         pass
                     return True
