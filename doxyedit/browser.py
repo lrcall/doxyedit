@@ -394,7 +394,8 @@ class ThumbnailModel(QAbstractListModel):
         elif role == self.PostStatusRole:
             return self._post_status_map.get(asset.id)
         elif role == self.StudioEditedRole:
-            return bool(asset.censors or asset.overlays)
+            # Crops are studio edits too - the user added them in Studio.
+            return bool(asset.censors or asset.overlays or asset.crops)
         elif role == self.ReadinessRole:
             return self._readiness_cache.get(asset.id)
         elif role == self.GroupInfoRole:
@@ -2413,7 +2414,7 @@ class AssetBrowser(QWidget):
         if self._format_filter == "has notes":
             preds.append(lambda a: bool(a.notes and a.notes.strip()))
         if self._format_filter == "studio edited":
-            preds.append(lambda a: bool(a.censors or a.overlays))
+            preds.append(lambda a: bool(a.censors or a.overlays or a.crops))
         if self.filter_assigned.isChecked():
             preds.append(lambda a: bool(a.assignments))
         if self.filter_posted.isChecked():
