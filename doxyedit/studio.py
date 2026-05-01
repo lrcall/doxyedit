@@ -2802,7 +2802,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             # scale/rotation/opacity spinboxes - here we get sliders with
             # live previews.
             sc_slider = QSlider(Qt.Orientation.Horizontal)
-            sc_slider.setRange(5, 500)
+            sc_slider.setRange(1, 1000)
             sc_slider.setValue(int(ov.scale * 100))
             sc_slider.setMinimumWidth(150)
             sc_lbl = QLabel(f"{int(ov.scale * 100)}%")
@@ -6148,10 +6148,11 @@ class StudioEditor(QWidget):
         toolbar.addWidget(QLabel("Scale:"))
         self.slider_scale = QSlider(Qt.Orientation.Horizontal)
         self.slider_scale.setObjectName("studio_scale_slider")
-        # 10 - 400% — enough to both shrink and blow up text / shapes
-        # without running out of slider travel on the common 50 / 100 /
-        # 200 / 400 ticks. Right-click for preset menu.
-        self.slider_scale.setRange(10, 400)
+        # 1 - 1000%. Range matches the shape-controls + quickbar scale
+        # sliders so all three inputs cover the same interval - they're
+        # the same underlying overlay.scale value, decoupled ranges led
+        # to one slider clamping where another could go further.
+        self.slider_scale.setRange(1, 1000)
         self.slider_scale.setValue(100)
         self.slider_scale.setFixedWidth(_slider_w)
         self.slider_scale.valueChanged.connect(self._on_scale_changed)
@@ -6461,7 +6462,7 @@ class StudioEditor(QWidget):
         quickbar.addWidget(QLabel("Scale"))
         self._qp_scale = QSlider(Qt.Orientation.Horizontal)
         self._qp_scale.setObjectName("studio_qp_scale")
-        self._qp_scale.setRange(5, 1000)
+        self._qp_scale.setRange(1, 1000)
         self._qp_scale.setValue(100)
         self._qp_scale.setFixedWidth(int(_dt.font_size * 5.2))
         self._qp_scale.setToolTip(
@@ -14318,7 +14319,6 @@ class StudioEditor(QWidget):
             out = export_dir / f"{stem}_studio_preview.png"
             img.save(str(out))
             self.info_label.setText(f"Exported: {stem}_studio_preview.png")
-            self._open_export_folder(export_dir)
         else:
             default_name = f"{src_path.stem}_studio_preview.png"
             path, _ = QFileDialog.getSaveFileName(
@@ -14403,8 +14403,6 @@ class StudioEditor(QWidget):
             self._asset.variant_exports[key] = r.output_path
             self.info_label.setText(f"Exported: {platform_id}/{slot_name} ({r.width}x{r.height})")
             self._populate_preview_strip([r])
-            if self._project_path:
-                self._open_export_folder(Path(r.output_path).parent)
         else:
             self.info_label.setText(f"Export failed: {r.error}")
             import logging as _logging
@@ -14459,7 +14457,6 @@ class StudioEditor(QWidget):
                 self._show_filmstrip_from_files(Path(out_dir), stem)
             except Exception:
                 pass
-            self._open_export_folder(Path(out_dir))
         except Exception as e:
             self.info_label.setText(f"Export crashed: {e}")
             import traceback; traceback.print_exc()
@@ -14584,8 +14581,6 @@ class StudioEditor(QWidget):
         self.info_label.setText(msg)
         self._rebuild_layer_panel()
         self._show_filmstrip_from_files(out_base, stem)
-        if self._project_path:
-            self._open_export_folder(get_export_dir(self._project_path))
 
     @staticmethod
     def _open_export_folder(folder: Path):
@@ -14597,17 +14592,18 @@ class StudioEditor(QWidget):
         )
 
     def _wire_filmstrip_thumb(self, frame, file_path: str):
-        """Attach hover-preview + right-click context menu to a filmstrip
-        thumbnail frame. Mirrors what the main asset grid offers - hover
-        shows a full-size preview, right-click gives Open / Reveal / Copy /
-        Delete actions on the export file itself."""
+        """Attach hover-preview, right-click context menu, and drag-out
+        with file URL to a filmstrip thumbnail frame. Mirrors what the
+        main asset grid offers."""
         frame.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         frame.setMouseTracking(True)
         frame.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         frame.setCursor(Qt.CursorShape.PointingHandCursor)
         frame.setToolTip(file_path)
-        # Filter both Enter/Leave (for hover preview) and right-click event.
-        def _ev_filter(obj, ev, _path=file_path, _self=self):
+        # Track press position so we can threshold-detect a drag and
+        # start a QDrag with the export file URL (Discord/Explorer/etc).
+        drag_state = {"press": None}
+        def _ev_filter(obj, ev, _path=file_path):
             t = ev.type()
             if t == QEvent.Type.Enter:
                 try:
@@ -14619,6 +14615,40 @@ class StudioEditor(QWidget):
                     HoverPreview.instance().hide_preview()
                 except Exception:
                     pass
+            elif t == QEvent.Type.MouseButtonPress:
+                if ev.button() == Qt.MouseButton.LeftButton:
+                    drag_state["press"] = ev.globalPosition().toPoint()
+            elif t == QEvent.Type.MouseMove:
+                if (ev.buttons() & Qt.MouseButton.LeftButton
+                        and drag_state["press"] is not None):
+                    delta = (ev.globalPosition().toPoint()
+                             - drag_state["press"]).manhattanLength()
+                    if delta >= QApplication.startDragDistance():
+                        drag_state["press"] = None
+                        try:
+                            HoverPreview.instance().hide_preview()
+                        except Exception:
+                            pass
+                        from PySide6.QtGui import QDrag
+                        from PySide6.QtCore import QMimeData, QUrl
+                        drag = QDrag(obj)
+                        mime = QMimeData()
+                        mime.setUrls([QUrl.fromLocalFile(_path)])
+                        drag.setMimeData(mime)
+                        # Use the visible thumbnail as the drag pixmap
+                        # so the user sees what they're dragging.
+                        for child in obj.children():
+                            try:
+                                pm = child.pixmap()
+                                if pm is not None and not pm.isNull():
+                                    drag.setPixmap(pm)
+                                    break
+                            except Exception:
+                                continue
+                        drag.exec(Qt.DropAction.CopyAction)
+                        return True
+            elif t == QEvent.Type.MouseButtonRelease:
+                drag_state["press"] = None
             return False
         frame.installEventFilter(self._make_obj_filter(_ev_filter))
         frame.customContextMenuRequested.connect(
@@ -14657,11 +14687,28 @@ class StudioEditor(QWidget):
         menu.addAction("Copy Image to Clipboard",
                        lambda: self._copy_image_to_clipboard(file_path))
         menu.addSeparator()
+        if self._asset is not None:
+            menu.addAction("Add Source Asset to Work Tray",
+                           lambda: self._add_current_asset_to_tray())
         menu.addAction("Re-export", lambda: self._export_current_platform())
         menu.addSeparator()
         del_act = menu.addAction("Delete Export File")
         del_act.triggered.connect(lambda: self._delete_export_file(file_path))
         menu.exec(frame.mapToGlobal(pos))
+
+    def _add_current_asset_to_tray(self):
+        """Send the current source asset (the one being studio-edited) to
+        the Work Tray. The filmstrip shows EXPORT files derived from this
+        asset, so the underlying asset is what 'Add to Work Tray' targets."""
+        if self._asset is None:
+            return
+        win = self.window()
+        send = getattr(win, "_send_single_to_tray", None)
+        if callable(send):
+            try:
+                send(self._asset.id)
+            except Exception:
+                pass
 
     def _open_with_default(self, path: str):
         try:
