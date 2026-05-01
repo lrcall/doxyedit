@@ -2642,6 +2642,23 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     # --- Clipboard paste ---
 
     def _paste_from_clipboard(self):
+        # Route Ctrl+V to the Work Tray when its focus chain owns input.
+        # Without this, the global Ctrl+V always pastes into the main
+        # project, even when the user clearly clicked into the tray.
+        try:
+            fw = QApplication.focusWidget()
+        except Exception:
+            fw = None
+        tray = getattr(self, "work_tray", None)
+        if tray is not None and fw is not None:
+            w = fw
+            while w is not None:
+                if w is tray:
+                    if hasattr(tray, "_paste_path_from_clipboard"):
+                        tray._paste_path_from_clipboard()
+                        return
+                    break
+                w = w.parentWidget()
         clipboard = QApplication.clipboard()
         mime = clipboard.mimeData()
 

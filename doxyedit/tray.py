@@ -823,17 +823,49 @@ class WorkTray(QWidget):
         return menu
 
     def _paste_path_from_clipboard(self):
-        """Take whatever is on the clipboard, treat each line as a path,
-        add any that resolve to a project asset."""
+        """Paste from clipboard into tray. Accepts: file URLs (drag-from-
+        explorer-style), text lines treated as paths, and raw image data
+        (saved to a temp file + imported as a new project asset). Anything
+        that resolves to a project asset gets added to the tray."""
         if not self._project:
             return
-        text = QApplication.clipboard().text()
-        if not text:
-            return
-        candidates = [p.strip().strip('"').strip("'")
-                      for p in text.splitlines() if p.strip()]
-        if not candidates:
-            return
+        clipboard = QApplication.clipboard()
+        mime = clipboard.mimeData()
+        candidates: list[str] = []
+        # 1. File URLs (when user copies file in Explorer)
+        if mime.hasUrls():
+            for url in mime.urls():
+                if url.isLocalFile():
+                    candidates.append(url.toLocalFile())
+        # 2. Plain text - one path per line
+        text = mime.text() if mime.hasText() else ""
+        if text:
+            for line in text.splitlines():
+                p = line.strip().strip('"').strip("'")
+                if p:
+                    candidates.append(p)
+        # 3. Image data - save to temp, register as a new project asset
+        new_asset_id: str | None = None
+        if not candidates and mime.hasImage():
+            try:
+                from PySide6.QtGui import QImage
+                import tempfile
+                from doxyedit.models import Asset
+                img = clipboard.image()
+                if not img.isNull():
+                    tmp = Path(tempfile.gettempdir()) / "doxyedit_tray_paste.png"
+                    img.save(str(tmp))
+                    new_asset = Asset(
+                        id=f"pasted_{len(self._project.assets)}",
+                        source_path=str(tmp),
+                        source_folder="clipboard",
+                    )
+                    self._project.assets.append(new_asset)
+                    if hasattr(self._project, "mark_mutated"):
+                        self._project.mark_mutated()
+                    new_asset_id = new_asset.id
+            except Exception:
+                pass
         path_map = {a.source_path.replace("\\", "/"): a
                     for a in self._project.assets}
         added = 0
@@ -842,6 +874,14 @@ class WorkTray(QWidget):
             asset = path_map.get(norm)
             if asset and asset.id not in self._asset_ids:
                 self.add_asset(asset.id, Path(path).name, path=path)
+                added += 1
+        if new_asset_id and new_asset_id not in self._asset_ids:
+            new_asset = next((a for a in self._project.assets
+                              if a.id == new_asset_id), None)
+            if new_asset:
+                self.add_asset(new_asset.id,
+                               Path(new_asset.source_path).name,
+                               path=new_asset.source_path)
                 added += 1
         if added:
             self.pixmaps_needed.emit(list(self._asset_ids))
