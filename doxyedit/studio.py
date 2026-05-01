@@ -10349,16 +10349,21 @@ class StudioEditor(QWidget):
                 if not getattr(dlg, "_titlebar_themed", False):
                     win._theme_dialog_titlebar(dlg)
                     dlg._titlebar_themed = True
-            # First-show reposition only — once positioned this session,
-            # never override the user's drag of the window.
+            # First-show reposition. Also re-trigger when the dialog is
+            # mostly off-screen (e.g. a saved geometry from a prior
+            # monitor layout). Just checking intersects() returned True
+            # for windows that were 99% off-screen, so the user opened a
+            # text and saw nothing - the dialog WAS shown, just somewhere
+            # they couldn't see it.
             screen = QApplication.primaryScreen()
-            if screen is not None and not getattr(
-                    dlg, "_positioned_once", False):
+            if screen is not None:
                 avail = screen.availableGeometry()
                 g = dlg.frameGeometry()
+                center_on_screen = avail.contains(g.center())
                 needs_reposition = (
                     g.width() < 50 or g.height() < 50
-                    or not avail.intersects(g)
+                    or not center_on_screen
+                    or not getattr(dlg, "_positioned_once", False)
                 )
                 if needs_reposition:
                     gv = self._view
