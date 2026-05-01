@@ -9321,8 +9321,15 @@ class StudioEditor(QWidget):
             return
         for crop in self._asset.crops:
             rect = QRectF(crop.x, crop.y, crop.w, crop.h)
-            # Derive aspect from crop dimensions (preserves platform ratio)
-            aspect = crop.w / crop.h if crop.w and crop.h else None
+            # Aspect lock applies ONLY to platform-bound crops. Free
+            # crops (no platform_id) were getting aspect = w/h baked in
+            # on reload, which permanently locked their ratio to
+            # whatever shape the user drew them - users couldn't
+            # reshape a free crop after closing/reopening the project.
+            has_platform = bool(getattr(crop, "platform_id", ""))
+            aspect = (crop.w / crop.h
+                      if has_platform and crop.w and crop.h
+                      else None)
             item = ResizableCropItem(rect, label=crop.label, aspect=aspect, theme=self._theme)
             item.on_changed = self._on_crop_edited
             self._scene.addItem(item)

@@ -681,11 +681,11 @@ def _composite_text_overlay(img: Image.Image, ov: CanvasOverlay) -> Image.Image:
         y += oy
         img = img.convert("RGBA")
         layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        # Apply per-overlay opacity by scaling the tile's alpha channel.
-        if ov.opacity < 1.0:
-            r, g, b, a = tile.split()
-            a = a.point(lambda v, o=ov.opacity: int(v * o))
-            tile = Image.merge("RGBA", (r, g, b, a))
+        # Do NOT reapply opacity here. OverlayTextItem.__init__ called
+        # setOpacity(ov.opacity) on the temp-rendered item, which bakes
+        # the opacity into the tile's alpha channel during scene.render.
+        # Multiplying again post-render produced opacity^2 - what the
+        # user set as 50% looked like 25% in the export.
         layer.paste(tile, (x, y), tile)
         return Image.alpha_composite(img, layer)
     return _composite_text_overlay_pil(img, ov)
