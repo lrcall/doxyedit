@@ -756,7 +756,21 @@ class StudioScene(QGraphicsScene):
         chosen = menu.exec(event.screenPos())
         if chosen is export_act:
             target.setSelected(True)
-            editor._export_current_platform()
+            # If the crop has a platform binding use the full platform
+            # pipeline (resize-to-platform + slot-name suffix); otherwise
+            # fall back to a plain free-form crop export so labels like
+            # "free" actually save instead of bouncing on "no platform".
+            lbl = getattr(target, "label", "")
+            crop = next(
+                (c for c in (editor._asset.crops if editor._asset else [])
+                 if c.label == lbl),
+                None,
+            )
+            has_platform = bool(crop and getattr(crop, "platform_id", ""))
+            if has_platform:
+                editor._export_current_platform()
+            else:
+                editor._export_freeform_crop(target)
         elif chosen is copy_crop_act:
             self._copy_crop_to_clipboard(editor, target)
         elif chosen is rename_act:
@@ -14382,6 +14396,60 @@ class StudioEditor(QWidget):
             self.info_label.setText(f"Export failed: {r.error}")
             import logging as _logging
             _logging.error("Export Platform FAILED: %s", r.error)
+
+    def _export_freeform_crop(self, crop_item):
+        """Export a single non-platform crop (e.g. label='free').
+
+        The platform pipeline requires a platform_id + slot, so it
+        rejects free-form crops with 'no platform selected'. The
+        right-click 'Export this crop' menu should still work for
+        labelled-only crops; this is the simple path: render visible
+        overlays + censors onto the source, crop to the rect, save
+        beside the project file."""
+        if not self._asset:
+            self.info_label.setText("No asset loaded")
+            return
+        from pathlib import Path
+        from doxyedit.imaging import load_image_for_export, get_export_dir
+        from doxyedit.exporter import apply_overlays, apply_censors
+        self._sync_censors_to_asset()
+        self._sync_overlays_to_asset()
+        src_path = Path(self._asset.source_path)
+        if not src_path.exists():
+            self.info_label.setText(f"Source missing: {src_path.name}")
+            return
+        rect = crop_item.rect()
+        x, y = int(rect.x()), int(rect.y())
+        w, h = int(rect.width()), int(rect.height())
+        if w <= 0 or h <= 0:
+            self.info_label.setText("Crop has no area")
+            return
+        try:
+            img = load_image_for_export(str(src_path))
+            if self._asset.censors:
+                img = apply_censors(img, self._asset.censors)
+            unscoped = [ov for ov in self._asset.overlays if not ov.platforms]
+            if unscoped:
+                img = apply_overlays(img, unscoped, str(src_path.parent))
+            img = img.crop((x, y, x + w, y + h))
+            out_dir = get_export_dir(self._project_path) if self._project_path \
+                else (src_path.parent / "_exports")
+            out_dir.mkdir(parents=True, exist_ok=True)
+            label = (getattr(crop_item, "label", "") or "crop").strip() or "crop"
+            stem = src_path.stem
+            if stem.isdigit() and src_path.parent.name:
+                stem = f"{src_path.parent.name}_{stem}"
+            out_path = Path(out_dir) / f"{stem}_{label}.png"
+            img.save(str(out_path), "PNG")
+            self.info_label.setText(f"Exported: {label} ({w}x{h})")
+            try:
+                self._show_filmstrip_from_files(Path(out_dir), stem)
+            except Exception:
+                pass
+            self._open_export_folder(Path(out_dir))
+        except Exception as e:
+            self.info_label.setText(f"Export crashed: {e}")
+            import traceback; traceback.print_exc()
 
     def _export_all_platforms(self):
         """Batch export all platform variants for the current asset."""
