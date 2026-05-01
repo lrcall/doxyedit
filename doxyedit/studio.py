@@ -10555,11 +10555,24 @@ class StudioEditor(QWidget):
             return
         if ext not in ('.png', '.jpg', '.jpeg', '.webp', '.gif'):
             return
+        # Drop at 1:1 pixel size: read the dropped image's native width and
+        # set ov.scale so target_w == native_w when _create_overlay_item
+        # rescales it (target_w = base_w * scale). Without this the slider's
+        # scale value (default 0.2 = 20% of base width) shrinks every drop.
+        scale = self.slider_scale.value() / 100.0
+        if self._pixmap_item:
+            base_w = self._pixmap_item.pixmap().width()
+            try:
+                drop_pm = QPixmap(path)
+                if not drop_pm.isNull() and base_w > 0:
+                    scale = drop_pm.width() / base_w
+            except Exception:
+                pass
         ov = CanvasOverlay(
             type="watermark", label=Path(path).stem, image_path=path,
             position="custom", x=int(scene_pos.x()), y=int(scene_pos.y()),
             opacity=self.slider_opacity.value() / 100.0,
-            scale=self.slider_scale.value() / 100.0,
+            scale=scale,
         )
         self._add_overlay_image(ov)
         self._sync_overlays_to_asset()
