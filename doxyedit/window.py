@@ -1742,11 +1742,12 @@ class MainWindow(SaveLoadMixin, QMainWindow):
                 pass
 
     def _update_title_bar_color(self):
-        proj_accent = getattr(getattr(self, 'project', None), 'accent_color', '')
-        if proj_accent:
-            self._tint_titlebar(proj_accent)
-        else:
-            self._theme_dialog_titlebar(self)
+        # Theme wins. Per-project accent_color used to override the
+        # title bar but it stuck on the project's color across theme
+        # switches, so users couldn't actually re-theme the top bar.
+        # Theme's bg_raised is what every other panel uses; the title
+        # bar should match.
+        self._theme_dialog_titlebar(self)
 
     def _theme_dialog_titlebar(self, widget):
         try:
