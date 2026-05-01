@@ -2056,7 +2056,19 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
         super().moveEvent(ev); self._save_geom()
 
     def resizeEvent(self, ev):
-        super().resizeEvent(ev); self._save_geom()
+        super().resizeEvent(ev)
+        self._save_geom()
+        # When the dialog is narrowed, the slider's field column eats the
+        # right-aligned numeric labels (5%, 100%, 0deg, +0). Hide every
+        # widget tagged "shape_value_label" once the dialog drops below a
+        # readable threshold so the labels don't paint over the sliders.
+        threshold = 280
+        try:
+            hide = self.width() < threshold
+            for lbl in self.findChildren(QLabel, "shape_value_label"):
+                lbl.setVisible(not hide)
+        except Exception:
+            pass
 
     def _clear(self):
         while self._root_layout.count():
@@ -2547,6 +2559,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     ir_lbl = QLabel(
                         f"{int(float(getattr(ov, 'inner_ratio', 0.4) or 0.4) * 100)}%")
                     ir_lbl.setFixedWidth(40)
+                    ir_lbl.setObjectName('shape_value_label')
                     def _ir_changed(v, _it=item, _lbl=ir_lbl):
                         _it.overlay.inner_ratio = v / 100.0
                         _it.prepareGeometryChange()
@@ -2578,6 +2591,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     sl.setMinimumWidth(150)
                     readout = QLabel(f"{getattr(ov, attr, 0.0):+.2f}")
                     readout.setFixedWidth(52)
+                    readout.setObjectName('shape_value_label')
                     def _on_change(v, _it=item, _attr=attr, _r=readout):
                         val = v / 100.0
                         setattr(_it.overlay, _attr, val)
@@ -2614,6 +2628,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     sl.setMinimumWidth(DEFORMER_SLIDER_MIN_WIDTH)
                     readout = QLabel(fmt.format(int(getattr(ov, attr, lo) or lo)))
                     readout.setFixedWidth(DEFORMER_READOUT_WIDTH)
+                    readout.setObjectName('shape_value_label')
                     def _on_change(v, _it=item, _attr=attr, _r=readout):
                         setattr(_it.overlay, _attr, int(v))
                         _it.prepareGeometryChange()
@@ -2679,6 +2694,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             op_slider.setMinimumWidth(150)
             op_lbl = QLabel(f"{int(ov.opacity * 100)}%")
             op_lbl.setFixedWidth(40)
+            op_lbl.setObjectName('shape_value_label')
             def _op_changed(v, _it=item, _lbl=op_lbl):
                 _it.overlay.opacity = v / 100.0
                 _it.update()
@@ -2701,7 +2717,9 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             rot_slider.setValue(rot_init)
             rot_slider.setMinimumWidth(150)
             rot_lbl = QLabel(f"{rot_init}°")
+            rot_lbl.setObjectName('shape_value_label')
             rot_lbl.setFixedWidth(44)
+            rot_lbl.setObjectName('shape_value_label')
             def _rot_changed(v, _it=item, _lbl=rot_lbl):
                 _it.overlay.rotation = v % 360
                 _it.setTransformOriginPoint(
@@ -2725,7 +2743,9 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             sc_slider.setValue(100)
             sc_slider.setMinimumWidth(150)
             sc_lbl = QLabel("100%")
+            sc_lbl.setObjectName('shape_value_label')
             sc_lbl.setFixedWidth(44)
+            sc_lbl.setObjectName('shape_value_label')
             # Freeze baseline so slider==100% keeps the current size
             _base = {
                 "w": ov.shape_w, "h": ov.shape_h,
@@ -2807,6 +2827,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             sc_slider.setMinimumWidth(150)
             sc_lbl = QLabel(f"{int(ov.scale * 100)}%")
             sc_lbl.setFixedWidth(40)
+            sc_lbl.setObjectName('shape_value_label')
             def _img_scale(v, _it=item, _lbl=sc_lbl):
                 _it.overlay.scale = v / 100.0
                 if hasattr(editor, "_refresh_overlay_image"):
@@ -2830,6 +2851,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             op_slider.setMinimumWidth(150)
             op_lbl = QLabel(f"{int(ov.opacity * 100)}%")
             op_lbl.setFixedWidth(40)
+            op_lbl.setObjectName('shape_value_label')
             def _img_op(v, _it=item, _lbl=op_lbl):
                 _it.overlay.opacity = v / 100.0
                 _it.setOpacity(v / 100.0)
@@ -2852,7 +2874,9 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             rot_slider.setValue(rot_init)
             rot_slider.setMinimumWidth(150)
             rot_lbl = QLabel(f"{rot_init}°")
+            rot_lbl.setObjectName('shape_value_label')
             rot_lbl.setFixedWidth(44)
+            rot_lbl.setObjectName('shape_value_label')
             def _img_rot(v, _it=item, _lbl=rot_lbl):
                 _it.overlay.rotation = v % 360
                 if hasattr(_it, "_apply_flip"):
@@ -2912,6 +2936,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 sl.setMinimumWidth(150)
                 lbl = QLabel(f"{sl.value():+d}")
                 lbl.setFixedWidth(40)
+                lbl.setObjectName('shape_value_label')
                 def _on_change(v, _it=item, _attr=attr, _lbl=lbl):
                     setattr(_it.overlay, _attr, v / 100.0)
                     if hasattr(editor, "_refresh_overlay_image"):
