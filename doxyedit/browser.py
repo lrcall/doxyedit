@@ -1518,9 +1518,11 @@ class AssetBrowser(QWidget):
         self._format_combo.addItems(_format_items)
         self._format_combo.setToolTip("Filter by file format")
         # Show every entry without scrolling. Native combos cap the popup
-        # at ~10 rows and require a scrollbar for the rest; setStyleSheet
-        # on QComboBox::view bypasses that and lets maxVisibleCount apply.
-        self._format_combo.setMaxVisibleCount(len(_format_items))
+        # at ~10 rows and force a scrollbar; combobox-popup:0 bypasses the
+        # native popup limit and the maxVisibleCount property (set via
+        # setProperty for PySide6 versions that don't expose the
+        # setMaxVisibleCount method) controls the row count.
+        self._format_combo.setProperty("maxVisibleCount", len(_format_items))
         self._format_combo.setStyleSheet(
             "QComboBox { combobox-popup: 0; }")
         self._format_combo.currentTextChanged.connect(self._on_format_filter_changed)
