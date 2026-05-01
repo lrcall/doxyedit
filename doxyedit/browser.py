@@ -1895,12 +1895,8 @@ class AssetBrowser(QWidget):
             if not p or p in seen_folders:
                 continue
             seen_folders.add(p)
-            # Per-folder recursive: the UI's "Recursive" checkbox is the
-            # user's explicit ad-hoc choice, so it overrides the per-source
-            # flag instead of AND-ing with it. Otherwise a folder originally
-            # imported non-recursively could never be re-scanned recursively
-            # without first re-adding it as a separate source.
-            per_recursive = recursive_ui or bool(src.get("recursive", False))
+            # Per-folder recursive = original import choice AND UI toggle
+            per_recursive = bool(src.get("recursive", False)) and recursive_ui
             folder_entries.append((p, per_recursive))
 
         existing = self.project.path_index
@@ -3292,17 +3288,6 @@ class AssetBrowser(QWidget):
         if count:
             self.project.mark_mutated()
             self._refresh_grid()
-        else:
-            # Tell the user the import ran but found nothing - silent
-            # no-op was confusing when a brand-new subfolder/file existed
-            # but the recursive checkbox was off (so we never descended).
-            try:
-                hint = (" Try toggling the 'Recursive' checkbox if the "
-                        "image is in a subfolder.") if not recursive else ""
-                self.window().status.showMessage(
-                    f"Import {folder_path.name}: 0 new images.{hint}", 5000)
-            except Exception:
-                pass
         return count
 
     def _import_folder_async(self, folder: str, recursive: bool):
