@@ -4091,3 +4091,82 @@ class DeleteItemCmd(QUndoCommand):
                 self._editor._asset.overlays.append(overlay)
             if item.scene() is None:
                 self._editor._scene.addItem(item)
+
+
+class AddOverlayCmd(QUndoCommand):
+    """Push when the user creates a new overlay (text/image/shape/arrow)
+    so Ctrl+Z removes it. Caller does the initial add; this cmd's first
+    redo() is a no-op (already added). Subsequent undo/redo move the
+    item in and out of scene + asset.overlays."""
+
+    def __init__(self, editor, overlay, item, description="Add overlay"):
+        super().__init__(description)
+        self._editor = editor
+        self._overlay = overlay
+        self._item = item
+        self._first_redo = True
+
+    def redo(self):
+        if self._first_redo:
+            self._first_redo = False
+            return
+        if self._editor._asset is not None and self._overlay not in self._editor._asset.overlays:
+            self._editor._asset.overlays.append(self._overlay)
+        if self._item not in self._editor._overlay_items:
+            self._editor._overlay_items.append(self._item)
+        if self._item.scene() is None:
+            self._editor._scene.addItem(self._item)
+        if hasattr(self._editor, "_schedule_layer_rebuild"):
+            self._editor._schedule_layer_rebuild()
+
+    def undo(self):
+        if self._editor._asset is not None and self._overlay in self._editor._asset.overlays:
+            self._editor._asset.overlays.remove(self._overlay)
+        if self._item in self._editor._overlay_items:
+            self._editor._overlay_items.remove(self._item)
+        if self._item.scene():
+            self._editor._scene.removeItem(self._item)
+        if hasattr(self._editor, "_schedule_layer_rebuild"):
+            self._editor._schedule_layer_rebuild()
+
+
+class AddCropCmd(QUndoCommand):
+    """Push when the user finishes drawing a crop. Removes the crop
+    from asset.crops and the scene on undo; restores on redo. Also
+    cleans up the darkening mask when the last crop disappears."""
+
+    def __init__(self, editor, crop, item, description="Add crop"):
+        super().__init__(description)
+        self._editor = editor
+        self._crop = crop
+        self._item = item
+        self._first_redo = True
+
+    def _drop_mask_if_empty(self):
+        if (not self._editor._crop_items
+                and getattr(self._editor, "_crop_mask_item", None) is not None):
+            if self._editor._crop_mask_item.scene():
+                self._editor._scene.removeItem(self._editor._crop_mask_item)
+            self._editor._crop_mask_item = None
+
+    def redo(self):
+        if self._first_redo:
+            self._first_redo = False
+            return
+        if (self._editor._asset is not None
+                and self._crop not in self._editor._asset.crops):
+            self._editor._asset.crops.append(self._crop)
+        if self._item not in self._editor._crop_items:
+            self._editor._crop_items.append(self._item)
+        if self._item.scene() is None:
+            self._editor._scene.addItem(self._item)
+
+    def undo(self):
+        if (self._editor._asset is not None
+                and self._crop in self._editor._asset.crops):
+            self._editor._asset.crops.remove(self._crop)
+        if self._item in self._editor._crop_items:
+            self._editor._crop_items.remove(self._item)
+        if self._item.scene():
+            self._editor._scene.removeItem(self._item)
+        self._drop_mask_if_empty()

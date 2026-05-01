@@ -15,7 +15,8 @@ from doxyedit.studio_items import (
     StudioTool,
     CensorRectItem, OverlayImageItem, OverlayShapeItem, OverlayArrowItem,
     OverlayTextItem, AnnotationTextItem,
-    AddCensorCmd, SetAttrCmd, SetZValueCmd, DeleteItemCmd,
+    AddCensorCmd, AddOverlayCmd, AddCropCmd,
+    SetAttrCmd, SetZValueCmd, DeleteItemCmd,
     _OVERLAY_ITEM_TYPES, _SELECTABLE_ITEM_TYPES, _CANVAS_ITEM_TYPES,
     _attach_ctx_menu, _themed_menu, _exec_menu_clamped,
     _add_platform_submenu, _resolve_platform_menu,
@@ -9282,6 +9283,8 @@ class StudioEditor(QWidget):
         crop_item.on_changed = self._on_crop_edited
         self._scene.addItem(crop_item)
         self._crop_items.append(crop_item)
+        # Ctrl+Z removes the just-drawn crop.
+        self._undo_stack.push(AddCropCmd(self, crop, crop_item, "Add crop"))
         # Update mask
         self._update_crop_mask(rect)
         self._view.setCursor(Qt.CursorShape.ArrowCursor)
@@ -10123,6 +10126,8 @@ class StudioEditor(QWidget):
         if item:
             item.setZValue(200 + len(self._overlay_items))
             self._overlay_items.append(item)
+            # Push to undo stack so Ctrl+Z removes this freshly-added text.
+            self._undo_stack.push(AddOverlayCmd(self, ov, item, "Add text"))
             # Auto-select the new overlay + enter edit mode so the user can
             # start typing immediately. Critical for comic bubble flow.
             self._scene.clearSelection()
@@ -12889,6 +12894,15 @@ class StudioEditor(QWidget):
                     self._crop_items.remove(item)
                 if self._asset:
                     self._asset.crops = [c for c in self._asset.crops if c.label != item.label]
+                # Also drop the darkening mask if there are no crops
+                # left to mask. (Right-click 'Delete crop' already does
+                # this; the keyboard-Delete path was leaving the mask
+                # on screen with no visible crop to anchor it.)
+                if (not self._crop_items
+                        and getattr(self, "_crop_mask_item", None) is not None):
+                    if self._crop_mask_item.scene():
+                        self._scene.removeItem(self._crop_mask_item)
+                    self._crop_mask_item = None
             elif isinstance(item, NoteRectItem):
                 self._scene.removeItem(item)
                 if item in self._notes:
