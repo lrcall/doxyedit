@@ -2062,7 +2062,9 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
         # right-aligned numeric labels (5%, 100%, 0deg, +0). Hide every
         # widget tagged "shape_value_label" once the dialog drops below a
         # readable threshold so the labels don't paint over the sliders.
-        threshold = 280
+        # 340 measured: below this the brightness slider's right edge
+        # starts to abut the +0 label and the two visibly overlap.
+        threshold = 340
         try:
             hide = self.width() < threshold
             for lbl in self.findChildren(QLabel, "shape_value_label"):
