@@ -42,6 +42,18 @@ class _WindowMemoryFilter(QObject):
         # don't fight a widget that programmatically resizes itself
         # mid-show.
         self._restored: set[int] = set()
+        # One-time cleanup: an earlier version of this filter persisted
+        # geometry for QMenu / tooltip popups, which then made every
+        # right-click menu open at the same restored size + position.
+        # Wipe those stray keys so the new filter (which skips popups)
+        # has a clean slate.
+        for stale in ("win_geom/QMenu", "win_geom/QToolTip",
+                      "win_geom/QFrame",
+                      "win_geom/QComboBoxPrivateContainer"):
+            try:
+                self._qs.remove(stale)
+            except Exception:
+                pass
 
     @staticmethod
     def _key_for(widget) -> str:
@@ -94,14 +106,42 @@ class _WindowMemoryFilter(QObject):
         except Exception:
             pass
 
+    @staticmethod
+    def _is_persistable_window(widget) -> bool:
+        """Only QDialog / QMainWindow style windows should remember
+        geometry. Skip popups (QMenu, tooltips, combobox dropdowns) -
+        they're transient and should be positioned by Qt at the
+        cursor or anchor, never restored from disk."""
+        from PySide6.QtWidgets import QWidget, QDialog, QMainWindow
+        if not isinstance(widget, QWidget):
+            return False
+        # Class-name skip-list catches Qt's transient widget classes.
+        cls = widget.__class__.__name__
+        if cls in {"QMenu", "QToolTip", "QComboBoxPrivateContainer",
+                   "QCompleterPrivate", "QFrame"}:
+            return False
+        # Window-type flag screen: anything tagged Popup/ToolTip/SplashScreen
+        # is transient by design.
+        try:
+            wt = widget.windowType()
+        except Exception:
+            return False
+        if wt in (Qt.WindowType.Popup, Qt.WindowType.ToolTip,
+                  Qt.WindowType.SplashScreen, Qt.WindowType.Drawer,
+                  Qt.WindowType.Sheet):
+            return False
+        # Only persist genuine user-facing windows.
+        return isinstance(widget, (QDialog, QMainWindow)) or wt == Qt.WindowType.Window
+
     def eventFilter(self, obj, ev):
-        from PySide6.QtWidgets import QWidget
         try:
             t = ev.type()
             # Only act on top-level widgets - the things with their own
             # frame that the user perceives as "windows".
             if (t in (QEvent.Type.Show, QEvent.Type.Move, QEvent.Type.Resize)
-                    and isinstance(obj, QWidget) and obj.isWindow()):
+                    and obj.isWidgetType()
+                    and obj.isWindow()
+                    and self._is_persistable_window(obj)):
                 if t == QEvent.Type.Show:
                     self._maybe_restore(obj)
                 else:
