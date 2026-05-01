@@ -5739,12 +5739,27 @@ class StudioEditor(QWidget):
 
         # Delete
         if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
-            # Only delete if no text item is in edit mode
+            # Skip if a text item is mid-edit AND has real content - the
+            # user is editing characters in their text. But if a freshly
+            # created text is in edit mode with only the placeholder
+            # ("Your text") still in the box, treat Delete as 'cancel
+            # this overlay' rather than 'delete one character'. Otherwise
+            # users who tapped the text tool by accident had no way to
+            # back out: the item kept showing in the layer list.
+            blocked = False
             for item in self._scene.selectedItems():
                 if isinstance(item, OverlayTextItem) and \
                    item.textInteractionFlags() & Qt.TextInteractionFlag.TextEditorInteraction:
-                    break
-            else:
+                    cur_text = item.toPlainText().strip()
+                    if cur_text and cur_text != "Your text":
+                        blocked = True
+                        break
+                    # Edit mode + placeholder content: exit edit mode so
+                    # _delete_selected can remove the whole overlay.
+                    item.setTextInteractionFlags(
+                        Qt.TextInteractionFlag.NoTextInteraction)
+                    item.clearFocus()
+            if not blocked:
                 self._delete_selected()
             return
 
@@ -10328,15 +10343,21 @@ class StudioEditor(QWidget):
                     break
         dlg = self._text_controls_dlg
         if has_text_tool or has_text_selected:
-            # HARD EARLY-OUT: if the popup is already visible, do NOTHING.
-            # No setStyleSheet, no theme_dialog_titlebar, no move, no
-            # raise, no activateWindow. Every one of those ops was firing
-            # on every selection sync and causing the popup to flash/re-
-            # focus/re-lay-out while the user was trying to work with it.
-            # The popup stays open once shown, styled, and positioned;
-            # user dismisses it via its own close button.
+            # Early-out: if the popup is visible AND its center is on a
+            # screen, do nothing. No setStyleSheet, no theme_dialog_
+            # titlebar, no move, no raise. (Those ops on every selection
+            # sync caused flash / re-focus / re-layout while the user was
+            # working.) But if isVisible() is True yet the dialog sits
+            # off-screen (stale geometry from a prior monitor layout),
+            # fall through so the reposition logic below can rescue it.
             if dlg.isVisible():
-                return
+                screen = QApplication.primaryScreen()
+                avail = screen.availableGeometry() if screen else None
+                if avail is None or avail.contains(dlg.frameGeometry().center()):
+                    return
+                # Off-screen: drop _positioned_once so the reposition
+                # block below moves it back into view.
+                dlg._positioned_once = False
             win = self.window()
             if win is not None:
                 current = win.styleSheet()
