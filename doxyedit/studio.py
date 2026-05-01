@@ -928,7 +928,28 @@ class StudioScene(QGraphicsScene):
         snap_threshold_act = menu.addAction("Snap Proximity...")
         snap_pixel_act = menu.addAction("Snap Selection to Pixel Grid")
         snap_pixel_act.setEnabled(bool(editor._scene.selectedItems()))
-        chosen = menu.exec(event.screenPos())
+        # Manually fit-to-screen: this menu has many entries and Qt's
+        # automatic edge-flip wasn't kicking in cleanly when the user
+        # right-clicked near the bottom of the canvas - the menu
+        # extended past the screen and items were clipped.
+        target = event.screenPos()
+        try:
+            from PySide6.QtGui import QGuiApplication
+            menu.adjustSize()
+            mh = menu.sizeHint().height()
+            mw = menu.sizeHint().width()
+            screen = QGuiApplication.screenAt(target) or QGuiApplication.primaryScreen()
+            avail = screen.availableGeometry()
+            tx, ty = int(target.x()), int(target.y())
+            if ty + mh > avail.bottom():
+                ty = max(avail.top(), avail.bottom() - mh)
+            if tx + mw > avail.right():
+                tx = max(avail.left(), avail.right() - mw)
+            from PySide6.QtCore import QPoint
+            target = QPoint(tx, ty)
+        except Exception:
+            pass
+        chosen = menu.exec(target)
         pos = event.scenePos()
         if chosen is add_text_act:
             editor._add_text_overlay(int(pos.x()), int(pos.y()))
