@@ -6743,7 +6743,9 @@ class StudioEditor(QWidget):
         props.addWidget(QLabel("Size:"))
         self.slider_font_size = QSlider(Qt.Orientation.Horizontal)
         self.slider_font_size.setObjectName("studio_font_size")
-        self.slider_font_size.setRange(8, 200)
+        # 1-400. Was 8-200 - 8px floor was rejected as a 'hard minimum'
+        # by users who legitimately want tiny captions or extreme blow-ups.
+        self.slider_font_size.setRange(1, 400)
         self.slider_font_size.setValue(24)
         self.slider_font_size.setFixedWidth(_slider_sm)
         self.slider_font_size.valueChanged.connect(self._on_font_size_changed)
@@ -6952,7 +6954,12 @@ class StudioEditor(QWidget):
                    self.btn_color, self.btn_outline_color,
                    self.slider_outline, self.slider_kerning,
                    self.slider_line_height, self.slider_rotation,
-                   self.slider_text_width):
+                   self.slider_text_width,
+                   # The font size readout label - reparenting just the
+                   # slider left the "24" label orphaned in props_row,
+                   # which is why text controls appeared to have no
+                   # numeric readout for font size.
+                   self._font_size_label):
             _w.setParent(_dlg)
             _w.show()
         # Font combo forced to not exceed the form's field column so it
@@ -7568,6 +7575,10 @@ class StudioEditor(QWidget):
         # window width — without the panel refusing past ~200px.
         self._layer_panel = QListWidget()
         self._layer_panel.setObjectName("studio_layer_panel")
+        # Match canvas - multi-select on stage should highlight all
+        # corresponding rows. Default SingleSelection clipped that to one.
+        self._layer_panel.setSelectionMode(
+            QListWidget.SelectionMode.ExtendedSelection)
         self._layer_panel.setDragDropMode(QListWidget.DragDropMode.InternalMove)
         # Accept external drops (from tray) to add files as overlays
         self._layer_panel.setAcceptDrops(True)
@@ -10431,6 +10442,9 @@ class StudioEditor(QWidget):
         self._sync_text_controls_visibility()
         # Shape-controls popup follows selection for shapes / arrows
         self._sync_shape_controls_visibility()
+        # Mirror the canvas selection into the layer panel so the user
+        # can see which row corresponds to what they just clicked.
+        self._sync_layer_panel_selection()
         # Quickbar mirrors the first selected overlay's state so the
         # duplicated toolbar controls actually reflect what's about to
         # be modified.
@@ -12420,6 +12434,48 @@ class StudioEditor(QWidget):
             elif cr is not None:
                 it.setVisible(True)
         self.info_label.setText("Isolation off")
+
+    def _sync_layer_panel_selection(self):
+        """Mirror canvas selection into the layer panel so the user can
+        see which row corresponds to the items they clicked on stage.
+
+        Multi-selects on the canvas reflect as multi-selects in the
+        layer panel. Block signals around the change to avoid bouncing
+        the selection back into _on_layer_clicked.
+        """
+        if not hasattr(self, "_layer_panel") or self._layer_panel is None:
+            return
+        if not self._asset:
+            return
+        # Collect overlay indices for currently-selected scene items
+        sel_indices: set[int] = set()
+        for it in self._scene.selectedItems():
+            ov = getattr(it, "overlay", None)
+            if ov is None:
+                continue
+            try:
+                sel_indices.add(self._asset.overlays.index(ov))
+            except ValueError:
+                continue
+        self._layer_panel.blockSignals(True)
+        try:
+            self._layer_panel.clearSelection()
+            first = None
+            for row in range(self._layer_panel.count()):
+                item = self._layer_panel.item(row)
+                data = item.data(Qt.ItemDataRole.UserRole)
+                if not data:
+                    continue
+                kind, idx = data
+                if kind == "overlay" and idx in sel_indices:
+                    item.setSelected(True)
+                    if first is None:
+                        first = item
+            if first is not None:
+                self._layer_panel.setCurrentItem(first)
+                self._layer_panel.scrollToItem(first)
+        finally:
+            self._layer_panel.blockSignals(False)
 
     def _on_layer_clicked(self, item):
         """Select the corresponding scene item when layer is clicked.
