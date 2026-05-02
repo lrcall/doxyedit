@@ -217,6 +217,73 @@ class TestProjectLoadSkipsBadRecords(unittest.TestCase):
         self.assertEqual([p.id for p in proj.posts], ["good1", "good2"])
 
 
+class TestProjectSaveLoadRoundTrip(unittest.TestCase):
+    """Full disk round-trip: build a Project with posts that exercise
+    every recently-added field (identity_name, posting_log,
+    CropRegion.rotation, TagPreset.parent_id), save to .doxy, reload
+    via Project.load(), and verify each field survives.
+
+    The disk format is the source of truth for v2.5+ DoxyEdit; if
+    one of these fields silently disappeared on round-trip, project
+    files would lose data on re-save."""
+
+    def test_full_roundtrip(self):
+        import tempfile
+        from pathlib import Path
+        from doxyedit.models import (
+            Project, Asset, CropRegion, SocialPost, SocialPostStatus,
+        )
+        proj = Project()
+        proj.name = "rt-test"
+        proj.tag_definitions = {
+            "anim": {"label": "Animal", "color": "#888888"},
+            "cat": {"label": "Cat", "color": "#000000",
+                    "parent_id": "anim"},
+        }
+        proj.assets = [
+            Asset(
+                id="a1", source_path="C:/x.png",
+                tags=["cat"],
+                crops=[CropRegion(
+                    x=0, y=0, w=100, h=100, rotation=45.0,
+                    label="square_45")],
+            ),
+        ]
+        post = SocialPost(
+            id="p1",
+            caption_default="round trip",
+            status=SocialPostStatus.DRAFT,
+            identity_name="Doxy",
+        )
+        post.log_event(
+            platform="bluesky", action="queued", detail="ready")
+        proj.posts = [post]
+
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "rt.doxy")
+            proj.save(path)
+            loaded = Project.load(path)
+
+        # Asset crop with rotation survived.
+        self.assertEqual(len(loaded.assets), 1)
+        self.assertEqual(len(loaded.assets[0].crops), 1)
+        self.assertEqual(loaded.assets[0].crops[0].rotation, 45.0)
+        self.assertEqual(loaded.assets[0].crops[0].label, "square_45")
+
+        # Tag hierarchy survived.
+        self.assertEqual(
+            loaded.tag_definitions["cat"].get("parent_id"), "anim")
+
+        # SocialPost identity_name + posting_log survived.
+        self.assertEqual(len(loaded.posts), 1)
+        self.assertEqual(loaded.posts[0].identity_name, "Doxy")
+        self.assertEqual(len(loaded.posts[0].posting_log), 1)
+        self.assertEqual(
+            loaded.posts[0].posting_log[0]["platform"], "bluesky")
+        self.assertEqual(
+            loaded.posts[0].posting_log[0]["action"], "queued")
+
+
 class TestProjectFormatExt(unittest.TestCase):
     """formats.ensure_project_ext picks the right extension regardless
     of what the user typed in the Save As dialog."""
