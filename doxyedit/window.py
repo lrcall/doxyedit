@@ -4237,53 +4237,70 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     cleaned_count += 1
                     logging.info(f"[Sync] {post.id[:8]} -> DRAFT (gone from OneUp)")
 
-            # Pass 2: push collected posts. _export_post_assets stays on
-            # the UI thread (file IO + project mutation); the network call
-            # itself is still synchronous in this commit, but isolating
-            # the loop sets up the next fire's swap to _OneUpPushThread.
+            # Pass 2: kick off pushes off the UI thread. Direct-post
+            # phase + final summary run on push completion (or
+            # immediately if there's nothing to push) so the UI doesn't
+            # freeze waiting for 30+ HTTP calls.
             for post in to_push:
-                logging.info(f"[Sync] {post.id[:8]} -> pushing...")
+                # _export_post_assets stays on UI thread - file IO
+                # + project mutation, fast enough to keep here.
                 self._export_post_assets(post)
-                self._push_post_to_oneup(post)
-                if post.oneup_post_id:
-                    pushed_count += 1
-                QApplication.processEvents()
         else:
             logging.info("[Sync] No API key")
+            to_push = []
 
-        # Direct-post phase (Telegram, Discord, Bluesky)
-        try:
-            from doxyedit.directpost import push_to_direct
-            for post in self.project.posts:
-                if post.status not in (SocialPostStatus.QUEUED, "queued"):
-                    continue
-                results = push_to_direct(post, self.project, project_dir)
-                now_str = datetime.now().isoformat()
-                for r in results:
-                    if r.success:
-                        post.sub_platform_status[r.platform] = {"status": "posted", "posted_at": now_str}
-                        direct_count += 1
-                    else:
-                        post.sub_platform_status[r.platform] = {"status": "failed", "error": r.error}
-                QApplication.processEvents()
-        except Exception as e:
-            logging.error(f"[Sync] Direct-post error: {e}")
+        def _finalize(thread_pushed: int = 0):
+            """Direct-post phase + summary. Runs after the OneUp push
+            thread finishes (or immediately if no push was needed)."""
+            nonlocal pushed_count, direct_count
+            pushed_count += thread_pushed
+            try:
+                from doxyedit.directpost import push_to_direct
+                for post in self.project.posts:
+                    if post.status not in (SocialPostStatus.QUEUED, "queued"):
+                        continue
+                    results = push_to_direct(post, self.project, project_dir)
+                    now_str = datetime.now().isoformat()
+                    for r in results:
+                        if r.success:
+                            post.sub_platform_status[r.platform] = {
+                                "status": "posted", "posted_at": now_str}
+                            direct_count += 1
+                        else:
+                            post.sub_platform_status[r.platform] = {
+                                "status": "failed", "error": r.error}
+                    QApplication.processEvents()
+            except Exception as e:
+                logging.error(f"[Sync] Direct-post error: {e}")
 
-        if updated or pushed_count or cleaned_count or direct_count:
-            self._dirty = True
-        self._refresh_social_panels()
-        parts = [acct_msg]
-        if pushed_count:
-            parts.append(f"{pushed_count} pushed")
-        if updated:
-            parts.append(f"{updated} updated")
-        if cleaned_count:
-            parts.append(f"{cleaned_count} → draft")
-        if direct_count:
-            parts.append(f"{direct_count} direct")
-        msg = f"Synced: {', '.join(parts)}"
-        logging.info(f"[Sync] {msg}")
-        self.statusBar().showMessage(msg, 5000)
+            if updated or pushed_count or cleaned_count or direct_count:
+                self._dirty = True
+            self._refresh_social_panels()
+            parts = [acct_msg]
+            if pushed_count:
+                parts.append(f"{pushed_count} pushed")
+            if updated:
+                parts.append(f"{updated} updated")
+            if cleaned_count:
+                parts.append(f"{cleaned_count} -> draft")
+            if direct_count:
+                parts.append(f"{direct_count} direct")
+            msg = f"Synced: {', '.join(parts)}"
+            logging.info(f"[Sync] {msg}")
+            self.statusBar().showMessage(msg, 5000)
+
+        if to_push:
+            thread = _OneUpPushThread(self, to_push, self)
+            self._sync_push_thread = thread
+            thread.status_msg.connect(
+                lambda m, t: self.statusBar().showMessage(m, t))
+            thread.finished_all.connect(
+                lambda pushed_total, _failed: _finalize(pushed_total))
+            self.statusBar().showMessage(
+                f"Pushing {len(to_push)} post(s) to OneUp...", 0)
+            thread.start()
+        else:
+            _finalize()
 
     def _on_engagement_changed(self):
         """Engagement check was done/snoozed — mark dirty and save."""
