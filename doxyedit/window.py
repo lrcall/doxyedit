@@ -7856,34 +7856,40 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.browser.refresh()
         # Lazy panels: mark stale via set_project. Their refresh runs when
         # the containing tab becomes active (see _on_inner_tab_changed).
-        _t = _ph()
-        self.platform_panel.set_project(self.project)
-        perf_block("rebind.platform_panel", (_ph() - _t) * 1000.0)
-        _t = _ph()
-        self.stats_panel.set_project(self.project)
-        self.stats_panel.folder_bar_color = self._theme.accent_bright
-        perf_block("rebind.stats_panel", (_ph() - _t) * 1000.0)
-        _t = _ph()
-        self.checklist_panel.set_project(self.project)
-        perf_block("rebind.checklist_panel", (_ph() - _t) * 1000.0)
-        _t = _ph()
-        self.health_panel.set_project(self.project)
-        perf_block("rebind.health_panel", (_ph() - _t) * 1000.0)
-        _t = _ph()
-        self._file_browser.set_project(self.project)
-        perf_block("rebind.file_browser", (_ph() - _t) * 1000.0)
+        # Each set_project is isolated so a single panel's bug can't
+        # leave the others bound to the previous project.
+        def _bind(panel_label, fn):
+            _t_local = _ph()
+            try:
+                fn()
+            except Exception:
+                logging.exception(
+                    "set_project failed in %s during _rebind_project",
+                    panel_label)
+            perf_block(
+                f"rebind.{panel_label}", (_ph() - _t_local) * 1000.0)
+
+        _bind("platform_panel",
+              lambda: self.platform_panel.set_project(self.project))
+        def _stats_bind():
+            self.stats_panel.set_project(self.project)
+            self.stats_panel.folder_bar_color = self._theme.accent_bright
+        _bind("stats_panel", _stats_bind)
+        _bind("checklist_panel",
+              lambda: self.checklist_panel.set_project(self.project))
+        _bind("health_panel",
+              lambda: self.health_panel.set_project(self.project))
+        _bind("file_browser",
+              lambda: self._file_browser.set_project(self.project))
         if hasattr(self, '_timeline'):
-            _t = _ph()
-            self._timeline.set_project(self.project)
-            perf_block("rebind.timeline", (_ph() - _t) * 1000.0)
+            _bind("timeline",
+                  lambda: self._timeline.set_project(self.project))
         if hasattr(self, '_calendar_pane'):
-            _t = _ph()
-            self._calendar_pane.set_project(self.project)
-            perf_block("rebind.calendar_pane", (_ph() - _t) * 1000.0)
+            _bind("calendar_pane",
+                  lambda: self._calendar_pane.set_project(self.project))
         if hasattr(self, '_gantt_panel'):
-            _t = _ph()
-            self._gantt_panel.set_project(self.project)
-            perf_block("rebind.gantt_panel", (_ph() - _t) * 1000.0)
+            _bind("gantt_panel",
+                  lambda: self._gantt_panel.set_project(self.project))
         # If the user is ALREADY on a tab containing lazy panels, refresh them now
         # so they see fresh data without switching away and back.
         _t = _ph()
