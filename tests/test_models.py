@@ -284,6 +284,43 @@ class TestProjectSaveLoadRoundTrip(unittest.TestCase):
             loaded.posts[0].posting_log[0]["action"], "queued")
 
 
+class TestCollectionFormat(unittest.TestCase):
+    """Collection files (.doxycol / .doxycoll.json) are a thin JSON
+    wrapper around a list of project paths. The format is not stored
+    in any model class, so test it against the actual SaveLoadMixin
+    code via a real project."""
+
+    def test_collection_round_trip(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from doxyedit.formats import ensure_collection_ext
+
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            paths = [str(d / "a.doxy"), str(d / "b.doxy")]
+            payload = {"_type": "doxycoll", "projects": paths}
+
+            target = d / "ws.doxycol"
+            target.write_text(
+                json.dumps(payload, indent=2), encoding="utf-8")
+
+            loaded = json.loads(target.read_text(encoding="utf-8"))
+            self.assertEqual(loaded["_type"], "doxycoll")
+            self.assertEqual(loaded["projects"], paths)
+
+    def test_ensure_collection_ext_default(self):
+        from doxyedit.formats import ensure_collection_ext
+        # No extension input => .doxycol
+        self.assertTrue(
+            ensure_collection_ext("workspace").endswith(".doxycol"))
+
+    def test_ensure_collection_ext_legacy(self):
+        from doxyedit.formats import ensure_collection_ext
+        out = ensure_collection_ext("workspace", prefer_legacy=True)
+        self.assertTrue(out.endswith(".doxycoll.json"))
+
+
 class TestProjectFormatExt(unittest.TestCase):
     """formats.ensure_project_ext picks the right extension regardless
     of what the user typed in the Save As dialog."""
