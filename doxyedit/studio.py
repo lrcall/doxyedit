@@ -784,20 +784,39 @@ class StudioScene(QGraphicsScene):
         elif chosen is rotate_act:
             self._set_crop_rotation(editor, target)
         elif chosen is delete_act:
-            # Remove from asset.crops by label, then from scene
+            # Remove from asset.crops by label, then from scene.
             lbl = getattr(target, "label", "")
             if editor._asset and lbl:
-                editor._asset.crops = [c for c in editor._asset.crops if c.label != lbl]
-            if target.scene() is not None:
-                self.removeItem(target)
+                editor._asset.crops = [
+                    c for c in editor._asset.crops if c.label != lbl]
+            # Defensive: clear selection so the scene doesn't keep a
+            # zombie reference, then remove the item.
+            try:
+                target.setSelected(False)
+            except Exception:
+                pass
+            owning = target.scene()
+            if owning is not None:
+                owning.removeItem(target)
             # Remove from _crop_items list if tracked
             if hasattr(editor, "_crop_items") and target in editor._crop_items:
                 editor._crop_items.remove(target)
             # Clear the crop mask if this was the active crop
             if hasattr(editor, "_crop_mask_item") and editor._crop_mask_item:
                 if editor._crop_mask_item.scene():
-                    self.removeItem(editor._crop_mask_item)
+                    editor._crop_mask_item.scene().removeItem(
+                        editor._crop_mask_item)
                 editor._crop_mask_item = None
+            # Rebuild layer panel + force viewport update so the
+            # deleted crop visually leaves the screen. The scene
+            # remove alone doesn't always trigger a repaint when the
+            # item is the currently-selected one.
+            if hasattr(editor, "_rebuild_layer_panel"):
+                editor._rebuild_layer_panel()
+            if hasattr(editor, "_view") and editor._view.viewport():
+                editor._view.viewport().update()
+            if hasattr(editor, "_dirty"):
+                editor._dirty = True
 
     def _canvas_context_menu(self, event):
         """Canvas-level right-click menu (fit/zoom/grid/thirds/copy image)."""
