@@ -119,6 +119,53 @@ class TestPluginLoader(unittest.TestCase):
             self.assertEqual(set(names), {"alpha", "beta"})
             self.assertEqual(loaded, ["alpha"])
 
+    def test_all_six_lifecycle_events_emit_to_handlers(self):
+        """End-to-end: a plugin subscribes to all six events; emit
+        each one with realistic payload; verify each handler ran with
+        the right args. Regression guard for the event surface
+        (project_loaded, post_pushed, asset_imported, tag_changed,
+        post_saved, shutdown). If a future refactor changes the
+        signatures, this test pins them down."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            (d / "all_events.py").write_text(
+                "RECEIVED = []\n"
+                "def register(api):\n"
+                "    api.on('project_loaded', lambda p, path: "
+                "RECEIVED.append(('project_loaded', path)))\n"
+                "    api.on('post_pushed', lambda post, plat, ok, det: "
+                "RECEIVED.append(('post_pushed', plat, ok)))\n"
+                "    api.on('asset_imported', lambda asset: "
+                "RECEIVED.append(('asset_imported', asset)))\n"
+                "    api.on('tag_changed', lambda tid, before, after: "
+                "RECEIVED.append(('tag_changed', tid)))\n"
+                "    api.on('post_saved', lambda post, is_new: "
+                "RECEIVED.append(('post_saved', is_new)))\n"
+                "    api.on('shutdown', lambda: "
+                "RECEIVED.append(('shutdown',)))\n",
+                encoding="utf-8")
+            with patch.object(self._dp, "plugins_dir", return_value=d):
+                self._dp.discover_and_load()
+
+            mod = sys.modules["doxyedit_plugin_all_events"]
+
+            # Fire each event with sensible args.
+            self._dp.emit("project_loaded", None, "/tmp/x.doxy")
+            self._dp.emit("post_pushed", None, "bluesky", True, "ok")
+            self._dp.emit("asset_imported", "asset_obj")
+            self._dp.emit("tag_changed", "char", {}, {"label": "Char"})
+            self._dp.emit("post_saved", None, True)
+            self._dp.emit("shutdown")
+
+            received = mod.RECEIVED
+            self.assertEqual(len(received), 6)
+            self.assertEqual(received[0], ("project_loaded", "/tmp/x.doxy"))
+            self.assertEqual(received[1], ("post_pushed", "bluesky", True))
+            self.assertEqual(received[2], ("asset_imported", "asset_obj"))
+            self.assertEqual(received[3], ("tag_changed", "char"))
+            self.assertEqual(received[4], ("post_saved", True))
+            self.assertEqual(received[5], ("shutdown",))
+
 
 if __name__ == "__main__":
     unittest.main()
