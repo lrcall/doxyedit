@@ -1170,11 +1170,17 @@ class TagPanel(QWidget):
                 "label": tag_id, "color": "#888",
             }
             defn = self._project.tag_definitions[tag_id]
+        before = dict(defn)
         if new_parent_id:
             defn["parent_id"] = new_parent_id
         else:
             defn.pop("parent_id", None)
         self.tags_changed.emit()
+        try:
+            from doxyedit import plugins as _dp
+            _dp.emit("tag_changed", tag_id, before, dict(defn))
+        except Exception:
+            pass
 
     def _on_notes_changed(self):
         if len(self._assets) == 1:

@@ -3607,6 +3607,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     # --- Tag management ---
 
     def _on_tag_color_changed(self, tag_id: str, hex_color: str):
+        before = dict(self.project.tag_definitions.get(tag_id) or {})
         if tag_id in self.project.tag_definitions:
             self.project.tag_definitions[tag_id]["color"] = hex_color
         else:
@@ -3623,6 +3624,14 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             cfg.save()
         self.browser.rebuild_tag_bar()
         self._dirty = True
+        # Plugin hook: tag_changed gets the before/after dicts so
+        # handlers can diff what actually changed (here: just color).
+        try:
+            from doxyedit import plugins as _dp
+            _dp.emit("tag_changed", tag_id, before,
+                     dict(self.project.tag_definitions[tag_id]))
+        except Exception:
+            pass
 
     def _on_tag_reordered(self, tag_id: str, new_order: int):
         """Persist reorder index to tag_definitions so section order survives reload."""
