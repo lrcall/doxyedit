@@ -112,7 +112,7 @@ class TestApplyCropRect(unittest.TestCase):
 
 
 class TestSharedIdentities(unittest.TestCase):
-    """shared_identities.merge_into_project strategies behave correctly."""
+    """shared_identities round-trip + merge strategies behave correctly."""
 
     def test_fill_missing_keeps_project_values(self):
         from doxyedit.shared_identities import merge_into_project
@@ -132,6 +132,57 @@ class TestSharedIdentities(unittest.TestCase):
         merged = merge_into_project(
             {"X": {"a": 1}}, strategy="not_a_real_strategy")
         self.assertEqual(merged["X"]["a"], 1)
+
+    def test_save_load_round_trip_via_publish_one(self):
+        """publish_one writes to shared_path(); load_shared reads back.
+        Use a tempdir + monkeypatched shared_path so the user's real
+        ~/.doxyedit/identities.json isn't touched."""
+        import tempfile
+        from unittest.mock import patch
+        from pathlib import Path
+        from doxyedit import shared_identities as si
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "identities.json"
+            with patch.object(si, "shared_path", return_value=target):
+                self.assertEqual(si.load_shared(), {})  # missing file -> {}
+                ok = si.publish_one(
+                    "Doxy", {"voice": "playful", "hashtags": ["#a"]})
+                self.assertTrue(ok)
+                stored = si.load_shared()
+                self.assertEqual(set(stored.keys()), {"Doxy"})
+                self.assertEqual(stored["Doxy"]["voice"], "playful")
+                # Writing a second identity preserves the first.
+                si.publish_one("Onta", {"voice": "subtle"})
+                self.assertEqual(
+                    set(si.load_shared().keys()), {"Doxy", "Onta"})
+
+    def test_corrupt_shared_file_loads_empty(self):
+        """A corrupt JSON file in the shared store should not block
+        project load; load_shared returns {}."""
+        import tempfile
+        from unittest.mock import patch
+        from pathlib import Path
+        from doxyedit import shared_identities as si
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "identities.json"
+            target.write_text("not valid {json", encoding="utf-8")
+            with patch.object(si, "shared_path", return_value=target):
+                self.assertEqual(si.load_shared(), {})
+
+    def test_shared_wins_strategy(self):
+        """shared_wins overrides project values for keys in both."""
+        import tempfile
+        from unittest.mock import patch
+        from pathlib import Path
+        from doxyedit import shared_identities as si
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "identities.json"
+            with patch.object(si, "shared_path", return_value=target):
+                si.publish_one("Doxy", {"voice": "shared voice"})
+                merged = si.merge_into_project(
+                    {"Doxy": {"voice": "local voice"}},
+                    strategy="shared_wins")
+                self.assertEqual(merged["Doxy"]["voice"], "shared voice")
 
 
 class TestDirectPostGuards(unittest.TestCase):
