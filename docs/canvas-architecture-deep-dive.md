@@ -1,6 +1,6 @@
 # Canvas Architecture Deep Dive
 
-Follow-up to `docs/canvas-architecture-investigation.md`. The prior investigation ranked five incremental tweaks inside `QGraphicsView` and stopped at "a rewrite is 2-3 weeks, don't do it." That was wrong in one direction: the user wants 60 FPS across many overlays, not "good enough for bubble drag." This document answers the question the previous one dodged: **if we had to actually push to 60 FPS at scale, what would we build, and how?**
+Follow-up to `docs/archive/canvas-architecture-investigation.md`. The prior investigation ranked five incremental tweaks inside `QGraphicsView` and stopped at "a rewrite is 2-3 weeks, don't do it." That was wrong in one direction: the user wants 60 FPS across many overlays, not "good enough for bubble drag." This document answers the question the previous one dodged: **if we had to actually push to 60 FPS at scale, what would we build, and how?**
 
 Target reader: you know Qt. You know Python performance characteristics. You want numbers, code skeletons, and milestones.
 

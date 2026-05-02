@@ -1,8 +1,8 @@
 # DoxyEdit Backlog
 
-Snapshot of deferred work after the v2.4 session. `docs/TODO.md` tracks
-legacy v1.1 feature parity — this file is scoped to what's been planned
-but not shipped as of v2.4.
+Snapshot of deferred work after the v2.4 session. The historical v1.1
+feature-parity list lives at `docs/archive/TODO.md` (every item shipped);
+this file is scoped to what's been planned but not yet shipped.
 
 ## Plan-H remainders
 
