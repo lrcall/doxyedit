@@ -93,6 +93,70 @@ class TestBoot(unittest.TestCase):
         self.assertIn("Social", names)
 
 
+class TestEndToEndProjectLoad(unittest.TestCase):
+    """Load a synthetic project file end-to-end and cycle every tab.
+
+    This is the closest fixture to the user-reported Social tab crash:
+    a real .doxy file on disk with non-empty assets + posts gets loaded
+    via Project.load(), bound into MainWindow, and every tab gets
+    activated. Catches regressions that only show with project state
+    (the empty-project path was already covered by TestBoot)."""
+
+    def setUp(self):
+        self.app = _ensure_app()
+
+    def test_synthetic_project_cycles_all_tabs(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from doxyedit.window import MainWindow
+        from doxyedit.models import Project, SocialPost, SocialPostStatus
+
+        # Build a project with one asset + one post + one tag.
+        proj = Project()
+        proj.name = "smoke-e2e"
+        proj.tag_definitions = {
+            "test_tag": {"label": "Test", "color": "#888888"},
+        }
+        proj.posts = [
+            SocialPost(
+                id="postA",
+                caption_default="end-to-end smoke",
+                status=SocialPostStatus.DRAFT,
+                identity_name="Doxy",
+                posting_log=[
+                    {"ts": "2026-05-02T12:00:00", "platform": "bluesky",
+                     "action": "queued", "url": "", "detail": "test"},
+                ],
+            ),
+        ]
+
+        with tempfile.TemporaryDirectory() as td:
+            path = str(Path(td) / "smoke.doxy")
+            proj.save(path)
+            # Reload via Project.load to exercise from_dict.
+            loaded = Project.load(path)
+            self.assertEqual(loaded.name, "smoke-e2e")
+            self.assertEqual(len(loaded.posts), 1)
+            self.assertEqual(loaded.posts[0].identity_name, "Doxy")
+            self.assertEqual(len(loaded.posts[0].posting_log), 1)
+
+            # Bind into MainWindow and cycle every tab.
+            w = MainWindow(_skip_autoload=True)
+            w.project = loaded
+            w._project_path = path
+            w._rebind_project()
+            tab_names = []
+            try:
+                for i in range(w.tabs.count()):
+                    w.tabs.setCurrentIndex(i)
+                    tab_names.append(w.tabs.tabText(i))
+            finally:
+                w.close()
+            # All six tabs activated without raising.
+            self.assertEqual(len(tab_names), 6)
+
+
 class TestThemeContrast(unittest.TestCase):
     """All themes pass the WCAG contrast checker. The script returns
     0 on clean; non-zero on any violation."""
