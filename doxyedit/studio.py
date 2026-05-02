@@ -14749,8 +14749,19 @@ class StudioEditor(QWidget):
                                        if _crop_scope_matches(ov.platforms)]
                 if applicable_overlays:
                     img_crop = apply_overlays(img_crop, applicable_overlays, str(src_path.parent))
-                # Crop
-                img_crop = img_crop.crop((crop.x, crop.y, crop.x + crop.w, crop.y + crop.h))
+                # Crop (rotate-before-crop if crop has a non-zero rotation)
+                rot = float(getattr(crop, "rotation", 0.0) or 0.0)
+                if rot:
+                    cx_center = crop.x + crop.w / 2.0
+                    cy_center = crop.y + crop.h / 2.0
+                    img_crop = img_crop.rotate(
+                        -rot,  # PIL rotates counter-clockwise; flip sign so positive = clockwise
+                        center=(cx_center, cy_center),
+                        resample=Image.Resampling.BICUBIC,
+                        expand=False,
+                    )
+                img_crop = img_crop.crop(
+                    (crop.x, crop.y, crop.x + crop.w, crop.y + crop.h))
                 out_path = out_base / f"{stem}_{crop_name}.png"
                 img_crop.save(str(out_path), "PNG")
                 crop_count += 1

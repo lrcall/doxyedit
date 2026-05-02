@@ -172,6 +172,7 @@ class CropRegion:
     label: str = ""
     platform_id: str = ""
     slot_name: str = ""
+    rotation: float = 0.0  # degrees clockwise; exporter rotates source before cropping
 
 
 @dataclass(slots=True)
