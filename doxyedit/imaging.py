@@ -260,7 +260,8 @@ def load_image_for_export(src_path: str) -> PILImage.Image:
     if ext in PSD_EXTS:
         img, _, _ = load_psd(src_path)
     else:
-        img = PILImage.open(src_path).convert("RGBA")
+        with PILImage.open(src_path) as _src:
+            img = _src.convert("RGBA")
     return img
 
 
