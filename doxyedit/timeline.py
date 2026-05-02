@@ -81,7 +81,10 @@ class PostCard(QFrame):
         self._asset_ids = post.asset_ids
         self._project = project
 
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        # Was a direct QSettings read - the file already imports
+        # ui_font_size() for the same value, so direct reads were
+        # redundant Windows-registry hits per constructor call.
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
 
@@ -421,7 +424,10 @@ class GapMarker(QFrame):
         self.setObjectName("timeline_gap")
         self._date_str = date_str
 
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        # Was a direct QSettings read - the file already imports
+        # ui_font_size() for the same value, so direct reads were
+        # redundant Windows-registry hits per constructor call.
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
 
@@ -452,7 +458,10 @@ class TimelineStream(LazyRefreshMixin, QWidget):
         self._thumb_cache = None
         self._day_filter: str | None = None
 
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        # Was a direct QSettings read - the file already imports
+        # ui_font_size() for the same value, so direct reads were
+        # redundant Windows-registry hits per constructor call.
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
 
