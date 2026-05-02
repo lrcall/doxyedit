@@ -57,6 +57,19 @@ ACCEPTABLE = [
     r'setMinimumHeight\(0\)',
     # ── Sentinel: setFixedHeight(0) hides a placeholder row.
     r'setFixedHeight\(0\)',
+    # ── User-action font step (text-overlay Bigger / Smaller hotkeys).
+    #    +2 / -2 is a step constant, not a token violation.
+    r'overlay\.font_size\s*[+-]\s*2',
+    # ── FPS HUD diagnostic font on the Skia preview window.
+    #    Fixed monospace at 10pt is intentional for the overlay readout.
+    r'QFont\("Consolas",\s*10\)',
+    # ── _ColorSwatchButton: 32x26 minimum + 24x24 button are the
+    #    deliberate icon-button visual standard ("icon decisions"
+    #    exception in CLAUDE.md UI Rules). They live on a class
+    #    that's used everywhere; tokenizing them ripples too far.
+    r'setMinimumSize\(32,\s*26\)',
+    r'setFixedSize\(24,\s*24\)',
+    r'setFixedSize\(18,\s*18\)',
 ]
 
 # Files where the file IS the token source — reporting its own

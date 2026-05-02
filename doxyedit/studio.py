@@ -2856,12 +2856,12 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 sl = QSlider(Qt.Orientation.Horizontal)
                 sl.setRange(lo, hi)
                 sl.setValue(default)
-                sl.setMinimumWidth(130)
+                sl.setMinimumWidth(int(ui_font_size() * self._SLIDER_MIN_RATIO))
                 sp = QSpinBox()
                 sp.setRange(lo, hi)
                 sp.setSuffix(" px")
                 sp.setValue(default)
-                sp.setFixedWidth(78)
+                sp.setFixedWidth(int(ui_font_size() * (self._SPIN_W_RATIO + 0.5)))
                 def _on_change(v, _it=item, _attr=attr):
                     setattr(_it.overlay, _attr, int(v))
                     if _attr == "x":
@@ -3062,7 +3062,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
         elif isinstance(item, OverlayArrowItem):
             # Arrow: color, width, arrowhead size / style, double-headed
             color_btn = _ColorSwatchButton(is_outline=False)
-            color_btn.setFixedWidth(30)
+            color_btn.setFixedWidth(int(ui_font_size() * self._SWATCH_W_RATIO))
             color_btn.setSwatchColor(ov.color or "#000000")
             def _arrow_color(hex_c, _it=item):
                 # Defensive: if the captured item has been detached
@@ -3109,8 +3109,8 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             a_sw_row.addWidget(sw_spin)
             for _aw in (1, 2, 3, 5, 8):
                 apb = QPushButton(str(_aw))
-                apb.setMinimumWidth(34)
-                apb.setMaximumWidth(42)
+                apb.setMinimumWidth(int(ui_font_size() * self._PRESET_MIN_RATIO))
+                apb.setMaximumWidth(int(ui_font_size() * self._PRESET_MAX_RATIO))
                 apb.setToolTip(f"Line {_aw} px")
                 def _apick(_checked=False, v=_aw):
                     sw_spin.setValue(v)
@@ -4859,6 +4859,14 @@ class StudioEditor(QWidget):
     """Unified censor + overlay + annotation workspace."""
 
     queue_requested = Signal(str)
+
+    # Font-relative ratios for chrome inside the StudioEditor (text
+    # controls panel + settings dialog). Multiples of ui_font_size().
+    _SE_FONT_COMBO_MAX_RATIO = 18.33  # font family combo (was 220)
+    _SE_MINI_W_RATIO = 2.33           # 28 px small action btn
+    _SE_SWATCH_W_RATIO = 2.5          # 30 px color swatch
+    _SE_STYLE_MIN_RATIO = 10.0        # 120 px text style combo min
+    _SE_DLG_MIN_W_RATIO = 26.67       # 320 px dialog min width
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -7055,7 +7063,7 @@ class StudioEditor(QWidget):
             _w.show()
         # Font combo forced to not exceed the form's field column so it
         # doesn't stretch the whole dialog when a long family name appears.
-        self.font_combo.setMaximumWidth(220)
+        self.font_combo.setMaximumWidth(int(ui_font_size() * self._SE_FONT_COMBO_MAX_RATIO))
         self.font_combo.setSizePolicy(
             QtWidgets.QSizePolicy.Policy.Preferred,
             QtWidgets.QSizePolicy.Policy.Fixed)
@@ -7242,7 +7250,7 @@ class StudioEditor(QWidget):
         # reads cleanly at any size, where "Clr" got cut to ":I" inside
         # the 36px button.
         _ol_clear_btn = QPushButton("×")  # multiplication sign
-        _ol_clear_btn.setFixedWidth(28)
+        _ol_clear_btn.setFixedWidth(int(ui_font_size() * self._SE_MINI_W_RATIO))
         _ol_clear_btn.setToolTip("Clear text outline (stroke color + width)")
         def _clear_outline():
             sel = [it for it in self._scene.selectedItems()
@@ -7321,7 +7329,7 @@ class StudioEditor(QWidget):
         # Color swatch for the shadow itself
         self.btn_shadow_color = _ColorSwatchButton(is_outline=False)
         self.btn_shadow_color.setObjectName("studio_shadow_color_btn")
-        self.btn_shadow_color.setFixedWidth(30)
+        self.btn_shadow_color.setFixedWidth(int(ui_font_size() * self._SE_SWATCH_W_RATIO))
         self.btn_shadow_color.setToolTip("Shadow color")
         self.btn_shadow_color.setSwatchColor("#000000")
         self.btn_shadow_color.clicked.connect(self._pick_shadow_color)
@@ -7330,7 +7338,7 @@ class StudioEditor(QWidget):
         # Reset button — clears shadow_color / offset / blur together.
         # × renders as a clean clear-button glyph at the small size.
         _shadow_reset_btn = QPushButton("×")
-        _shadow_reset_btn.setFixedWidth(28)
+        _shadow_reset_btn.setFixedWidth(int(ui_font_size() * self._SE_MINI_W_RATIO))
         _shadow_reset_btn.setToolTip("Clear shadow (color / offset / blur)")
         def _clear_shadow():
             sel = [it for it in self._scene.selectedItems()
@@ -7384,7 +7392,7 @@ class StudioEditor(QWidget):
         # context menu where it belongs). Styles persist via QSettings.
         self.combo_text_style = QComboBox(_dlg)
         self.combo_text_style.setObjectName("studio_text_style_combo")
-        self.combo_text_style.setMinimumWidth(120)
+        self.combo_text_style.setMinimumWidth(int(ui_font_size() * self._SE_STYLE_MIN_RATIO))
         self.btn_style_save = QPushButton("Save", _dlg)
         self.btn_style_save.setObjectName("studio_text_style_save")
         self.btn_style_save.setToolTip("Save current text styling as a named style")
@@ -13124,8 +13132,9 @@ class StudioEditor(QWidget):
         dlg = QDialog(self)
         self._settings_dlg = dlg
         dlg.setWindowTitle("Studio Settings")
-        dlg.setMinimumWidth(460)
-        dlg.setMinimumHeight(540)
+        _f_set = ui_font_size()
+        dlg.setMinimumWidth(int(_f_set * 38.33))
+        dlg.setMinimumHeight(int(_f_set * 45.0))
         root = QVBoxLayout(dlg)
         tabs = QTabWidget(dlg)
         root.addWidget(tabs)
@@ -13768,7 +13777,7 @@ class StudioEditor(QWidget):
         dlg = QDialog(self)
         self._transform_dlg = dlg
         dlg.setWindowTitle("Transform")
-        dlg.setMinimumWidth(320)
+        dlg.setMinimumWidth(int(ui_font_size() * self._SE_DLG_MIN_W_RATIO))
         form = QFormLayout(dlg)
         item = sel[0]
         ov = item.overlay
