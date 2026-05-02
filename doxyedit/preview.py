@@ -17,6 +17,22 @@ from doxyedit.models import CropRegion, PLATFORMS
 from doxyedit.themes import THEMES, DEFAULT_THEME, ui_font_size
 
 
+def fit_view_to_items(view, scene) -> None:
+    """Fit the last item in `scene` into `view`, preserving aspect ratio.
+    Centralized so PreviewPane / ImagePreviewDialog / future preview
+    widgets share one Fit-to-View implementation."""
+    items = scene.items()
+    if items:
+        view.fitInView(items[-1], Qt.AspectRatioMode.KeepAspectRatio)
+
+
+def wheel_zoom_view(view, event, factor: float = 1.2) -> None:
+    """Scale `view` in/out by `factor` based on the wheel direction.
+    Centralized so all preview widgets share the same zoom feel."""
+    f = factor if event.angleDelta().y() > 0 else 1 / factor
+    view.scale(f, f)
+
+
 def _preview_xform_mode():
     """Return the QGraphicsPixmapItem.TransformationMode the user last chose.
     Used at every point we (re)build a pixmap item so the saved 'preview_bilinear'
@@ -1068,13 +1084,10 @@ class ImagePreviewDialog(QDialog):
             self._is_fullscreen = True
 
     def _fit_to_view(self):
-        items = self.scene.items()
-        if items:
-            self.view.fitInView(items[-1], Qt.AspectRatioMode.KeepAspectRatio)
+        fit_view_to_items(self.view, self.scene)
 
     def _wheel_zoom(self, event):
-        factor = 1.2 if event.angleDelta().y() > 0 else 1 / 1.2
-        self.view.scale(factor, factor)
+        wheel_zoom_view(self.view, event)
 
     def closeEvent(self, event):
         if self.parent():
@@ -1190,13 +1203,10 @@ class PreviewPane(QWidget):
 
 
     def _fit_to_view(self):
-        items = self._scene.items()
-        if items:
-            self._view.fitInView(items[-1], Qt.AspectRatioMode.KeepAspectRatio)
+        fit_view_to_items(self._view, self._scene)
 
     def _wheel_zoom(self, event):
-        factor = 1.2 if event.angleDelta().y() > 0 else 1 / 1.2
-        self._view.scale(factor, factor)
+        wheel_zoom_view(self._view, event)
 
     def keyPressEvent(self, event):
         key = event.key()
