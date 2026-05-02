@@ -1079,6 +1079,13 @@ class MainWindow(SaveLoadMixin, TabManagerMixin, QMainWindow):
             if n:
                 self.status.showMessage(
                     f"Reopened folder: {Path(last_folder).name} ({n} images)")
+        # First-run onboarding: when there's no last_project AND
+        # the user hasn't dismissed the onboarding before, queue the
+        # walkthrough on the next event loop tick so it appears after
+        # the main window has finished painting.
+        seen = self._settings.value("onboarding_seen", False, type=bool)
+        if not seen:
+            QTimer.singleShot(400, self._show_onboarding)
 
     def _restore_collection(self, coll_path: str) -> bool:
         """Load all projects from a collection file as tabs. Returns True on success."""
@@ -2529,6 +2536,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         # Help menu
         help_menu = menu.addMenu("&Help")
+        help_menu.addAction("Welcome / First Run...", self._show_onboarding)
         help_menu.addAction("Keyboard Shortcuts", self._show_shortcuts)
         help_menu.addAction("What's New", self._show_whats_new)
         help_menu.addAction("About DoxyEdit", self._show_about)
@@ -7317,6 +7325,95 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             "Browse, tag, organize, and export art assets\n"
             "across multiple platforms.\n\n"
             "Built with PySide6 + PIL + psd-tools")
+
+    def _show_onboarding(self):
+        """First-run / on-demand walkthrough explaining the six tabs +
+        the most-used keyboard shortcuts. Surfaces the entry points
+        that new users miss: Ctrl+T tray, Ctrl+L tag panel, Ctrl+B
+        file browser, F5 reload, Ctrl+Scroll zoom, Ctrl+I info panel.
+
+        Persists 'onboarding_seen' in QSettings so first launch can
+        auto-open via _maybe_show_onboarding_on_start (called from
+        __init__ when no last_project is restored)."""
+        from PySide6.QtWidgets import (
+            QDialog, QVBoxLayout, QLabel, QDialogButtonBox, QCheckBox,
+            QTextBrowser,
+        )
+        from doxyedit.themes import themed_dialog_size
+        dlg = QDialog(self)
+        dlg.setObjectName("onboarding_dlg")
+        dlg.setWindowTitle("Welcome to DoxyEdit")
+        w, h = themed_dialog_size(48.33, 50.0)
+        dlg.resize(w, h)
+        lay = QVBoxLayout(dlg)
+
+        title = QLabel(
+            "<h2>Welcome to DoxyEdit</h2>"
+            "<p>Asset manager + posting pipeline for artists.</p>")
+        title.setWordWrap(True)
+        lay.addWidget(title)
+
+        body = QTextBrowser()
+        body.setOpenExternalLinks(True)
+        body.setHtml(
+            "<h3>The six tabs</h3>"
+            "<ul>"
+            "<li><b>Assets</b> - thumbnail browser, tagging, work tray.</li>"
+            "<li><b>Studio</b> - graphics editor: censor / crop / overlay /"
+            " text / arrows / shapes. Press F1 inside Studio for the full"
+            " shortcut list.</li>"
+            "<li><b>Social</b> - timeline + calendar + Gantt for"
+            " scheduling and pushing posts.</li>"
+            "<li><b>Platforms</b> - per-platform slot grid showing what's"
+            " assigned where.</li>"
+            "<li><b>Overview</b> - project summary, asset folders,"
+            " campaigns + identities.</li>"
+            "<li><b>Notes</b> - tabbed markdown notes with Claude actions.</li>"
+            "</ul>"
+            "<h3>Most-used shortcuts</h3>"
+            "<table cellspacing='6'>"
+            "<tr><td><b>Ctrl+O</b></td><td>Open a .doxy or"
+            " .doxyproj.json file</td></tr>"
+            "<tr><td><b>Ctrl+S</b></td><td>Save current project</td></tr>"
+            "<tr><td><b>Ctrl+T</b></td><td>Toggle Work Tray (right side)</td></tr>"
+            "<tr><td><b>Ctrl+L</b></td><td>Toggle Tag Panel (left side)</td></tr>"
+            "<tr><td><b>Ctrl+B</b></td><td>Toggle File Browser sidebar</td></tr>"
+            "<tr><td><b>Ctrl+I</b></td><td>Toggle Info Panel</td></tr>"
+            "<tr><td><b>Ctrl+Scroll</b></td><td>Zoom thumbnail grid</td></tr>"
+            "<tr><td><b>F5</b></td><td>Reload project from disk</td></tr>"
+            "<tr><td><b>1-9 / 0</b></td><td>Tag selected assets</td></tr>"
+            "<tr><td><b>Enter / dbl-click</b></td><td>Open preview</td></tr>"
+            "<tr><td><b>Drag-drop</b></td><td>Drop a folder onto the"
+            " grid to import images</td></tr>"
+            "</table>"
+            "<h3>First steps</h3>"
+            "<ol>"
+            "<li>File &gt; Open or drag a .doxy file onto the window.</li>"
+            "<li>If you don't have one yet: File &gt; New, then drag a"
+            " folder of images onto the Assets tab.</li>"
+            "<li>Tag with 1-9, star with click, soft-delete with Delete.</li>"
+            "<li>Push assets to Studio for crops / overlays / censor.</li>"
+            "<li>Switch to Social to schedule posts via calendar.</li>"
+            "</ol>"
+            "<p><i>You can re-open this from <b>Help &gt; Welcome /"
+            " First Run...</b> at any time.</i></p>"
+        )
+        lay.addWidget(body, 1)
+
+        seen_check = QCheckBox("Don't show this again on startup")
+        seen_check.setChecked(
+            self._settings.value("onboarding_seen", False, type=bool))
+        lay.addWidget(seen_check)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dlg.reject)
+        for btn in buttons.buttons():
+            btn.clicked.connect(dlg.accept)
+        lay.addWidget(buttons)
+
+        dlg.exec()
+        self._settings.setValue(
+            "onboarding_seen", bool(seen_check.isChecked()))
 
     def _change_color(self):
         scene = self.studio._scene if hasattr(self, 'studio') else None
