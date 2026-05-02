@@ -1,9 +1,15 @@
 ---
 tags: [changelog, versions, history]
-description: Full version history for DoxyEdit.
+description: Version history for DoxyEdit through v1.9. See docs/CHANGELOG.md in the repo for v2.0+.
 ---
 
 # Changelog
+
+> [!note] Canonical changelog lives in the repo
+> The authoritative changelog is `docs/CHANGELOG.md` and goes through
+> the latest release (v2.5.4 at time of writing). This wiki page is
+> preserved for the v1.9 era and earlier as a friendlier read; new
+> releases are written to the repo file only.
 
 ---
 
