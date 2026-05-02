@@ -20,6 +20,7 @@ sync + file write. This module is the save/load glue.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 from PySide6.QtCore import QThread, QMutex, QMutexLocker, QWaitCondition, Signal, QTimer
@@ -253,6 +254,46 @@ class SaveLoadMixin:
 
         def _on_failed(_path, err):
             self.status.showMessage(f"Reload failed: {err}", 5000)
+
+        loader.loaded.connect(_on_loaded)
+        loader.failed.connect(_on_failed)
+        loader.start()
+
+    def _load_project_from(self, path: str):
+        """Load a project file off the UI thread so File>Open and
+        recent-click don't freeze the window. Applies the loaded
+        project and rebinds panels on the ProjectLoader.loaded signal.
+        MainWindow provides _rebind_project, _add_recent_project,
+        _rename_proj_tab, _project_slots, _current_slot, _apply_theme."""
+        bak = path + ".bak"
+        try:
+            shutil.copy2(path, bak)
+        except Exception:
+            pass
+        self.status.showMessage(f"Opening {Path(path).name}...", 0)
+
+        loader = ProjectLoader(path, self)
+        self._open_loader = loader  # keep reference
+
+        def _on_loaded(project, loaded_path):
+            self.project = project
+            self._rebind_project(clear_folder_state=True)
+            self._project_path = loaded_path
+            self._watch_project()
+            self._settings.setValue("last_project", loaded_path)
+            self._add_recent_project(loaded_path)
+            label = Path(loaded_path).stem
+            self.setWindowTitle(f"DoxyEdit - {Path(loaded_path).name}")
+            self._rename_proj_tab(self._current_slot, label)
+            if 0 <= self._current_slot < len(self._project_slots):
+                self._project_slots[self._current_slot]["project"] = self.project
+                self._project_slots[self._current_slot]["path"] = loaded_path
+            if self.project.theme_id and self.project.theme_id in THEMES:
+                self._apply_theme(self.project.theme_id)
+            self.status.showMessage(f"Opened {Path(loaded_path).name}", 3000)
+
+        def _on_failed(_path, err):
+            self.status.showMessage(f"Open failed: {err}", 5000)
 
         loader.loaded.connect(_on_loaded)
         loader.failed.connect(_on_failed)

@@ -3365,45 +3365,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 return
         super().dropEvent(event)
 
-    def _load_project_from(self, path: str):
-        """Load a project file off the UI thread so File→Open and recent-click
-        don't freeze the window. Applies the loaded project + rebinds panels
-        on the ProjectLoader.loaded signal."""
-        # Create backup before loading (fast, keep sync — tiny file copy)
-        bak = path + ".bak"
-        try:
-            shutil.copy2(path, bak)
-        except Exception:
-            pass
-        self.status.showMessage(f"Opening {Path(path).name}...", 0)
-
-        loader = ProjectLoader(path, self)
-        self._open_loader = loader  # keep reference
-
-        def _on_loaded(project, loaded_path):
-            self.project = project
-            self._rebind_project(clear_folder_state=True)
-            self._project_path = loaded_path
-            self._watch_project()
-            self._settings.setValue("last_project", loaded_path)
-            self._add_recent_project(loaded_path)
-            label = Path(loaded_path).stem
-            self.setWindowTitle(f"DoxyEdit — {Path(loaded_path).name}")
-            self._rename_proj_tab(self._current_slot, label)
-            if 0 <= self._current_slot < len(self._project_slots):
-                self._project_slots[self._current_slot]["project"] = self.project
-                self._project_slots[self._current_slot]["path"] = loaded_path
-            if self.project.theme_id and self.project.theme_id in THEMES:
-                self._apply_theme(self.project.theme_id)
-            self.status.showMessage(f"Opened {Path(loaded_path).name}", 3000)
-
-        def _on_failed(_path, err):
-            self.status.showMessage(f"Open failed: {err}", 5000)
-
-        loader.loaded.connect(_on_loaded)
-        loader.failed.connect(_on_failed)
-        loader.start()
-
     def _open_recent_folder(self, folder: str):
         n = self.browser.import_folder(folder)
         self._add_recent_folder(folder)
