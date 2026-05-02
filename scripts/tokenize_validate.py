@@ -44,13 +44,24 @@ PATTERNS = [
 # Patterns that are acceptable in specific contexts
 ACCEPTABLE = [
     r'setFixedHeight\(1\)',          # 1px separator
+    r'setFixedWidth\(1\)',           # 1px separator
     r'16777215',                     # QWIDGETSIZE_MAX
     r'font_size\s*\+\s*1\)',         # font size increment action
     r'font_size\s*-\s*1\)',          # font size decrement action
     r'_cb = max\(14, _f \+ 2\)',    # known _cb pattern (polish item)
     r'max\(14, _f \+ 2\)',          # same
     r'max\(14, int\(_f',            # ratio-based _cb
+    # ── Sentinel: setMinimum*(0) means "no minimum, splitter handles
+    #    collapsing" — semantically a sentinel, not a hardcoded size.
+    r'setMinimumWidth\(0\)',
+    r'setMinimumHeight\(0\)',
+    # ── Sentinel: setFixedHeight(0) hides a placeholder row.
+    r'setFixedHeight\(0\)',
 ]
+
+# Files where the file IS the token source — reporting its own
+# arithmetic creates noise.
+SELF_TOKEN_FILES = {"themes.py"}
 
 
 def is_acceptable(line: str) -> bool:
@@ -70,6 +81,8 @@ def validate():
     violations = []
 
     for py_file in sorted(src.glob("*.py")):
+        if py_file.name in SELF_TOKEN_FILES:
+            continue
         lines = py_file.read_text(encoding="utf-8").splitlines()
         for i, line in enumerate(lines, 1):
             stripped = line.strip()
