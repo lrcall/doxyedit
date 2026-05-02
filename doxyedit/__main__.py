@@ -201,7 +201,8 @@ def cmd_find_dupes(path: str, threshold: int = 10):
     # Simple average hash
     def ahash(img_path, size=8):
         try:
-            img = PILImage.open(img_path).convert("L").resize((size, size))
+            with PILImage.open(img_path) as _src:
+                img = _src.convert("L").resize((size, size))
             avg = sum(img.getdata()) / (size * size)
             return sum(1 << i for i, p in enumerate(img.getdata()) if p > avg)
         except Exception:
@@ -961,13 +962,15 @@ def cmd_watermark(project_path: str, args: list):
         from doxyedit.imaging import load_psd
         img, _, _ = load_psd(str(src))
     else:
-        img = Image.open(str(src)).convert("RGBA")
+        with Image.open(str(src)) as _src:
+            img = _src.convert("RGBA")
 
     # Create watermark layer
     wm_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
 
     if watermark_path and _Path(watermark_path).exists():
-        wm_img = Image.open(watermark_path).convert("RGBA")
+        with Image.open(watermark_path) as _wm:
+            wm_img = _wm.convert("RGBA")
         # Scale watermark to ~20% of image width
         scale = (img.width * 0.2) / max(wm_img.width, 1)
         wm_img = wm_img.resize((int(wm_img.width * scale), int(wm_img.height * scale)), Image.LANCZOS)
@@ -1064,7 +1067,8 @@ def cmd_flatten(project_path: str, args: list):
         from doxyedit.imaging import load_psd
         img, _, _ = load_psd(str(src))
     else:
-        img = Image.open(str(src)).convert("RGBA")
+        with Image.open(str(src)) as _src:
+            img = _src.convert("RGBA")
 
     # Apply crop if requested
     if crop_label:
@@ -1175,10 +1179,12 @@ def cmd_plan_posts(project_path: str, args: list):
                 if ext in (".psd", ".psb"):
                     from doxyedit.imaging import load_psd
                     img, _, _ = load_psd(str(src))
+                    img.thumbnail((512, 512), Image.LANCZOS)
+                    img.save(str(out / f"{a.id}.jpg"), "JPEG", quality=85)
                 else:
-                    img = Image.open(str(src))
-                img.thumbnail((512, 512), Image.LANCZOS)
-                img.save(str(out / f"{a.id}.jpg"), "JPEG", quality=85)
+                    with Image.open(str(src)) as img:
+                        img.thumbnail((512, 512), Image.LANCZOS)
+                        img.save(str(out / f"{a.id}.jpg"), "JPEG", quality=85)
                 exported += 1
             except Exception:
                 pass
