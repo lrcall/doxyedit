@@ -53,6 +53,49 @@ class TestComputeVisualTags(unittest.TestCase):
         self.assertIn("square", compute_visual_tags(img))
 
 
+class TestComputeDominantColors(unittest.TestCase):
+    """compute_dominant_colors returns top-N colors as #rrggbb hex
+    strings. Used by the palette display under each thumbnail —
+    silently breaking it means every thumbnail gets a blank palette
+    bar, so the contract is worth pinning."""
+
+    def test_solid_color_returns_single_hex(self):
+        from PIL import Image
+        from doxyedit.autotag import compute_dominant_colors
+        img = Image.new("RGB", (100, 100), (255, 0, 0))
+        colors = compute_dominant_colors(img, n=3)
+        self.assertEqual(len(colors), 1)
+        self.assertEqual(colors[0], "#ff0000")
+
+    def test_two_color_image_returns_both_in_dominance_order(self):
+        from PIL import Image, ImageDraw
+        from doxyedit.autotag import compute_dominant_colors
+        # 75% red, 25% blue
+        img = Image.new("RGB", (100, 100), (255, 0, 0))
+        ImageDraw.Draw(img).rectangle([0, 0, 100, 25], fill=(0, 0, 255))
+        colors = compute_dominant_colors(img, n=2)
+        self.assertEqual(len(colors), 2)
+        self.assertEqual(colors[0], "#ff0000")  # dominant first
+        self.assertEqual(colors[1], "#0000ff")
+
+    def test_n_limits_output(self):
+        from PIL import Image, ImageDraw
+        from doxyedit.autotag import compute_dominant_colors
+        img = Image.new("RGB", (100, 100), (255, 0, 0))
+        ImageDraw.Draw(img).rectangle([0, 0, 50, 100], fill=(0, 255, 0))
+        ImageDraw.Draw(img).rectangle([0, 0, 25, 25], fill=(0, 0, 255))
+        self.assertEqual(len(compute_dominant_colors(img, n=1)), 1)
+        self.assertLessEqual(len(compute_dominant_colors(img, n=5)), 5)
+
+    def test_rgba_input_handled(self):
+        """RGBA inputs are converted internally to RGB so getcolors works."""
+        from PIL import Image
+        from doxyedit.autotag import compute_dominant_colors
+        img = Image.new("RGBA", (50, 50), (200, 100, 50, 128))
+        colors = compute_dominant_colors(img, n=3)
+        self.assertTrue(all(c.startswith("#") and len(c) == 7 for c in colors))
+
+
 class TestComputePhash(unittest.TestCase):
     """compute_phash returns a stable int for the same image and a
     different int for a visibly-different one."""
