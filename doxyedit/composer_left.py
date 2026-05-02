@@ -16,7 +16,7 @@ from PySide6.QtCore import Qt, QSize, Signal, QSettings, QRectF
 from PySide6.QtGui import QPixmap, QPainter, QPen, QColor
 
 from doxyedit.models import Project, Asset, PLATFORMS
-from doxyedit.themes import THEMES, DEFAULT_THEME
+from doxyedit.themes import THEMES, DEFAULT_THEME, ui_font_size
 
 
 PREVIEW_SIZE = 300
@@ -32,7 +32,10 @@ class ImagePreviewPanel(QWidget):
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
         self.setObjectName("composer_preview_panel")
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        # Was a direct QSettings read - same anti-pattern that gantt /
+        # timeline / others were just migrated off. Routes through the
+        # process-cached ui_font_size() per CLAUDE.md.
+        _f = ui_font_size()
         _cb = max(14, int(_f * 1.17))
         self._f = _f  # stash for methods
         self._project = project
