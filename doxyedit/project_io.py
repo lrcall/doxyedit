@@ -252,6 +252,11 @@ class SaveLoadMixin:
                 self._apply_theme(self.project.theme_id)
             self._dirty = False
             self.status.showMessage("Reloaded project from disk", 2000)
+            try:
+                from doxyedit import plugins as _dp
+                _dp.emit("project_loaded", project, loaded_path)
+            except Exception:
+                pass
 
         def _on_failed(_path, err):
             self.status.showMessage(f"Reload failed: {err}", 5000)
@@ -435,6 +440,11 @@ class SaveLoadMixin:
             if self.project.theme_id and self.project.theme_id in THEMES:
                 self._apply_theme(self.project.theme_id)
             self.status.showMessage(f"Opened {Path(loaded_path).name}", 3000)
+            try:
+                from doxyedit import plugins as _dp
+                _dp.emit("project_loaded", project, loaded_path)
+            except Exception:
+                pass
 
         def _on_failed(_path, err):
             self.status.showMessage(f"Open failed: {err}", 5000)

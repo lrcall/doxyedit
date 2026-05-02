@@ -1034,6 +1034,21 @@ class MainWindow(SaveLoadMixin, TabManagerMixin, QMainWindow):
         else:
             self._register_initial_slot(None, "New Project")
 
+        # Discover and load user plugins from ~/.doxyedit/plugins/.
+        # Done after restore so plugins receive the project_loaded
+        # event for the freshly-restored project below.
+        try:
+            from doxyedit import plugins as _dp
+            _loaded = _dp.discover_and_load()
+            if _loaded:
+                logging.info(
+                    "Loaded %d plugin(s): %s", len(_loaded), ", ".join(_loaded))
+                if self._project_path:
+                    _dp.emit("project_loaded",
+                             self.project, self._project_path)
+        except Exception as e:
+            logging.error("Plugin loader error: %s", e)
+
     def _restore_last_session(self):
         """Restore last collection if one was saved, otherwise restore last project."""
         last_coll = self._settings.value("last_collection", "")
@@ -3950,6 +3965,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 post.log_event(
                     platform=account_id, action="pushed",
                     detail=f"oneup_id={rid}")
+                try:
+                    from doxyedit import plugins as _dp
+                    _dp.emit("post_pushed", post, account_id, True,
+                             f"oneup_id={rid}")
+                except Exception:
+                    pass
             else:
                 failed += 1
                 post.platform_status[account_id] = f"failed: {result.error[:60]}"
@@ -3957,6 +3978,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 post.log_event(
                     platform=account_id, action="failed",
                     detail=result.error[:120])
+                try:
+                    from doxyedit import plugins as _dp
+                    _dp.emit("post_pushed", post, account_id, False,
+                             result.error[:120])
+                except Exception:
+                    pass
 
         if pushed:
             post.oneup_post_id = ",".join(oneup_ids)

@@ -138,6 +138,37 @@ class TestDirectPostGuards(unittest.TestCase):
         self.assertFalse(ok)
 
 
+class TestPluginRegistry(unittest.TestCase):
+    """plugins._PluginRegistry handler isolation + failure containment."""
+
+    def test_empty_emit_is_noop(self):
+        from doxyedit.plugins import _PluginRegistry
+        r = _PluginRegistry()
+        # Doesn't raise even with no handlers.
+        r.emit("anything", 1, 2, 3)
+
+    def test_failing_handler_disables_only_self(self):
+        from doxyedit.plugins import _PluginRegistry
+        r = _PluginRegistry()
+        good_calls: list = []
+
+        def good(x):
+            good_calls.append(x)
+
+        def bad(x):
+            raise RuntimeError("intentional")
+
+        r._add("e", bad, source="bad_plugin")
+        r._add("e", good, source="good_plugin")
+        r.emit("e", 1)
+        # bad raised, good still ran.
+        self.assertEqual(good_calls, [1])
+        self.assertIn("bad_plugin", r._failed)
+        # On the next emit, the bad one is skipped, good still fires.
+        r.emit("e", 2)
+        self.assertEqual(good_calls, [1, 2])
+
+
 class TestPreviewHelpers(unittest.TestCase):
     """preview.fit_view_to_items + wheel_zoom_view exist and accept the
     expected signatures. These are imported by the helpers in
