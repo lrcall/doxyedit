@@ -589,6 +589,29 @@ class SocialPost:
     platform_censor: dict[str, bool] = field(default_factory=dict)  # platform_id -> should_censor
     platform_metrics: dict[str, dict] = field(default_factory=dict)  # platform_id -> PostMetrics dict
     identity_name: str = ""  # which Project.identities entry to use; "" = active
+    # Append-only event history for "what went where on which date".
+    # Each entry: {ts: ISO, platform: str, action: "queued"|"pushed"|
+    # "posted"|"failed"|"deleted", url: str, detail: str}.
+    posting_log: list[dict] = field(default_factory=list)
+
+    def log_event(self, *, platform: str, action: str,
+                  url: str = "", detail: str = "") -> None:
+        """Append an entry to posting_log with an ISO timestamp.
+
+        Called from the posting pipeline at every status transition
+        (queued / pushed / posted / failed / deleted) so the user can
+        later review 'what went where on which date'. Cheap (a small
+        dict append); the project file grows slowly but bounded by
+        per-post retention (no automatic eviction yet — log is unique
+        per post and posts are typically <1000 per project)."""
+        from datetime import datetime as _dt
+        self.posting_log.append({
+            "ts": _dt.now().isoformat(timespec="seconds"),
+            "platform": platform,
+            "action": action,
+            "url": url,
+            "detail": detail,
+        })
 
     def to_dict(self) -> dict:
         return {
@@ -613,6 +636,7 @@ class SocialPost:
             "platform_censor": self.platform_censor,
             "platform_metrics": self.platform_metrics,
             "identity_name": self.identity_name,
+            "posting_log": self.posting_log,
         }
 
     @classmethod
@@ -642,6 +666,7 @@ class SocialPost:
             platform_censor=d.get("platform_censor", {}),
             platform_metrics=d.get("platform_metrics", {}),
             identity_name=d.get("identity_name", ""),
+            posting_log=list(d.get("posting_log", [])),
         )
 
 

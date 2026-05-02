@@ -3912,9 +3912,17 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     if result.success:
                         oneup_ids.append(str(result.data.get("id", "")))
                         pushed += 1
+                        post.log_event(
+                            platform=f"{account_id}:r/{sub.name}",
+                            action="pushed", url="",
+                            detail=f"oneup_id={result.data.get('id', '')}")
                     else:
                         failed += 1
                         post.platform_status[f"{account_id}:{sub.name}"] = f"failed: {result.error[:60]}"
+                        post.log_event(
+                            platform=f"{account_id}:r/{sub.name}",
+                            action="failed",
+                            detail=result.error[:120])
                 continue
 
             logging.info(f"[OneUp Push]   → {account_id}  sched={sched}  caption={caption[:40]!r}")
@@ -3928,10 +3936,16 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 oneup_ids.append(rid)
                 pushed += 1
                 logging.info(f"[OneUp Push]     ✓ OK  oneup_id={rid}")
+                post.log_event(
+                    platform=account_id, action="pushed",
+                    detail=f"oneup_id={rid}")
             else:
                 failed += 1
                 post.platform_status[account_id] = f"failed: {result.error[:60]}"
                 logging.error(f"[OneUp Push]     ✗ FAIL  {result.error[:80]}")
+                post.log_event(
+                    platform=account_id, action="failed",
+                    detail=result.error[:120])
 
         if pushed:
             post.oneup_post_id = ",".join(oneup_ids)
@@ -4252,9 +4266,18 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                             post.sub_platform_status[r.platform] = {
                                 "status": "posted", "posted_at": now_str}
                             direct_count += 1
+                            _url = ""
+                            if isinstance(r.data, dict):
+                                _url = str(r.data.get("url", ""))
+                            post.log_event(
+                                platform=r.platform, action="posted",
+                                url=_url, detail="direct API")
                         else:
                             post.sub_platform_status[r.platform] = {
                                 "status": "failed", "error": r.error}
+                            post.log_event(
+                                platform=r.platform, action="failed",
+                                detail=(r.error or "")[:120])
                     QApplication.processEvents()
             except Exception as e:
                 logging.error(f"[Sync] Direct-post error: {e}")
