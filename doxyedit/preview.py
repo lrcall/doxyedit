@@ -628,25 +628,22 @@ class ImagePreviewDialog(QDialog):
         if self._preview_tiny_mode:
             info_bar_widget.setVisible(False)
 
-        # Zoomable view
+        # Zoomable view via shared BaseImageViewer. Aliasing self.scene
+        # / self.view to the viewer's internals keeps the rest of this
+        # dialog (mouse overrides, event filter, annotation, crop tool)
+        # working without changes. Bilinear preference still honored
+        # explicitly here because users toggle it from this dialog's
+        # right-click menu.
+        from doxyedit.imageviewer import BaseImageViewer
         _dt = THEMES[DEFAULT_THEME]
-        self.scene = QGraphicsScene()
-        self.scene.setBackgroundBrush(QColor(_dt.bg_deep))
-        self.view = QGraphicsView(self.scene)
-        # Apply persisted bilinear / nearest preference. Default on
-        # (smooth upscale); users who want true pixel ratio flip via
-        # right-click context menu.
+        self._viewer = BaseImageViewer(self, theme=_dt)
+        self.scene = self._viewer.scene
+        self.view = self._viewer.view
         _bilinear = QSettings("DoxyEdit", "DoxyEdit").value(
             "preview_bilinear", True, type=bool)
-        self.view.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self.view.setRenderHint(
             QPainter.RenderHint.SmoothPixmapTransform, _bilinear)
-        self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-        self.view.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-        # Allow panning beyond the image edges
-        self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        layout.addWidget(self.view)
+        layout.addWidget(self._viewer)
 
         self._pixmap_item = None
         if not pm.isNull():
@@ -689,8 +686,10 @@ class ImagePreviewDialog(QDialog):
         self._load_existing_crops()
 
     def update_theme(self, theme):
-        """Update QGraphicsScene background from theme (can't use QSS for scenes)."""
-        self.scene.setBackgroundBrush(QColor(theme.bg_deep))
+        """Update QGraphicsScene background from theme. Goes through
+        the viewer so the BaseImageViewer's theme attribute also tracks
+        the active palette."""
+        self._viewer.set_theme(theme)
 
     def eventFilter(self, obj, event):
         # Parent window activated — raise preview above it (On Top mode)
