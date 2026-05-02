@@ -4314,7 +4314,15 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         fg2  = t.text_secondary
         muted = t.text_muted
         accent = t.accent_bright
-        code_bg = "rgba(255,255,255,0.07)"
+        # Pick subtle overlay tones based on whether the theme is dark
+        # or light. Without this, light themes (Bone, Milk Glass) render
+        # white overlays on white panels (invisible) and dark themes get
+        # black overlays on black panels.
+        _bg_qc = QColor(t.bg_deep)
+        _is_dark = (_bg_qc.red() + _bg_qc.green() + _bg_qc.blue()) < 384
+        code_bg = "rgba(255,255,255,0.07)" if _is_dark else "rgba(0,0,0,0.07)"
+        _border_overlay = (
+            "rgba(255,255,255,0.1)" if _is_dark else "rgba(0,0,0,0.1)")
 
         def esc(s):
             return _html.escape(str(s))
@@ -4322,7 +4330,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         def section(title, count=None):
             c = f" <span style='color:{muted}'>({count})</span>" if count is not None else ""
             return (f"<p style='margin:14px 0 4px; font-weight:bold; color:{accent};"
-                    f" border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:3px'>"
+                    f" border-bottom:1px solid {_border_overlay}; padding-bottom:3px'>"
                     f"{esc(title)}{c}</p>")
 
         def code(s):
@@ -6999,7 +7007,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if not items:
             self.status.showMessage("Select an item first")
             return
-        color = QColorDialog.getColor(QColor("#4fc3f7"), self, "Pick Color")
+        # Initial color comes from the active theme accent so the picker
+        # opens on a tone that matches the current palette.
+        color = QColorDialog.getColor(
+            QColor(self._theme.accent_bright), self, "Pick Color")
         if not color.isValid():
             return
         for item in items:
