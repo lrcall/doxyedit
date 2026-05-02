@@ -46,14 +46,17 @@ Art asset manager for artists and creators. Browse, tag, organize, and export ar
 
 ### Platform & Infrastructure
 - **Kanban Board** — 4 status columns (Pending/Ready/Posted/Skip) embedded in Platforms tab
-- **7 Themes** — Vinik 24, Warm Charcoal, Soot, Bone, Milk Glass, Forest, Grey
-- **Platform Export** — Kickstarter, Steam, Patreon, Twitter, Reddit, Instagram with auto-resize
-- **OneUp Integration** — connected accounts for Twitter/X and Reddit via OneUp MCP server
+- **21+ Themes** — Vinik 24, Warm Charcoal, Soot, Bone, Milk Glass, Forest, Grey, Neon, Ember, Midnight, Dawn, Citrus, Candy, Slate, Moss, Ocean, Lavender, Sunset, Aurora, Gold, Wine, and growing. Every theme passes WCAG AAA contrast (validated by `scripts/check_theme_contrast.py`).
+- **Platform Export** — Kickstarter, Steam, Patreon, Twitter, Reddit, Instagram with auto-resize and rotate-before-crop support
+- **OneUp Integration** — connected accounts for Twitter/X and Reddit via OneUp MCP server, with off-thread push so the UI never freezes during sync
+- **Direct API Posting** — Bluesky / Telegram / Discord / Mastodon clients in `doxyedit/directpost.py` and `doxyedit/platforms/`, no userscript required
+- **Cross-Project Identity Sync** — `~/.doxyedit/identities.json` shared store; one identity edit propagates to every project on the machine
 - **YAML Config** — custom platform definitions via config.yaml (Tools > Edit Project Config)
 - **Perceptual Hash** — Find Similar Images grouping via Tools menu
 - **Disk Cache** — persistent thumbnail cache with color palette extraction
 - **CLI Pipeline** — `python -m doxyedit summary/tags/untagged/status/reminders/plan-posts project.json`
 - **Tabbed Notes** — General + Agent Primer + custom tabs with markdown preview and Claude actions
+- **Tested** — boot smoke + helper unit tests (`tests/`), tokenization validator, theme contrast validator, all wired to GitHub Actions
 
 ## Install
 
