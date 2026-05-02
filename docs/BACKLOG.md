@@ -6,52 +6,26 @@ this file is scoped to what's been planned but not yet shipped.
 
 ## Plan-H remainders
 
-### H4.1 Stage 2 — more window.py → project_io.py
-Stage 1 moved `_watch_project`, `_save_project_silently`, `_autosave`,
-`_autosave_collection` into `SaveLoadMixin`. Stage 2 should move:
-- `_save_project`, `_save_project_as` (interactive save dialogs)
-- `_open_project`, `_load_project_from`, `_reload_project`
-- `_save_collection`, `_save_collection_quick`, `_open_collection`,
-  `_reload_collection`, `_locate_last_collection`
+### ~~H4.1 Stage 2 — more window.py → project_io.py~~ ✓ shipped
+All 10 target methods moved into `SaveLoadMixin` in commits
+54d4288 → e1ac354 (April 2026 cron session). `_save_project`,
+`_save_project_as`, `_open_project`, `_load_project_from`,
+`_reload_project`, `_save_collection`, `_save_collection_quick`,
+`_open_collection`, `_reload_collection`, `_locate_last_collection`
+all live in `doxyedit/project_io.py` now.
 
-**Why deferred.** Each of these owns a QFileDialog or QMessageBox plus
-side-effects that chain back into `_rebind_project`. Moving them
-requires either passing the MainWindow as `parent=` for the dialogs
-(mixin can do that — `self` is the MainWindow) or splitting out a
-`DialogHelper` seam. The mixin approach is fine; just wanted one
-pass of real-world testing on Stage 1 before proceeding.
+### ~~H4.2 — tab_manager.py~~ ✓ shipped
+Commit 9ae61f9 created `doxyedit/tab_manager.py` with
+`TabManagerMixin`. All 9 listed methods plus `_rename_proj_tab` moved
+out of window.py. window.py shrunk ~150 lines.
 
-**Effort.** M. Mechanical copy + delete, verify `py run.py` after each
-method move.
-
-### H4.2 — tab_manager.py
-Move tab slot management out of window.py into `doxyedit/tab_manager.py`
-(~500 lines):
-- `_project_slots` list + getters
-- `_switch_to_slot`, `_save_current_slot`
-- `_close_proj_tab`, `_detach_proj_tab`, `_add_project_tab`
-- `_on_proj_tab_changed`, `_on_proj_tab_moved`
-- `_preset_context_menu`, `_rename_proj_tab`
-
-**Prereq.** Stage 2 of H4.1 first, so both mixins are proven.
-
-### H4.3 — OneUp push phase off UI thread
-`_on_sync_oneup_fetched` currently loops `_push_post_to_oneup` on the
-UI thread after the fetch. Each push is a synchronous MCP HTTP call.
-For a sync with 10 queued posts on 3 accounts each, that's 30×
-sequential network calls on the main thread.
-
-**Approach.** Extract a `_OneUpPushThread(QThread)` that runs the
-push queue. Per-post signal updates `self.status.showMessage`. After
-the last push, emit `pushed_summary` which triggers
-`_refresh_social_panels` + autosave.
-
-**Risk.** Medium. `_push_post_to_oneup` touches status bar, post
-model fields, and `self._dirty`. All mutations on self.project.posts
-are fine from a worker (pure data); the status calls need to marshal
-via signal.
-
-**Effort.** M. Similar shape to the G3 fetch-off-thread work.
+### ~~H4.3 — OneUp push phase off UI thread~~ ✓ shipped
+- 5c320d5 prepped `_push_post_to_oneup` with a `status_cb` parameter.
+- 532d968 added `_OneUpPushThread(QThread)` skeleton.
+- 61e366b wired the thread into `_check_autopost`.
+- 3cacb4f split sync reconciliation from push pass.
+- 796be3a wired the thread into `_on_sync_oneup_fetched` proper.
+The 30+ HTTP calls on the UI thread are gone.
 
 ### H6 — interactive verification pass
 User-driven. Walk through every commit's verification steps on a
@@ -89,10 +63,15 @@ Scope: weeks per item. Each warrants its own plan-i-Nx file.
 ### Still live
 - **window.py inline stylesheets** — ~~progress label padding~~ (done
   via theme QSS). Status bar save-flashes at 2576, 2587, 6357 still
-  inline; they use theme tokens so low priority.
-- **Unified ImageViewer component** — preview.py + composer_left +
-  stray `QPixmap(path)` sites. Three near-duplicate preview
-  implementations. Consolidate.
+  inline; they use theme tokens so low priority. Most other inline
+  styles have been swept; tokenization validator passes clean
+  (commit b75752d).
+- ~~**Unified ImageViewer component**~~ ✓ shipped. New
+  `doxyedit/imageviewer.py` `BaseImageViewer` (commits 195bec3 +
+  a583ea3 helpers). `PreviewPane` and `ImagePreviewDialog` migrated
+  (c50062a, ac15b89). The third site (composer_left.ImagePreviewPanel)
+  is QLabel + scaled QPixmap — different rendering category, not a
+  duplicate of the QGraphicsView path.
 
 ### Done in the autonomous batch after v2.4 docs
 - ~~OneUp sync debug prints~~ → `logging` (commit d061c84)
@@ -114,10 +93,13 @@ Scope: weeks per item. Each warrants its own plan-i-Nx file.
 - ~~**Visual indicator for locked layers**~~ — done (commit 3e9373c).
 
 ### Feature rounding
-- **Rotate handle on crops** — user-visible inconsistency since
-  censors and overlays rotate but crops are axis-only. CropRegion
-  would need a `rotation` field; exporter would need to rotate-before-
-  crop. Non-trivial, but rounds out the system. Deferred during v2.5.
+- ~~**Rotate handle on crops**~~ ✓ shipped end-to-end. CropRegion
+  gained a `rotation` field (9e99fea), exporter rotates-before-crop
+  across all 5 export paths via `apply_crop_rect` (bc15e60),
+  context-menu Set Rotation... entry (4556b18), dashed rotated
+  outline indicator (33e1a8a), drag-and-resize preserves rotation
+  (1dccaa6), visual rotate handle on ResizableCropItem with Shift
+  snap to 15° (910279a).
 - ~~**Grid spacing spinner**~~ — done in v2.5 (commit 0134247) plus
   a grid-on/off checkbox, rule-of-thirds toggle, and QSettings
   persistence.
