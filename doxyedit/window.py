@@ -7586,31 +7586,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if path:
             self._load_project_from(path)
 
-    def _save_project_as(self):
-        hint = self._project_path or (
-            str(Path(self._dialog_dir()) / "project.doxy")
-            if self._dialog_dir() else "project.doxy")
-        path, selected = QFileDialog.getSaveFileName(
-            self, "Save Project", hint,
-            "DoxyEdit Project (*.doxy);;Legacy JSON (*.doxyproj.json)"
-        )
-        if path:
-            path = ensure_project_ext(path, prefer_legacy="doxyproj.json" in selected)
-            self._remember_dir(path)
-            self._save_project_silently(path)
-            self._project_path = path
-            self._watch_project()
-            self._dirty = False
-            self._settings.setValue("last_project", path)
-            self._add_recent_project(path)
-            self.setWindowTitle(f"DoxyEdit — {Path(path).name}")
-            self._proj_tab_bar.setTabText(0, Path(path).stem)
-            if 0 <= self._current_slot < len(self._project_slots):
-                self._project_slots[self._current_slot]["path"] = path
-                self._project_slots[self._current_slot]["label"] = Path(path).stem
-            self.status.showMessage(f"Saved {Path(path).name}")
-            self._autosave_collection()
-
     def _collect_open_project_paths(self) -> list[str]:
         """Return paths of all saved projects across all open windows and slots."""
         paths = []

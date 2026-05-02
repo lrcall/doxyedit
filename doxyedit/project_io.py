@@ -23,7 +23,9 @@ import json
 from pathlib import Path
 
 from PySide6.QtCore import QThread, QMutex, QMutexLocker, QWaitCondition, Signal, QTimer
+from PySide6.QtWidgets import QFileDialog
 
+from doxyedit.formats import ensure_project_ext
 from doxyedit.models import Project
 from doxyedit.perf import perf_time
 
@@ -220,6 +222,37 @@ class SaveLoadMixin:
             self._autosave_collection()
         else:
             self._save_project_as()
+
+    def _save_project_as(self):
+        """Save As… dialog. Picks a new path, writes silently, then
+        re-binds the watcher and updates window title / tab label /
+        slot record. MainWindow provides _dialog_dir, _remember_dir,
+        _add_recent_project, _proj_tab_bar, _project_slots,
+        _current_slot."""
+        hint = self._project_path or (
+            str(Path(self._dialog_dir()) / "project.doxy")
+            if self._dialog_dir() else "project.doxy")
+        path, selected = QFileDialog.getSaveFileName(
+            self, "Save Project", hint,
+            "DoxyEdit Project (*.doxy);;Legacy JSON (*.doxyproj.json)"
+        )
+        if path:
+            path = ensure_project_ext(
+                path, prefer_legacy="doxyproj.json" in selected)
+            self._remember_dir(path)
+            self._save_project_silently(path)
+            self._project_path = path
+            self._watch_project()
+            self._dirty = False
+            self._settings.setValue("last_project", path)
+            self._add_recent_project(path)
+            self.setWindowTitle(f"DoxyEdit - {Path(path).name}")
+            self._proj_tab_bar.setTabText(0, Path(path).stem)
+            if 0 <= self._current_slot < len(self._project_slots):
+                self._project_slots[self._current_slot]["path"] = path
+                self._project_slots[self._current_slot]["label"] = Path(path).stem
+            self.status.showMessage(f"Saved {Path(path).name}")
+            self._autosave_collection()
 
     def _autosave_collection(self):
         """Silently overwrite the last-saved collection file if the project
