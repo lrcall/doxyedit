@@ -1,11 +1,24 @@
 ---
-tags: [project-file, json, schema, format, doxyproj]
-description: Complete schema reference for the .doxyproj.json project file format.
+tags: [project-file, json, schema, format, doxy]
+description: Complete schema reference for the .doxy / .doxyproj.json project file format.
 ---
 
 # Project File Format
 
-DoxyEdit stores all project data in a single human-readable JSON file with the `.doxyproj.json` extension. This file can be edited by Claude CLI, custom scripts, or by hand.
+DoxyEdit stores all project data in a single human-readable JSON file.
+The current preferred extension is `.doxy`; the legacy `.doxyproj.json`
+extension still loads and saves correctly so older projects keep
+working without migration. Both extensions hold byte-identical JSON.
+
+A `.doxycol` (legacy `.doxycoll.json`) is a separate "collection" file
+that lists multiple projects to open together in tabs/windows; see
+`SaveLoadMixin._save_collection` / `_open_collection` in
+`doxyedit/project_io.py` for the format, which is just
+`{"_type":"doxycoll","projects":["path1.doxy","path2.doxy"]}`.
+
+The `.doxy` file can be edited by Claude CLI, custom scripts, or by
+hand. Any field listed below that's missing on load defaults to its
+documented value (back-compat is part of the contract).
 
 ---
 

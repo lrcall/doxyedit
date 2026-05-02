@@ -1,39 +1,29 @@
-# DoxyEdit v1.9
+# DoxyEdit v2.5
 
-Art asset manager for artists and creators. Browse, tag, organize, and export art across multiple platforms (Kickstarter, Steam, Patreon, social media).
+Art asset manager + posting pipeline for artists and creators. Browse,
+tag, organize, edit (Studio), schedule, and publish art across many
+platforms (Kickstarter, Steam, Patreon, OneUp-fronted socials, plus
+direct API for Bluesky/Telegram/Discord/Mastodon).
 
 > [!tip] Quick Navigation
 > - [[Getting Started]] — Install, run, first project
-> - [[Interface Overview]] — All four tabs explained
+> - [[Interface Overview]] — All tabs (Assets / Studio / Social / Platforms / Overview / Notes)
 > - [[Tagging System]] — Tags, shortcuts, eye toggles, panel sections
-> - [[Preview Window]] — Zoom, pan, annotations
+> - [[Preview Window]] — Zoom, pan, annotations, crops
 > - [[Thumbnail Cache]] — Cache modes, cross-project sharing
-> - [[Platform Publishing]] — Slots, export, status tracking
+> - [[Platform Publishing]] — Slots, export, status tracking, OneUp
 > - [[Health & Stats]] — Missing files, project summary
 > - [[Import & Export]] — Formats, drag-drop, paste, CLI export
 > - [[Keyboard Shortcuts]] — Full shortcut reference
-> - [[Themes & Appearance]] — 7 built-in themes
-> - [[Project File Format]] — .doxyproj.json schema
+> - [[Themes & Appearance]] — Built-in themes
+> - [[Project File Format]] — .doxy / .doxycol schemas
 > - [[CLI Reference]] — Command-line pipeline
 > - [[Changelog]] — Version history
-> - [[Roadmap]] — Pending and planned features
+> - [[Roadmap]] — Live deferred work
 
----
-
-## What's New in v1.9
-
-> [!note] v1.9.0 — 2026-04-06
-> **Preview Window Overhaul** — Single-instance preview window reuses itself instead of spawning a second. Minimize/maximize/restore buttons added. Full DWM theming on title bar. Free overpan (pan past image edges).
->
-> **Thumbnail Navigation** — Up/Down arrows in the browser navigate images and auto-scroll to keep the selection visible.
->
-> **Cross-Project Cache Sharing** — New `content_index.db` (SQLite) at the base cache dir maps cache keys across all projects. Open a new project containing already-cached files and they load instantly.
->
-> **Fast Cache Mode** — Tools menu option to store thumbnails as uncompressed BMP for faster reads at the cost of disk space.
->
-> **Health Panel** — "Remove Missing" button scans all assets and removes entries whose source file no longer exists on disk (with confirmation).
->
-> **Scrollbars** — Handles use the theme accent color and brighten on hover.
+For the canonical changelog with everything that shipped between v1.9
+and the current release, see `docs/CHANGELOG.md` in the repo (1700+
+lines, far too long to mirror here).
 
 ---
 
