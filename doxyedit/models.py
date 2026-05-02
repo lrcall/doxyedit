@@ -1242,21 +1242,45 @@ class Project:
                 notes=raw_notes,
                 specs=raw_specs,
             )
+            # Filter unknown keys + try/except per-record so a forward-
+            # compatible asset (one written by a newer DoxyEdit with
+            # extra fields) loads cleanly on an older version, and a
+            # corrupted record skips with a log line instead of aborting
+            # the whole asset.
+            import logging as _logging
+            _crop_fields = set(_CropRegion.__dataclass_fields__)
             crops_in = _aget("crops")
             if crops_in:
                 _ac = asset.crops.append
                 for c in crops_in:
-                    _ac(_CropRegion(**c))
+                    try:
+                        _ac(_CropRegion(
+                            **{k: v for k, v in c.items() if k in _crop_fields}))
+                    except Exception:
+                        _logging.exception(
+                            "Skipping malformed crop on asset %s: %r",
+                            asset.id, c)
             censors_in = _aget("censors")
             if censors_in:
                 _ac = asset.censors.append
                 for c in censors_in:
-                    _ac(_CensorRegion(**{k: v for k, v in c.items() if k in _censor_fields}))
+                    try:
+                        _ac(_CensorRegion(
+                            **{k: v for k, v in c.items() if k in _censor_fields}))
+                    except Exception:
+                        _logging.exception(
+                            "Skipping malformed censor on asset %s: %r",
+                            asset.id, c)
             overlays_in = _aget("overlays")
             if overlays_in:
                 _ac = asset.overlays.append
                 for ov in overlays_in:
-                    _ac(_CanvasOverlay_from(ov))
+                    try:
+                        _ac(_CanvasOverlay_from(ov))
+                    except Exception:
+                        _logging.exception(
+                            "Skipping malformed overlay on asset %s: %r",
+                            asset.id, ov)
             assignments_in = _aget("assignments")
             if assignments_in:
                 _ac = asset.assignments.append
