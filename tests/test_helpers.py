@@ -55,6 +55,36 @@ class TestThemeHelpers(unittest.TestCase):
         self.assertGreater(big[0], small[0])
         self.assertGreater(big[1], small[1])
 
+    def test_apply_menu_theme_writes_stylesheet(self):
+        """apply_menu_theme should populate the menu's styleSheet so
+        Windows top-level popups stop rendering with the OS default."""
+        from PySide6.QtWidgets import QApplication, QMenu
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        app = QApplication.instance() or QApplication([])
+        from doxyedit.themes import apply_menu_theme, THEMES, DEFAULT_THEME
+        m = QMenu()
+        self.assertEqual(m.styleSheet(), "")
+        apply_menu_theme(m, THEMES[DEFAULT_THEME])
+        # Should have written a non-empty stylesheet.
+        self.assertGreater(len(m.styleSheet()), 50)
+        # Stylesheet references the theme's bg_raised.
+        self.assertIn(THEMES[DEFAULT_THEME].bg_raised, m.styleSheet())
+
+    def test_apply_menu_theme_reads_from_qsettings_when_no_arg(self):
+        """If no theme is passed, apply_menu_theme should fall back to
+        the QSettings-stored theme name. We don't test the QSettings
+        side directly; just confirm the no-arg path doesn't raise and
+        produces a non-empty stylesheet."""
+        from PySide6.QtWidgets import QApplication, QMenu
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        app = QApplication.instance() or QApplication([])
+        from doxyedit.themes import apply_menu_theme
+        m = QMenu()
+        apply_menu_theme(m)  # no theme arg
+        self.assertGreater(len(m.styleSheet()), 50)
+
 
 class TestApplyCropRect(unittest.TestCase):
     """exporter.apply_crop_rect handles rotation=0 and non-zero
