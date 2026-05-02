@@ -7578,14 +7578,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if hasattr(self, '_gantt_panel') and hasattr(self, '_cross_cache'):
             self._gantt_panel.set_cross_project(self._cross_cache, _excl)
 
-    def _open_project(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Open Project", "",
-            "DoxyEdit Projects (*.doxy *.doxyproj.json);;All Files (*)"
-        )
-        if path:
-            self._load_project_from(path)
-
     def _collect_open_project_paths(self) -> list[str]:
         """Return paths of all saved projects across all open windows and slots."""
         paths = []

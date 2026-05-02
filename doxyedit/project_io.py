@@ -223,6 +223,15 @@ class SaveLoadMixin:
         else:
             self._save_project_as()
 
+    def _open_project(self):
+        """Open dialog → delegate to _load_project_from on MainWindow."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Project", "",
+            "DoxyEdit Projects (*.doxy *.doxyproj.json);;All Files (*)"
+        )
+        if path:
+            self._load_project_from(path)
+
     def _save_project_as(self):
         """Save As… dialog. Picks a new path, writes silently, then
         re-binds the watcher and updates window title / tab label /
