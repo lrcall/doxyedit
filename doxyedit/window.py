@@ -4093,14 +4093,25 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._float_composer_dialog(post=post, is_new=is_new)
 
     def _refresh_social_panels(self):
-        """Refresh all social-related panels after a post change."""
-        self._timeline.refresh()
-        self._calendar_pane.refresh()
-        if hasattr(self, '_gantt_panel'):
-            self._gantt_panel.refresh()
-        self.browser._model.update_post_status(self.project.posts)
-        self.browser.active_view.viewport().update()
-        self.platform_panel.refresh()
+        """Refresh all social-related panels after a post change. Each
+        panel is wrapped so a single buggy panel doesn't prevent the
+        others from updating. Failures land in last_run.log."""
+        for label, refresh in (
+            ("timeline", lambda: self._timeline.refresh()),
+            ("calendar", lambda: self._calendar_pane.refresh()),
+            ("gantt", lambda: (
+                self._gantt_panel.refresh()
+                if hasattr(self, '_gantt_panel') else None)),
+            ("browser_post_status", lambda: (
+                self.browser._model.update_post_status(self.project.posts),
+                self.browser.active_view.viewport().update())),
+            ("platforms", lambda: self.platform_panel.refresh()),
+        ):
+            try:
+                refresh()
+            except Exception:
+                logging.exception(
+                    "Refresh failed in social panel: %s", label)
 
     def _test_engagement(self):
         """Generate test engagement windows on the first post with platforms."""
@@ -5061,13 +5072,22 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     pass
 
     def _on_social_tick(self):
-        """Auto-refresh social tab components every 60s if visible."""
+        """Auto-refresh social tab components every 60s if visible.
+        Each panel's refresh is isolated so a buggy panel doesn't kill
+        the timer or take down the rest of the tab; failures land in
+        ~/.doxyedit/last_run.log."""
         if self.tabs.currentWidget() is not self._social_split:
             return
         if hasattr(self, '_timeline'):
-            self._timeline.refresh()
+            try:
+                self._timeline.refresh()
+            except Exception:
+                logging.exception("Timeline refresh failed in social tick")
         if hasattr(self, '_gantt_panel'):
-            self._gantt_panel.refresh()
+            try:
+                self._gantt_panel.refresh()
+            except Exception:
+                logging.exception("Gantt refresh failed in social tick")
 
     def _set_tool(self, tool):
         """Legacy canvas tool — redirect to Studio."""
