@@ -138,6 +138,44 @@ class TestDirectPostGuards(unittest.TestCase):
         self.assertFalse(ok)
 
 
+class TestKanbanGrouping(unittest.TestCase):
+    """KanbanBoard._refresh routes posts into the right column based
+    on their .status, and falls back to Draft for unknown / partial
+    statuses."""
+
+    def setUp(self):
+        from PySide6.QtWidgets import QApplication
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        self.app = QApplication.instance() or QApplication([])
+
+    def test_groups_by_status(self):
+        from doxyedit.kanban import KanbanBoard
+        from doxyedit.models import Project, SocialPost, SocialPostStatus
+        p = Project()
+        p.posts = [
+            SocialPost(id="a", status=SocialPostStatus.DRAFT),
+            SocialPost(id="b", status=SocialPostStatus.QUEUED),
+            SocialPost(id="c", status=SocialPostStatus.POSTED),
+            SocialPost(id="d", status=SocialPostStatus.FAILED),
+            SocialPost(id="e", status=SocialPostStatus.QUEUED),
+        ]
+        board = KanbanBoard(p)
+        counts = {k: w.count() for k, w in board._col_widgets.items()}
+        self.assertEqual(counts["draft"], 1)
+        self.assertEqual(counts["queued"], 2)
+        self.assertEqual(counts["posted"], 1)
+        self.assertEqual(counts["failed"], 1)
+
+    def test_unknown_status_lands_in_draft(self):
+        from doxyedit.kanban import KanbanBoard
+        from doxyedit.models import Project, SocialPost
+        p = Project()
+        p.posts = [SocialPost(id="x", status="partial")]
+        board = KanbanBoard(p)
+        self.assertEqual(board._col_widgets["draft"].count(), 1)
+
+
 class TestPluginRegistry(unittest.TestCase):
     """plugins._PluginRegistry handler isolation + failure containment."""
 

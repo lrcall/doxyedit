@@ -53,6 +53,8 @@ class TestImports(unittest.TestCase):
         "doxyedit.directpost",
         "doxyedit.exporter",
         "doxyedit.pipeline",
+        "doxyedit.plugins",
+        "doxyedit.kanban",
     ]
 
     def test_imports(self):

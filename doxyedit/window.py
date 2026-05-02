@@ -2275,6 +2275,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         tools_menu.addAction("Find Similar Images (Perceptual)...", self._find_similar)
         tools_menu.addAction("Auto-Link Variants by Filename...", self._auto_link_by_filename)
         tools_menu.addAction("Posting Notifications...", self._show_notification_center)
+        tools_menu.addAction("Kanban Board...", self._show_kanban)
         tools_menu.addSeparator()
 
         # — Cache submenu —
@@ -4127,6 +4128,22 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._refresh_social_panels()
         self.status.showMessage(
             f"Generated {len(windows)} engagement windows for {target.id[:8]}", 5000)
+
+    def _show_kanban(self):
+        """Drag-drop status board for posts. Non-modal so it can sit
+        alongside the composer; status changes mark the project dirty
+        so the next autosave persists them."""
+        from doxyedit.kanban import KanbanBoard
+        dlg = KanbanBoard(self.project, self)
+
+        def _on_status_change(_pid, _new):
+            self._dirty = True
+            self._refresh_social_panels()
+
+        dlg.status_changed.connect(_on_status_change)
+        dlg.show()
+        # Keep a reference so the dialog isn't GC'd.
+        self._kanban_dlg = dlg
 
     def _show_notification_center(self):
         """Posting notifications dialog: most-recent posting events
