@@ -1285,18 +1285,25 @@ class Project:
             if assignments_in:
                 _ac = asset.assignments.append
                 for p in assignments_in:
-                    _pget = p.get
-                    pa = _PlatformAssignment(
-                        platform=_pget("platform", ""),
-                        slot=_pget("slot", ""),
-                        status=_pget("status", _PostStatus_PENDING),
-                        notes=_pget("notes", ""),
-                        campaign_id=_pget("campaign_id", ""),
-                    )
-                    pcrop = _pget("crop")
-                    if pcrop:
-                        pa.crop = _CropRegion(**pcrop)
-                    _ac(pa)
+                    try:
+                        _pget = p.get
+                        pa = _PlatformAssignment(
+                            platform=_pget("platform", ""),
+                            slot=_pget("slot", ""),
+                            status=_pget("status", _PostStatus_PENDING),
+                            notes=_pget("notes", ""),
+                            campaign_id=_pget("campaign_id", ""),
+                        )
+                        pcrop = _pget("crop")
+                        if pcrop:
+                            pa.crop = _CropRegion(**{
+                                k: v for k, v in pcrop.items()
+                                if k in _crop_fields})
+                        _ac(pa)
+                    except Exception:
+                        _logging.exception(
+                            "Skipping malformed assignment on asset %s: %r",
+                            asset.id, p)
             _proj_assets.append(asset)
         # Eager-build indexes so the first refresh after load doesn't pay
         # the index-build cost during the user's first interaction.

@@ -3842,11 +3842,17 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                     elif post.censor_mode == "custom":
                         censor_override = post.platform_censor.get(pid)
 
-                result = prepare_for_platform(
-                    asset, pid, self.project,
-                    censor_override=censor_override,
-                    output_dir=output_base,
-                )
+                try:
+                    result = prepare_for_platform(
+                        asset, pid, self.project,
+                        censor_override=censor_override,
+                        output_dir=output_base,
+                    )
+                except Exception:
+                    logging.exception(
+                        "prepare_for_platform crashed for asset=%s platform=%s",
+                        aid, pid)
+                    continue
                 if result.success:
                     exports[pid] = result.output_path
                     for w in result.warnings:
