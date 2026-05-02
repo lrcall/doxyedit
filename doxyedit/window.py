@@ -3777,15 +3777,23 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         return exports
 
-    def _push_post_to_oneup(self, post):
-        """Push a single post to OneUp — one request per checked account."""
+    def _push_post_to_oneup(self, post, status_cb=None):
+        """Push a single post to OneUp - one request per checked account.
+
+        status_cb: optional callable(message: str, timeout_ms: int) used
+        for surfacing user-visible status. Defaults to
+        self.status.showMessage so existing callers behave unchanged.
+        Threads should pass a lambda that emits a Qt signal so the
+        message lands on the UI thread."""
         from doxyedit.oneup import get_client_from_config
         from doxyedit.models import SocialPostStatus
+        if status_cb is None:
+            status_cb = self.status.showMessage
         project_dir = str(Path(self._project_path).parent) if self._project_path else "."
 
         # Skip if already pushed (has oneup_post_id)
         if post.oneup_post_id:
-            logging.info(f"[OneUp Push] SKIP — already pushed (id={post.oneup_post_id[:20]})")
+            logging.info(f"[OneUp Push] SKIP - already pushed (id={post.oneup_post_id[:20]})")
             return
 
         logging.info(f"[OneUp Push] post={post.id[:8]} platforms={post.platforms} time={post.scheduled_time}")
@@ -3800,7 +3808,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 client = OneUpClient(key)
         if not client:
             logging.error("[OneUp Push] ERROR: No API key found")
-            self.status.showMessage("No OneUp API key — post saved as queued (offline)", 5000)
+            status_cb("No OneUp API key - post saved as queued (offline)", 5000)
             return
         logging.info(f"[OneUp Push] client OK, category_id={client.category_id}")
 
@@ -3809,7 +3817,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             sched = post.scheduled_time[:16].replace("T", " ")
         if not sched:
             logging.error("[OneUp Push] ERROR: No schedule time")
-            self.status.showMessage("No schedule time set — post needs a date/time to push", 5000)
+            status_cb("No schedule time set - post needs a date/time to push", 5000)
             post.status = SocialPostStatus.DRAFT
             return
 
@@ -3822,7 +3830,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         if not oneup_platforms:
             logging.info(f"[OneUp Push] No OneUp accounts in platforms: {post.platforms}")
-            self.status.showMessage("No OneUp accounts selected — subscription platforms use quick-post", 5000)
+            status_cb("No OneUp accounts selected - subscription platforms use quick-post", 5000)
             return
 
         pushed = 0
@@ -3891,11 +3899,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if pushed:
             post.oneup_post_id = ",".join(oneup_ids)
             post.status = SocialPostStatus.QUEUED
-            self.status.showMessage(
-                f"Pushed {pushed}/{len(post.platforms)} to OneUp — {sched}", 5000)
+            status_cb(
+                f"Pushed {pushed}/{len(post.platforms)} to OneUp - {sched}",
+                5000)
         else:
             post.status = SocialPostStatus.FAILED
-            self.status.showMessage(f"All {failed} push(es) failed", 8000)
+            status_cb(f"All {failed} push(es) failed", 8000)
         logging.error(f"[OneUp Push] Done: {pushed} pushed, {failed} failed")
         self._dirty = True
 
