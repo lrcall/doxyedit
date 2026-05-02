@@ -271,6 +271,57 @@ class _OneUpFetchThread(QThread):
             self.failed.emit(str(e))
 
 
+class _OneUpPushThread(QThread):
+    """Push a list of pre-resolved local posts to OneUp off the UI
+    thread.
+
+    The caller passes the live MainWindow `editor` (we need its
+    project + status context) plus the list of posts to push. Each
+    push is delegated back into editor._push_post_to_oneup with a
+    status_cb that emits a Qt signal so any user-visible messages
+    land on the UI thread.
+
+    Emits:
+        post_pushed(post_id, success_count, fail_count) per post
+        status_msg(msg, timeout_ms)                     surfaced to UI
+        finished_all(pushed_total, failed_total)        on completion
+    """
+
+    post_pushed = Signal(str, int, int)
+    status_msg = Signal(str, int)
+    finished_all = Signal(int, int)
+
+    def __init__(self, editor, posts: list, parent=None):
+        super().__init__(parent)
+        self._editor = editor
+        self._posts = list(posts)
+
+    def run(self):
+        pushed_total = 0
+        failed_total = 0
+        for post in self._posts:
+            before_id = post.oneup_post_id
+            try:
+                self._editor._push_post_to_oneup(
+                    post, status_cb=self.status_msg.emit)
+            except Exception as e:
+                self.status_msg.emit(
+                    f"Push crashed for {post.id[:8]}: {e}", 5000)
+                failed_total += 1
+                continue
+            # Heuristic success: oneup_post_id became non-empty after the call.
+            ids = [i for i in (post.oneup_post_id or "").split(",") if i]
+            before_ids = [i for i in (before_id or "").split(",") if i]
+            new_ids = max(0, len(ids) - len(before_ids))
+            if new_ids:
+                pushed_total += new_ids
+                self.post_pushed.emit(post.id, new_ids, 0)
+            else:
+                failed_total += 1
+                self.post_pushed.emit(post.id, 0, 1)
+        self.finished_all.emit(pushed_total, failed_total)
+
+
 class MainWindow(SaveLoadMixin, TabManagerMixin, QMainWindow):
     _open_windows: list["MainWindow"] = []  # keep extra windows alive (prevent GC)
 
