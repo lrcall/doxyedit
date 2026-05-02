@@ -1835,6 +1835,30 @@ RULES:
             ]
             self._rebuild_chain_ui()
 
+        # Append the identity's hashtags to the caption only if none of
+        # them are already present. Additive and conservative - never
+        # rewrites the user's caption text. Hashtags-JP are appended too
+        # if the caption appears to contain JP characters.
+        try:
+            caption = self._caption_edit.toPlainText()
+        except Exception:
+            caption = ""
+        tags = list(identity.get("hashtags", []) or [])
+        tags_ja = list(identity.get("hashtags_ja", []) or [])
+        # Detect JP by presence of any Hiragana/Katakana/CJK unified.
+        is_jp = any(
+            "぀" <= ch <= "ヿ" or "一" <= ch <= "鿿"
+            for ch in caption)
+        pool = tags_ja if is_jp and tags_ja else tags
+        if pool:
+            present = caption.lower()
+            missing = [t for t in pool if t.lower() not in present]
+            if missing and len(missing) == len(pool):
+                # None of the identity's hashtags appear yet; append them.
+                joiner = "\n\n" if caption.strip() else ""
+                self._caption_edit.setPlainText(
+                    caption + joiner + " ".join(missing))
+
     def _get_chain_platforms(self) -> list[dict]:
         """Return platforms available for release chain steps —
         current category accounts + checked subscription platforms."""
