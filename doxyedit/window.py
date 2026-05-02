@@ -1372,6 +1372,14 @@ class MainWindow(SaveLoadMixin, TabManagerMixin, QMainWindow):
 
     # ── end project tab management ───────────────────────────────────────────
 
+    def _themed_dialog_resize(self, dlg, w_ratio: float, h_ratio: float):
+        """Set a dialog's initial size by font-relative ratios so the
+        dialog scales with the user's font preference. ratios are
+        multiples of self._font_size (12 = base default), so a default
+        '600x450' reads as 50.0 x 37.5."""
+        dlg.resize(int(self._font_size * w_ratio),
+                   int(self._font_size * h_ratio))
+
     def _dialog_dir(self, hint_path: str = "") -> str:
         """Return the best starting directory for a file dialog."""
         # Prefer last-used dialog directory
@@ -3099,7 +3107,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if saved:
             dlg.resize(saved)
         else:
-            dlg.resize(560, 420)
+            self._themed_dialog_resize(dlg, 46.67, 35.0)
 
         layout = QVBoxLayout(dlg)
 
@@ -4806,7 +4814,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         sources = self.project.import_sources
         dlg = QDialog(self)
         dlg.setWindowTitle("Import Sources")
-        dlg.resize(700, 400)
+        self._themed_dialog_resize(dlg, 58.33, 33.33)
         layout = QVBoxLayout(dlg)
         table = QTableWidget(len(sources), 5)
         table.setHorizontalHeaderLabels(["Type", "Path", "Recursive", "Last Imported", "Date Filter"])
@@ -4928,7 +4936,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         asset = assets[0]
         dlg = QDialog(self)
         dlg.setWindowTitle(f"Notes — {asset.name}")
-        dlg.resize(500, 300)
+        self._themed_dialog_resize(dlg, 41.67, 25.0)
         lay = QVBoxLayout(dlg)
         edit = QTextEdit()
         edit.setPlainText(asset.notes or "")
@@ -6313,7 +6321,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Duplicate Files")
-        dlg.resize(640, 460)
+        self._themed_dialog_resize(dlg, 53.33, 38.33)
         layout = QVBoxLayout(dlg)
 
         summary = QLabel(
@@ -6620,7 +6628,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         dlg = QDialog(self)
         dlg.setWindowTitle(f"Auto-Link Variants — {len(proposable)} groups")
-        dlg.resize(600, 450)
+        self._themed_dialog_resize(dlg, 50.0, 37.5)
         layout = QVBoxLayout(dlg)
         layout.addWidget(QLabel(f"{len(proposable)} groups · {total_assets} assets"))
 
@@ -6658,7 +6666,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         dlg = QDialog(self)
         dlg.setWindowTitle(f"Mass Tag Editor — {len(assets)} assets")
-        dlg.resize(700, 500)
+        self._themed_dialog_resize(dlg, 58.33, 41.67)
         layout = QVBoxLayout(dlg)
         layout.addWidget(QLabel("Edit comma-separated tags per asset. Changes apply on Save."))
 
@@ -6739,7 +6747,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Tag Usage Stats")
-        dlg.resize(400, 500)
+        self._themed_dialog_resize(dlg, 33.33, 41.67)
         layout = QVBoxLayout(dlg)
         table = QTableWidget(len(rows), 3)
         table.setHorizontalHeaderLabels(["Tag", "Label", "Count"])
@@ -6891,7 +6899,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # Build dialog
         dlg = QDialog(self)
         dlg.setWindowTitle("Keyboard Shortcuts")
-        dlg.resize(720, 560)
+        self._themed_dialog_resize(dlg, 60.0, 46.67)
         dlg.setObjectName("shortcuts_dialog")
         layout = QVBoxLayout(dlg)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -6966,7 +6974,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         dlg = QDialog(self)
         dlg.setWindowTitle(f"What's New in v{__version__}")
-        dlg.resize(640, 560)
+        self._themed_dialog_resize(dlg, 53.33, 46.67)
         layout = QVBoxLayout(dlg)
         text = QTextEdit()
         text.setReadOnly(True)
@@ -7508,7 +7516,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Configure Editors")
-        dlg.resize(620, 400)
+        self._themed_dialog_resize(dlg, 51.67, 33.33)
         layout = QVBoxLayout(dlg)
         layout.addWidget(QLabel(
             "Map file extensions to custom executables. Leave path blank to use the system default.\n"
