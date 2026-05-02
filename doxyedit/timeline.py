@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
     QScrollArea, QPushButton, QComboBox, QMenu, QDialog,
-    QFormLayout, QSpinBox, QDialogButtonBox,
+    QFormLayout, QSpinBox, QDialogButtonBox, QApplication,
 )
 from PySide6.QtCore import Signal, Qt, QSize, QSettings
 from PySide6.QtGui import QPixmap, QCursor
@@ -70,6 +70,8 @@ class PostCard(QFrame):
 
     clicked = Signal(str)  # emits post_id
     engagement_changed = Signal()  # emitted when done/snooze clicked
+    delete_requested = Signal(str)  # emits post_id (parent removes the post)
+    duplicate_requested = Signal(str)  # emits post_id
 
     def __init__(self, post: SocialPost, project: "Project | None" = None,
                  thumb_cache=None, parent=None):
@@ -344,7 +346,42 @@ class PostCard(QFrame):
         if self._post and self._post.status in ("posted", SocialPostStatus.POSTED):
             edit_action = menu.addAction("Edit Metrics...")
             edit_action.triggered.connect(self._edit_metrics)
+            menu.addSeparator()
+        # Open in composer (same as left-click on the card)
+        open_action = menu.addAction("Open in Composer")
+        open_action.triggered.connect(lambda: self.clicked.emit(self._post_id))
+        # Duplicate as a new draft
+        dup_action = menu.addAction("Duplicate Post")
+        dup_action.triggered.connect(
+            lambda: self.duplicate_requested.emit(self._post_id))
+        menu.addSeparator()
+        # Copy raw ID to clipboard - useful when wiring CLI / debugging
+        copy_id = menu.addAction("Copy Post ID")
+        copy_id.triggered.connect(
+            lambda: QApplication.clipboard().setText(self._post_id))
+        menu.addSeparator()
+        # Delete (with confirmation) - removes from project.posts
+        del_action = menu.addAction("Delete Post")
+        del_action.triggered.connect(self._confirm_and_delete)
         menu.exec(event.globalPos())
+
+    def _confirm_and_delete(self):
+        from PySide6.QtWidgets import QMessageBox
+        if self._post is None:
+            return
+        # Build a short identifier for the confirmation dialog from
+        # whichever post field has the user's friendliest label.
+        label = (self._post.caption_default
+                 or self._post.scheduled_time
+                 or self._post.id)[:60]
+        if QMessageBox.question(
+            self, "Delete Post",
+            f"Delete this post?\n\n{label}\n\n"
+            "This removes it from the project; not from any external "
+            "scheduler / platform that may already have a copy."
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        self.delete_requested.emit(self._post_id)
 
     def _edit_metrics(self):
         if not self._post:
@@ -599,6 +636,8 @@ class TimelineStream(LazyRefreshMixin, QWidget):
                 card = PostCard(post, self._project, self._thumb_cache)
                 card.clicked.connect(self.post_selected)
                 card.engagement_changed.connect(self._on_engagement_changed)
+                card.delete_requested.connect(self._on_post_delete_requested)
+                card.duplicate_requested.connect(self._on_post_duplicate_requested)
                 self._content_layout.insertWidget(idx, card)
                 idx += 1
 
@@ -612,6 +651,8 @@ class TimelineStream(LazyRefreshMixin, QWidget):
                 card = PostCard(post, self._project, self._thumb_cache)
                 card.clicked.connect(self.post_selected)
                 card.engagement_changed.connect(self._on_engagement_changed)
+                card.delete_requested.connect(self._on_post_delete_requested)
+                card.duplicate_requested.connect(self._on_post_duplicate_requested)
                 self._content_layout.insertWidget(idx, card)
                 idx += 1
 
@@ -673,6 +714,42 @@ class TimelineStream(LazyRefreshMixin, QWidget):
     def _on_engagement_changed(self) -> None:
         """Engagement check was marked done or snoozed — bubble up for save."""
         self.engagement_changed.emit()
+
+    def _on_post_delete_requested(self, post_id: str) -> None:
+        """Right-click Delete handler. Removes post from project.posts,
+        bubbles engagement_changed so the window marks dirty + autosaves,
+        and refreshes the timeline view to drop the row."""
+        if not self._project or not post_id:
+            return
+        before = len(self._project.posts)
+        self._project.posts = [p for p in self._project.posts if p.id != post_id]
+        if len(self._project.posts) != before:
+            self.engagement_changed.emit()
+            self.refresh()
+
+    def _on_post_duplicate_requested(self, post_id: str) -> None:
+        """Right-click Duplicate. Clones the post under a new id, status
+        reset to draft, scheduled_time cleared so it doesn't double-fire."""
+        if not self._project or not post_id:
+            return
+        src = next((p for p in self._project.posts if p.id == post_id), None)
+        if src is None:
+            return
+        import copy as _copy, uuid as _uuid
+        clone = _copy.deepcopy(src)
+        clone.id = _uuid.uuid4().hex[:12]
+        clone.status = SocialPostStatus.DRAFT
+        clone.scheduled_time = ""
+        # External / posted state must NOT travel with a duplicate, or
+        # the clone would look like an already-posted external item.
+        clone.platform_status = {}
+        clone.sub_platform_status = {}
+        clone.published_urls = {}
+        clone.platform_metrics = {}
+        clone.oneup_post_id = ""
+        self._project.posts.append(clone)
+        self.engagement_changed.emit()
+        self.refresh()
 
     def _on_filter_changed(self, _text: str) -> None:
         self.refresh()
