@@ -1201,27 +1201,24 @@ class PreviewPane(QWidget):
         self._popout_btn.clicked.connect(lambda: self.popout_requested.emit() if self._asset else None)
         info_layout.addWidget(self._popout_btn)
 
-        # Graphics view
+        # Graphics view via shared BaseImageViewer. Scene + view + pan
+        # + wheel zoom + theme-aware background all come from there;
+        # PreviewPane owns the info bar + navigation chrome on top.
+        from doxyedit.imageviewer import BaseImageViewer
         _dt_pane = THEMES[DEFAULT_THEME]
-        self._scene = QGraphicsScene()
-        self._scene.setBackgroundBrush(QColor(_dt_pane.bg_deep))
-        self._view = QGraphicsView(self._scene)
-        self._view.setRenderHints(
-            QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform
-        )
-        self._view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-        self._view.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-        self._view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._view.wheelEvent = self._wheel_zoom
-        layout.addWidget(self._view, 1)
+        self._viewer = BaseImageViewer(self, theme=_dt_pane)
+        # Keep the legacy attribute names so the rest of PreviewPane
+        # (load_asset, keyPress, etc) doesn't need rewriting.
+        self._scene = self._viewer.scene
+        self._view = self._viewer.view
+        layout.addWidget(self._viewer, 1)
         layout.addWidget(self._info_bar)
 
         self.setMinimumWidth(0)  # browse splitter handles collapsing
 
     def update_theme(self, theme):
         """Update QGraphicsScene background from theme (can't use QSS for scenes)."""
-        self._scene.setBackgroundBrush(QColor(theme.bg_deep))
+        self._viewer.set_theme(theme)
 
     def show_asset(self, asset, assets: list = None, index: int = 0):
         """Display an asset in the docked pane."""
