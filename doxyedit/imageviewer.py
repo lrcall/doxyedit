@@ -128,9 +128,11 @@ class BaseImageViewer(QWidget):
             return
         # Use the existing imaging.load_pixmap pipeline for PSD / SAI
         # support, falling back to QPixmap for ordinary files.
+        # load_pixmap returns (QPixmap, w, h) — unpack here.
+        pix = None
         try:
             from doxyedit.imaging import load_pixmap
-            pix = load_pixmap(str(p))
+            pix, _, _ = load_pixmap(str(p))
         except Exception:
             pix = QPixmap(str(p))
         if pix is None or pix.isNull():

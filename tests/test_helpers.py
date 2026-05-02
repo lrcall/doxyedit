@@ -297,6 +297,37 @@ class TestBaseImageViewer(unittest.TestCase):
         self.assertEqual(len(seen), 1)
         self.assertIn("does", seen[0])
 
+    def test_set_path_real_file_loads_pixmap(self):
+        """Regression guard: load_pixmap returns (pixmap, w, h) — set_path
+        used to crash on .isNull() because it didn't unpack the tuple.
+        Fixed in this commit; test pins it down."""
+        import tempfile
+        from doxyedit.imageviewer import BaseImageViewer
+        from PySide6.QtGui import QPixmap
+        from PySide6.QtCore import Qt
+        # Build a tiny PNG to disk.
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+            tmp_path = f.name
+        try:
+            pm = QPixmap(20, 20)
+            pm.fill(Qt.GlobalColor.green)
+            pm.save(tmp_path, "PNG")
+            v = BaseImageViewer()
+            failed = []
+            loaded = []
+            v.pixmap_failed.connect(lambda p: failed.append(p))
+            v.pixmap_loaded.connect(lambda px: loaded.append(px))
+            v.set_path(tmp_path)
+            self.assertEqual(failed, [])
+            self.assertEqual(len(loaded), 1)
+            self.assertIsNotNone(v._pixmap_item)
+        finally:
+            import os
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
 
 class TestKanbanGrouping(unittest.TestCase):
     """KanbanBoard._refresh routes posts into the right column based
