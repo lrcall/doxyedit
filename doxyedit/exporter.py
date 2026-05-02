@@ -475,7 +475,8 @@ def _composite_image_overlay(img: Image.Image, ov: CanvasOverlay, project_dir: s
         return img
 
     try:
-        wm = Image.open(str(path)).convert("RGBA")
+        with Image.open(str(path)) as wm_src:
+            wm = wm_src.convert("RGBA")
         # Scale to fraction of base image width
         target_w = max(10, int(img.width * ov.scale))
         ratio = target_w / wm.width
@@ -910,7 +911,8 @@ def export_project(project: Project, output_dir: str) -> dict:
                 continue
 
             try:
-                img = Image.open(asset.source_path).convert("RGBA")
+                with Image.open(asset.source_path) as src:
+                    img = src.convert("RGBA")
 
                 # Apply censors if platform requires it
                 if platform.needs_censor and asset.censors:

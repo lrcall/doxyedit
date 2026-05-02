@@ -1336,7 +1336,8 @@ RULES:
                             from doxyedit.imaging import load_psd
                             img, _, _ = load_psd(str(src))
                         else:
-                            img = Image.open(str(src)).convert("RGBA")
+                            with Image.open(str(src)) as _src_img:
+                                img = _src_img.convert("RGBA")
 
                         if asset.censors:
                             img = apply_censors(img, asset.censors)
