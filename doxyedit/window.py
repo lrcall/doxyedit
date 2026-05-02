@@ -57,6 +57,7 @@ from doxyedit.formats import (
     ensure_project_ext, ensure_collection_ext,
 )
 from doxyedit.project_io import SaveLoadMixin
+from doxyedit.tab_manager import TabManagerMixin
 
 AUTOSAVE_INTERVAL_MS = 30_000
 
@@ -270,7 +271,7 @@ class _OneUpFetchThread(QThread):
             self.failed.emit(str(e))
 
 
-class MainWindow(SaveLoadMixin, QMainWindow):
+class MainWindow(SaveLoadMixin, TabManagerMixin, QMainWindow):
     _open_windows: list["MainWindow"] = []  # keep extra windows alive (prevent GC)
 
     # ── Layout tokens (change here to rescale all MainWindow widgets) ──
@@ -1322,155 +1323,15 @@ class MainWindow(SaveLoadMixin, QMainWindow):
         self._proj_tab_bar.addTab(label)
         self._proj_tab_bar.blockSignals(False)
 
-    def _add_project_tab(self, project, path: str | None, label: str):
-        self._save_current_slot()
-        slot = {"project": project, "path": path, "label": label}
-        self._project_slots.append(slot)
-        idx = len(self._project_slots) - 1
-        self._proj_tab_bar.blockSignals(True)
-        self._proj_tab_bar.addTab(label)
-        self._proj_tab_bar.blockSignals(False)
-        self._proj_tab_bar.setCurrentIndex(idx)
-        self._switch_to_slot(idx)
-
-    def _save_current_slot(self):
-        if 0 <= self._current_slot < len(self._project_slots):
-            slot = self._project_slots[self._current_slot]
-            slot["project"] = self.project
-            slot["collapsed_folders"] = set(self.browser._collapsed_folders)
-            slot["hidden_folders"] = set(self.browser._hidden_folders)
-            if self._dirty and slot["path"]:
-                self._save_project_silently(slot["path"])
-                self._dirty = False
-
-    def _on_proj_tab_changed(self, idx: int):
-        if idx < 0 or idx >= len(self._project_slots) or idx == self._current_slot:
-            return
-        self._save_current_slot()
-        self._switch_to_slot(idx)
-
-    def _switch_to_slot(self, idx: int):
-        slot = self._project_slots[idx]
-        self._current_slot = idx
-        self.project = slot["project"]
-        self._project_path = slot["path"]
-        self._rebind_project(clear_folder_state=True)
-        if slot.get("collapsed_folders"):
-            self.browser._collapsed_folders = set(slot["collapsed_folders"])
-        if slot.get("hidden_folders"):
-            self.browser._hidden_folders = set(slot["hidden_folders"])
-        if slot.get("collapsed_folders") or slot.get("hidden_folders"):
-            self.browser.refresh()
-        self.setWindowTitle(f"DoxyEdit — {slot['label']}")
-        self._proj_tab_bar.setTabText(idx, slot["label"])
-
-    def _close_proj_tab(self, idx: int):
-        if len(self._project_slots) <= 1:
-            self._new_project_blank()
-            return
-        slot = self._project_slots[idx]
-        if slot["path"] and self._dirty and self._current_slot == idx:
-            reply = QMessageBox.question(
-                self, "Unsaved Changes",
-                f"Save '{slot['label']}' before closing?",
-                QMessageBox.StandardButton.Save |
-                QMessageBox.StandardButton.Discard |
-                QMessageBox.StandardButton.Cancel)
-            if reply == QMessageBox.StandardButton.Cancel:
-                return
-            if reply == QMessageBox.StandardButton.Save:
-                self._save_project_silently(slot["path"])
-        self._project_slots.pop(idx)
-        self._proj_tab_bar.blockSignals(True)
-        self._proj_tab_bar.removeTab(idx)
-        self._proj_tab_bar.blockSignals(False)
-        new_idx = min(idx, len(self._project_slots) - 1)
-        self._current_slot = -1
-        self._proj_tab_bar.setCurrentIndex(new_idx)
-        self._switch_to_slot(new_idx)
-
-    def _on_proj_tab_moved(self, from_idx: int, to_idx: int):
-        slot = self._project_slots.pop(from_idx)
-        self._project_slots.insert(to_idx, slot)
-        if self._current_slot == from_idx:
-            self._current_slot = to_idx
-        elif from_idx < self._current_slot <= to_idx:
-            self._current_slot -= 1
-        elif to_idx <= self._current_slot < from_idx:
-            self._current_slot += 1
-
-    def _preset_context_menu(self, idx: int, global_pos):
-        """Right-click menu on project tab bar."""
-        if idx < 0 or idx >= len(self._project_slots):
-            return
-        menu = QMenu(self)
-        slot = self._project_slots[idx]
-        menu.addAction("Rename Tab…", lambda: self._rename_proj_tab_dialog(idx))
-        menu.addAction("Open in New Window", lambda: self._detach_proj_tab(idx))
-        menu.addSeparator()
-        menu.addAction("Close Tab", lambda: self._close_proj_tab(idx))
-        menu.exec(global_pos)
-
-    def _detach_proj_tab(self, idx: int):
-        """Pop a project tab out into its own window."""
-        if idx < 0 or idx >= len(self._project_slots):
-            return
-        if idx == self._current_slot:
-            self._save_current_slot()
-        slot = self._project_slots[idx]
-        path = slot.get("path")
-        # Spawn a new window; load from disk if we have a path, otherwise transfer the project object.
-        win = MainWindow(_skip_autoload=True)
-        MainWindow._open_windows.append(win)
-        if path:
-            win._load_project_from(path)
-            # Delay show() until loader fires so we don't flash an empty tiny window
-            loader = getattr(win, "_open_loader", None)
-            if loader is not None:
-                loader.loaded.connect(
-                    lambda _p, _path, w=win: (w.show(), w._update_title_bar_color())
-                )
-                loader.failed.connect(lambda _path, _err, w=win: w.show())
-            else:
-                win.show()
-                win._update_title_bar_color()
-        else:
-            win.project = slot["project"]
-            win._project_path = None
-            win._rebind_project(clear_folder_state=True)
-            win._register_initial_slot(None, slot["label"])
-            win.setWindowTitle(f"DoxyEdit — {slot['label']}")
-            win.show()
-            win._update_title_bar_color()
-        # Remove the tab from this window. Skip save prompt — we just saved (or it's path-less and transferred).
-        if len(self._project_slots) <= 1:
-            self._new_project_blank()
-            self._register_initial_slot(None, "New Project")
-        else:
-            self._project_slots.pop(idx)
-            self._proj_tab_bar.blockSignals(True)
-            self._proj_tab_bar.removeTab(idx)
-            self._proj_tab_bar.blockSignals(False)
-            new_idx = min(idx, len(self._project_slots) - 1)
-            if self._current_slot == idx:
-                self._current_slot = -1
-                self._proj_tab_bar.setCurrentIndex(new_idx)
-                self._switch_to_slot(new_idx)
-            elif self._current_slot > idx:
-                self._current_slot -= 1
-
     def _rename_proj_tab_dialog(self, idx: int):
-        """Prompt user to rename a project tab."""
+        """Prompt user to rename a project tab. Stays on MainWindow
+        because it owns the QInputDialog flow; the actual rename action
+        is in TabManagerMixin._rename_proj_tab."""
         slot = self._project_slots[idx]
         new_label, ok = QInputDialog.getText(
             self, "Rename Tab", "Tab label:", text=slot["label"])
         if ok and new_label.strip():
             self._rename_proj_tab(idx, new_label.strip())
-
-    def _rename_proj_tab(self, idx: int, label: str):
-        if 0 <= idx < len(self._project_slots):
-            self._project_slots[idx]["label"] = label
-            self._proj_tab_bar.setTabText(idx, label)
 
     def _add_folder_preset_dialog(self):
         """+ button or Ctrl+T: open a project or folder in a new tab."""
