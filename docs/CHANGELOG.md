@@ -1,5 +1,68 @@
 # DoxyEdit Changelog
 
+## v2.5.6 (2026-05-02) - Plugin system polish + Kanban revival
+
+Continuation of the same cron session. Closes the parked-feature
+list with the last unshipped item (Kanban) and rounds out the
+plugin system with three more events plus enable/disable controls.
+
+### Kanban revival (BACKLOG #14)
+
+The pre-v2.2 Kanban tab was deleted as dead code; this re-introduces
+it as an on-demand dialog rather than permanent UI real estate. New
+`doxyedit/kanban.py`:
+
+- `KanbanBoard(QDialog)` with four columns Draft / Queued / Posted /
+  Failed, populated from `project.posts` based on `.status`.
+- Drag a post card between columns to update its status. Status
+  changes mark the project dirty so autosave persists them.
+- Status normalization handles both enum members and bare strings
+  (legacy project files); unknown / partial statuses fall through
+  to Draft so the user sees them and can re-route.
+
+Tools > Kanban Board... opens it non-modally.
+
+ALL 7 BACKLOG #14 parked features now shipped:
+1. Per-post export log (8eda67c + 4f27920)
+2. Tag hierarchy (66032c3 + 970bb68)
+3. Notification center (0bcfddb)
+4. Bulk ops UI (31c263d)
+5. Onboarding walkthrough (65d7640)
+6. Scriptable plugin hooks (249101a + 4f80493 + 49f0b52)
+7. Kanban revival (this commit, 6b7921d)
+
+### Plugin system polish
+
+- **tag_changed** event (293d437) - fires from color picker and
+  Set Parent picker with full before/after dicts.
+- **post_saved** event (f1a8a75) - fires from both composer save
+  paths (docked + floating) with `is_new` flag.
+- **Per-plugin enable/disable** (f7552b9) - Help > Plugins... now
+  shows every plugin file with a checkbox + status tags. Disabled
+  set persists in QSettings 'plugins/disabled'. Use case: park a
+  buggy plugin without deleting it.
+
+Plugin event surface is now: `project_loaded`, `post_pushed`,
+`asset_imported`, `tag_changed`, `post_saved`, `shutdown`.
+
+### Build / launchers
+
+- **pythonw launchers committed** (f4405d0) - the user's pending
+  `doxyedit.bat` + `launcher.py` migration to pythonw / pyw is now
+  safe because `run.py` (1aead52) redirects stdout/stderr to
+  `~/.doxyedit/last_run.log` when launched headless. No more silent
+  crashes on a bad install.
+- **doxyedit.vbs** added as a fully-silent launcher (uses pythonw
+  through WSH; no console flash even briefly).
+
+### Tests
+
+47 unit + smoke tests, all passing. CI (.github/workflows/checks.yml)
+runs them on every push/PR alongside the tokenization + theme
+contrast validators.
+
+---
+
 ## v2.5.5 (2026-05-02) - Cron session: refactor + parked features + tests
 
 Long autonomous cron-driven session focused on shipping every live
