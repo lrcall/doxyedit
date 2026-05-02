@@ -55,6 +55,42 @@ def plugins_log_path() -> Path:
     return Path.home() / ".doxyedit" / "plugins.log"
 
 
+def _disabled_plugins() -> set[str]:
+    """Return the set of plugin names the user has disabled via
+    QSettings 'plugins/disabled' (stored as a comma-separated string).
+    Falls back to empty set if QSettings or PySide6 isn't importable
+    (this module is also used from tests without a QApplication)."""
+    try:
+        from PySide6.QtCore import QSettings
+    except Exception:
+        return set()
+    raw = QSettings("DoxyEdit", "DoxyEdit").value("plugins/disabled", "")
+    if not raw:
+        return set()
+    return {s.strip() for s in str(raw).split(",") if s.strip()}
+
+
+def set_disabled(name: str, disabled: bool) -> None:
+    """Toggle a plugin's disabled flag in QSettings. Takes effect on
+    next discover_and_load() (i.e. next launch, or after the user
+    re-opens Help > Plugins)."""
+    try:
+        from PySide6.QtCore import QSettings
+    except Exception:
+        return
+    qs = QSettings("DoxyEdit", "DoxyEdit")
+    current = _disabled_plugins()
+    if disabled:
+        current.add(name)
+    else:
+        current.discard(name)
+    qs.setValue("plugins/disabled", ",".join(sorted(current)))
+
+
+def is_disabled(name: str) -> bool:
+    return name in _disabled_plugins()
+
+
 class _PluginAPI:
     """Per-plugin sandbox handle. Each plugin file gets its own
     instance so a faulting plugin only loses its own handlers."""
@@ -111,16 +147,24 @@ class _PluginRegistry:
     def discover_and_load(self) -> list[str]:
         """Scan ~/.doxyedit/plugins/ for .py files and load each.
         Returns the list of successfully-loaded plugin names. Failures
-        are logged to plugins.log but never raise."""
+        are logged to plugins.log but never raise.
+
+        Honors per-plugin disabled flag persisted in QSettings under
+        'plugins/disabled' (a list of plugin stems). Disabled plugins
+        are recognized by the loader but never imported, so a buggy
+        plugin can be parked without removing the file."""
         d = plugins_dir()
         if not d.exists():
             return []
+        disabled = _disabled_plugins()
         loaded: list[str] = []
         for path in sorted(d.glob("*.py")):
             if path.name.startswith("_") or path.name.startswith("."):
                 continue
             name = path.stem
             if name in self._loaded:
+                continue
+            if name in disabled:
                 continue
             try:
                 spec = importlib.util.spec_from_file_location(
@@ -157,6 +201,20 @@ class _PluginRegistry:
     def failed_plugins(self) -> list[str]:
         return sorted(self._failed)
 
+    def all_plugin_names(self) -> list[str]:
+        """Return every plugin name found on disk, regardless of
+        load / failed / disabled state. Used by the Help > Plugins
+        dialog to render the enable/disable toggles."""
+        d = plugins_dir()
+        if not d.exists():
+            return []
+        names = []
+        for path in sorted(d.glob("*.py")):
+            if path.name.startswith("_") or path.name.startswith("."):
+                continue
+            names.append(path.stem)
+        return names
+
 
 # Single process-wide registry. The host app calls discover_and_load()
 # once at startup and emit() at lifecycle points.
@@ -177,3 +235,7 @@ def loaded() -> list[str]:
 
 def failed() -> list[str]:
     return _REGISTRY.failed_plugins()
+
+
+def all_plugin_names() -> list[str]:
+    return _REGISTRY.all_plugin_names()

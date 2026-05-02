@@ -102,6 +102,23 @@ class TestPluginLoader(unittest.TestCase):
             self.assertEqual(loaded, [])
             self.assertIn("broken", self._dp._REGISTRY._failed)
 
+    def test_disabled_plugin_skipped_during_load(self):
+        """A plugin name listed in the disabled set is recognized by
+        all_plugin_names() but never imported by discover_and_load()."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            (d / "alpha.py").write_text(PLUGIN_SOURCE, encoding="utf-8")
+            (d / "beta.py").write_text(PLUGIN_SOURCE, encoding="utf-8")
+
+            with patch.object(self._dp, "plugins_dir", return_value=d), \
+                    patch.object(self._dp, "_disabled_plugins",
+                                 return_value={"beta"}):
+                names = self._dp._REGISTRY.all_plugin_names()
+                loaded = self._dp.discover_and_load()
+
+            self.assertEqual(set(names), {"alpha", "beta"})
+            self.assertEqual(loaded, ["alpha"])
+
 
 if __name__ == "__main__":
     unittest.main()

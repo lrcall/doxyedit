@@ -7364,15 +7364,14 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             "Built with PySide6 + PIL + psd-tools")
 
     def _show_plugins_status(self):
-        """Plugin status dialog: lists loaded and failed plugins,
-        a button to open the plugins folder, and a link to the
-        plugins.log file. Discovers in the active session so a
-        plugin dropped into the folder while the app is running
-        can be picked up without a restart."""
+        """Plugin status dialog: lists every plugin file with an
+        Enable / Disable checkbox, plus the load + failed sets.
+        Buttons to open the plugins folder + plugins.log."""
         from PySide6.QtWidgets import (
-            QDialog, QVBoxLayout, QLabel, QListWidget, QPushButton,
-            QHBoxLayout, QDialogButtonBox,
+            QDialog, QVBoxLayout, QLabel, QListWidget, QListWidgetItem,
+            QPushButton, QHBoxLayout, QDialogButtonBox,
         )
+        from PySide6.QtCore import Qt as _Qt
         from doxyedit.themes import themed_dialog_size
         from doxyedit import plugins as _dp
         # Re-discover so newly-dropped plugins show up
@@ -7381,27 +7380,44 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         dlg = QDialog(self)
         dlg.setObjectName("plugins_status_dlg")
         dlg.setWindowTitle("Plugins")
-        w, h = themed_dialog_size(38.33, 33.33)
+        w, h = themed_dialog_size(38.33, 38.33)
         dlg.resize(w, h)
         lay = QVBoxLayout(dlg)
         lay.addWidget(QLabel(
-            "<b>Loaded plugins</b> (drop .py files into "
-            "~/.doxyedit/plugins/ and re-open this dialog):"))
-        loaded = _dp.loaded()
-        loaded_lst = QListWidget()
-        if loaded:
-            loaded_lst.addItems(loaded)
-        else:
-            loaded_lst.addItem("(none)")
-        lay.addWidget(loaded_lst, 1)
+            "<b>Plugins</b> (drop .py files into "
+            "~/.doxyedit/plugins/). Toggle the checkbox to "
+            "enable / disable; takes effect on next launch."))
+        all_names = _dp.all_plugin_names()
+        loaded_set = set(_dp.loaded())
+        failed_set = set(_dp.failed())
+        listw = QListWidget()
+        for name in all_names:
+            tags = []
+            if name in loaded_set:
+                tags.append("loaded")
+            if name in failed_set:
+                tags.append("FAILED")
+            if _dp.is_disabled(name):
+                tags.append("disabled")
+            label = name + (f"  [{', '.join(tags)}]" if tags else "")
+            item = QListWidgetItem(label)
+            item.setFlags(item.flags() | _Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(
+                _Qt.CheckState.Unchecked if _dp.is_disabled(name)
+                else _Qt.CheckState.Checked)
+            item.setData(_Qt.ItemDataRole.UserRole, name)
+            listw.addItem(item)
+        if not all_names:
+            listw.addItem("(no plugins found)")
 
-        failed = _dp.failed()
-        if failed:
-            lay.addWidget(QLabel(
-                "<b>Failed</b> (see ~/.doxyedit/plugins.log for tracebacks):"))
-            fail_lst = QListWidget()
-            fail_lst.addItems(failed)
-            lay.addWidget(fail_lst, 1)
+        def _on_check_change(item):
+            name = item.data(_Qt.ItemDataRole.UserRole)
+            if not name:
+                return
+            disabled = item.checkState() == _Qt.CheckState.Unchecked
+            _dp.set_disabled(name, disabled)
+        listw.itemChanged.connect(_on_check_change)
+        lay.addWidget(listw, 1)
 
         btn_row = QHBoxLayout()
         open_folder = QPushButton("Open plugins folder")
