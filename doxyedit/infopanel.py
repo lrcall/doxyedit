@@ -73,7 +73,14 @@ class InfoPanel(QWidget):
         self._header = QLabel("No selection")
         self._header.setObjectName("info_filename_header")
         _bold = self._header.font(); _bold.setBold(True)
-        _bold.setPointSize(_bold.pointSize() + 1)
+        # font.pointSize() returns -1 if the font was created via
+        # setPixelSize (which the global theme stylesheet uses). Adding
+        # 1 to -1 gives 0, and Qt logs:
+        #   QFont::setPointSize: Point size <= 0 (-1), must be greater than 0
+        # at every launch. Clamp to a sane minimum so the bold variant
+        # always has a positive point size.
+        _ps = _bold.pointSize()
+        _bold.setPointSize(max(9, _ps + 1) if _ps > 0 else 11)
         self._header.setFont(_bold)
         self._header.setWordWrap(True)
         # Long filenames with no whitespace (e.g.
