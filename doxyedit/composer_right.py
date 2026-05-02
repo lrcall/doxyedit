@@ -571,9 +571,12 @@ class ContentPanel(QWidget):
         if post.reply_templates:
             self._reply_edit.setPlainText("\n".join(post.reply_templates))
 
-        # Identity
-        if post.collection:
-            idx = self._identity_combo.findData(post.collection)
+        # Identity: prefer identity_name (newer field) when present so
+        # per-post identity selection survives across loads. Fall back
+        # to .collection for legacy posts that pre-date the field.
+        ident_pick = getattr(post, "identity_name", "") or post.collection
+        if ident_pick:
+            idx = self._identity_combo.findData(ident_pick)
             if idx >= 0:
                 self._identity_combo.setCurrentIndex(idx)
 
@@ -636,6 +639,17 @@ class ContentPanel(QWidget):
 
         # Identity / collection
         collection = self._identity_combo.currentData() or ""
+        # identity_name carries the selected identity for per-post
+        # identity switching. cross-project entries store as
+        # "xproject::<proj>::<iname>"; strip down to the iname for
+        # storage so the post resolves on the local project too.
+        identity_name = collection
+        if isinstance(identity_name, str) and identity_name.startswith("xproject::"):
+            try:
+                _, _proj, iname = identity_name.split("::", 2)
+                identity_name = iname
+            except ValueError:
+                pass
 
         # Selected category
         category_id = ""
@@ -658,6 +672,7 @@ class ContentPanel(QWidget):
             "strategy_notes": strategy_notes,
             "release_chain": release_chain,
             "collection": collection,
+            "identity_name": identity_name,
             "category_id": category_id,
             "censor_mode": censor_mode,
         }
