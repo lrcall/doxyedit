@@ -752,6 +752,7 @@ class StudioScene(QGraphicsScene):
         rename_act = menu.addAction("Rename crop")
         duplicate_act = menu.addAction("Duplicate crop")
         set_dims_act = menu.addAction("Set Exact Dimensions...")
+        rotate_act = menu.addAction("Set Rotation...")
         menu.addSeparator()
         delete_act = menu.addAction("Delete crop")
         chosen = menu.exec(event.screenPos())
@@ -780,6 +781,8 @@ class StudioScene(QGraphicsScene):
             self._duplicate_crop(editor, target)
         elif chosen is set_dims_act:
             self._set_crop_dimensions(editor, target)
+        elif chosen is rotate_act:
+            self._set_crop_rotation(editor, target)
         elif chosen is delete_act:
             # Remove from asset.crops by label, then from scene
             lbl = getattr(target, "label", "")
@@ -1430,6 +1433,34 @@ class StudioScene(QGraphicsScene):
         QApplication.clipboard().setImage(img)
         editor.info_label.setText(
             f"Copied crop '{getattr(target, 'label', '')}' to clipboard")
+
+    def _set_crop_rotation(self, editor, target):
+        """Prompt for a rotation angle (degrees, clockwise) and persist
+        it on the matching CropRegion. Affects export only — the scene
+        rect itself is still axis-aligned. Use 0 to clear."""
+        if not editor._asset:
+            return
+        lbl = getattr(target, "label", "")
+        crop = next((c for c in editor._asset.crops if c.label == lbl), None)
+        if crop is None:
+            return
+        current = float(getattr(crop, "rotation", 0.0) or 0.0)
+        val, ok = QInputDialog.getDouble(
+            editor._view, "Crop rotation",
+            "Angle (degrees clockwise; 0 = no rotation):",
+            value=current, minValue=-360.0, maxValue=360.0, decimals=2)
+        if not ok:
+            return
+        crop.rotation = float(val)
+        if hasattr(editor, "_dirty"):
+            editor._dirty = True
+        if hasattr(editor, "info_label"):
+            if val:
+                editor.info_label.setText(
+                    f"Crop '{lbl}' rotation set to {val:g} deg")
+            else:
+                editor.info_label.setText(
+                    f"Crop '{lbl}' rotation cleared")
 
     def _set_crop_dimensions(self, editor, target):
         """Prompt for exact W and H, update both the scene item and the
