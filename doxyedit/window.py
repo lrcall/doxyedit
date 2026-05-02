@@ -2233,6 +2233,8 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         edit_menu.addAction("Add Tag to Selected...", self._add_tag_to_selected).setShortcut(QKeySequence("Alt+A"))
         edit_menu.addSeparator()
         edit_menu.addAction("Save Filter as Smart Folder...", self._save_smart_folder)
+        edit_menu.addSeparator()
+        edit_menu.addAction("&Bulk Actions...", self._show_bulk_actions)
 
         # Tools menu
         tools_menu = menu.addMenu("&Tools")
@@ -4176,6 +4178,94 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         for btn in buttons.buttons():
             btn.clicked.connect(dlg.accept)
+        lay.addWidget(buttons)
+        dlg.exec()
+
+    def _show_bulk_actions(self):
+        """Discoverable dialog listing every bulk operation available
+        for the current selection. Each button delegates to the same
+        handler the menu / right-click already use, so this is a pure
+        UX layer over existing logic - no behavior change.
+
+        Shows the selection count up front so the user sees the scope
+        before clicking. Disabled state on buttons that need at least
+        one selection prevents accidental no-ops."""
+        from PySide6.QtWidgets import (
+            QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+            QDialogButtonBox, QFrame,
+        )
+        from doxyedit.themes import themed_dialog_size
+
+        sel_assets = self.browser.get_selected_assets() or []
+        n = len(sel_assets)
+
+        dlg = QDialog(self)
+        dlg.setObjectName("bulk_actions_dlg")
+        dlg.setWindowTitle("Bulk Actions")
+        w, h = themed_dialog_size(35.0, 41.67)
+        dlg.resize(w, h)
+        lay = QVBoxLayout(dlg)
+        title = QLabel(
+            f"<b>{n} asset(s) selected.</b>"
+            if n else "<b>No selection.</b> Pick assets in the grid first."
+        )
+        title.setWordWrap(True)
+        lay.addWidget(title)
+
+        def _grouped(label: str) -> QLabel:
+            sep = QLabel(label)
+            sep.setObjectName("bulk_actions_group")
+            f = sep.font()
+            f.setBold(True)
+            sep.setFont(f)
+            return sep
+
+        def _btn(label: str, handler, *, needs_selection=True):
+            b = QPushButton(label)
+            b.setEnabled(n > 0 if needs_selection else True)
+
+            def _wrap():
+                handler()
+                dlg.accept()
+            b.clicked.connect(_wrap)
+            return b
+
+        lay.addWidget(_grouped("Selection"))
+        lay.addWidget(_btn("Star (cycle color)",
+                           lambda: self._batch_star(1)))
+        lay.addWidget(_btn("Unstar", lambda: self._batch_star(0)))
+        lay.addWidget(_btn("Clear all tags",
+                           self._clear_tags_selected))
+        lay.addWidget(_btn("Add tag...",
+                           self._add_tag_to_selected))
+
+        sep1 = QFrame()
+        sep1.setFrameShape(QFrame.Shape.HLine)
+        lay.addWidget(sep1)
+        lay.addWidget(_grouped("Project membership"))
+        lay.addWidget(_btn("Move to another project...",
+                           self._move_to_project))
+        lay.addWidget(_btn("Move to NEW project...",
+                           self._move_to_new_project))
+        lay.addWidget(_btn("Remove from this project",
+                           self._remove_selected))
+
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.HLine)
+        lay.addWidget(sep2)
+        lay.addWidget(_grouped("Filesystem (destructive)"))
+        lay.addWidget(_btn(
+            "Soft-delete (tag as 'ignore')",
+            self._handle_delete))
+        lay.addWidget(_btn(
+            "PERMANENTLY delete from disk...",
+            self._handle_shift_delete))
+
+        lay.addStretch(1)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        for btn in buttons.buttons():
+            btn.clicked.connect(dlg.reject)
         lay.addWidget(buttons)
         dlg.exec()
 
