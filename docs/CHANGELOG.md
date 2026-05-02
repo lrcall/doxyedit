@@ -1,5 +1,76 @@
 # DoxyEdit Changelog
 
+## v2.5.7 (2026-05-02) - Hardening + test coverage
+
+Continuation of the same long cron session as v2.5.5 / v2.5.6. With
+all live BACKLOG and parked features shipped, the focus shifted to
+defense-in-depth around the project-load / tab-change / refresh
+pipeline (suspected paths for the still-unreproduced Social tab
+crash) plus growing the test suite.
+
+### Hardening
+
+- **`_on_inner_tab_changed`** (51e02f5) - four side-effect branches
+  (Social splitter restore, Overview refresh, Notes rebuild, lazy-
+  panel refresh) now wrapped in try/except + logging.exception
+  instead of running raw.
+- **`_on_social_tick` + `_refresh_social_panels`** (1ea1da9) -
+  per-panel refresh isolation in both the 60s timer path and the
+  on-demand refresh path. A single buggy panel can no longer take
+  down the rest.
+- **`Project.from_dict`** (acbda25) - per-record try/except on
+  campaigns / subreddits / posts so a single corrupted record
+  skips with a logged id rather than aborting the whole load.
+- **Asset sub-records** (f825a1c) - same per-record guard for
+  asset.crops / asset.censors / asset.overlays. Plus a forward-
+  compat key filter on _CropRegion construction so a future
+  DoxyEdit version that adds crop fields doesn't crash older
+  loaders.
+- **Assignment loop + pipeline guard** (12a9655) - same per-record
+  guard for asset.assignments, plus prepare_for_platform
+  exceptions in `_export_post_assets` no longer abort the whole
+  multi-platform export loop.
+- **`_rebind_project`** (9ebc1d8) - all 8 panel `set_project()`
+  calls wrapped via a `_bind(label, fn)` closure that preserves
+  the existing perf_block timing while isolating failures. If the
+  user's Social crash is in any panel's set_project, the failing
+  panel name surfaces in last_run.log.
+
+### Test coverage growth
+
+- `tests/test_smoke.py` end-to-end project load + tab cycle
+  (12ab758) - synthesizes a real .doxy file with non-empty assets,
+  posts, posting_log, identity_name; reloads via Project.load();
+  binds via _rebind_project; cycles all 6 tabs.
+- `tests/test_models.py` per-record skip test (acbda25) - bad
+  post between good posts loads the good ones cleanly.
+- `tests/test_models.py` CropRegion forward-compat (9694d47) -
+  unknown future fields are filtered before construction.
+- `tests/test_helpers.py` 3 ResizableCropItem rotation tests
+  (689e76a) - rotation_deg flows through get_crop_region; default
+  is 0; _handle_rects has 9 entries with the rotate handle
+  positioned above the top edge.
+- `tests/test_cli.py` 4 CLI smoke tests (c743845) -
+  `python -m doxyedit summary/tags/untagged` against a synthetic
+  fixture, plus an unknown-command negative case.
+
+### Docs
+
+- `CONTRIBUTING.md` (e33900f) at the repo root - setup, test
+  commands, coding rules cribbed from CLAUDE.md, plugin add-event
+  pattern, hardening pattern, status footer.
+- `docs/CHANGELOG.md` v2.5.5 + v2.5.6 + this entry capturing the
+  full session arc.
+- Memory updates in `~/.claude/projects/E--git-doxyedit/memory/`
+  including a project_state_v25_cron.md and a refreshed
+  next_session_priorities.md so the next conversation has accurate
+  context.
+
+Suite: 50 -> 57 tests, ~7s headless. CI workflow runs them on
+every push/PR.
+
+---
+
 ## v2.5.6 (2026-05-02) - Plugin system polish + Kanban revival
 
 Continuation of the same cron session. Closes the parked-feature
