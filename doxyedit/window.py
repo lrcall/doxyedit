@@ -2552,6 +2552,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         # Help menu
         help_menu = menu.addMenu("&Help")
         help_menu.addAction("Welcome / First Run...", self._show_onboarding)
+        help_menu.addAction("Plugins...", self._show_plugins_status)
         help_menu.addAction("Keyboard Shortcuts", self._show_shortcuts)
         help_menu.addAction("What's New", self._show_whats_new)
         help_menu.addAction("About DoxyEdit", self._show_about)
@@ -7352,6 +7353,80 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             "Browse, tag, organize, and export art assets\n"
             "across multiple platforms.\n\n"
             "Built with PySide6 + PIL + psd-tools")
+
+    def _show_plugins_status(self):
+        """Plugin status dialog: lists loaded and failed plugins,
+        a button to open the plugins folder, and a link to the
+        plugins.log file. Discovers in the active session so a
+        plugin dropped into the folder while the app is running
+        can be picked up without a restart."""
+        from PySide6.QtWidgets import (
+            QDialog, QVBoxLayout, QLabel, QListWidget, QPushButton,
+            QHBoxLayout, QDialogButtonBox,
+        )
+        from doxyedit.themes import themed_dialog_size
+        from doxyedit import plugins as _dp
+        # Re-discover so newly-dropped plugins show up
+        _dp.discover_and_load()
+
+        dlg = QDialog(self)
+        dlg.setObjectName("plugins_status_dlg")
+        dlg.setWindowTitle("Plugins")
+        w, h = themed_dialog_size(38.33, 33.33)
+        dlg.resize(w, h)
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel(
+            "<b>Loaded plugins</b> (drop .py files into "
+            "~/.doxyedit/plugins/ and re-open this dialog):"))
+        loaded = _dp.loaded()
+        loaded_lst = QListWidget()
+        if loaded:
+            loaded_lst.addItems(loaded)
+        else:
+            loaded_lst.addItem("(none)")
+        lay.addWidget(loaded_lst, 1)
+
+        failed = _dp.failed()
+        if failed:
+            lay.addWidget(QLabel(
+                "<b>Failed</b> (see ~/.doxyedit/plugins.log for tracebacks):"))
+            fail_lst = QListWidget()
+            fail_lst.addItems(failed)
+            lay.addWidget(fail_lst, 1)
+
+        btn_row = QHBoxLayout()
+        open_folder = QPushButton("Open plugins folder")
+
+        def _open_folder():
+            from doxyedit.plugins import plugins_dir
+            d = plugins_dir()
+            d.mkdir(parents=True, exist_ok=True)
+            import subprocess
+            subprocess.Popen(f'explorer "{d}"')
+
+        open_folder.clicked.connect(_open_folder)
+        btn_row.addWidget(open_folder)
+        open_log = QPushButton("Open plugins.log")
+
+        def _open_log():
+            from doxyedit.plugins import plugins_log_path
+            p = plugins_log_path()
+            if not p.exists():
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text("", encoding="utf-8")
+            import subprocess
+            subprocess.Popen(["notepad", str(p)])
+
+        open_log.clicked.connect(_open_log)
+        btn_row.addWidget(open_log)
+        btn_row.addStretch()
+        lay.addLayout(btn_row)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        for btn in buttons.buttons():
+            btn.clicked.connect(dlg.accept)
+        lay.addWidget(buttons)
+        dlg.exec()
 
     def _show_onboarding(self):
         """First-run / on-demand walkthrough explaining the six tabs +
