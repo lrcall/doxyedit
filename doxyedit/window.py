@@ -4680,21 +4680,41 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 self._build_notes_tab(tab_name, content, closable=(tab_name != "Agent Primer"))
 
     def _on_inner_tab_changed(self, idx: int):
+        """Tab-change handler. Each step is wrapped so a single panel's
+        exception doesn't break navigation - the user reported a crash
+        when switching to Social, and a stack-trace-eating wrapper at
+        each branch makes it surface in `~/.doxyedit/last_run.log`
+        rather than tearing down the whole event chain."""
         widget = self.tabs.widget(idx)
         # Deferred restore for Social tab splitters (Qt needs visible geometry)
-        if widget is self._social_split and getattr(self, '_social_left_saved', None):
-            saved = self._social_left_saved
-            self._social_left_saved = None  # one-shot
-            QTimer.singleShot(0, lambda: self._social_left_split.setSizes([int(s) for s in saved]))
-        if widget is self._overview_split:
-            self.stats_panel.folder_bar_color = self._theme.accent_bright
-            self._refresh_project_info()
-        if widget is self._notes_tabs:
-            self._rebuild_notes_tabs()
-        # Trigger lazy-refresh on any registered panel whose tab container matches
+        try:
+            if widget is self._social_split and getattr(self, '_social_left_saved', None):
+                saved = self._social_left_saved
+                self._social_left_saved = None  # one-shot
+                QTimer.singleShot(0, lambda: self._social_left_split.setSizes([int(s) for s in saved]))
+        except Exception:
+            logging.exception("Social splitter restore failed")
+        try:
+            if widget is self._overview_split:
+                self.stats_panel.folder_bar_color = self._theme.accent_bright
+                self._refresh_project_info()
+        except Exception:
+            logging.exception("Overview tab refresh failed")
+        try:
+            if widget is self._notes_tabs:
+                self._rebuild_notes_tabs()
+        except Exception:
+            logging.exception("Notes tab rebuild failed")
+        # Trigger lazy-refresh on any registered panel whose tab container matches.
+        # Each panel's refresh is isolated so a buggy panel can't prevent the
+        # user from navigating to (or away from) it.
         for panel, tab_widget in getattr(self, "_lazy_panels", []):
             if tab_widget is widget:
-                panel.refresh_if_stale()
+                try:
+                    panel.refresh_if_stale()
+                except Exception:
+                    logging.exception(
+                        "Lazy panel refresh failed for %s", type(panel).__name__)
 
     def _refresh_project_info(self):
         p = self.project
