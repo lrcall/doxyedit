@@ -222,5 +222,45 @@ class TestPreviewHelpers(unittest.TestCase):
         self.assertTrue(callable(wheel_zoom_view))
 
 
+class TestResizableCropItemRotation(unittest.TestCase):
+    """ResizableCropItem.get_crop_region carries rotation_deg through
+    so dragging / resizing a rotated crop doesn't silently zero the
+    rotation. Regression covered originally by 1dccaa6."""
+
+    def setUp(self):
+        from PySide6.QtWidgets import QApplication
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        self.app = QApplication.instance() or QApplication([])
+
+    def test_rotation_preserved_on_get_crop_region(self):
+        from PySide6.QtCore import QRectF
+        from doxyedit.preview import ResizableCropItem
+        item = ResizableCropItem(QRectF(0, 0, 100, 100), label="test")
+        item.rotation_deg = 30.0
+        cr = item.get_crop_region()
+        self.assertEqual(cr.rotation, 30.0)
+        self.assertEqual(cr.label, "test")
+
+    def test_default_rotation_is_zero(self):
+        from PySide6.QtCore import QRectF
+        from doxyedit.preview import ResizableCropItem
+        item = ResizableCropItem(QRectF(0, 0, 100, 100))
+        cr = item.get_crop_region()
+        self.assertEqual(cr.rotation, 0.0)
+
+    def test_rotate_handle_added_to_handle_rects(self):
+        """The visual rotate handle (shipped in 910279a) is the 9th
+        entry. Regression guard so a future paint refactor doesn't
+        accidentally drop it."""
+        from PySide6.QtCore import QRectF
+        from doxyedit.preview import ResizableCropItem
+        item = ResizableCropItem(QRectF(0, 0, 100, 100))
+        rects = item._handle_rects()
+        self.assertEqual(len(rects), 9)
+        # Handle 8 (rotate) sits above the rect's top edge.
+        self.assertLess(rects[8].center().y(), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
