@@ -479,7 +479,8 @@ class PostComposer(QDialog):
         if geo:
             self.restoreGeometry(geo)
         else:
-            self.resize(1100, 750)
+            from doxyedit.themes import themed_dialog_size
+            self.resize(*themed_dialog_size(91.67, 62.5))
 
         self.result_post: SocialPost | None = None
 

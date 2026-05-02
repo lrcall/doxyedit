@@ -999,6 +999,17 @@ def ui_metrics(font_size: int = 0) -> tuple[int, int, int, int]:
     return font_size, pad, pad_lg, cb
 
 
+def themed_dialog_size(w_ratio: float, h_ratio: float,
+                       font_size: int = 0) -> tuple[int, int]:
+    """Return (width, height) for a dialog scaled by font size so the
+    dialog grows with the user's font preference. Ratios are multiples
+    of font_size (default 12), so a default '600x450' dialog reads as
+    50.0 x 37.5. font_size=0 reads from the cache."""
+    if not font_size:
+        font_size = ui_font_size()
+    return int(font_size * w_ratio), int(font_size * h_ratio)
+
+
 def generate_stylesheet(theme: Theme) -> str:
     """Generate a complete Qt stylesheet from a theme."""
     # --- Design tokens ---

@@ -398,7 +398,8 @@ class TagRow(QFrame):
         dlg.setWindowTitle("Rename Tag")
         dlg.setLabelText(f"New name for '{self.tag.label}':")
         dlg.setTextValue(self.tag.label)
-        dlg.resize(400, 140)
+        from doxyedit.themes import themed_dialog_size
+        dlg.resize(*themed_dialog_size(33.33, 11.67))
         if dlg.exec():
             new_name = dlg.textValue().strip()
             if new_name and new_name != self.tag.label:

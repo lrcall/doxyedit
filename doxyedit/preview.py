@@ -865,7 +865,8 @@ class ImagePreviewDialog(QDialog):
                 dlg = QInputDialog(self)
                 dlg.setWindowTitle("Note")
                 dlg.setLabelText("Enter note:")
-                dlg.resize(500, 140)
+                from doxyedit.themes import themed_dialog_size
+                dlg.resize(*themed_dialog_size(41.67, 11.67))
                 ok = dlg.exec()
                 text = dlg.textValue() if ok else ""
                 if ok and text.strip():

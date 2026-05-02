@@ -1373,12 +1373,11 @@ class MainWindow(SaveLoadMixin, TabManagerMixin, QMainWindow):
     # ── end project tab management ───────────────────────────────────────────
 
     def _themed_dialog_resize(self, dlg, w_ratio: float, h_ratio: float):
-        """Set a dialog's initial size by font-relative ratios so the
-        dialog scales with the user's font preference. ratios are
-        multiples of self._font_size (12 = base default), so a default
-        '600x450' reads as 50.0 x 37.5."""
-        dlg.resize(int(self._font_size * w_ratio),
-                   int(self._font_size * h_ratio))
+        """Set a dialog's initial size by font-relative ratios. Wraps
+        themes.themed_dialog_size; uses self._font_size so the resize
+        tracks the live MainWindow font setting."""
+        from doxyedit.themes import themed_dialog_size
+        dlg.resize(*themed_dialog_size(w_ratio, h_ratio, self._font_size))
 
     def _dialog_dir(self, hint_path: str = "") -> str:
         """Return the best starting directory for a file dialog."""

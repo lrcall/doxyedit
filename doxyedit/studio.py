@@ -8857,8 +8857,9 @@ class StudioEditor(QWidget):
             )
             from PySide6.QtCore import QTimer
             dlg = QMainWindow(self.window())
-            dlg.setWindowTitle("DoxyEdit — Skia Preview (beta)")
-            dlg.resize(1100, 750)
+            dlg.setWindowTitle("DoxyEdit - Skia Preview (beta)")
+            from doxyedit.themes import themed_dialog_size
+            dlg.resize(*themed_dialog_size(91.67, 62.5))
             # Pick backend from setting (skia_cpu default, skia_gl opt-in).
             # GL Skia is the Tier 2 GPU path; falls back to CPU raster
             # if the platform can't create a GL context.
@@ -9438,7 +9439,8 @@ class StudioEditor(QWidget):
         dlg = QInputDialog(self)
         dlg.setWindowTitle("Note")
         dlg.setLabelText("Enter note:")
-        dlg.resize(500, 140)
+        from doxyedit.themes import themed_dialog_size
+        dlg.resize(*themed_dialog_size(41.67, 11.67))
         ok = dlg.exec()
         text = dlg.textValue() if ok else ""
         if ok and text.strip():
