@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QFrame, QProgressBar, QSizePolicy,
 )
 from PySide6.QtCore import Qt, QThread, Signal
-from doxyedit.themes import ui_font_size, THEMES, DEFAULT_THEME
+from doxyedit.themes import ui_font_size, ui_metrics, THEMES, DEFAULT_THEME
 
 from doxyedit.models import Project, PLATFORMS
 from doxyedit.panel_mixin import LazyRefreshMixin
@@ -56,8 +56,7 @@ class StatsPanel(LazyRefreshMixin, QWidget):
         self._build()
 
     def _build(self):
-        _f = ui_font_size()
-        _pad = max(4, _f // 3)
+        _f, _pad, _pad_lg, _ = ui_metrics()
         outer = QVBoxLayout(self)
         outer.setContentsMargins(_pad, _pad, _pad, _pad)
 
@@ -68,7 +67,6 @@ class StatsPanel(LazyRefreshMixin, QWidget):
 
         self._body = QWidget()
         self._body_layout = QVBoxLayout(self._body)
-        _pad_lg = max(6, _f // 2)
         self._body_layout.setContentsMargins(_pad_lg * 5, _pad_lg * 4, _pad_lg * 5, _pad_lg * 5)
         self._body_layout.setSpacing(_pad_lg * 4)
         scroll.setWidget(self._body)
@@ -76,9 +74,7 @@ class StatsPanel(LazyRefreshMixin, QWidget):
         self.refresh()
 
     def refresh(self):
-        _f = ui_font_size()
-        _pad = max(4, _f // 3)
-        _pad_lg = max(6, _f // 2)
+        _f, _pad, _pad_lg, _ = ui_metrics()
         # Clear previous content
         while self._body_layout.count():
             item = self._body_layout.takeAt(0)
@@ -225,9 +221,7 @@ class StatsPanel(LazyRefreshMixin, QWidget):
         card = QFrame()
         card.setObjectName("stat_card")
         layout = QVBoxLayout(card)
-        _f = ui_font_size()
-        _pad = max(4, _f // 3)
-        _pad_lg = max(6, _f // 2)
+        _f, _pad, _pad_lg, _ = ui_metrics()
         layout.setContentsMargins(_pad_lg * 2, _pad_lg + _pad, _pad_lg * 2, _pad_lg + _pad)
         layout.setSpacing(max(2, _pad // 2))
         val_lbl = QLabel(value)
@@ -246,8 +240,7 @@ class StatsPanel(LazyRefreshMixin, QWidget):
         row = QWidget()
         h = QHBoxLayout(row)
         h.setContentsMargins(0, 0, 0, 0)
-        _f = ui_font_size()
-        _pad_lg = max(6, _f // 2)
+        _f, _, _pad_lg, _ = ui_metrics()
         h.setSpacing(_pad_lg)
 
         name_lbl = QLabel(label)
