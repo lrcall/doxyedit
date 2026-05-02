@@ -206,13 +206,16 @@ def prepare_for_platform(
     img_w, img_h = img.size
 
     # --- 3. Find crop ---
+    # selected_crop preserves the original CropRegion so rotation flows through.
     crop_box: Optional[tuple[int, int, int, int]] = None
+    selected_crop = None
     crop_source = ""
 
     # Check assignment crops first
     for pa in asset.assignments:
         if pa.platform == platform_id and pa.slot == slot_name and pa.crop:
             crop_box = (pa.crop.x, pa.crop.y, pa.crop.w, pa.crop.h)
+            selected_crop = pa.crop
             crop_source = "assignment"
             break
 
@@ -223,11 +226,11 @@ def prepare_for_platform(
                 continue
             if cr.platform_id != platform_id:
                 continue
-            # platform_id matches; if slot_name is set on the crop, require match
             cr_slot = getattr(cr, "slot_name", "")
             if cr_slot and cr_slot != slot_name:
                 continue
             crop_box = (cr.x, cr.y, cr.w, cr.h)
+            selected_crop = cr
             crop_source = f"platform_id ('{cr.label or platform_id}')"
             break
 
@@ -237,19 +240,19 @@ def prepare_for_platform(
             lbl = cr.label.strip().lower()
             if lbl == slot_name.lower() or lbl == platform_id.lower():
                 crop_box = (cr.x, cr.y, cr.w, cr.h)
+                selected_crop = cr
                 crop_source = f"label_exact ('{cr.label}')"
                 break
 
-    # Last-resort label substring fallback — flagged as ambiguous.
-    # Retained for backwards compatibility with pre-H3.1 projects; users
-    # who hit this warning should use Studio's "Assign Platforms to Crops"
-    # to set platform_id explicitly.
+    # Last-resort label substring fallback (flagged as ambiguous).
+    # Retained for backwards compatibility with pre-H3.1 projects.
     if crop_box is None:
         import logging as _logging
         for cr in asset.crops:
             lbl = cr.label.strip().lower()
             if (slot_name.lower() in lbl or platform_id.lower() in lbl):
                 crop_box = (cr.x, cr.y, cr.w, cr.h)
+                selected_crop = cr
                 crop_source = f"label_substring_fallback ('{cr.label}')"
                 _logging.warning(
                     "Ambiguous crop match: asset %s crop '%s' matched platform '%s' slot '%s' by substring",
@@ -270,18 +273,21 @@ def prepare_for_platform(
                     best_diff = diff
         if best_match:
             crop_box = (best_match.x, best_match.y, best_match.w, best_match.h)
+            selected_crop = best_match
             crop_source = f"aspect_match ('{best_match.label}', diff={best_diff:.3f})"
 
     # If only one crop exists, just use it
     if crop_box is None and len(asset.crops) == 1:
         cr = asset.crops[0]
         crop_box = (cr.x, cr.y, cr.w, cr.h)
+        selected_crop = cr
         crop_source = f"only_crop ('{cr.label}')"
 
     # Last resort: use the largest crop (user drew it for a reason)
     if crop_box is None and asset.crops:
         biggest = max(asset.crops, key=lambda c: c.w * c.h)
         crop_box = (biggest.x, biggest.y, biggest.w, biggest.h)
+        selected_crop = biggest
         crop_source = f"largest_crop ('{biggest.label}')"
 
     # Auto-fit only if NO crops exist at all
@@ -291,9 +297,13 @@ def prepare_for_platform(
 
     print(f"[Pipeline] {platform_id}/{slot_name}: crop={crop_source}")
 
-    # --- 4. Apply crop ---
-    cx, cy, cw, ch = crop_box
-    img = img.crop((cx, cy, cx + cw, cy + ch))
+    # --- 4. Apply crop (rotate first if the chosen CropRegion has rotation) ---
+    if selected_crop is not None:
+        from doxyedit.exporter import apply_crop_rect
+        img = apply_crop_rect(img, selected_crop)
+    else:
+        cx, cy, cw, ch = crop_box
+        img = img.crop((cx, cy, cx + cw, cy + ch))
 
     # --- 5. Resize to slot dimensions ---
     img = img.resize((slot.width, slot.height), Image.LANCZOS)

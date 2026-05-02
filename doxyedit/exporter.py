@@ -849,10 +849,28 @@ def _resolve_position(img_size, overlay_size, position, custom_x=0, custom_y=0):
     return positions.get(position, positions["bottom-right"])
 
 
+def apply_crop_rect(img: Image.Image, crop) -> Image.Image:
+    """Crop the image to the given CropRegion's rect, rotating around
+    the crop center first if crop.rotation is non-zero. Positive
+    rotation is clockwise (PIL's default is CCW so the angle is flipped).
+    Safe for any object that exposes .x/.y/.w/.h; .rotation defaults to 0."""
+    rot = float(getattr(crop, "rotation", 0.0) or 0.0)
+    if rot:
+        cx_center = crop.x + crop.w / 2.0
+        cy_center = crop.y + crop.h / 2.0
+        img = img.rotate(
+            -rot,
+            center=(cx_center, cy_center),
+            resample=Image.Resampling.BICUBIC,
+            expand=False,
+        )
+    return img.crop((crop.x, crop.y, crop.x + crop.w, crop.y + crop.h))
+
+
 def crop_and_resize(img: Image.Image, crop, target_w: int, target_h: int) -> Image.Image:
-    """Crop (if specified) then resize to target dimensions."""
+    """Crop (if specified, honoring rotation) then resize to target."""
     if crop:
-        img = img.crop((crop.x, crop.y, crop.x + crop.w, crop.y + crop.h))
+        img = apply_crop_rect(img, crop)
     img = img.resize((target_w, target_h), Image.LANCZOS)
     return img
 

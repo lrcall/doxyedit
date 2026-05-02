@@ -14625,7 +14625,27 @@ class StudioEditor(QWidget):
             unscoped = [ov for ov in self._asset.overlays if not ov.platforms]
             if unscoped:
                 img = apply_overlays(img, unscoped, str(src_path.parent))
-            img = img.crop((x, y, x + w, y + h))
+            # Honor crop rotation if the matching CropRegion sets it.
+            from doxyedit.exporter import apply_crop_rect as _apply_crop_rect
+            matching_crop = None
+            it_label = (getattr(crop_item, "label", "") or "").strip()
+            if it_label:
+                for cr in self._asset.crops:
+                    if cr.label == it_label:
+                        matching_crop = cr
+                        break
+            if matching_crop is not None:
+                # Rebuild a temp object with the live rect from crop_item but
+                # the rotation from the saved CropRegion, in case the user
+                # dragged the handles since last save.
+                from types import SimpleNamespace
+                live = SimpleNamespace(
+                    x=x, y=y, w=w, h=h,
+                    rotation=float(getattr(matching_crop, "rotation", 0.0) or 0.0),
+                )
+                img = _apply_crop_rect(img, live)
+            else:
+                img = img.crop((x, y, x + w, y + h))
             out_dir = get_export_dir(self._project_path) if self._project_path \
                 else (src_path.parent / "_exports")
             out_dir.mkdir(parents=True, exist_ok=True)
@@ -14749,19 +14769,8 @@ class StudioEditor(QWidget):
                                        if _crop_scope_matches(ov.platforms)]
                 if applicable_overlays:
                     img_crop = apply_overlays(img_crop, applicable_overlays, str(src_path.parent))
-                # Crop (rotate-before-crop if crop has a non-zero rotation)
-                rot = float(getattr(crop, "rotation", 0.0) or 0.0)
-                if rot:
-                    cx_center = crop.x + crop.w / 2.0
-                    cy_center = crop.y + crop.h / 2.0
-                    img_crop = img_crop.rotate(
-                        -rot,  # PIL rotates counter-clockwise; flip sign so positive = clockwise
-                        center=(cx_center, cy_center),
-                        resample=Image.Resampling.BICUBIC,
-                        expand=False,
-                    )
-                img_crop = img_crop.crop(
-                    (crop.x, crop.y, crop.x + crop.w, crop.y + crop.h))
+                from doxyedit.exporter import apply_crop_rect as _apply_crop_rect
+                img_crop = _apply_crop_rect(img_crop, crop)
                 out_path = out_base / f"{stem}_{crop_name}.png"
                 img_crop.save(str(out_path), "PNG")
                 crop_count += 1

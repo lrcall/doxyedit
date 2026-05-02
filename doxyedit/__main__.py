@@ -1070,8 +1070,11 @@ def cmd_flatten(project_path: str, args: list):
     if crop_label:
         crop = next((c for c in asset.crops if c.label == crop_label), None)
         if crop:
-            img = img.crop((crop.x, crop.y, crop.x + crop.w, crop.y + crop.h))
-            print(f"  Cropped to '{crop_label}': {crop.w}x{crop.h}")
+            from doxyedit.exporter import apply_crop_rect
+            img = apply_crop_rect(img, crop)
+            print(f"  Cropped to '{crop_label}': {crop.w}x{crop.h}"
+                  + (f" (rot={crop.rotation:g}deg)"
+                     if getattr(crop, "rotation", 0.0) else ""))
         else:
             labels = [c.label for c in asset.crops]
             print(f"  Crop '{crop_label}' not found. Available: {labels}")
