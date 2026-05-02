@@ -3766,8 +3766,17 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _float_composer_dialog(self, post=None, is_new=True):
         """Open composer as a floating QDialog."""
         proj_dir = str(Path(self._project_path).parent) if self._project_path else "."
-        dlg = PostComposer(self.project, post=post, project_dir=proj_dir, parent=self,
-                           extra_projects=self._other_open_projects())
+        try:
+            dlg = PostComposer(
+                self.project, post=post, project_dir=proj_dir, parent=self,
+                extra_projects=self._other_open_projects())
+        except Exception:
+            logging.exception(
+                "PostComposer construction failed in _float_composer_dialog")
+            self.status.showMessage(
+                "Composer failed to open - see ~/.doxyedit/last_run.log",
+                6000)
+            return
         dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         # Capture post/is_new for potential dock toggle
         _post = post
@@ -4024,9 +4033,19 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _dock_composer(self, project, post, is_new):
         """Embed the composer widget into the Social tab dock pane."""
         proj_dir = str(Path(self._project_path).parent) if self._project_path else "."
-        widget = PostComposerWidget(project, post, project_dir=proj_dir, parent=self._composer_dock,
-                                    extra_projects=self._other_open_projects())
-        widget.set_compact(True)
+        try:
+            widget = PostComposerWidget(
+                project, post, project_dir=proj_dir,
+                parent=self._composer_dock,
+                extra_projects=self._other_open_projects())
+            widget.set_compact(True)
+        except Exception:
+            logging.exception(
+                "PostComposerWidget construction failed in _dock_composer")
+            self.status.showMessage(
+                "Composer failed to open - see ~/.doxyedit/last_run.log",
+                6000)
+            return
         # Clear old docked widget if any
         layout = self._composer_dock.layout()
         while layout.count():
