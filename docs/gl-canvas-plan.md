@@ -1,5 +1,15 @@
 # DoxyEdit — GL Canvas Plan
 
+> [!note] Status as of v2.5: Tier-1 scaffolding only
+> Skia CPU-raster scaffolding exists (`doxyedit/canvas_skia.py`) and
+> the F1-cheatsheet has a Shift+S preview window that uses it.
+> No GPU tiers (Skia GL, OpenGL composite, dirty-rect culling) have
+> shipped because BACKLOG measured QListView's existing performance
+> at 70k items as already adequate. Tiers are kept in this plan
+> because they remain the right roadmap if the bottleneck reappears
+> (large canvases, many overlays, FPS HUD shows < 30 FPS in regular
+> use).
+
 A dedicated, executable plan for getting GPU-accelerated rendering into
 Studio. Three tiers from lowest-risk-lowest-win to highest-win-highest-
 risk. Each tier is shippable on its own; higher tiers build on lower.

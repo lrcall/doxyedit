@@ -1,5 +1,13 @@
 # Studio Brush System — Primitive but Smooth
 
+> [!note] Status: deferred (not yet shipped as of v2.5)
+> Studio currently has Select / Text / Censor / Crop / Note /
+> Eyedropper / Arrow / Shape / Watermark tools, but no freehand
+> brush. This document is the canonical scope for when the brush
+> tool lands. It pairs with the BACKLOG entry for Studio Tier-3
+> (layer masks + blend modes) since a brush only really earns its
+> footprint once layer masks ship.
+
 ## Goal
 
 A basic brush tool that feels **smooth and responsive**, not feature-rich.
