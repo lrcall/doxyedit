@@ -28,19 +28,28 @@ class SocialPostStatus(str, Enum):
 
 @dataclass
 class TagPreset:
-    """A use-case tag with optional target dimensions for fitness checking."""
+    """A use-case tag with optional target dimensions for fitness checking.
+
+    parent_id: the tag id of this tag's parent in the hierarchy. Empty
+    string means the tag is top-level. Children inherit visibility and
+    color hints from their parent for grouping in the tag panel UI.
+    Pure data — the field is here so projects saved with parent
+    relationships round-trip cleanly even before the UI consumes it.
+    """
     id: str
     label: str
     width: Optional[int] = None   # None = any size OK
     height: Optional[int] = None  # None = flexible height
     ratio: str = ""               # display hint like "16:9"
     color: str = "#888888"
+    parent_id: str = ""           # parent tag id; "" = top-level
 
     @classmethod
     def from_dict(cls, tid: str, d: dict) -> "TagPreset":
         return cls(id=tid, label=d.get("label", tid),
                    width=d.get("width"), height=d.get("height"),
-                   ratio=d.get("ratio", ""), color=d.get("color", "#888"))
+                   ratio=d.get("ratio", ""), color=d.get("color", "#888"),
+                   parent_id=d.get("parent_id", ""))
 
 
 # Vinik24 color cycle for auto-assigning colors to new tags
@@ -952,6 +961,51 @@ class Project:
             except (KeyError, TypeError):
                 continue
         return tags
+
+    def get_tag_children(self, parent_id: str) -> list[str]:
+        """Return ids of tags whose parent_id == parent_id.
+
+        Walks tag_definitions and custom_tags. Returns [] for a leaf
+        tag or a parent_id that doesn't exist. UI uses this to build
+        the collapsible parent groups in the tag panel."""
+        out: list[str] = []
+        for tid, defn in self.tag_definitions.items():
+            if isinstance(defn, dict) and defn.get("parent_id") == parent_id:
+                out.append(tid)
+        for ct in self.custom_tags:
+            if not isinstance(ct, dict):
+                continue
+            if ct.get("parent_id") == parent_id:
+                tid = ct.get("id", "")
+                if tid and tid not in out:
+                    out.append(tid)
+        return out
+
+    def get_tag_ancestors(self, tag_id: str) -> list[str]:
+        """Walk parent links from tag_id up to root. Returns [parent,
+        grandparent, ...]. Detects cycles defensively (a project file
+        could be hand-edited into a loop) and stops, so the caller is
+        guaranteed a finite list."""
+        seen: set[str] = set()
+        out: list[str] = []
+        cur = tag_id
+        while True:
+            defn = self.tag_definitions.get(cur)
+            parent = ""
+            if isinstance(defn, dict):
+                parent = defn.get("parent_id", "")
+            else:
+                # Look in custom_tags
+                for ct in self.custom_tags:
+                    if isinstance(ct, dict) and ct.get("id") == cur:
+                        parent = ct.get("parent_id", "")
+                        break
+            if not parent or parent in seen:
+                break
+            seen.add(parent)
+            out.append(parent)
+            cur = parent
+        return out
 
     @staticmethod
     def _to_rel(abs_path: str, base: Path) -> str:

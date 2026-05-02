@@ -102,6 +102,50 @@ class TestSocialPostBackCompat(unittest.TestCase):
         self.assertEqual(p2.censor_mode, "custom")
 
 
+class TestTagHierarchy(unittest.TestCase):
+    """TagPreset.parent_id round-trips and Project.get_tag_children /
+    get_tag_ancestors walk the hierarchy correctly + tolerate cycles."""
+
+    def test_parent_id_roundtrip(self):
+        from doxyedit.models import TagPreset
+        t = TagPreset(id="kid", label="Kid", parent_id="parent")
+        d = {"label": t.label, "color": t.color, "parent_id": t.parent_id}
+        t2 = TagPreset.from_dict("kid", d)
+        self.assertEqual(t2.parent_id, "parent")
+
+    def test_legacy_load_no_parent(self):
+        from doxyedit.models import TagPreset
+        t = TagPreset.from_dict("legacy", {"label": "Legacy"})
+        self.assertEqual(t.parent_id, "")
+
+    def test_get_tag_children(self):
+        from doxyedit.models import Project
+        p = Project()
+        p.tag_definitions = {
+            "anim": {"label": "Animal", "color": "#888"},
+            "cat": {"label": "Cat", "color": "#000", "parent_id": "anim"},
+            "dog": {"label": "Dog", "color": "#fff", "parent_id": "anim"},
+            "bus": {"label": "Bus", "color": "#aaa"},
+        }
+        kids = p.get_tag_children("anim")
+        self.assertEqual(set(kids), {"cat", "dog"})
+        self.assertEqual(p.get_tag_children("nope"), [])
+
+    def test_get_tag_ancestors_with_cycle_protection(self):
+        """A hand-edited project file could create a cycle; the walker
+        must terminate rather than loop forever."""
+        from doxyedit.models import Project
+        p = Project()
+        p.tag_definitions = {
+            "a": {"label": "A", "parent_id": "b"},
+            "b": {"label": "B", "parent_id": "a"},  # cycle!
+        }
+        # Should not hang.
+        anc = p.get_tag_ancestors("a")
+        self.assertIn("b", anc)
+        self.assertLessEqual(len(anc), 2)
+
+
 class TestProjectFormatExt(unittest.TestCase):
     """formats.ensure_project_ext picks the right extension regardless
     of what the user typed in the Save As dialog."""
