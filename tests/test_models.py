@@ -146,6 +146,32 @@ class TestTagHierarchy(unittest.TestCase):
         self.assertLessEqual(len(anc), 2)
 
 
+class TestCropRegionForwardCompat(unittest.TestCase):
+    """A future DoxyEdit version that adds a new CropRegion field
+    will write that field to disk. Older versions loading the file
+    must filter unknown keys instead of crashing on the slots=True
+    constructor. Regression for f825a1c."""
+
+    def test_unknown_keys_filtered(self):
+        from doxyedit.models import CropRegion
+        fields = set(CropRegion.__dataclass_fields__)
+        future_dict = {
+            "x": 0, "y": 0, "w": 100, "h": 100,
+            "rotation": 0.0,
+            # These don't exist on the current model.
+            "effect": "glow",
+            "future_field_1": True,
+            "future_field_2": [1, 2, 3],
+        }
+        filtered = {k: v for k, v in future_dict.items() if k in fields}
+        # Should not raise.
+        c = CropRegion(**filtered)
+        self.assertEqual(c.x, 0)
+        self.assertEqual(c.w, 100)
+        # Forward-compat keys are silently dropped.
+        self.assertFalse(hasattr(c, "effect"))
+
+
 class TestProjectLoadSkipsBadRecords(unittest.TestCase):
     """Project.from_dict skips malformed campaigns / subreddits / posts
     rather than aborting the whole load. Regression guard for project

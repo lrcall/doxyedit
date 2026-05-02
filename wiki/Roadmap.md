@@ -37,17 +37,24 @@ canvas power beyond what shipped in v2.5:
 - **Multi-canvas compositing** — arrange multiple images as layers
   in one canvas
 
-### Feature ideas (parked from BACKLOG)
+### Feature ideas (all shipped in v2.5.5 / v2.5.6 - kept here as record)
 
-- Kanban board reimagined (was deleted as dead code in v2.2)
-- Bulk operations UI: multi-select browser + batch tag / star /
-  delete / export
-- Notification center for posting results across platforms
-- Tag hierarchy: parent tags, children inherit
-- Per-post export history / log showing what went where on which date
-- Onboarding walkthrough for first-time users
-- Scriptable plugin surface: load user-authored Python hooks for
-  custom export pipelines, tag rules
+All seven previously-parked items shipped during the May 2026 cron
+session. Listed for traceability rather than as live roadmap.
+
+- ~~Kanban board~~ - shipped 6b7921d as Tools > Kanban Board.
+- ~~Bulk operations UI~~ - shipped 31c263d as Edit > Bulk Actions.
+- ~~Notification center~~ - shipped 0bcfddb as Tools > Posting
+  Notifications.
+- ~~Tag hierarchy~~ - shipped 66032c3 + 970bb68 (parent_id field +
+  Set Parent picker).
+- ~~Per-post export history / log~~ - shipped 8eda67c + 4f27920
+  (SocialPost.posting_log + View Posting Log dialog).
+- ~~Onboarding walkthrough~~ - shipped 65d7640 (Help > Welcome /
+  First Run + auto-open on first run).
+- ~~Scriptable plugin surface~~ - shipped 249101a + 4f80493 +
+  49f0b52 (full doxyedit/plugins.py + 6 lifecycle events + Help >
+  Plugins... enable/disable dialog + docs/plugins.md).
 
 ### Cleanup / non-urgent
 
