@@ -8716,7 +8716,8 @@ class StudioEditor(QWidget):
                 Qt.WindowType.CustomizeWindowHint |
                 Qt.WindowType.WindowTitleHint |
                 Qt.WindowType.WindowCloseButtonHint)
-            dlg.setMinimumSize(320, 360)
+            from doxyedit.themes import themed_dialog_size
+            dlg.setMinimumSize(*themed_dialog_size(26.67, 30.0))
             layout = QVBoxLayout(dlg)
             layout.setContentsMargins(6, 6, 6, 6)
             lst = QListWidget(dlg)

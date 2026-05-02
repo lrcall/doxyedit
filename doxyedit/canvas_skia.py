@@ -183,7 +183,8 @@ class CanvasSkia(QWidget):
         # Record whether Skia is live; surfacing this to the editor lets
         # the FPS HUD show which backend is active.
         self.backend_name = "skia" if skia_available() else "fallback"
-        self.resize(640, 480)
+        from doxyedit.themes import themed_dialog_size
+        self.resize(*themed_dialog_size(53.33, 40.0))
 
     # ------------------------------------------------------------------
     # Buffer management

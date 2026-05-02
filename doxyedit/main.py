@@ -249,7 +249,8 @@ class _Splash(QWidget):
         self._cancelled = False
         self._quit = False
         self._cancel_binding = None
-        self.setFixedSize(520, 280)
+        from doxyedit.themes import themed_dialog_size
+        self.setFixedSize(*themed_dialog_size(43.33, 23.33, theme.font_size))
         self.setStyleSheet(
             f"QWidget {{ background: {theme.bg_main}; color: {theme.text_primary};"
             f" font-family: '{theme.font_family}'; font-size: {theme.font_size}px; }}"
