@@ -4081,10 +4081,16 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             logging.exception("Reminder check failed")
 
     def _check_autopost(self):
-        """Auto-push queued posts whose scheduled_time has passed."""
+        """Auto-push queued posts whose scheduled_time has passed.
+        Runs the network calls on _OneUpPushThread so a slow OneUp
+        backend doesn't freeze the UI for 30 seconds."""
         from doxyedit.models import SocialPostStatus
+        # Don't double-spawn if a previous autopost batch is still running.
+        existing = getattr(self, "_autopost_thread", None)
+        if existing is not None and existing.isRunning():
+            return
         now = datetime.now()
-        pushed = 0
+        due: list = []
         for post in self.project.posts:
             if post.status != SocialPostStatus.QUEUED:
                 continue
@@ -4095,15 +4101,32 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             try:
                 sched = datetime.fromisoformat(post.scheduled_time)
                 if sched <= now:
-                    logging.info(f"[AutoPost] Post {post.id[:8]} is due ({post.scheduled_time}), pushing...")
-                    self._push_post_to_oneup(post)
-                    pushed += 1
+                    due.append(post)
+                    logging.info(
+                        f"[AutoPost] Post {post.id[:8]} is due "
+                        f"({post.scheduled_time}), queued for thread")
             except (ValueError, TypeError):
                 continue
-        if pushed:
-            self._dirty = True
-            self._refresh_social_panels()
-            self.status.showMessage(f"Auto-posted {pushed} due post(s)", 5000)
+        if not due:
+            return
+        thread = _OneUpPushThread(self, due, self)
+        self._autopost_thread = thread
+
+        def _on_status(msg, ms):
+            self.status.showMessage(msg, ms)
+
+        def _on_done(pushed_total, failed_total):
+            if pushed_total:
+                self._dirty = True
+                self._refresh_social_panels()
+            self.status.showMessage(
+                f"Auto-posted {pushed_total} due post(s)"
+                + (f", {failed_total} failed" if failed_total else ""),
+                5000)
+
+        thread.status_msg.connect(_on_status)
+        thread.finished_all.connect(_on_done)
+        thread.start()
 
     def _on_sync_oneup(self):
         """Sync accounts, categories, and post statuses from OneUp.
