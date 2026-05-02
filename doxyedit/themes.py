@@ -109,6 +109,11 @@ class Theme:
     tag_row_hover_alpha: int = 220         # hovered tag row opacity
     tag_selection_pen_width: int = 1       # rubber-band selection border
     tag_drop_indicator_pen_width: int = 2  # reorder drop indicator line
+    # Tray (paint-side tokens for the workspace tray drag overlays)
+    tray_pulse_pen_width: int = 3          # pulse-ring pen width
+    tray_pulse_inset: int = 2              # pulse-ring inset from item rect
+    tray_badge_corner_radius: int = 4      # rounded-corner radius for tray badges
+    tray_badge_alpha: int = 220            # tray badge background opacity
     # File browser
     filebrowser_folder_alpha: int = 40     # folder icon tint opacity
     filebrowser_folder_dim_alpha: int = 20 # dimmed folder opacity

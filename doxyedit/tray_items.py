@@ -191,15 +191,18 @@ class TrayItemDelegate(QStyledItemDelegate):
         if pulse_until:
             remaining = pulse_until - time.monotonic()
             if remaining > 0:
-                # Fade alpha from 220 -> 0 over the remaining time
-                alpha = max(40, int(220 * min(1.0, remaining / 0.4)))
+                # Fade alpha from peak -> 0 over the remaining time
+                _peak_alpha = theme.tray_badge_alpha
+                alpha = max(40, int(_peak_alpha * min(1.0, remaining / 0.4)))
                 ring = QColor(theme.accent_bright or theme.accent)
                 ring.setAlpha(alpha)
-                pen = QPen(ring, 3)
+                pen = QPen(ring, theme.tray_pulse_pen_width)
                 painter.setPen(pen)
                 painter.setBrush(Qt.BrushStyle.NoBrush)
+                _ins = theme.tray_pulse_inset
+                _r = theme.tray_badge_corner_radius
                 painter.drawRoundedRect(
-                    rect.adjusted(2, 2, -2, -2), 4, 4)
+                    rect.adjusted(_ins, _ins, -_ins, -_ins), _r, _r)
 
         # Pin indicator top-right (T16) — painted before platform badge
         # so the badge (bottom-right) doesn't fight it.
@@ -264,10 +267,11 @@ class TrayItemDelegate(QStyledItemDelegate):
             br_x = rect.right() - bw - 4
             br_y = rect.bottom() - bh - 4
             badge_bg = QColor(theme.accent)
-            badge_bg.setAlpha(220)
+            badge_bg.setAlpha(theme.tray_badge_alpha)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(badge_bg))
-            painter.drawRoundedRect(br_x, br_y, bw, bh, 4, 4)
+            _r = theme.tray_badge_corner_radius
+            painter.drawRoundedRect(br_x, br_y, bw, bh, _r, _r)
             painter.setPen(QPen(QColor(theme.text_on_accent)))
             painter.drawText(
                 QRect(br_x, br_y, bw, bh),
