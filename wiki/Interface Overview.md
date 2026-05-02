@@ -1,11 +1,35 @@
 ---
-tags: [ui, tabs, browser, canvas, censor, platforms]
-description: Overview of all four tabs and the main workspace layout.
+tags: [ui, tabs, browser, studio, social, platforms, overview, notes]
+description: Overview of all six tabs and the main workspace layout.
 ---
 
 # Interface Overview
 
-DoxyEdit has four main tabs: **Assets**, **Canvas**, **Censor**, and **Platforms**. The Work Tray is a persistent panel on the right side that stays visible across all tabs.
+> [!note] Updated for v2.5
+> Older versions had four tabs (Assets / Canvas / Censor / Platforms).
+> The Canvas and Censor tabs were merged into a single **Studio** tab
+> in v2.0+, and three new tabs were added: **Social**, **Overview**,
+> **Notes**. The legacy Canvas and Censor sections below describe
+> features that now live inside Studio.
+
+DoxyEdit has six main tabs:
+
+1. **Assets** - thumbnail browser, tagging, work tray (this page's
+   first section, still accurate).
+2. **Studio** - canvas + censor + crop + overlay + post-prep all
+   in one editor with layer panel, undo/redo, snap guides, rulers,
+   etc. Successor to the old Canvas + Censor tabs.
+3. **Social** - timeline + calendar + checklist + Gantt for
+   scheduling and pushing posts to OneUp / direct-API platforms.
+4. **Platforms** - per-platform slot grid showing assigned assets +
+   readiness + export status (still accurate).
+5. **Overview** - project summary, asset folders, source roots,
+   campaign + identity status.
+6. **Notes** - markdown notes per project, with Claude actions on
+   selection (rewrite / summarize / etc).
+
+The Work Tray is a persistent panel on the right side that stays
+visible across all tabs (Ctrl+T to toggle).
 
 ---
 
@@ -64,7 +88,16 @@ Shows count of shown / starred / tagged images. Displays a filter indicator (⬡
 
 ---
 
-## Canvas Tab
+## Canvas Tab (legacy — now part of Studio)
+
+> [!warning] Merged into Studio in v2.0
+> The standalone Canvas tab no longer exists. Its tools (text, line,
+> box, marker, color) plus a lot more (overlays, watermarks, shapes,
+> arrows, eyedropper, layer panel, snap guides, rulers, undo/redo)
+> live in the **Studio** tab. The descriptions below match the old
+> Canvas tab and are kept as reference for v1.x users; for the
+> current toolset see Studio's own keyboard shortcut cheatsheet
+> (F1 / `?` button inside Studio).
 
 Free-form annotation surface for composing layouts and planning.
 
@@ -87,7 +120,12 @@ Canvas tools in the toolbar are hidden when you are not on the Canvas tab.
 
 ---
 
-## Censor Tab
+## Censor Tab (legacy — now part of Studio)
+
+> [!warning] Merged into Studio in v2.0
+> Censor regions are drawn from the same Studio tab that owns crops
+> and overlays. The X key activates the censor tool inside Studio.
+> The dedicated Censor tab no longer exists.
 
 Non-destructive censoring for platform-specific versions (e.g., Japan releases, age-gated platforms).
 
