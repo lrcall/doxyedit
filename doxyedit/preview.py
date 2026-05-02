@@ -318,9 +318,16 @@ class ResizableCropItem(QGraphicsRectItem):
         return super().itemChange(change, value)
 
     def get_crop_region(self):
-        """Return current bounds as a CropRegion."""
+        """Return current bounds as a CropRegion. Carries the cosmetic
+        rotation_deg through so dragging/resizing the rect doesn't
+        silently zero out a previously-set rotation."""
         r = self.rect().translated(self.pos())
-        return CropRegion(x=int(r.x()), y=int(r.y()), w=int(r.width()), h=int(r.height()), label=self.label)
+        return CropRegion(
+            x=int(r.x()), y=int(r.y()),
+            w=int(r.width()), h=int(r.height()),
+            label=self.label,
+            rotation=float(getattr(self, "rotation_deg", 0.0) or 0.0),
+        )
 
 
 class ImagePreviewDialog(QDialog):

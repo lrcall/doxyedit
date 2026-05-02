@@ -1532,13 +1532,14 @@ class StudioScene(QGraphicsScene):
             label=new_label,
             platform_id=getattr(src, "platform_id", ""),
             slot_name=getattr(src, "slot_name", ""),
+            rotation=float(getattr(src, "rotation", 0.0) or 0.0),
         )
         editor._asset.crops.append(new_crop)
-        # Build an item matching the original's aspect lock
         aspect = target._aspect if getattr(target, "_aspect", None) else None
         new_rect = QRectF(new_crop.x, new_crop.y, new_crop.w, new_crop.h)
         new_item = ResizableCropItem(
             new_rect, label=new_label, aspect=aspect, theme=editor._theme)
+        new_item.rotation_deg = new_crop.rotation
         new_item.on_changed = editor._on_crop_edited
         self.addItem(new_item)
         if hasattr(editor, "_crop_items"):
@@ -9362,12 +9363,16 @@ class StudioEditor(QWidget):
         if not self._asset:
             return
         region = item.get_crop_region()
-        # Preserve platform_id / slot_name from the crop being replaced so
-        # editing doesn't silently downgrade a platform-scoped crop.
+        # Preserve platform_id / slot_name / rotation from the crop being
+        # replaced so editing doesn't silently downgrade a platform-scoped
+        # or rotated crop. (rotation also flows through get_crop_region,
+        # but we double-source from the model in case the item drifted.)
         for c in self._asset.crops:
             if c.label == region.label:
                 region.platform_id = getattr(c, "platform_id", "") or region.platform_id
                 region.slot_name = getattr(c, "slot_name", "") or region.slot_name
+                if not region.rotation:
+                    region.rotation = float(getattr(c, "rotation", 0.0) or 0.0)
                 break
         self._asset.crops = [c for c in self._asset.crops if c.label != region.label]
         self._asset.crops.append(region)
