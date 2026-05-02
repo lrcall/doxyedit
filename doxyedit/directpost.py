@@ -538,3 +538,92 @@ def push_to_direct(
             results.append(r)
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Connection test helpers (used by the Identity dialog "Test" buttons)
+# ---------------------------------------------------------------------------
+
+def test_telegram(bot_token: str, chat_id: str = "") -> tuple[bool, str]:
+    """Check a Telegram bot token via getMe; if chat_id is set, also
+    getChat to confirm the bot can reach that chat. Returns (ok, msg)."""
+    if not bot_token:
+        return False, "No bot token"
+    try:
+        url = f"https://api.telegram.org/bot{bot_token}/getMe"
+        with urlopen(Request(url), timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        if not data.get("ok"):
+            return False, str(data.get("description") or "getMe rejected")
+        username = (data.get("result") or {}).get("username", "")
+        msg = f"@{username}" if username else "OK"
+        if chat_id:
+            url2 = (f"https://api.telegram.org/bot{bot_token}"
+                    f"/getChat?chat_id={chat_id}")
+            try:
+                with urlopen(Request(url2), timeout=8) as resp2:
+                    data2 = json.loads(resp2.read().decode("utf-8"))
+                if not data2.get("ok"):
+                    return False, (f"Bot OK ({msg}); chat_id failed: "
+                                   f"{data2.get('description', '?')}")
+                title = (data2.get("result") or {}).get("title", "")
+                if title:
+                    msg = f"@{username} -> {title}"
+            except HTTPError as he:
+                return False, f"Bot OK ({msg}); chat_id HTTP {he.code}"
+        return True, msg
+    except HTTPError as he:
+        return False, f"HTTP {he.code}"
+    except Exception as e:
+        return False, str(e)[:80]
+
+
+def test_discord(webhook_url: str) -> tuple[bool, str]:
+    """GET the Discord webhook URL. Valid URLs return the webhook
+    descriptor; invalid ones 404. Returns (ok, msg)."""
+    if not webhook_url:
+        return False, "No webhook URL"
+    if not webhook_url.startswith("https://"):
+        return False, "URL must start with https://"
+    try:
+        with urlopen(Request(webhook_url), timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        name = data.get("name", "")
+        return True, f"webhook '{name}'" if name else "OK"
+    except HTTPError as he:
+        return False, f"HTTP {he.code}"
+    except Exception as e:
+        return False, str(e)[:80]
+
+
+def test_bluesky(handle: str, app_password: str) -> tuple[bool, str]:
+    """Authenticate via createSession; success means credentials are
+    valid. Posts nothing. Returns (ok, msg)."""
+    if not handle or not app_password:
+        return False, "Need handle + app password"
+    try:
+        body = json.dumps({
+            "identifier": handle,
+            "password": app_password,
+        }).encode("utf-8")
+        req = Request(
+            "https://bsky.social/xrpc/com.atproto.server.createSession",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        did = data.get("did", "")
+        return True, f"did={did[:24]}" if did else "OK"
+    except HTTPError as he:
+        try:
+            err_body = json.loads(he.read().decode("utf-8"))
+            msg = (err_body.get("message")
+                   or err_body.get("error")
+                   or str(he.code))
+        except Exception:
+            msg = f"HTTP {he.code}"
+        return False, str(msg)[:80]
+    except Exception as e:
+        return False, str(e)[:80]

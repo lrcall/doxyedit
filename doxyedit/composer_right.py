@@ -29,6 +29,19 @@ from doxyedit.themes import THEMES, DEFAULT_THEME
 from doxyedit.claude_modal import show_claude_modal
 
 
+def _show_test_result(label, ok: bool, msg: str) -> None:
+    """Render a credential test result on the given QLabel, picking
+    success/error tones from the active theme so the contrast works
+    on dark and light themes."""
+    from PySide6.QtCore import QSettings
+    theme_id = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
+    t = THEMES.get(theme_id, THEMES[DEFAULT_THEME])
+    color = t.success if ok else t.error
+    icon = "OK" if ok else "FAIL"
+    label.setText(f"{icon}  {msg}")
+    label.setStyleSheet(f"color: {color}; font-weight: bold;")
+
+
 # ─── Chrome profile utilities ─────────────────────────────────────
 
 _chrome_profile_cache: list[tuple[str, str]] | None = None
@@ -1512,6 +1525,48 @@ RULES:
                 e.setEchoMode(QLineEdit.EchoMode.Password)
             creds_form.addRow(f"{label}:", e)
             edits[key] = e
+
+        # Per-platform Test row. One button per platform that pings the
+        # provider with whatever values are currently in the fields and
+        # writes the result into result_label inline. No state is stored.
+        test_row = QHBoxLayout()
+        result_label = QLabel("")
+        result_label.setObjectName("identity_test_result")
+        result_label.setWordWrap(True)
+
+        def _test_telegram_clicked():
+            from doxyedit.directpost import test_telegram
+            tok = edits["telegram_bot_token"].text().strip()
+            cid = edits["telegram_chat_id"].text().strip()
+            ok, msg = test_telegram(tok, cid)
+            _show_test_result(result_label, ok, f"Telegram: {msg}")
+
+        def _test_discord_clicked():
+            from doxyedit.directpost import test_discord
+            url = edits["discord_webhook_url"].text().strip()
+            ok, msg = test_discord(url)
+            _show_test_result(result_label, ok, f"Discord: {msg}")
+
+        def _test_bluesky_clicked():
+            from doxyedit.directpost import test_bluesky
+            h = edits["bluesky_handle"].text().strip()
+            p = edits["bluesky_app_password"].text().strip()
+            ok, msg = test_bluesky(h, p)
+            _show_test_result(result_label, ok, f"Bluesky: {msg}")
+
+        bs_btn = QPushButton("Test Bluesky")
+        bs_btn.clicked.connect(_test_bluesky_clicked)
+        test_row.addWidget(bs_btn)
+        tg_btn = QPushButton("Test Telegram")
+        tg_btn.clicked.connect(_test_telegram_clicked)
+        test_row.addWidget(tg_btn)
+        dc_btn = QPushButton("Test Discord")
+        dc_btn.clicked.connect(_test_discord_clicked)
+        test_row.addWidget(dc_btn)
+        test_row.addStretch()
+        creds_form.addRow("", test_row)
+        creds_form.addRow("", result_label)
+
         tabs.addTab(creds_tab, "Credentials")
 
         # ── Tab 4: Chrome Profiles ──
