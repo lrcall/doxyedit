@@ -2250,6 +2250,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         tools_menu.addAction("Find Duplicate Files...", self._find_duplicates)
         tools_menu.addAction("Find Similar Images (Perceptual)...", self._find_similar)
         tools_menu.addAction("Auto-Link Variants by Filename...", self._auto_link_by_filename)
+        tools_menu.addAction("Posting Notifications...", self._show_notification_center)
         tools_menu.addSeparator()
 
         # — Cache submenu —
@@ -4068,6 +4069,115 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._refresh_social_panels()
         self.status.showMessage(
             f"Generated {len(windows)} engagement windows for {target.id[:8]}", 5000)
+
+    def _show_notification_center(self):
+        """Posting notifications dialog: most-recent posting events
+        across every post in the project, sorted newest-first.
+
+        Reads SocialPost.posting_log on each post (populated by the
+        posting pipeline). Filter row at the top: Action (any/posted/
+        failed/pushed) and quick search by platform substring. Click a
+        row to jump to the source post in the composer."""
+        from PySide6.QtWidgets import (
+            QDialog, QVBoxLayout, QHBoxLayout, QTableWidget,
+            QTableWidgetItem, QHeaderView, QDialogButtonBox, QLabel,
+            QComboBox, QLineEdit,
+        )
+        from doxyedit.themes import themed_dialog_size
+
+        # Collect (ts, post_id, platform, action, url, detail) tuples.
+        rows: list[tuple[str, str, str, str, str, str]] = []
+        for post in (self.project.posts or []):
+            for ev in (getattr(post, "posting_log", []) or []):
+                rows.append((
+                    str(ev.get("ts", "")),
+                    post.id,
+                    str(ev.get("platform", "")),
+                    str(ev.get("action", "")),
+                    str(ev.get("url", "")),
+                    str(ev.get("detail", "")),
+                ))
+        rows.sort(reverse=True)  # newest first by ts string (ISO sorts lexically)
+
+        dlg = QDialog(self)
+        dlg.setObjectName("notification_center_dlg")
+        dlg.setWindowTitle("Posting Notifications")
+        w, h = themed_dialog_size(60.0, 41.67)
+        dlg.resize(w, h)
+        lay = QVBoxLayout(dlg)
+        header = QLabel(
+            f"{len(rows)} event(s) across {len(self.project.posts or [])} post(s). "
+            f"Newest first.")
+        lay.addWidget(header)
+
+        # Filter controls
+        filter_row = QHBoxLayout()
+        action_combo = QComboBox()
+        action_combo.addItem("Any action", "")
+        for act in ("posted", "pushed", "failed", "queued", "deleted"):
+            action_combo.addItem(act, act)
+        filter_row.addWidget(QLabel("Action:"))
+        filter_row.addWidget(action_combo)
+        plat_edit = QLineEdit()
+        plat_edit.setPlaceholderText("Platform contains...")
+        filter_row.addWidget(plat_edit, 1)
+        lay.addLayout(filter_row)
+
+        tbl = QTableWidget(0, 5, dlg)
+        tbl.setObjectName("notification_table")
+        tbl.setHorizontalHeaderLabels([
+            "Time", "Post", "Platform", "Action", "Detail / URL"])
+        tbl.verticalHeader().setVisible(False)
+        tbl.setEditTriggers(tbl.EditTrigger.NoEditTriggers)
+        tbl.setSelectionBehavior(tbl.SelectionBehavior.SelectRows)
+
+        def _populate():
+            act_filter = action_combo.currentData() or ""
+            plat_filter = plat_edit.text().strip().lower()
+            tbl.setRowCount(0)
+            for ts, pid, plat, action, url, detail in rows:
+                if act_filter and action != act_filter:
+                    continue
+                if plat_filter and plat_filter not in plat.lower():
+                    continue
+                r = tbl.rowCount()
+                tbl.insertRow(r)
+                tbl.setItem(r, 0, QTableWidgetItem(ts))
+                tbl.setItem(r, 1, QTableWidgetItem(pid[:8]))
+                tbl.setItem(r, 2, QTableWidgetItem(plat))
+                tbl.setItem(r, 3, QTableWidgetItem(action))
+                tbl.setItem(r, 4, QTableWidgetItem(url or detail))
+                tbl.item(r, 1).setData(Qt.ItemDataRole.UserRole, pid)
+
+        action_combo.currentIndexChanged.connect(_populate)
+        plat_edit.textChanged.connect(_populate)
+        _populate()
+
+        tbl.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.ResizeToContents)
+        tbl.horizontalHeader().setStretchLastSection(True)
+
+        def _jump(row, _col):
+            item = tbl.item(row, 1)
+            if item is None:
+                return
+            pid = item.data(Qt.ItemDataRole.UserRole)
+            if not pid:
+                return
+            for p in self.project.posts:
+                if p.id == pid:
+                    self._on_post_selected(p.id)
+                    dlg.accept()
+                    return
+
+        tbl.cellDoubleClicked.connect(_jump)
+        lay.addWidget(tbl, 1)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        for btn in buttons.buttons():
+            btn.clicked.connect(dlg.accept)
+        lay.addWidget(buttons)
+        dlg.exec()
 
     def _check_reminders(self):
         """Scan for pending release chain steps and Patreon cadence reminders."""
