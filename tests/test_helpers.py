@@ -86,6 +86,30 @@ class TestApplyCropRect(unittest.TestCase):
         out = apply_crop_rect(self.img, crop)
         self.assertEqual(out.size, (50, 50))
 
+    def test_negative_rotation(self):
+        from doxyedit.exporter import apply_crop_rect
+        from types import SimpleNamespace
+        crop = SimpleNamespace(x=10, y=10, w=50, h=50, rotation=-30.0)
+        out = apply_crop_rect(self.img, crop)
+        self.assertEqual(out.size, (50, 50))
+
+    def test_full_360_rotation(self):
+        """360deg should be equivalent to 0deg - no real visual change.
+        Just confirms apply_crop_rect doesn't crash on full rotation."""
+        from doxyedit.exporter import apply_crop_rect
+        from types import SimpleNamespace
+        crop = SimpleNamespace(x=10, y=10, w=50, h=50, rotation=360.0)
+        out = apply_crop_rect(self.img, crop)
+        self.assertEqual(out.size, (50, 50))
+
+    def test_rotation_none_treated_as_zero(self):
+        """A None rotation (e.g. JSON null leaking through) defaults to 0."""
+        from doxyedit.exporter import apply_crop_rect
+        from types import SimpleNamespace
+        crop = SimpleNamespace(x=10, y=10, w=50, h=50, rotation=None)
+        out = apply_crop_rect(self.img, crop)
+        self.assertEqual(out.size, (50, 50))
+
 
 class TestSharedIdentities(unittest.TestCase):
     """shared_identities.merge_into_project strategies behave correctly."""
@@ -136,6 +160,61 @@ class TestDirectPostGuards(unittest.TestCase):
         from doxyedit.directpost import test_bluesky
         ok, msg = test_bluesky("", "")
         self.assertFalse(ok)
+
+
+class TestBaseImageViewer(unittest.TestCase):
+    """BaseImageViewer set_pixmap / set_path / clear / fit_to_view
+    smoke + signal contract guard."""
+
+    def setUp(self):
+        from PySide6.QtWidgets import QApplication
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        self.app = QApplication.instance() or QApplication([])
+
+    def test_empty_pixmap_emits_failed(self):
+        from doxyedit.imageviewer import BaseImageViewer
+        from PySide6.QtGui import QPixmap
+        v = BaseImageViewer()
+        seen = []
+        v.pixmap_failed.connect(lambda path: seen.append(path))
+        v.set_pixmap(QPixmap())
+        self.assertEqual(seen, [""])
+        self.assertIsNone(v._pixmap_item)
+
+    def test_valid_pixmap_emits_loaded(self):
+        from doxyedit.imageviewer import BaseImageViewer
+        from PySide6.QtGui import QPixmap
+        from PySide6.QtCore import Qt
+        v = BaseImageViewer()
+        seen = []
+        v.pixmap_loaded.connect(lambda pm: seen.append(pm.size().width()))
+        pm = QPixmap(100, 50)
+        pm.fill(Qt.GlobalColor.red)
+        v.set_pixmap(pm)
+        self.assertEqual(seen, [100])
+        self.assertIsNotNone(v._pixmap_item)
+
+    def test_clear_drops_item(self):
+        from doxyedit.imageviewer import BaseImageViewer
+        from PySide6.QtGui import QPixmap
+        from PySide6.QtCore import Qt
+        v = BaseImageViewer()
+        pm = QPixmap(50, 50)
+        pm.fill(Qt.GlobalColor.blue)
+        v.set_pixmap(pm)
+        self.assertIsNotNone(v._pixmap_item)
+        v.clear()
+        self.assertIsNone(v._pixmap_item)
+
+    def test_set_path_missing_file_fails_gracefully(self):
+        from doxyedit.imageviewer import BaseImageViewer
+        v = BaseImageViewer()
+        seen = []
+        v.pixmap_failed.connect(lambda path: seen.append(path))
+        v.set_path("/this/path/does/not/exist.png")
+        self.assertEqual(len(seen), 1)
+        self.assertIn("does", seen[0])
 
 
 class TestKanbanGrouping(unittest.TestCase):
