@@ -21,12 +21,13 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 from PySide6.QtCore import QThread, QMutex, QMutexLocker, QWaitCondition, Signal, QTimer
-from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-from doxyedit.formats import ensure_project_ext
+from doxyedit.formats import ensure_project_ext, ensure_collection_ext
 from doxyedit.models import Project
 from doxyedit.perf import perf_time
 from doxyedit.session import ProjectLoader
@@ -258,6 +259,149 @@ class SaveLoadMixin:
         loader.loaded.connect(_on_loaded)
         loader.failed.connect(_on_failed)
         loader.start()
+
+    def _locate_last_collection(self):
+        """Show where the last saved collection is (or was) on disk."""
+        path = self._settings.value("last_collection", "")
+        if not path:
+            QMessageBox.information(
+                self, "Last Collection",
+                "No collection has been saved yet.")
+            return
+        if Path(path).exists():
+            subprocess.Popen(f'explorer /select,"{path}"')
+        else:
+            QMessageBox.warning(
+                self, "Last Collection",
+                f"File no longer exists:\n{path}\n\n"
+                "Use 'Save Collection...' to create a new one.")
+
+    def _save_collection_quick(self):
+        """Quick save: overwrite the last collection file, or fall back
+        to the full Save As dialog."""
+        last = self._settings.value("last_collection", "")
+        if not last or not Path(last).parent.exists():
+            self._save_collection()
+            return
+        projects = self._collect_open_project_paths()
+        if not projects:
+            self.status.showMessage("No saved projects open", 3000)
+            return
+        try:
+            Path(last).write_text(
+                json.dumps({"_type": "doxycoll", "projects": projects},
+                           indent=2),
+                encoding="utf-8")
+            self.status.showMessage(
+                f"Collection saved -> {Path(last).name}", 3000)
+        except Exception as e:
+            self.status.showMessage(f"Save failed: {e}", 5000)
+
+    def _save_collection(self):
+        """Save all open project tabs/windows as a named collection
+        (.doxycol). MainWindow provides _collect_open_project_paths,
+        _dialog_dir, _remember_dir."""
+        projects = self._collect_open_project_paths()
+        if not projects:
+            QMessageBox.information(
+                self, "Save Collection",
+                "No saved projects are open. Save each project to disk "
+                "first (Ctrl+S).")
+            return
+        last = self._settings.value("last_collection", "")
+        if last and Path(last).parent.exists():
+            default_path = last
+        elif projects:
+            default_path = str(
+                Path(projects[0]).parent / "workspace.doxycol")
+        else:
+            default_path = (
+                str(Path(self._dialog_dir()) / "workspace.doxycol")
+                if self._dialog_dir() else "workspace.doxycol")
+        path, selected = QFileDialog.getSaveFileName(
+            self, "Save Collection", default_path,
+            "DoxyEdit Collection (*.doxycol);;"
+            "Legacy JSON (*.doxycoll.json)")
+        if not path:
+            return
+        path = ensure_collection_ext(
+            path, prefer_legacy="doxycoll.json" in selected)
+        try:
+            Path(path).write_text(
+                json.dumps({"_type": "doxycoll", "projects": projects},
+                           indent=2),
+                encoding="utf-8")
+        except Exception as e:
+            QMessageBox.warning(
+                self, "Save Collection",
+                f"Failed to write file:\n{e}")
+            return
+        self._remember_dir(path)
+        self._settings.setValue("last_collection", path)
+        names = ", ".join(Path(p).stem for p in projects)
+        QMessageBox.information(
+            self, "Collection Saved",
+            f"Saved {len(projects)} project(s) to:\n{path}\n\n{names}")
+        self.status.showMessage(f"Collection saved -> {path}")
+
+    def _reload_collection(self):
+        """Reload the last saved collection file. Closes extra project
+        tabs first; restore is delegated to MainWindow._restore_collection."""
+        coll_path = self._settings.value("last_collection", "")
+        if not coll_path or not Path(coll_path).exists():
+            self.status.showMessage("No collection to reload", 3000)
+            return
+        while self._proj_tab_bar.count() > 1:
+            self._close_proj_tab(self._proj_tab_bar.count() - 1)
+        if not self._restore_collection(coll_path):
+            self.status.showMessage("Collection reload failed", 3000)
+
+    def _open_collection(self):
+        """Open a saved collection: each project opens in its own
+        window. show() is delayed until ProjectLoader finishes so empty
+        MainWindow frames don't flash while the async load runs.
+
+        Uses type(self) to spawn fresh MainWindow instances without an
+        import-cycle on doxyedit.window.
+        """
+        MW = type(self)
+        last = self._settings.value("last_collection", "")
+        start = last if last and Path(last).exists() else self._dialog_dir()
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Collection", start,
+            "DoxyEdit Collection (*.doxycol *.doxycoll *.doxycoll.json);;"
+            "All Files (*)")
+        if not path:
+            return
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        proj_paths = data.get("projects", [])
+        all_wins = [self] + [w for w in MW._open_windows if w.isVisible()]
+        already_open = {w._project_path for w in all_wins if w._project_path}
+        opened = 0
+        for proj_path in proj_paths:
+            if not Path(proj_path).exists():
+                continue
+            if proj_path in already_open:
+                continue
+            win = MW(_skip_autoload=True)
+            MW._open_windows.append(win)
+            loader = getattr(win, "_open_loader", None)
+            win._load_project_from(proj_path)
+            new_loader = getattr(win, "_open_loader", None)
+            if new_loader is not None and new_loader is not loader:
+                new_loader.loaded.connect(
+                    lambda _p, _path, w=win: (
+                        w.show(), w._update_title_bar_color()))
+                new_loader.failed.connect(
+                    lambda _path, _err, w=win: w.show())
+            else:
+                win.show()
+            already_open.add(proj_path)
+            opened += 1
+        self._settings.setValue("last_collection", path)
+        self.status.showMessage(
+            f"Collection loaded: {opened} new window(s), "
+            f"{len(proj_paths) - opened} already open")
 
     def _load_project_from(self, path: str):
         """Load a project file off the UI thread so File>Open and
