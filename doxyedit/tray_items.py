@@ -191,18 +191,20 @@ class TrayItemDelegate(QStyledItemDelegate):
         if pulse_until:
             remaining = pulse_until - time.monotonic()
             if remaining > 0:
-                # Fade alpha from peak -> 0 over the remaining time
-                _peak_alpha = theme.tray_badge_alpha
-                alpha = max(40, int(_peak_alpha * min(1.0, remaining / 0.4)))
+                # Fade ring from full opacity to gone over the
+                # remaining 0.4s; floor at 40 so it never disappears
+                # before the timer is up.
+                fade = min(1.0, remaining / 0.4)
+                alpha = max(40, int(theme.tray_badge_alpha * fade))
                 ring = QColor(theme.accent_bright or theme.accent)
                 ring.setAlpha(alpha)
-                pen = QPen(ring, theme.tray_pulse_pen_width)
-                painter.setPen(pen)
+                painter.setPen(QPen(ring, theme.tray_pulse_pen_width))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-                _ins = theme.tray_pulse_inset
-                _r = theme.tray_badge_corner_radius
+                inset = theme.tray_pulse_inset
+                radius = theme.tray_badge_corner_radius
                 painter.drawRoundedRect(
-                    rect.adjusted(_ins, _ins, -_ins, -_ins), _r, _r)
+                    rect.adjusted(inset, inset, -inset, -inset),
+                    radius, radius)
 
         # Pin indicator top-right (T16) — painted before platform badge
         # so the badge (bottom-right) doesn't fight it.
@@ -270,8 +272,8 @@ class TrayItemDelegate(QStyledItemDelegate):
             badge_bg.setAlpha(theme.tray_badge_alpha)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(badge_bg))
-            _r = theme.tray_badge_corner_radius
-            painter.drawRoundedRect(br_x, br_y, bw, bh, _r, _r)
+            radius = theme.tray_badge_corner_radius
+            painter.drawRoundedRect(br_x, br_y, bw, bh, radius, radius)
             painter.setPen(QPen(QColor(theme.text_on_accent)))
             painter.drawText(
                 QRect(br_x, br_y, bw, bh),
