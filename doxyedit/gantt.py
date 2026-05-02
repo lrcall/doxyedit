@@ -15,7 +15,7 @@ from PySide6.QtGui import QPen, QColor, QBrush, QPainter
 
 from doxyedit.models import Project, SocialPost, SocialPostStatus
 from doxyedit.panel_mixin import LazyRefreshMixin
-from doxyedit.themes import THEMES, DEFAULT_THEME
+from doxyedit.themes import THEMES, DEFAULT_THEME, ui_font_size
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +203,10 @@ class GanttPanel(LazyRefreshMixin, QWidget):
     # -- UI construction ----------------------------------------------------
 
     def _build_ui(self) -> None:
-        _f = QSettings("DoxyEdit", "DoxyEdit").value("font_size", 12, type=int)
+        # Was hitting QSettings (Windows registry) on every panel build.
+        # ui_font_size() is the process-cached read documented in
+        # CLAUDE.md and themes.py for exactly this purpose.
+        _f = ui_font_size()
         _pad = max(4, _f // 3)
         _pad_lg = max(6, _f // 2)
 
