@@ -4,10 +4,12 @@ color+image rule and the payload structure so a regression doesn't
 silently drop the image attachment or send the wrong content key."""
 from __future__ import annotations
 
+import io
 import json
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -39,9 +41,13 @@ class _CapturedRequest:
         self._patch = patch.object(directpost, "urlopen",
                                     side_effect=fake_urlopen)
         self._patch.start()
+        # Silence print spam from the [Discord] OK lines.
+        self._stdout_ctx = redirect_stdout(io.StringIO())
+        self._stdout_ctx.__enter__()
         return self
 
     def __exit__(self, *args):
+        self._stdout_ctx.__exit__(*args)
         self._patch.stop()
 
 
