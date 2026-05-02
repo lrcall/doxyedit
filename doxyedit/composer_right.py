@@ -922,25 +922,8 @@ a {{ color: {theme.accent}; }}
 
         menu = editor.createStandardContextMenu()
 
-        # Theme the popup (top-level menus don't inherit QSS on Windows)
-        theme_id = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
-        t = THEMES.get(theme_id, THEMES[DEFAULT_THEME])
-        rad = max(3, t.font_size // 4)
-        pad = max(4, t.font_size // 3)
-        pad_lg = max(6, t.font_size // 2)
-        menu.setStyleSheet(f"""
-            QMenu {{
-                background: {t.bg_raised}; color: {t.text_primary};
-                border: 1px solid {t.border}; border-radius: {rad}px;
-                padding: {pad}px 0;
-            }}
-            QMenu::icon {{ padding-left: {pad}px; }}
-            QMenu::item {{ padding: {pad}px {pad_lg * 3}px; color: {t.text_primary}; }}
-            QMenu::item:selected {{ background: {t.accent_dim}; color: {t.text_on_accent}; }}
-            QMenu::item:disabled {{ color: {t.text_muted}; }}
-            QMenu::separator {{ background: {t.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
-            QMenu::separator {{ background: {t.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
-        """)
+        from doxyedit.themes import apply_menu_theme
+        apply_menu_theme(menu)
 
         # Extra actions (strategy helpers, etc.)
         if extra_actions:

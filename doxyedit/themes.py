@@ -1010,6 +1010,41 @@ def themed_dialog_size(w_ratio: float, h_ratio: float,
     return int(font_size * w_ratio), int(font_size * h_ratio)
 
 
+def apply_menu_theme(menu, theme=None) -> None:
+    """Force a themed inline stylesheet onto a QMenu.
+
+    Top-level popup menus don't inherit the app QSS on Windows, so we
+    explicitly style every context menu against the active theme.
+
+    `theme=None` reads the user's saved theme from QSettings so the
+    menu picks up theme switches between sessions. Pass an explicit
+    Theme to use a specific palette (e.g. when the caller already
+    holds self._theme)."""
+    if theme is None:
+        from PySide6.QtCore import QSettings
+        theme_id = QSettings("DoxyEdit", "DoxyEdit").value("theme", DEFAULT_THEME)
+        theme = THEMES.get(theme_id, THEMES[DEFAULT_THEME])
+    t = theme
+    rad = max(3, t.font_size // 4)
+    pad = max(4, t.font_size // 3)
+    pad_lg = max(6, t.font_size // 2)
+    menu.setStyleSheet(f"""
+        QMenu {{
+            background: {t.bg_raised}; color: {t.text_primary};
+            border: 1px solid {t.border}; border-radius: {rad}px;
+            padding: {pad}px 0;
+        }}
+        QMenu::icon {{ padding-left: {pad}px; }}
+        QMenu::item {{ padding: {pad}px {pad_lg * 3}px; color: {t.text_primary}; }}
+        QMenu::item:selected {{ background: {t.accent_dim}; color: {t.text_on_accent}; }}
+        QMenu::item:disabled {{ color: {t.text_muted}; }}
+        QMenu::separator {{ background: {t.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
+        QMenu::indicator {{ width: {pad_lg * 2}px; height: {pad_lg * 2}px; margin-left: {pad}px; }}
+        QMenu::indicator:checked {{ background: {t.accent}; border: 1px solid {t.accent_bright}; border-radius: {rad}px; }}
+        QMenu::indicator:unchecked {{ background: {t.bg_input}; border: 1px solid {t.border}; border-radius: {rad}px; }}
+    """)
+
+
 def is_dark_color(hex_or_qcolor) -> bool:
     """True if the given color is dark (sum of RGB < 384, i.e. avg < 128).
 

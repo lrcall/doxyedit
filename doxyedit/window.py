@@ -1857,22 +1857,8 @@ class MainWindow(SaveLoadMixin, TabManagerMixin, QMainWindow):
     def _show_notes_context_menu(self, pos, editor, tab_name: str):
         """Show right-click menu with Claude actions for notes editors."""
         menu = editor.createStandardContextMenu()
-        # Force theme on the popup menu (top-level widgets don't inherit on Windows)
-        t = self._theme
-        rad = max(3, t.font_size // 4)
-        pad = max(4, t.font_size // 3)
-        pad_lg = max(6, t.font_size // 2)
-        menu.setStyleSheet(f"""
-            QMenu {{
-                background: {t.bg_raised}; color: {t.text_primary};
-                border: 1px solid {t.border}; border-radius: {rad}px;
-                padding: {pad}px 0;
-            }}
-            QMenu::item {{ padding: {pad}px {pad_lg * 3}px; color: {t.text_primary}; }}
-            QMenu::item:selected {{ background: {t.accent_dim}; color: {t.text_on_accent}; }}
-            QMenu::item:disabled {{ color: {t.text_muted}; }}
-            QMenu::separator {{ background: {t.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
-        """)
+        from doxyedit.themes import apply_menu_theme
+        apply_menu_theme(menu, self._theme)
         selected = editor.textCursor().selectedText()
 
         if selected.strip():

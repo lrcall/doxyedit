@@ -134,26 +134,12 @@ def _exec_menu_clamped(menu, target):
 
 
 def _themed_menu(parent=None) -> QMenu:
-    """Create a QMenu styled from the current theme (same pattern as window.py)."""
-    t = THEMES[DEFAULT_THEME]
+    """Create a themed QMenu via themes.apply_menu_theme. Reads the
+    user's saved theme from QSettings so the menu reflects theme
+    switches without rebuilding the helper."""
+    from doxyedit.themes import apply_menu_theme
     menu = QMenu(parent)
-    rad = max(3, t.font_size // 4)
-    pad = max(4, t.font_size // 3)
-    pad_lg = max(6, t.font_size // 2)
-    menu.setStyleSheet(f"""
-        QMenu {{
-            background: {t.bg_raised}; color: {t.text_primary};
-            border: 1px solid {t.border}; border-radius: {rad}px;
-            padding: {pad}px 0;
-        }}
-        QMenu::item {{ padding: {pad}px {pad_lg * 3}px; color: {t.text_primary}; }}
-        QMenu::item:selected {{ background: {t.accent_dim}; color: {t.text_on_accent}; }}
-        QMenu::item:disabled {{ color: {t.text_muted}; }}
-        QMenu::separator {{ background: {t.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
-        QMenu::indicator {{ width: {pad_lg * 2}px; height: {pad_lg * 2}px; margin-left: {pad}px; }}
-        QMenu::indicator:checked {{ background: {t.accent}; border: 1px solid {t.accent_bright}; border-radius: {rad}px; }}
-        QMenu::indicator:unchecked {{ background: {t.bg_input}; border: 1px solid {t.border}; border-radius: {rad}px; }}
-    """)
+    apply_menu_theme(menu)
     return menu
 
 

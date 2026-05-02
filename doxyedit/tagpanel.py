@@ -24,26 +24,11 @@ FITNESS_COLORS = {
 
 
 def _apply_menu_theme(menu: QMenu) -> None:
-    """Force a themed inline stylesheet onto a QMenu.
-
-    Top-level popup menus don't inherit the app QSS on Windows, so we
-    explicitly style every context menu against the active theme.
-    """
-    t = THEMES[DEFAULT_THEME]
-    rad = max(3, t.font_size // 4)
-    pad = max(4, t.font_size // 3)
-    pad_lg = max(6, t.font_size // 2)
-    menu.setStyleSheet(f"""
-        QMenu {{
-            background: {t.bg_raised}; color: {t.text_primary};
-            border: 1px solid {t.border}; border-radius: {rad}px;
-            padding: {pad}px 0;
-        }}
-        QMenu::item {{ padding: {pad}px {pad_lg * 3}px; color: {t.text_primary}; }}
-        QMenu::item:selected {{ background: {t.accent_dim}; color: {t.text_on_accent}; }}
-        QMenu::item:disabled {{ color: {t.text_muted}; }}
-        QMenu::separator {{ background: {t.border}; height: 1px; margin: {pad}px {pad_lg}px; }}
-    """)
+    """Wrapper around themes.apply_menu_theme. Kept as a name so the
+    rest of tagpanel.py call sites stay short; reads the user's saved
+    theme from QSettings each call so menus track theme switches."""
+    from doxyedit.themes import apply_menu_theme
+    apply_menu_theme(menu)
 
 
 class _TagContainer(QWidget):
