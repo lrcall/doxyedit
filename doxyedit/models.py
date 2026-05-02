@@ -1162,12 +1162,32 @@ class Project:
         except Exception:
             pass
         proj.blackout_periods = raw.get("blackout_periods", [])
+        # Per-record loops are wrapped so a single corrupted record
+        # doesn't take down the whole project load. Failures are
+        # logged and the bad record is skipped; the user keeps every
+        # other valid record.
+        import logging as _logging
         for c in raw.get("campaigns", []):
-            proj.campaigns.append(Campaign.from_dict(c))
+            try:
+                proj.campaigns.append(Campaign.from_dict(c))
+            except Exception:
+                _logging.exception(
+                    "Skipping malformed campaign in project file: %r",
+                    c.get("id") if isinstance(c, dict) else c)
         for s in raw.get("subreddits", []):
-            proj.subreddits.append(SubredditConfig.from_dict(s))
+            try:
+                proj.subreddits.append(SubredditConfig.from_dict(s))
+            except Exception:
+                _logging.exception(
+                    "Skipping malformed subreddit in project file: %r",
+                    s.get("name") if isinstance(s, dict) else s)
         for p in raw.get("posts", []):
-            proj.posts.append(SocialPost.from_dict(p))
+            try:
+                proj.posts.append(SocialPost.from_dict(p))
+            except Exception:
+                _logging.exception(
+                    "Skipping malformed post in project file: %r",
+                    p.get("id") if isinstance(p, dict) else p)
 
         # Load config.yaml and merge custom platforms
         config = load_config(str(base))
