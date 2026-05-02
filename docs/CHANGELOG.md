@@ -1,5 +1,132 @@
 # DoxyEdit Changelog
 
+## v2.5.5 (2026-05-02) - Cron session: refactor + parked features + tests
+
+Long autonomous cron-driven session focused on shipping every live
+BACKLOG item, every parked v2.4 feature idea, and a test + CI
+foundation. ~70 commits across the session.
+
+### Bugs fixed (the user-reported ones)
+
+- **Escape clearing in Studio** (0a416bd) - QShortcut was scoped
+  `WidgetWithChildrenShortcut` so a sidebar button focus blocked
+  Escape. Switched to `ApplicationShortcut` + `activeModalWidget()`
+  guard. F10 already worked because it used ApplicationShortcut.
+- **Right-click Delete crop** (899e8d6) - asset-side removed but
+  the QGraphicsRectItem stayed visible. Added
+  `_rebuild_layer_panel()` + viewport.update() + setSelected(False).
+- **QFont 'Point size <= 0' warning at launch** (c00b89f) -
+  `font.pointSize() + 1` returned 0 when the global stylesheet
+  used setPixelSize. Clamped.
+
+### H4 architecture refactors (BACKLOG plan-H)
+
+- **H4.1 Stage 2** (54d4288 -> e1ac354) - all 10 save/load methods
+  moved into `SaveLoadMixin` in `doxyedit/project_io.py`.
+- **H4.2** (9ae61f9) - tab slot management extracted into
+  `doxyedit/tab_manager.py` `TabManagerMixin`.
+- **H4.3** (5c320d5 -> 796be3a) - OneUp push moved off the UI
+  thread via `_OneUpPushThread`. Sync no longer freezes the UI
+  for 30+ HTTP calls.
+
+### New features
+
+- **Crop rotation** (9e99fea -> 1dccaa6) - `CropRegion.rotation`
+  field, rotate-before-crop in all 5 export paths via
+  `apply_crop_rect`, "Set Rotation..." context menu, dashed
+  rotated outline indicator, visual rotate handle on
+  ResizableCropItem with Shift snap to 15°.
+- **Cross-project shared identities** (ff07c72) - new
+  `~/.doxyedit/identities.json` shared store + auto-merge on
+  project load + "Publish Shared..." button in identity dialog.
+- **Per-post identity selection** (e1e3445 -> c8e6fec) -
+  `SocialPost.identity_name` field; switching the identity combo
+  appends the new identity's hashtags to the caption (JP-aware).
+- **Credential test buttons** (3d61974) - per-platform "Test"
+  buttons in Identity > Credentials tab. Stdlib HTTP (no extra
+  deps) for Bluesky / Telegram / Discord.
+- **BaseImageViewer widget** (195bec3 -> ac15b89) - new
+  `doxyedit/imageviewer.py` `BaseImageViewer`. PreviewPane and
+  ImagePreviewDialog migrated to it.
+- **Per-post export log** (8eda67c + 4f27920) -
+  `SocialPost.posting_log` append-only event history; "View
+  Posting Log..." dialog on timeline post cards.
+- **Tag hierarchy** (66032c3 + 970bb68) - `TagPreset.parent_id`
+  field, `Project.get_tag_children` / `get_tag_ancestors` (with
+  cycle protection), right-click "Set Parent Tag..." picker.
+- **Notification Center** (0bcfddb) - Tools > Posting
+  Notifications dialog aggregating every `posting_log` event
+  across all posts with action + platform filters and double-
+  click jump-to-post.
+- **Bulk Actions dialog** (31c263d) - Edit > Bulk Actions...
+  discoverable surface for all multi-select operations.
+- **Onboarding walkthrough** (65d7640) - Help > Welcome / First
+  Run dialog + first-run auto-open via QSettings flag.
+- **Plugin system** (249101a + 4f80493 + 49f0b52) - drop-folder
+  loader at `~/.doxyedit/plugins/`, four lifecycle events
+  (project_loaded / post_pushed / asset_imported / shutdown),
+  failure isolation, Help > Plugins... status dialog,
+  `docs/plugins.md` reference + `docs/sample_plugin.py` template.
+
+### Theme + tokenization
+
+- **All 21 themes pass WCAG AAA** (e905051) - Lavender / Wine /
+  Aurora / Slate / Moss / Ocean had near-white text on too-light
+  backgrounds. Backgrounds darkened across the board to clear
+  the 7:1 ratio bar. `scripts/check_theme_contrast.py` reports
+  ALL CLEAN.
+- **Tokenization sweep** (multiple commits) - 70 -> 0 violations.
+  `themes.themed_dialog_size`, `themes.is_dark_color`,
+  `themes.fg_on_color`, `themes.apply_menu_theme` extracted as
+  shared helpers. ~15 dialog resizes routed through font ratios.
+- **Pythonw stderr redirect** (1aead52) - `run.py` redirects
+  stdout/stderr to `~/.doxyedit/last_run.log` when launched via
+  pythonw, so silent crashes leave a traceback.
+
+### Tests + CI
+
+- `tests/test_smoke.py` (851603d) - 7 boot smoke tests.
+- `tests/test_helpers.py` (20f29dd) - 18 unit tests.
+- `tests/test_models.py` (d4462ca) - 10 model round-trip tests.
+- `tests/test_plugins_loader.py` (49f0b52) - 3 integration tests.
+- `.github/workflows/checks.yml` (964f9d7) - CI runs validators
+  + tests on every push/PR.
+
+Suite: 44 tests in 5s, all passing.
+
+### Docs
+
+- `docs/BACKLOG.md` - all H4 items + ImageViewer + crop rotation
+  marked shipped with commit trails (5257e94).
+- `docs/DOCS.md` v2.3 -> v2.5 (e1d06d7) with what-shipped list.
+- `docs/studio-ui-redesign.md` + `docs/ui-redesign-plan.md` got
+  shipped-status banners.
+- `docs/brush-system-plan.md` + `docs/gl-canvas-plan.md` got
+  status notes (deferred).
+- `docs/PERFORMANCE.md` archived (1138125 - v0.5 roadmap, items
+  all shipped).
+- `docs/plugins.md` - new user-facing plugin reference.
+- `docs/archive/` - TEST_v2.2.md, e3-benchmark.md,
+  state-machine-posts.md, canvas-architecture-investigation.md,
+  PERFORMANCE.md, TODO.md, NEW_FEATURES.md.
+- `wiki/Home.md` v1.9 -> v2.5 (2015d38).
+- `wiki/Interface Overview.md` four tabs -> six tabs (ff57e74).
+- `wiki/Themes & Appearance.md` 7 -> 21+ themes (449db0a).
+- `wiki/Keyboard Shortcuts.md` Canvas tab -> Studio (f9298d1).
+- `wiki/Project File Format.md` mentions `.doxy` + `.doxycol`.
+
+### Cleanup
+
+- 3 noisy editor-state files untracked + gitignored (b49379f).
+- `themes.apply_menu_theme()` consolidates 4 duplicated 16-line
+  inline stylesheets (c9e4ccf). Bug bonus: tagpanel +
+  studio_items had hardcoded `THEMES[DEFAULT_THEME]` and ignored
+  user theme switches; both now follow the active theme.
+- `studio.py` `_fit_axis(axis)` collapses Fit Width / Fit Height
+  duplicates (f3ac591).
+
+---
+
 ## v2.5.4 (2026-04-25) - Robust multi-path posting + canvas perf
 
 Long cron-driven session pushing the posting bridge into a real

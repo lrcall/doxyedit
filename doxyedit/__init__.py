@@ -1,2 +1,2 @@
 """DoxyEdit - Visual document editor with Claude integration."""
-__version__ = "2.5"
+__version__ = "2.5.5"
