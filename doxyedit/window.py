@@ -3795,7 +3795,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             "Post set to draft — delete from OneUp dashboard if still scheduled", 5000)
 
     def _on_composer_done(self, dlg, is_new: bool):
-        """Handle composer close — add or update post."""
+        """Handle composer close - add or update post."""
         if dlg.result_post:
             if is_new:
                 self.project.posts.append(dlg.result_post)
@@ -3804,7 +3804,12 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._dirty = True
             self._refresh_social_panels()
             if dlg.result_post.status == "queued":
-                self.status.showMessage("Queued locally — press Sync OneUp to push", 4000)
+                self.status.showMessage("Queued locally - press Sync OneUp to push", 4000)
+            try:
+                from doxyedit import plugins as _dp
+                _dp.emit("post_saved", dlg.result_post, is_new)
+            except Exception:
+                pass
 
     def _export_post_assets(self, post):
         """Export platform-ready images for all platforms in a post."""
@@ -4054,14 +4059,20 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
     def _on_docked_save(self, post):
         """Handle save from docked composer. Keep dock open at same position."""
-        if self._docked_is_new:
+        is_new = self._docked_is_new
+        if is_new:
             self.project.posts.append(post)
         else:
             self._cancel_oneup_if_demoted(post)
         self._dirty = True
         self._refresh_social_panels()
         if post.status == "queued":
-            self.status.showMessage("Queued locally — press Sync OneUp to push", 4000)
+            self.status.showMessage("Queued locally - press Sync OneUp to push", 4000)
+        try:
+            from doxyedit import plugins as _dp
+            _dp.emit("post_saved", post, is_new)
+        except Exception:
+            pass
         # Save dock width so it persists
         sizes = self._social_top_split.sizes()
         if len(sizes) >= 3 and sizes[2] > 50:
