@@ -29,7 +29,7 @@ description: Complete keyboard shortcut reference for all DoxyEdit tabs and the 
 | Click | Select one image |
 | Ctrl+Click | Toggle multi-select |
 | Shift+Click | Range select |
-| Alt+Click | Send to Censor tab |
+| Alt+Click | Send to Studio (legacy: was "Send to Censor" in v1.x) |
 | Ctrl+A | Select all |
 | Ctrl+D | Deselect all |
 | Escape | Deselect all / clear active tag bar filters |
@@ -115,18 +115,36 @@ Custom shortcuts can be assigned to any tag via right-click → **Set Shortcut K
 
 ---
 
-## Canvas Tab
+## Studio Tab (was "Canvas Tab" in v1.x)
+
+The list below is a small slice of Studio's shortcut surface — it owns
+crops, censors, overlays, watermarks, shapes, arrows, layer panel,
+snap guides, undo/redo, etc. Open Studio, then press **F1** or **?**
+to see the full in-app cheatsheet that always reflects what shipped.
 
 | Shortcut | Action |
 |----------|--------|
-| V | Select tool |
-| T | Text tool |
-| L | Line tool |
-| B | Box tool |
-| G | Marker tool |
-| Delete | Remove selected canvas item |
+| Q / V | Select tool |
+| T | Text overlay |
+| X | Censor tool |
+| C | Crop tool |
+| N | Note tool |
+| I | Eyedropper |
+| A | Arrow annotation |
+| S | Shape tool |
+| Delete | Remove selected item |
+| Esc | Deselect + return to Select tool |
+| F10 | Force-clear text selection + crop mask |
+| Spacebar (hold) | Pan (Photoshop convention) |
 | Middle-click + drag | Pan |
-| Scroll | Zoom |
+| Ctrl+Scroll / Scroll | Zoom |
+| Ctrl+0 | Fit to view |
+| Ctrl+1 / Ctrl+= / Ctrl+- | Zoom 100% / In / Out |
+| Alt+click overlay | Duplicate |
+| Tab / Shift+Tab | Cycle overlay selection |
+| Ctrl+Shift+I | Invert selection |
+| 0-9 | Set opacity on selected overlay |
+| F1 | Open the in-app shortcut cheatsheet |
 
 ---
 
@@ -163,5 +181,5 @@ Most-used shortcuts at a glance:
 ## Related
 
 - [[Tagging System]] — custom tag shortcuts
-- [[Interface Overview]] — Canvas tab tool descriptions
+- [[Interface Overview]] — Studio tab tool descriptions
 - [[Preview Window]] — full preview navigation reference
