@@ -7572,14 +7572,14 @@ class StudioEditor(QWidget):
             self._open_skia_preview)
 
         # Escape = universal 'deselect + exit tool' regardless of which
-        # studio widget has focus (sidebar button, slider, layer panel).
-        # Scoped with WidgetWithChildrenShortcut so it does NOT interfere
-        # with Escape-cancel on QInputDialog / QColorDialog popups, which
-        # own their own focus scope.
+        # studio widget has focus. ApplicationShortcut matches F10's
+        # working pattern; the handler guards against firing while a
+        # modal dialog is active so QInputDialog / QColorDialog Escape
+        # cancel still works.
         self._esc_shortcut = QShortcut(
             QKeySequence(Qt.Key.Key_Escape), self)
         self._esc_shortcut.setContext(
-            Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            Qt.ShortcutContext.ApplicationShortcut)
         self._esc_shortcut.activated.connect(self._handle_escape_shortcut)
 
         # Snap grid overlay — flag on the scene, drawn via foreground.
@@ -8956,17 +8956,18 @@ class StudioEditor(QWidget):
         self.info_label.setText("F10 — cleared")
 
     def _handle_escape_shortcut(self):
-        """Fired by the WidgetWithChildrenShortcut — runs the full
-        Escape cleanup regardless of whether the focus widget is the
-        scene, view, sidebar button, or a spin / slider input. Previous
-        behavior was that Escape on a sidebar button just went to the
-        parent widget and did nothing.
+        """Universal Escape cleanup regardless of which child widget
+        has focus (sidebar button, slider, layer panel, scene, view).
+
+        ApplicationShortcut would otherwise steal Escape from modal
+        popups, so bail early when a QInputDialog / QColorDialog /
+        QMessageBox is active and let Qt's default cancel handle it.
 
         If isolation mode is active, Escape exits isolation first
-        rather than immediately clearing the selection — gives the
-        user a way out of isolation without hunting for the layer
-        panel right-click."""
+        rather than immediately clearing the selection."""
         if not self.isVisible():
+            return
+        if QApplication.activeModalWidget() is not None:
             return
         if self._isolation_active:
             self._exit_isolation()
