@@ -1,8 +1,26 @@
 # DoxyEdit Documentation
 
-**Version 2.3** — Art Asset Manager + Social Media Pipeline
+**Version 2.5** — Art Asset Manager + Social Media Pipeline
 
-DoxyEdit is a desktop tool for artists and creators to browse, tag, organize, and export art assets across multiple platforms (Kickstarter, Steam, Patreon, social media). v2.3 adds a full social media publishing pipeline with scheduling, cross-platform release chains, subscription platform automation, and AI-assisted strategy.
+DoxyEdit is a desktop tool for artists and creators to browse, tag,
+organize, edit (Studio), and export art assets across many platforms
+(Kickstarter, Steam, Patreon, OneUp-fronted socials, plus direct API
+for Bluesky / Telegram / Discord / Mastodon).
+
+What's been added since v2.3:
+- v2.4 — composer dock pane, posting checklist, identity tabs,
+  campaign + release-chain UI, Studio polish (rotate handles on
+  censors/overlays, alignment guides, "Reset Transform"), OneUp
+  duplicate-post detection, perceptual-hash variant detection.
+- v2.5 — Studio full-graphics-product push (eyedropper, arrow
+  annotation, shape annotations, persistent guides, rulers, focus
+  mode, spacebar pan, copy/paste style, rotate-90 context entries,
+  text background color, watermark image-replace), multi-path
+  posting bridge (api -> dom-paste -> dom-click -> drag -> native
+  fallback chain), 21-theme palette, BaseImageViewer widget,
+  cross-project shared identity store, per-post identity selection,
+  credential test buttons, OneUp push thread (sync no longer
+  freezes UI for 30s on slow backends).
 
 ---
 

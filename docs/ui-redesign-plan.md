@@ -1,5 +1,16 @@
 # DoxyEdit UI Redesign - Evidence, Diagnosis, Plan
 
+> [!note] Status as of v2.5: most items shipped
+> Most of the contrast / density / icon-rendering issues catalogued
+> below have been fixed in subsequent commits (see CHANGELOG.md
+> v2.4-v2.5 for the trail). The 21-theme palette plus
+> `themes.is_dark_color` / `themes.fg_on_color` helpers (commit
+> 81765c7) address the contrast-discipline gap; tokenization sweeps
+> across composer, gantt, identity, dialog sizes, etc. closed most
+> of the inline-style smell. Kept in-tree as the canonical record
+> of the diagnosis methodology; future redesign work should follow
+> the same evidence-first structure.
+
 ## Why this document exists
 
 The app works, but pressure tested it has surfaced a cluster of UI issues that point

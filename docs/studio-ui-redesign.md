@@ -4,8 +4,15 @@ Scope: fix the overloaded, single-row Studio toolbar. The canvas, scene
 code, and tool semantics stay the same. This is a layout and widget
 re-host job, not a feature rewrite.
 
-Status: planning document. No code changed yet. Intended for incremental
-landing across 3-6 PRs.
+> [!note] Status as of v2.5: largely landed
+> The v2.5 Studio overhaul shipped most of the items described in this
+> document — left toolbar with grouped tools, top action bar with
+> commit verbs at the right edge, sidebar with collapsible sections,
+> layer panel with thumbnails. The plan's diagnosis section still
+> reads as accurate context; the detailed tier-by-tier proposal is
+> retained for reference + as the template for future redesigns.
+> The last unshipped pieces (focus-mode polish, Tier-3 layer masks /
+> blend modes / pen tool) live in `docs/BACKLOG.md`.
 
 ---
 
