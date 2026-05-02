@@ -1427,7 +1427,8 @@ RULES:
         if geo:
             dlg.restoreGeometry(geo)
         else:
-            dlg.resize(550, 600)
+            dlg.resize(int(_f_dlg * self.IDENTITY_DIALOG_MIN_WIDTH_RATIO),
+                      int(_f_dlg * self.IDENTITY_DIALOG_MIN_HEIGHT_RATIO))
 
         layout = QVBoxLayout(dlg)
 
