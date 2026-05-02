@@ -394,6 +394,11 @@ class PostComposerWidget(QWidget):
             p.collection = data.get("collection", "")
             p.release_chain = [ReleaseStep.from_dict(s) for s in data.get("release_chain", [])]
             p.campaign_id = data.get("campaign_id", getattr(p, "campaign_id", ""))
+            # Preserve identity_name across save - the dropdown lives in
+            # the right panel and may not be present in older composers.
+            ident = data.get("identity_name")
+            if ident is not None:
+                p.identity_name = ident
             # Preserve fields not yet in the UI
             p.updated_at = now
             result_post = p
@@ -414,6 +419,7 @@ class PostComposerWidget(QWidget):
                 collection=data.get("collection", ""),
                 release_chain=[ReleaseStep.from_dict(s) for s in data.get("release_chain", [])],
                 campaign_id=data.get("campaign_id", ""),
+                identity_name=data.get("identity_name", ""),
                 created_at=now,
                 updated_at=now,
             )

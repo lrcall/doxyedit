@@ -588,6 +588,7 @@ class SocialPost:
     censor_mode: str = "auto"  # "auto" | "uncensored" | "custom"
     platform_censor: dict[str, bool] = field(default_factory=dict)  # platform_id -> should_censor
     platform_metrics: dict[str, dict] = field(default_factory=dict)  # platform_id -> PostMetrics dict
+    identity_name: str = ""  # which Project.identities entry to use; "" = active
 
     def to_dict(self) -> dict:
         return {
@@ -611,6 +612,7 @@ class SocialPost:
             "censor_mode": self.censor_mode,
             "platform_censor": self.platform_censor,
             "platform_metrics": self.platform_metrics,
+            "identity_name": self.identity_name,
         }
 
     @classmethod
@@ -639,6 +641,7 @@ class SocialPost:
             censor_mode=d.get("censor_mode", "auto"),
             platform_censor=d.get("platform_censor", {}),
             platform_metrics=d.get("platform_metrics", {}),
+            identity_name=d.get("identity_name", ""),
         )
 
 
