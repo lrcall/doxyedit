@@ -185,7 +185,6 @@ class FileBrowserPanel(QWidget):
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._tree_context_menu)
         self._tree.clicked.connect(self._on_folder_clicked)
-        self._tree.setStyleSheet("")
         self._tree.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
 
         # Set root to drives on Windows

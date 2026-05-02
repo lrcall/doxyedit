@@ -232,13 +232,16 @@ class ImagePreviewPanel(QWidget):
             row.addWidget(lbl, 1)
 
             issues = readiness.get("issues", [])
+            # font-size dropped from inline stylesheet — theme.font_size
+            # is already the cascaded default, so the explicit declaration
+            # was a no-op and a tokenization smell.
             if issues:
                 issue_lbl = QLabel(issues[0])
-                issue_lbl.setStyleSheet(f"color: {_dt.error}; font-size: {_dt.font_size}px;")
+                issue_lbl.setStyleSheet(f"color: {_dt.error};")
                 row.addWidget(issue_lbl)
             else:
                 ok_lbl = QLabel("Ready")
-                ok_lbl.setStyleSheet(f"color: {_dt.success}; font-size: {_dt.font_size}px;")
+                ok_lbl.setStyleSheet(f"color: {_dt.success};")
                 row.addWidget(ok_lbl)
 
             self._prep_strip_layout.addWidget(row_w)
