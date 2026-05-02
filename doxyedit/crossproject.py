@@ -257,3 +257,5 @@ def detect_conflicts(
                 current_post_id=post.id,
                 conflict_type="saturation",
             ))
+
+    return warnings
