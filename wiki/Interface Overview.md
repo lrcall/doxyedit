@@ -64,7 +64,7 @@ The browser toolbar uses a FlowLayout — buttons wrap on narrow windows. From l
 - **Click** — select one image
 - **Ctrl+Click** — toggle multi-select
 - **Shift+Click** — select range
-- **Alt+Click** — send to Censor tab
+- **Alt+Click** — send to Studio (legacy: was "send to Censor" in v1.x)
 - **Enter** or **Double-click** — open preview window
 - **Middle-click** — instant preview (works even with hover disabled)
 - **Up/Down arrows** — navigate between thumbnails; auto-scrolls to keep selection visible
@@ -162,7 +162,7 @@ Each slot displays: name, target size, assigned asset thumbnail, and status (pen
 
 ## Work Tray (Right Panel)
 
-The Work Tray is a collapsible right panel that persists across all four tabs. Use it as a staging area for assets you're actively working with.
+The Work Tray is a collapsible right panel that persists across all six tabs. Use it as a staging area for assets you're actively working with.
 
 - **Ctrl+T** toggles it open/closed
 - Remembers its width when toggled
