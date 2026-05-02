@@ -1452,6 +1452,9 @@ class StudioScene(QGraphicsScene):
         if not ok:
             return
         crop.rotation = float(val)
+        if hasattr(target, "rotation_deg"):
+            target.rotation_deg = float(val)
+            target.update()
         if hasattr(editor, "_dirty"):
             editor._dirty = True
         if hasattr(editor, "info_label"):
@@ -9418,6 +9421,7 @@ class StudioEditor(QWidget):
                       if has_platform and crop.w and crop.h
                       else None)
             item = ResizableCropItem(rect, label=crop.label, aspect=aspect, theme=self._theme)
+            item.rotation_deg = float(getattr(crop, "rotation", 0.0) or 0.0)
             item.on_changed = self._on_crop_edited
             self._scene.addItem(item)
             self._crop_items.append(item)

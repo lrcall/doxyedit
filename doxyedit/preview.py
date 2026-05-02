@@ -161,6 +161,11 @@ class ResizableCropItem(QGraphicsRectItem):
         self._aspect = aspect
         self._handle_dragging = -1  # which handle is being dragged (-1 = none)
         self._drag_start_rect = QRectF()
+        # Cosmetic: when set, paint() draws a dashed outline of the rotated
+        # crop region around the rect's center so the user sees how the
+        # exporter will rotate-before-crop. Axis-aligned rect itself stays
+        # the source of truth for x/y/w/h.
+        self.rotation_deg: float = 0.0
         self.setFlags(
             QGraphicsItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
@@ -181,6 +186,22 @@ class ResizableCropItem(QGraphicsRectItem):
         painter.setPen(self.pen())
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(self.rect())
+        # Draw rotated outline (dashed) when rotation is non-zero so the
+        # user sees what the exporter will produce. Drawn around the
+        # rect's center to match exporter.apply_crop_rect.
+        if self.rotation_deg:
+            painter.save()
+            r = self.rect()
+            cx, cy = r.center().x(), r.center().y()
+            painter.translate(cx, cy)
+            painter.rotate(self.rotation_deg)
+            painter.translate(-cx, -cy)
+            dash_pen = QPen(self.pen())
+            dash_pen.setStyle(Qt.PenStyle.DashLine)
+            painter.setPen(dash_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(r)
+            painter.restore()
         # Draw label (screen-space sized so it stays readable at any zoom)
         if self.label:
             _dt = THEMES[DEFAULT_THEME]
