@@ -98,11 +98,17 @@ This helps you quickly find which images are suitable for each platform slot wit
 
 ---
 
-## Censor Tab Integration
+## Studio Censor Integration
 
-Non-destructive censors are applied at export time for platforms that require them (e.g., Kickstarter Japan). See [[Import & Export]] for the export workflow and the [[Interface Overview]] for the Censor tab.
+Non-destructive censors are drawn in the **Studio** tab (X key)
+and applied at export time for platforms that require them (e.g.,
+Kickstarter Japan, Fantia, Ci-en). See [[Import & Export]] for the
+export workflow and [[Interface Overview]] for Studio's tool surface.
+(Pre-v2.0 docs called this the "Censor tab" — that tab was merged
+into Studio.)
 
-The **Needs Censor** filter button shows assets assigned to censor-required platforms that have no censor regions drawn yet.
+The **Needs Censor** filter button shows assets assigned to censor-
+required platforms that have no censor regions drawn yet.
 
 ---
 
@@ -120,7 +126,7 @@ A per-project checklist can be maintained as a markdown-editable document linked
 
 ## Related
 
-- [[Interface Overview]] — Platforms tab and Censor tab layout
+- [[Interface Overview]] — Platforms tab + Studio tab (which now owns censor)
 - [[Import & Export]] — export workflow details
 - [[Tagging System]] — platform tags and fitness dots
 - [[Health & Stats]] — platform assignment summary via CLI

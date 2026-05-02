@@ -106,7 +106,7 @@ All of the following are saved and restored automatically:
 
 ## Related
 
-- [[Interface Overview]] — learn the four tabs
+- [[Interface Overview]] — learn the six tabs (Assets, Studio, Social, Platforms, Overview, Notes)
 - [[Tagging System]] — start tagging your assets
 - [[Keyboard Shortcuts]] — full shortcut reference
 - [[Thumbnail Cache]] — how caching works
