@@ -28,6 +28,8 @@ from PySide6.QtWidgets import QFileDialog
 from doxyedit.formats import ensure_project_ext
 from doxyedit.models import Project
 from doxyedit.perf import perf_time
+from doxyedit.session import ProjectLoader
+from doxyedit.themes import THEMES
 
 
 class BackgroundSaver(QThread):
@@ -222,6 +224,39 @@ class SaveLoadMixin:
             self._autosave_collection()
         else:
             self._save_project_as()
+
+    def _reload_project(self):
+        """Reload the current project file from disk (F5). Load runs
+        off-thread via ProjectLoader. MainWindow provides browser /
+        status / _rebind_project / _apply_theme."""
+        if not self._project_path or not Path(self._project_path).exists():
+            self.browser.refresh()
+            self.status.showMessage(
+                "No project file to reload, refreshed grid", 2000)
+            return
+        saved_filters = self.browser.get_filter_state()
+        path = self._project_path
+        self.status.showMessage("Reloading project...", 0)
+
+        loader = ProjectLoader(path, self)
+        # keep reference so GC does not kill the thread
+        self._reload_loader = loader
+
+        def _on_loaded(project, loaded_path):
+            self.project = project
+            self._rebind_project()
+            self.browser.set_filter_state(saved_filters)
+            if self.project.theme_id and self.project.theme_id in THEMES:
+                self._apply_theme(self.project.theme_id)
+            self._dirty = False
+            self.status.showMessage("Reloaded project from disk", 2000)
+
+        def _on_failed(_path, err):
+            self.status.showMessage(f"Reload failed: {err}", 5000)
+
+        loader.loaded.connect(_on_loaded)
+        loader.failed.connect(_on_failed)
+        loader.start()
 
     def _open_project(self):
         """Open dialog → delegate to _load_project_from on MainWindow."""
