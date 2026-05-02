@@ -3,10 +3,10 @@ import os
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
-    QScrollArea, QFrame, QPushButton, QLineEdit, QCompleter,
-    QSizePolicy,
+    QScrollArea, QFrame, QPushButton,
+    QSizePolicy, QInputDialog,
 )
-from PySide6.QtCore import Qt, Signal, QStringListModel, QSettings
+from PySide6.QtCore import Qt, Signal, QSettings
 from doxyedit.themes import ui_font_size
 
 from doxyedit.browser import FlowLayout
@@ -36,11 +36,19 @@ class _TagPill(QPushButton):
             self.clicked.connect(lambda: self.removed.emit(self.tag_id))
         self.setText(label)
         if color:
+            # Dark tag colors swallow rgba(0,0,0,0.8) hover text; pick a
+            # near-white foreground in that case to keep the label readable.
+            from PySide6.QtGui import QColor as _QC
+            _qc = _QC(color)
+            _on_bg = (
+                "rgba(0,0,0,0.85)"
+                if (_qc.red() + _qc.green() + _qc.blue()) > 384
+                else "rgba(255,255,255,0.92)")
             self.setStyleSheet(
                 f"QPushButton {{ background: transparent; color: {color};"
                 f" border: 1px solid {color}; border-radius: {_cb // 2}px;"
                 f" padding: 2px 8px; font-size: {_f}px; font-weight: bold; }}"
-                f"QPushButton:hover {{ background: {color}; color: rgba(0,0,0,0.8); }}"
+                f"QPushButton:hover {{ background: {color}; color: {_on_bg}; }}"
             )
         else:
             self.setStyleSheet("")
@@ -149,21 +157,8 @@ class InfoPanel(QWidget):
         self._add_tag_btn.setFixedSize(_cb, _cb)
         self._add_tag_btn.setToolTip("Add tag")
         self._add_tag_btn.clicked.connect(self._start_add_tag)
-        # Tag add inline editor (hidden by default)
-        self._tag_add_edit = QLineEdit()
-        self._tag_add_edit.setFixedHeight(_cb)
-        TAG_ADD_MAX_WIDTH_RATIO = 10.0     # tag add editor max width
-        self._tag_add_edit.setMaximumWidth(int(_f * TAG_ADD_MAX_WIDTH_RATIO))
-        self._tag_add_edit.setPlaceholderText("tag name...")
-        self._tag_add_edit.returnPressed.connect(self._finish_add_tag)
-        self._tag_add_edit.hide()
         self._available_tags: list[str] = []
         self._tag_palette: dict[str, str] = {}  # tag_id -> hex color
-        self._completer_model = QStringListModel()
-        self._completer = QCompleter(self._completer_model)
-        self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self._tag_add_edit.setCompleter(self._completer)
 
         # Separator
         self._layout.addWidget(self._separator())
@@ -342,9 +337,8 @@ class InfoPanel(QWidget):
         self._render_palette([])
 
     def set_available_tags(self, tags: list[str]):
-        """Set the list of known tags for autocomplete."""
+        """Set the list of known tags (used for tooltips/autocomplete)."""
         self._available_tags = tags
-        self._completer_model.setStringList(tags)
 
     def set_tag_palette(self, palette: dict) -> None:
         """Set tag_id -> hex color map for coloring pills.
@@ -365,8 +359,8 @@ class InfoPanel(QWidget):
 
     def _rebuild_tag_pills(self, tags: list[str], removable: bool = True):
         """Rebuild the tag flow with pills for each tag."""
-        # Clear existing — remove all widgets except the persistent add button and editor
-        keep = {self._add_tag_btn, self._tag_add_edit}
+        # Clear existing — keep the persistent "+" button across rebuilds.
+        keep = {self._add_tag_btn}
         while self._tag_flow.count():
             item = self._tag_flow.takeAt(0)
             w = item.widget()
@@ -379,9 +373,7 @@ class InfoPanel(QWidget):
             if removable:
                 pill.removed.connect(self._remove_tag)
             self._tag_flow.addWidget(pill)
-        # Add the "+" button and hide the editor
-        self._tag_add_edit.hide()
-        self._tag_add_edit.clear()
+        # Add the "+" button at the end so it always trails the pills.
         self._tag_flow.addWidget(self._add_tag_btn)
 
     def _remove_tag(self, tag_id: str):
@@ -399,21 +391,26 @@ class InfoPanel(QWidget):
         self.tags_modified.emit()
 
     def _start_add_tag(self):
-        """Show the inline tag name editor."""
-        self._tag_add_edit.show()
-        self._tag_add_edit.setFocus()
-
-    def _finish_add_tag(self):
-        """Add the typed tag to the current asset(s)."""
-        text = self._tag_add_edit.text().strip().lower().replace(" ", "_")
+        """Open a themed Add Tag dialog (matches the browser's
+        right-click 'Add Tag...' so the look is consistent)."""
+        win = self.window()
+        dlg = QInputDialog(win)
+        dlg.setWindowTitle("Add Tag")
+        dlg.setLabelText("Tag to add:")
+        # Inherit the app stylesheet so the dialog is themed instead
+        # of falling back to the unstyled native window.
+        try:
+            dlg.setStyleSheet(win.styleSheet())
+        except Exception:
+            pass
+        if dlg.exec() != QInputDialog.DialogCode.Accepted:
+            return
+        text = dlg.textValue().strip().lower().replace(" ", "_")
         if not text:
-            self._tag_add_edit.hide()
             return
         for asset in self._assets:
             if text not in asset.tags:
                 asset.tags.append(text)
-        self._tag_add_edit.hide()
-        self._tag_add_edit.clear()
         if self._assets and len(self._assets) == 1:
             self._rebuild_tag_pills(self._assets[0].tags)
         else:

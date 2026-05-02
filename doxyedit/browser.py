@@ -1793,12 +1793,21 @@ class AssetBrowser(QWidget):
         h = int(font_size * TAG_BUTTON_HEIGHT_RATIO)
         for btn, color in self._tag_buttons:
             btn.setFixedHeight(h)
+            # Pick a foreground that stays readable on the tag color when
+            # the button fills (hover/checked). Dark tag colors get a near-
+            # white foreground; light tag colors get near-black. Without
+            # this, dark tag colors swallow the rgba(0,0,0,0.8) text.
+            _qc = QColor(color)
+            _on_bg = (
+                "rgba(0,0,0,0.85)"
+                if (_qc.red() + _qc.green() + _qc.blue()) > 384
+                else "rgba(255,255,255,0.92)")
             btn.setStyleSheet(
                 f"QPushButton {{ background: transparent; color: {color};"
                 f" border: 1px solid {color}; border-radius: {h // 2}px;"
                 f" padding: 2px 8px; font-size: {font_size}px; font-weight: bold; }}"
-                f"QPushButton:hover {{ background: {color}; color: rgba(0,0,0,0.8); }}"
-                f"QPushButton:checked {{ background: {color}; color: rgba(0,0,0,0.85);"
+                f"QPushButton:hover {{ background: {color}; color: {_on_bg}; }}"
+                f"QPushButton:checked {{ background: {color}; color: {_on_bg};"
                 f" border-color: {color}; }}"
                 f"QPushButton:checked:hover {{ background: {color}; }}")
         self._add_tag_btn.setObjectName("add_tag_btn")
