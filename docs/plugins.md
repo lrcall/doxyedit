@@ -33,6 +33,8 @@ a `.py` file into `~/.doxyedit/plugins/` and it loads on next launch.
 |-------|-------------------|------------|
 | `project_loaded` | `(project, project_path: str)` | Project finishes loading from disk (open or reload) |
 | `post_pushed` | `(post, platform: str, ok: bool, detail: str)` | OneUp push completes for a single platform / sub-account |
+| `asset_imported` | `(asset)` | A new asset just got added to the project (file import, paste, drag-drop) |
+| `shutdown` | `()` | MainWindow is closing — last chance to flush sockets, files, etc. |
 
 More events will be added as the codebase exposes more hook points.
 File a request with the lifecycle moment you want exposed.

@@ -8239,6 +8239,14 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             _release_running_lock()
         except Exception:
             pass
+        # Notify plugins so they can flush any state they hold
+        # (sockets, file handles, etc). Errors are swallowed - shutdown
+        # should never cancel.
+        try:
+            from doxyedit import plugins as _dp
+            _dp.emit("shutdown")
+        except Exception:
+            pass
         # Tear down the persistent bridge CDP session + HTTP bridge
         # so the daemon threads don't outlive Qt (otherwise Python's
         # thread cleanup at interpreter shutdown can raise ugly

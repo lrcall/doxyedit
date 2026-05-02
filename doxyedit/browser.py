@@ -3379,6 +3379,17 @@ class AssetBrowser(QWidget):
             self._refresh_grid()
             if first_id:
                 self.scroll_to_asset(first_id)
+            # Notify plugins about each freshly-imported asset.
+            try:
+                from doxyedit import plugins as _dp
+                for f in new_files:
+                    asset = next(
+                        (a for a in self.project.assets if a.source_path == f),
+                        None)
+                    if asset is not None:
+                        _dp.emit("asset_imported", asset)
+            except Exception:
+                pass
         return added
 
     # --- Drag and drop ---
