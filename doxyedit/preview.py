@@ -167,9 +167,12 @@ class NoteRectItem(QGraphicsRectItem):
 
 
 class ResizableCropItem(QGraphicsRectItem):
-    """Crop rectangle with 8 resize handles and drag-to-move."""
+    """Crop rectangle with 8 resize handles, a rotate handle, and
+    drag-to-move."""
 
     HANDLE_SIZE = 14
+    ROTATE_HANDLE_OFFSET = 24   # px above top edge for the rotate handle
+    ROTATE_HANDLE_DIAM = 14     # circle diameter
 
     def __init__(self, rect: QRectF, label: str = "", aspect: float | None = None, theme=None, parent=None):
         super().__init__(rect, parent)
@@ -251,17 +254,38 @@ class ResizableCropItem(QGraphicsRectItem):
             painter.drawText(QRectF(tx, ty, tw, th), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, self.label)
         # Draw handles if selected
         if self.isSelected():
+            handles = self._handle_rects()
+            # Resize handles 0..7 as small filled rects
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(self._theme.crop_border))
-            for hr in self._handle_rects():
+            for hr in handles[:8]:
                 painter.drawRect(hr)
+            # Rotate handle (index 8) drawn as an outlined circle so
+            # users can tell it apart from the resize handles, with a
+            # thin connector line down to the top edge.
+            r = self.rect()
+            cx = r.center().x()
+            top_y = r.top()
+            rot_handle = handles[8]
+            connector_pen = QPen(QColor(self._theme.crop_border),
+                                 max(1, self.HANDLE_SIZE // 7))
+            painter.setPen(connector_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawLine(
+                QPointF(cx, top_y),
+                QPointF(rot_handle.center().x(), rot_handle.center().y()))
+            painter.setBrush(QColor(self._theme.crop_border))
+            painter.drawEllipse(rot_handle)
 
     def _handle_rects(self) -> list[QRectF]:
-        """Return 8 handle rects: TL, TC, TR, ML, MR, BL, BC, BR."""
+        """Return 9 handle rects in order:
+        0:TL 1:TC 2:TR 3:ML 4:MR 5:BL 6:BC 7:BR 8:rotate."""
         r = self.rect()
         s = self.HANDLE_SIZE
         hs = s / 2
         cx, cy = r.center().x(), r.center().y()
+        rd = self.ROTATE_HANDLE_DIAM
+        rh = rd / 2
         return [
             QRectF(r.left() - hs, r.top() - hs, s, s),          # 0: TL
             QRectF(cx - hs, r.top() - hs, s, s),                 # 1: TC
@@ -271,7 +295,17 @@ class ResizableCropItem(QGraphicsRectItem):
             QRectF(r.left() - hs, r.bottom() - hs, s, s),        # 5: BL
             QRectF(cx - hs, r.bottom() - hs, s, s),              # 6: BC
             QRectF(r.right() - hs, r.bottom() - hs, s, s),       # 7: BR
+            QRectF(cx - rh,
+                   r.top() - self.ROTATE_HANDLE_OFFSET - rh,
+                   rd, rd),                                       # 8: rotate
         ]
+
+    def boundingRect(self):
+        """Expand the bounding rect upward so the rotate handle and
+        its connector line are inside the paint dispatch area."""
+        r = self.rect()
+        margin_top = self.ROTATE_HANDLE_OFFSET + self.ROTATE_HANDLE_DIAM
+        return r.adjusted(0, -margin_top, 0, 0)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -286,11 +320,31 @@ class ResizableCropItem(QGraphicsRectItem):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        if self._handle_dragging == 8:
+            # Rotate handle: angle from rect center to cursor, where
+            # 0 deg = handle straight up. atan2(dx, -dy) gives clockwise
+            # angle from "12 o'clock". Snap to 15deg with Shift held.
+            import math
+            r = self.rect()
+            cx, cy = r.center().x(), r.center().y()
+            dx = event.pos().x() - cx
+            dy = event.pos().y() - cy
+            angle = math.degrees(math.atan2(dx, -dy))
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                angle = round(angle / 15.0) * 15.0
+            # Wrap to [-180, 180]
+            while angle > 180:
+                angle -= 360
+            while angle < -180:
+                angle += 360
+            self.rotation_deg = float(angle)
+            self.update()
+            event.accept()
+            return
         if self._handle_dragging >= 0:
             pos = event.pos()
             r = QRectF(self._drag_start_rect)
             h = self._handle_dragging
-            # Resize based on which handle
             if h in (0, 3, 5):  # left handles
                 r.setLeft(pos.x())
             if h in (2, 4, 7):  # right handles
@@ -299,15 +353,13 @@ class ResizableCropItem(QGraphicsRectItem):
                 r.setTop(pos.y())
             if h in (5, 6, 7):  # bottom handles
                 r.setBottom(pos.y())
-            # Normalize (swap if inverted)
             r = r.normalized()
-            # Enforce aspect ratio if set
             if self._aspect and self._aspect > 0:
-                if h in (3, 4):  # side handles → adjust height
+                if h in (3, 4):
                     r.setHeight(r.width() / self._aspect)
-                elif h in (1, 6):  # top/bottom handles → adjust width
+                elif h in (1, 6):
                     r.setWidth(r.height() * self._aspect)
-                else:  # corner handles → adjust height to match
+                else:
                     r.setHeight(r.width() / self._aspect)
             if r.width() >= 10 and r.height() >= 10:
                 self.prepareGeometryChange()
