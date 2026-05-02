@@ -24,3 +24,8 @@ build_pyqt_tmp/
 *.doxyproj.json
 !doxyedit/
 design_mockups/
+
+# Editor / tooling state — checked in by accident in past sessions.
+.claude/scheduled_tasks.lock
+.obsidian/workspace.json
+wiki/.obsidian/workspace.json
