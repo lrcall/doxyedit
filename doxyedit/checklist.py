@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 from PySide6.QtCore import Signal
-from doxyedit.themes import ui_font_size, ui_metrics
+from doxyedit.themes import ui_metrics
 from doxyedit.panel_mixin import LazyRefreshMixin
 
 

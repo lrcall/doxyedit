@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QFrame, QProgressBar, QSizePolicy,
 )
 from PySide6.QtCore import Qt, QThread, Signal
-from doxyedit.themes import ui_font_size, ui_metrics, THEMES, DEFAULT_THEME
+from doxyedit.themes import ui_metrics, THEMES, DEFAULT_THEME
 
 from doxyedit.models import Project, PLATFORMS
 from doxyedit.panel_mixin import LazyRefreshMixin

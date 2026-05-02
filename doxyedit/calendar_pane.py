@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QPushButton, QFrame, QSizePolicy,
 )
 from PySide6.QtCore import Signal, Qt, QTimer
-from doxyedit.themes import ui_font_size, ui_metrics
+from doxyedit.themes import ui_metrics
 
 from doxyedit.models import Project
 from doxyedit.panel_mixin import LazyRefreshMixin
