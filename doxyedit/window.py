@@ -4196,7 +4196,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 )
                 logging.warning(f"[Sync] WARNING: {len(dupes)} duplicate(s) on OneUp")
 
-            # Reconcile each local queued post
+            # Pass 1: reconcile + collect posts that need to be pushed.
+            # The actual push runs after the loop so it can move to a
+            # thread without entangling with the dialog timing above.
+            to_push: list = []
             for post in self.project.posts:
                 if post.status not in (SocialPostStatus.QUEUED, "queued"):
                     continue
@@ -4206,7 +4209,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 if remote == "published":
                     post.status = SocialPostStatus.POSTED
                     updated += 1
-                    logging.info(f"[Sync] {post.id[:8]} → POSTED")
+                    logging.info(f"[Sync] {post.id[:8]} -> POSTED")
                     if not post.engagement_checks:
                         try:
                             from doxyedit.reminders import generate_engagement_windows
@@ -4220,25 +4223,31 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 elif remote == "failed":
                     post.status = SocialPostStatus.FAILED
                     updated += 1
-                    logging.error(f"[Sync] {post.id[:8]} → FAILED")
+                    logging.error(f"[Sync] {post.id[:8]} -> FAILED")
                 elif remote == "scheduled":
                     if not post.oneup_post_id:
                         post.oneup_post_id = "synced"
                     logging.info(f"[Sync] {post.id[:8]} = scheduled (no action)")
                 elif not post.oneup_post_id:
-                    # PUSH: not on OneUp, never pushed
-                    logging.info(f"[Sync] {post.id[:8]} → pushing...")
-                    self._export_post_assets(post)
-                    self._push_post_to_oneup(post)
-                    if post.oneup_post_id:
-                        pushed_count += 1
-                    QApplication.processEvents()
+                    to_push.append(post)
                 else:
-                    # CLEAN: was pushed but gone from OneUp → back to draft
+                    # CLEAN: was pushed but gone from OneUp -> back to draft
                     post.status = SocialPostStatus.DRAFT
                     post.oneup_post_id = ""
                     cleaned_count += 1
-                    logging.info(f"[Sync] {post.id[:8]} → DRAFT (gone from OneUp)")
+                    logging.info(f"[Sync] {post.id[:8]} -> DRAFT (gone from OneUp)")
+
+            # Pass 2: push collected posts. _export_post_assets stays on
+            # the UI thread (file IO + project mutation); the network call
+            # itself is still synchronous in this commit, but isolating
+            # the loop sets up the next fire's swap to _OneUpPushThread.
+            for post in to_push:
+                logging.info(f"[Sync] {post.id[:8]} -> pushing...")
+                self._export_post_assets(post)
+                self._push_post_to_oneup(post)
+                if post.oneup_post_id:
+                    pushed_count += 1
+                QApplication.processEvents()
         else:
             logging.info("[Sync] No API key")
 
