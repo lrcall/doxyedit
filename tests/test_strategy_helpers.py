@@ -84,6 +84,30 @@ class TestParseDt(unittest.TestCase):
         self.assertIsNone(_parse_dt("not a date"))
 
 
+class TestFmtDatetime(unittest.TestCase):
+    """_fmt_datetime: 'Tue Apr 15, 10:00 AM'-style format. Strips
+    leading 0 from the hour so 09:00 becomes ' 9:00 AM' → '9:00 AM'."""
+
+    def test_basic_format(self):
+        from doxyedit.strategy import _fmt_datetime
+        out = _fmt_datetime(datetime(2026, 4, 15, 10, 30))
+        self.assertIn("Apr 15", out)
+        self.assertIn("10:30", out)
+        self.assertTrue(out.endswith("AM") or out.endswith("PM"))
+
+    def test_leading_zero_hour_stripped(self):
+        from doxyedit.strategy import _fmt_datetime
+        # 09:00 AM with %I gives '09:00 AM' on most platforms; lstrip
+        # removes the leading '0'.
+        out = _fmt_datetime(datetime(2026, 4, 15, 9, 0))
+        self.assertFalse(out.startswith("0"))
+
+    def test_pm_after_noon(self):
+        from doxyedit.strategy import _fmt_datetime
+        out = _fmt_datetime(datetime(2026, 4, 15, 14, 30))
+        self.assertIn("PM", out)
+
+
 class TestDaysAgo(unittest.TestCase):
     def test_same_day(self):
         from doxyedit.strategy import _days_ago
