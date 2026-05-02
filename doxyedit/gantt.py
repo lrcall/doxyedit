@@ -301,6 +301,7 @@ class GanttPanel(LazyRefreshMixin, QWidget):
     # -- chart rebuild ------------------------------------------------------
 
     def _rebuild_chart(self) -> None:
+        import logging as _logging
         self._scene.clear()
 
         # Clear row labels
@@ -310,15 +311,18 @@ class GanttPanel(LazyRefreshMixin, QWidget):
                 item.widget().deleteLater()
 
         if not self._project:
+            _logging.debug("gantt: no project bound")
             return
 
         posts = self._project.posts
         if not posts:
+            _logging.debug("gantt: project has 0 posts")
             return
 
         d_start = self._date_start.date().toPython()
         d_end = self._date_end.date().toPython()
         if d_end <= d_start:
+            _logging.debug("gantt: end date %s <= start date %s", d_end, d_start)
             return
 
         total_days = (d_end - d_start).days
@@ -329,12 +333,17 @@ class GanttPanel(LazyRefreshMixin, QWidget):
         # Gather platforms from posts that fall in range
         platform_set: set[str] = set()
         scheduled_posts: list[SocialPost] = []
+        bad_format = 0
+        no_schedule = 0
+        out_of_range = 0
         for p in posts:
             if not p.scheduled_time:
+                no_schedule += 1
                 continue
             try:
                 dt = datetime.fromisoformat(p.scheduled_time)
             except (ValueError, TypeError):
+                bad_format += 1
                 continue
             if d_start <= dt.date() <= d_end:
                 scheduled_posts.append(p)
@@ -345,9 +354,20 @@ class GanttPanel(LazyRefreshMixin, QWidget):
                 for step in p.release_chain:
                     if step.platform:
                         platform_set.add(step.platform)
+            else:
+                out_of_range += 1
 
         if not platform_set:
-            # Show at least the grid
+            # Helpful diagnostic when nothing renders. Goes to last_run.log
+            # under pythonw, terminal under py — either way the user gets a
+            # one-line answer to "why is the gantt empty?".
+            _logging.warning(
+                "gantt: no bars to draw (window %s..%s; %d posts: "
+                "%d unscheduled, %d bad-format, %d out-of-range, "
+                "%d in-range but no platforms)",
+                d_start, d_end, len(posts),
+                no_schedule, bad_format, out_of_range,
+                len(scheduled_posts))
             self._draw_grid(chart_w, 0, total_days, d_start, theme)
             return
 
