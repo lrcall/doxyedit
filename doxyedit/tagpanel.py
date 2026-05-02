@@ -222,6 +222,7 @@ class TagRow(QFrame):
     rename_requested = Signal(str, str)
     pin_requested = Signal(str)
     shortcut_requested = Signal(str)
+    parent_changed = Signal(str, str)  # tag_id, new_parent_id ("" = top-level)
     visibility_toggled = Signal(str, bool)
     row_clicked = Signal(str, bool)  # tag_id, ctrl_held
     select_all_requested = Signal(str)  # tag_id
@@ -360,10 +361,48 @@ class TagRow(QFrame):
         menu.addAction(f"Hide '{self.tag.label}'", lambda: self.hide_requested.emit(self.tag.id))
         menu.addAction(f"Delete '{self.tag.label}' from project", lambda: self.delete_requested.emit(self.tag.id))
         menu.addSeparator()
-        menu.addAction(f"Change Color…", self._pick_color)
+        menu.addAction(f"Change Color...", self._pick_color)
+        menu.addAction("Set Parent Tag...", self._pick_parent)
         menu.addSeparator()
         menu.addAction(f"Select all with '{self.tag.label}'", lambda: self.select_all_requested.emit(self.tag.id))
         menu.exec(event.globalPos())
+
+    def _pick_parent(self):
+        """Pick a parent tag from the project's existing tags. Selecting
+        '(none)' clears the parent. The widget itself doesn't know the
+        full tag list — emit parent_changed with an empty string so the
+        TagPanel can pop the actual selector and route the result back."""
+        from PySide6.QtWidgets import QInputDialog
+        # Walk up to TagPanel to read available tag ids
+        panel = self.parent()
+        while panel is not None and not hasattr(panel, "_get_all_tag_ids"):
+            panel = panel.parent()
+        if panel is None or not hasattr(panel, "_get_all_tag_ids"):
+            # Fallback: just take a free-text id
+            text, ok = QInputDialog.getText(
+                self.window(), "Set Parent Tag",
+                f"Parent for '{self.tag.label}' (empty = top-level):",
+                text=getattr(self.tag, "parent_id", "") or "")
+            if ok:
+                self.parent_changed.emit(self.tag.id, text.strip())
+            return
+        candidates = [
+            ("(none — top level)", "")
+        ] + [(tid, tid) for tid in panel._get_all_tag_ids()
+             if tid != self.tag.id]
+        labels = [c[0] for c in candidates]
+        current = getattr(self.tag, "parent_id", "") or ""
+        cur_idx = next(
+            (i for i, c in enumerate(candidates) if c[1] == current), 0)
+        choice, ok = QInputDialog.getItem(
+            self.window(), "Set Parent Tag",
+            f"Parent for '{self.tag.label}':",
+            labels, current=cur_idx, editable=False)
+        if not ok:
+            return
+        new_parent = next(c[1] for c in candidates if c[0] == choice)
+        if new_parent != current:
+            self.parent_changed.emit(self.tag.id, new_parent)
 
     def _pick_color(self):
         color = QColorDialog.getColor(QColor(self.tag.color), self.window(), "Tag Color")
@@ -584,6 +623,7 @@ class TagPanel(QWidget):
         row.select_all_requested.connect(lambda tid: self.select_all_with_tag.emit(tid))
         row.color_changed.connect(self._on_tag_color_changed)
         row.reorder_requested.connect(self._reorder_tag)
+        row.parent_changed.connect(self._on_tag_parent_changed)
         if tag_id in self._hidden_tags or section in self._collapsed_sections:
             row.setVisible(False)
         if insert_after is not None:
@@ -1089,6 +1129,51 @@ class TagPanel(QWidget):
     def _on_tag_color_changed(self, tag_id: str, hex_color: str):
         """Propagate color change to window for persistence."""
         self.tag_color_changed.emit(tag_id, hex_color)
+        self.tags_changed.emit()
+
+    def _get_all_tag_ids(self) -> list[str]:
+        """Used by TagRow's Set Parent dialog to populate the picker.
+        Returns every tag id known to the active project + the row
+        registry so a freshly-created custom tag is selectable too."""
+        out = list(self._rows.keys())
+        if self._project is not None:
+            for tid in self._project.tag_definitions.keys():
+                if tid not in out:
+                    out.append(tid)
+            for ct in self._project.custom_tags:
+                if isinstance(ct, dict):
+                    tid = ct.get("id", "")
+                    if tid and tid not in out:
+                        out.append(tid)
+        return sorted(out)
+
+    def _on_tag_parent_changed(self, tag_id: str, new_parent_id: str):
+        """Persist the new parent into project.tag_definitions and emit
+        tags_changed so the project becomes dirty + saves on next tick.
+
+        Cycle guard: if assigning new_parent_id would create a cycle
+        (e.g. tag is already an ancestor of new_parent_id) we silently
+        decline rather than corrupting the project. The per-row
+        QInputDialog the user just confirmed is gone, so the easiest
+        feedback channel is the panel's status logger if present."""
+        if self._project is None:
+            return
+        # Cycle check
+        if new_parent_id and tag_id in self._project.get_tag_ancestors(
+                new_parent_id):
+            return
+        if new_parent_id == tag_id:
+            return  # no-op
+        defn = self._project.tag_definitions.get(tag_id)
+        if not isinstance(defn, dict):
+            self._project.tag_definitions[tag_id] = {
+                "label": tag_id, "color": "#888",
+            }
+            defn = self._project.tag_definitions[tag_id]
+        if new_parent_id:
+            defn["parent_id"] = new_parent_id
+        else:
+            defn.pop("parent_id", None)
         self.tags_changed.emit()
 
     def _on_notes_changed(self):
