@@ -4315,11 +4315,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         muted = t.text_muted
         accent = t.accent_bright
         # Pick subtle overlay tones based on whether the theme is dark
-        # or light. Without this, light themes (Bone, Milk Glass) render
-        # white overlays on white panels (invisible) and dark themes get
-        # black overlays on black panels.
-        _bg_qc = QColor(t.bg_deep)
-        _is_dark = (_bg_qc.red() + _bg_qc.green() + _bg_qc.blue()) < 384
+        # or light, so light themes (Bone, Milk Glass) don't render
+        # invisible white-on-white code backgrounds.
+        from doxyedit.themes import is_dark_color
+        _is_dark = is_dark_color(t.bg_deep)
         code_bg = "rgba(255,255,255,0.07)" if _is_dark else "rgba(0,0,0,0.07)"
         _border_overlay = (
             "rgba(255,255,255,0.1)" if _is_dark else "rgba(0,0,0,0.1)")

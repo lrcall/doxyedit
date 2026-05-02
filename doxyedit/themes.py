@@ -1010,6 +1010,32 @@ def themed_dialog_size(w_ratio: float, h_ratio: float,
     return int(font_size * w_ratio), int(font_size * h_ratio)
 
 
+def is_dark_color(hex_or_qcolor) -> bool:
+    """True if the given color is dark (sum of RGB < 384, i.e. avg < 128).
+
+    Accepts a hex string ('#rrggbb') or any object with .red()/.green()/
+    .blue() (QColor). Used by themed-overlay code to pick contrast-
+    appropriate foregrounds and overlays for both dark and light themes.
+    """
+    if hasattr(hex_or_qcolor, "red") and callable(hex_or_qcolor.red):
+        c = hex_or_qcolor
+    else:
+        from PySide6.QtGui import QColor
+        c = QColor(hex_or_qcolor)
+    return (c.red() + c.green() + c.blue()) < 384
+
+
+def fg_on_color(hex_or_qcolor, alpha_dark: float = 0.92,
+                alpha_light: float = 0.85) -> str:
+    """Return an rgba() string suited as foreground text on the given
+    background color. Dark backgrounds get a near-white text, light
+    backgrounds get near-black. Alpha defaults work well for hover/
+    checked button states (tag-color buttons in browser/infopanel)."""
+    return (f"rgba(255,255,255,{alpha_dark})"
+            if is_dark_color(hex_or_qcolor)
+            else f"rgba(0,0,0,{alpha_light})")
+
+
 def generate_stylesheet(theme: Theme) -> str:
     """Generate a complete Qt stylesheet from a theme."""
     # --- Design tokens ---

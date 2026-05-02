@@ -1791,17 +1791,10 @@ class AssetBrowser(QWidget):
         font_size = self._current_font_size
         TAG_BUTTON_HEIGHT_RATIO = 2.2   # tag bar button height
         h = int(font_size * TAG_BUTTON_HEIGHT_RATIO)
+        from doxyedit.themes import fg_on_color
         for btn, color in self._tag_buttons:
             btn.setFixedHeight(h)
-            # Pick a foreground that stays readable on the tag color when
-            # the button fills (hover/checked). Dark tag colors get a near-
-            # white foreground; light tag colors get near-black. Without
-            # this, dark tag colors swallow the rgba(0,0,0,0.8) text.
-            _qc = QColor(color)
-            _on_bg = (
-                "rgba(0,0,0,0.85)"
-                if (_qc.red() + _qc.green() + _qc.blue()) > 384
-                else "rgba(255,255,255,0.92)")
+            _on_bg = fg_on_color(color)
             btn.setStyleSheet(
                 f"QPushButton {{ background: transparent; color: {color};"
                 f" border: 1px solid {color}; border-radius: {h // 2}px;"

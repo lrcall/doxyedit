@@ -36,14 +36,8 @@ class _TagPill(QPushButton):
             self.clicked.connect(lambda: self.removed.emit(self.tag_id))
         self.setText(label)
         if color:
-            # Dark tag colors swallow rgba(0,0,0,0.8) hover text; pick a
-            # near-white foreground in that case to keep the label readable.
-            from PySide6.QtGui import QColor as _QC
-            _qc = _QC(color)
-            _on_bg = (
-                "rgba(0,0,0,0.85)"
-                if (_qc.red() + _qc.green() + _qc.blue()) > 384
-                else "rgba(255,255,255,0.92)")
+            from doxyedit.themes import fg_on_color
+            _on_bg = fg_on_color(color)
             self.setStyleSheet(
                 f"QPushButton {{ background: transparent; color: {color};"
                 f" border: 1px solid {color}; border-radius: {_cb // 2}px;"
