@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
 )
 from PySide6.QtCore import Qt, QSettings, Signal, QDateTime
-from doxyedit.themes import ui_font_size
+from doxyedit.themes import ui_font_size, ui_metrics
 
 from doxyedit.models import Project, SocialPost, SocialPostStatus, ReleaseStep, PLATFORMS
 from doxyedit.composer_left import ImagePreviewPanel
@@ -117,9 +117,12 @@ class PostComposerWidget(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        _f = self._settings.value("font_size", 12, type=int)
-        _pad = max(4, _f // 3)
-        _pad_lg = max(6, _f // 2)
+        # Was reading via self._settings (per-instance QSettings cache),
+        # then deriving _pad / _pad_lg by hand. Same anti-pattern as the
+        # gantt / timeline / health / stats migrations - ui_metrics()
+        # already encapsulates the derivation off the process-wide
+        # ui_font_size cache.
+        _f, _pad, _pad_lg, _ = ui_metrics()
 
         root = QVBoxLayout(self)
         root.setSpacing(_pad)
