@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QFrame, QSizePolicy, QMessageBox, QFileDialog,
 )
 from PySide6.QtCore import Qt, Signal
-from doxyedit.themes import ui_font_size
+from doxyedit.themes import ui_font_size, ui_metrics
 from doxyedit.models import Project
 from doxyedit.panel_mixin import LazyRefreshMixin
 
@@ -78,9 +78,7 @@ class HealthPanel(LazyRefreshMixin, QWidget):
         self._build()
 
     def _build(self):
-        _f = ui_font_size()
-        _pad = max(4, _f // 3)
-        _pad_lg = max(6, _f // 2)
+        _f, _pad, _pad_lg, _ = ui_metrics()
         outer = QVBoxLayout(self)
         outer.setContentsMargins(_pad, _pad, _pad, _pad)
         outer.setSpacing(0)
@@ -196,8 +194,7 @@ class HealthPanel(LazyRefreshMixin, QWidget):
 
     def _issue_section(self, label: str, severity: str, assets: list,
                        missing: bool = False) -> QWidget:
-        _f = ui_font_size()
-        _pad = max(4, _f // 3)
+        _f, _pad, _, _ = ui_metrics()
         section = QWidget()
         layout = QVBoxLayout(section)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -223,9 +220,7 @@ class HealthPanel(LazyRefreshMixin, QWidget):
         return section
 
     def _asset_row(self, asset, severity: str) -> QWidget:
-        _f = ui_font_size()
-        _pad = max(4, _f // 3)
-        _pad_lg = max(6, _f // 2)
+        _f, _pad, _pad_lg, _ = ui_metrics()
         row = QWidget()
         row.setObjectName("health_row")
         row.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -252,9 +247,7 @@ class HealthPanel(LazyRefreshMixin, QWidget):
 
     def _missing_asset_row(self, asset, severity: str) -> QWidget:
         """Row for a missing asset — includes rename detection."""
-        _f = ui_font_size()
-        _pad = max(4, _f // 3)
-        _pad_lg = max(6, _f // 2)
+        _f, _pad, _pad_lg, _ = ui_metrics()
         outer = QWidget()
         outer_layout = QVBoxLayout(outer)
         outer_layout.setContentsMargins(0, 0, 0, 0)
