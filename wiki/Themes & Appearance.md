@@ -5,7 +5,20 @@ description: Available themes, font size controls, and the Vinik24 color palette
 
 # Themes & Appearance
 
-DoxyEdit ships with 7 built-in themes. The active theme applies to every widget — the main window, dialogs, tray, splitters, scrollbars, progress bar, and the preview window. The Windows title bar color also matches the theme.
+> [!note] Updated for v2.5
+> The original 7 themes (Vinik 24 / Warm Charcoal / Soot / Bone /
+> Milk Glass / Forest / Grey) have grown to 21+: Neon, Ember,
+> Midnight, Dawn, Citrus, Candy, Slate, Moss, Ocean, Lavender,
+> Sunset, Aurora, Gold (and more). The full canonical list is in
+> `doxyedit/themes.py` (each definition starts with `name="..."`),
+> reachable via View > Theme. The descriptions below cover the
+> original 7; new themes follow the same token vocabulary so the
+> contrast and accessibility properties carry over.
+
+DoxyEdit ships with 21+ built-in themes. The active theme applies to
+every widget — the main window, dialogs, tray, splitters, scrollbars,
+progress bar, and the preview window. The Windows title bar color
+also matches the theme.
 
 ---
 
