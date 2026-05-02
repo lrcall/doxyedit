@@ -435,9 +435,6 @@ def _section_brand_notes(project: Project) -> str:
     if identity.content_notes:
         lines.append(f"- **Content notes:** {identity.content_notes}")
 
-    if len(lines) == 1:
-        lines.append("- No identity configured")
-
     return "\n".join(lines) + "\n"
 
 
