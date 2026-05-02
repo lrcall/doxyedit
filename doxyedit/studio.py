@@ -2016,6 +2016,21 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
 
     _GEOM_KEY = "studio_shape_controls_geom"
 
+    # Font-relative ratios for the various chrome sizes inside this
+    # dialog. All are multiples of ui_font_size() so the layout scales
+    # with the user's font preference. ratios picked to preserve the
+    # original 12pt-era pixel sizes.
+    _SWATCH_W_RATIO = 2.5      # color swatch button width (was 30 @ f=12)
+    _ACTION_W_RATIO = 4.67     # small action button minwidth (was 56)
+    _SPIN_W_RATIO = 5.83       # numeric spin width (was 70)
+    _PRESET_MIN_RATIO = 2.83   # preset width quick-pick min (was 34)
+    _PRESET_MAX_RATIO = 3.5    # preset width quick-pick max (was 42)
+    _DLG_MIN_W_RATIO = 16.67   # dialog minimum width (was 200)
+    _DLG_MIN_H_RATIO = 8.33    # dialog minimum height (was 100)
+    _SLIDER_MIN_RATIO = 12.5   # slider minimum width (was 150)
+    _READOUT_W_RATIO = 3.33    # narrow numeric readout (was 40)
+    _READOUT_W_WIDE = 4.33     # wider readout (was 52)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._qs = QSettings("DoxyEdit", "DoxyEdit")
@@ -2037,8 +2052,9 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
         # philosophy). Buttons and sliders gracefully overflow the
         # contained scroll when sized below their sizeHint — users
         # who want the full layout can always resize back up.
-        self.setMinimumWidth(200)
-        self.setMinimumHeight(100)
+        _f = ui_font_size()
+        self.setMinimumWidth(int(_f * self._DLG_MIN_W_RATIO))
+        self.setMinimumHeight(int(_f * self._DLG_MIN_H_RATIO))
         # Ctrl+P pin-on-top toggle + Ctrl+Shift+L / R snap-to-edge
         # park positions. Mirror of _TextControlsDialog so both popups
         # respond to the same 'dock-ish' gestures.
@@ -2205,7 +2221,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             stroke_row = QHBoxLayout()
             stroke_row.setContentsMargins(0, 0, 0, 0)
             stroke_btn = _ColorSwatchButton(is_outline=True)
-            stroke_btn.setFixedWidth(30)
+            stroke_btn.setFixedWidth(int(ui_font_size() * self._SWATCH_W_RATIO))
             stroke_btn.setSwatchColor(ov.stroke_color or "#000000")
             def _stroke(hex_c, _it=item):
                 _it.overlay.stroke_color = hex_c
@@ -2229,7 +2245,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             fill_row = QHBoxLayout()
             fill_row.setContentsMargins(0, 0, 0, 0)
             fill_btn = _ColorSwatchButton(is_outline=False)
-            fill_btn.setFixedWidth(30)
+            fill_btn.setFixedWidth(int(ui_font_size() * self._SWATCH_W_RATIO))
             fill_btn.setSwatchColor(ov.fill_color or "#ffffff")
             def _fill(hex_c, _it=item):
                 _it.overlay.fill_color = hex_c
@@ -2248,7 +2264,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             fill_row.addWidget(fill_btn)
             clear_btn = QPushButton("Clear")
             clear_btn.setObjectName("studio_prop_btn")
-            clear_btn.setMinimumWidth(56)
+            clear_btn.setMinimumWidth(int(ui_font_size() * self._ACTION_W_RATIO))
             def _clear_fill(_checked=False, _it=item):
                 _it.overlay.fill_color = ""
                 _it.update()
@@ -2262,7 +2278,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             # a single letter on Windows default fonts.
             rand_btn = QPushButton("Rand")
             rand_btn.setObjectName("studio_prop_btn")
-            rand_btn.setMinimumWidth(56)
+            rand_btn.setMinimumWidth(int(ui_font_size() * self._ACTION_W_RATIO))
             rand_btn.setToolTip(
                 "Random pleasing color (HSL mid-brightness).")
             def _rand_fill(_checked=False, _it=item):
@@ -2290,7 +2306,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             sw_spin.setRange(0, 50)
             sw_spin.setValue(ov.stroke_width or 2)
             sw_spin.setSuffix(" px")
-            sw_spin.setFixedWidth(70)
+            sw_spin.setFixedWidth(int(ui_font_size() * self._SPIN_W_RATIO))
             def _sw_changed(v, _it=item):
                 _it.overlay.stroke_width = v
                 _it.update()
@@ -2302,8 +2318,8 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             # default button padding.
             for _w in (1, 2, 4, 8, 16):
                 pb = QPushButton(str(_w))
-                pb.setMinimumWidth(34)
-                pb.setMaximumWidth(42)
+                pb.setMinimumWidth(int(ui_font_size() * self._PRESET_MIN_RATIO))
+                pb.setMaximumWidth(int(ui_font_size() * self._PRESET_MAX_RATIO))
                 pb.setToolTip(f"Stroke {_w} px")
                 def _pick(_checked=False, v=_w):
                     sw_spin.setValue(v)
@@ -2572,7 +2588,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     angle_spin.setRange(-360, 360)
                     angle_spin.setSuffix("°")
                     angle_spin.setValue(int(ov.gradient_angle))
-                    angle_spin.setFixedWidth(70)
+                    angle_spin.setFixedWidth(int(ui_font_size() * self._SPIN_W_RATIO))
                     def _angle_changed(v, _it=item):
                         _it.overlay.gradient_angle = v
                         _it.update()
@@ -2611,10 +2627,10 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     ir_slider.setRange(10, 95)
                     ir_slider.setValue(int(
                         float(ov.inner_ratio or 0.4) * 100))
-                    ir_slider.setMinimumWidth(150)
+                    ir_slider.setMinimumWidth(int(ui_font_size() * self._SLIDER_MIN_RATIO))
                     ir_lbl = QLabel(
                         f"{int(float(getattr(ov, 'inner_ratio', 0.4) or 0.4) * 100)}%")
-                    ir_lbl.setFixedWidth(40)
+                    ir_lbl.setFixedWidth(int(ui_font_size() * self._READOUT_W_RATIO))
                     ir_lbl.setObjectName('shape_value_label')
                     def _ir_changed(v, _it=item, _lbl=ir_lbl):
                         _it.overlay.inner_ratio = v / 100.0
@@ -2644,9 +2660,9 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                     # Store as int*100 for QSlider; convert to float.
                     sl.setRange(int(lo * 100), int(hi * 100))
                     sl.setValue(int(getattr(ov, attr, 0.0) * 100))
-                    sl.setMinimumWidth(150)
+                    sl.setMinimumWidth(int(ui_font_size() * self._SLIDER_MIN_RATIO))
                     readout = QLabel(f"{getattr(ov, attr, 0.0):+.2f}")
-                    readout.setFixedWidth(52)
+                    readout.setFixedWidth(int(ui_font_size() * self._READOUT_W_WIDE))
                     readout.setObjectName('shape_value_label')
                     def _on_change(v, _it=item, _attr=attr, _r=readout):
                         val = v / 100.0
@@ -2747,9 +2763,9 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             op_slider = QSlider(Qt.Orientation.Horizontal)
             op_slider.setRange(0, 100)
             op_slider.setValue(int(ov.opacity * 100))
-            op_slider.setMinimumWidth(150)
+            op_slider.setMinimumWidth(int(ui_font_size() * self._SLIDER_MIN_RATIO))
             op_lbl = QLabel(f"{int(ov.opacity * 100)}%")
-            op_lbl.setFixedWidth(40)
+            op_lbl.setFixedWidth(int(ui_font_size() * self._READOUT_W_RATIO))
             op_lbl.setObjectName('shape_value_label')
             def _op_changed(v, _it=item, _lbl=op_lbl):
                 _it.overlay.opacity = v / 100.0
@@ -2771,10 +2787,10 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             if rot_init > 180:
                 rot_init -= 360
             rot_slider.setValue(rot_init)
-            rot_slider.setMinimumWidth(150)
+            rot_slider.setMinimumWidth(int(ui_font_size() * self._SLIDER_MIN_RATIO))
             rot_lbl = QLabel(f"{rot_init}°")
             rot_lbl.setObjectName('shape_value_label')
-            rot_lbl.setFixedWidth(44)
+            rot_lbl.setFixedWidth(int(ui_font_size() * self._READOUT_W_RATIO))
             rot_lbl.setObjectName('shape_value_label')
             def _rot_changed(v, _it=item, _lbl=rot_lbl):
                 _it.overlay.rotation = v % 360
@@ -2797,10 +2813,10 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             sc_slider = QSlider(Qt.Orientation.Horizontal)
             sc_slider.setRange(20, 500)
             sc_slider.setValue(100)
-            sc_slider.setMinimumWidth(150)
+            sc_slider.setMinimumWidth(int(ui_font_size() * self._SLIDER_MIN_RATIO))
             sc_lbl = QLabel("100%")
             sc_lbl.setObjectName('shape_value_label')
-            sc_lbl.setFixedWidth(44)
+            sc_lbl.setFixedWidth(int(ui_font_size() * self._READOUT_W_RATIO))
             sc_lbl.setObjectName('shape_value_label')
             # Freeze baseline so slider==100% keeps the current size
             _base = {
@@ -2880,9 +2896,9 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             sc_slider = QSlider(Qt.Orientation.Horizontal)
             sc_slider.setRange(1, 1000)
             sc_slider.setValue(int(ov.scale * 100))
-            sc_slider.setMinimumWidth(150)
+            sc_slider.setMinimumWidth(int(ui_font_size() * self._SLIDER_MIN_RATIO))
             sc_lbl = QLabel(f"{int(ov.scale * 100)}%")
-            sc_lbl.setFixedWidth(40)
+            sc_lbl.setFixedWidth(int(ui_font_size() * self._READOUT_W_RATIO))
             sc_lbl.setObjectName('shape_value_label')
             def _img_scale(v, _it=item, _lbl=sc_lbl):
                 _it.overlay.scale = v / 100.0
@@ -2904,9 +2920,9 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             op_slider = QSlider(Qt.Orientation.Horizontal)
             op_slider.setRange(0, 100)
             op_slider.setValue(int(ov.opacity * 100))
-            op_slider.setMinimumWidth(150)
+            op_slider.setMinimumWidth(int(ui_font_size() * self._SLIDER_MIN_RATIO))
             op_lbl = QLabel(f"{int(ov.opacity * 100)}%")
-            op_lbl.setFixedWidth(40)
+            op_lbl.setFixedWidth(int(ui_font_size() * self._READOUT_W_RATIO))
             op_lbl.setObjectName('shape_value_label')
             def _img_op(v, _it=item, _lbl=op_lbl):
                 _it.overlay.opacity = v / 100.0
@@ -2928,10 +2944,10 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             if rot_init > 180:
                 rot_init -= 360
             rot_slider.setValue(rot_init)
-            rot_slider.setMinimumWidth(150)
+            rot_slider.setMinimumWidth(int(ui_font_size() * self._SLIDER_MIN_RATIO))
             rot_lbl = QLabel(f"{rot_init}°")
             rot_lbl.setObjectName('shape_value_label')
-            rot_lbl.setFixedWidth(44)
+            rot_lbl.setFixedWidth(int(ui_font_size() * self._READOUT_W_RATIO))
             rot_lbl.setObjectName('shape_value_label')
             def _img_rot(v, _it=item, _lbl=rot_lbl):
                 _it.overlay.rotation = v % 360
@@ -2989,9 +3005,9 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
                 sl.setRange(-100, 100)
                 sl.setValue(int(
                     float(getattr(ov, attr, 0.0) or 0.0) * 100))
-                sl.setMinimumWidth(150)
+                sl.setMinimumWidth(int(ui_font_size() * self._SLIDER_MIN_RATIO))
                 lbl = QLabel(f"{sl.value():+d}")
-                lbl.setFixedWidth(40)
+                lbl.setFixedWidth(int(ui_font_size() * self._READOUT_W_RATIO))
                 lbl.setObjectName('shape_value_label')
                 def _on_change(v, _it=item, _attr=attr, _lbl=lbl):
                     setattr(_it.overlay, _attr, v / 100.0)
@@ -3082,7 +3098,7 @@ class _ShapeControlsDialog(QtWidgets.QDialog):
             sw_spin.setRange(1, 30)
             sw_spin.setValue(ov.stroke_width or 3)
             sw_spin.setSuffix(" px")
-            sw_spin.setFixedWidth(70)
+            sw_spin.setFixedWidth(int(ui_font_size() * self._SPIN_W_RATIO))
             def _arrow_sw(v, _it=item):
                 _it.overlay.stroke_width = v
                 _it.update()
