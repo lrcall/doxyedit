@@ -1124,30 +1124,9 @@ class StudioScene(QGraphicsScene):
         elif chosen is z100_act:
             editor._set_zoom(1.0)
         elif chosen is fit_w_act:
-            # Fit the full canvas width into the view, keeping the
-            # current vertical center. Useful for reading long vertical
-            # pages at a maximum horizontal zoom.
-            sr = editor._scene.sceneRect()
-            vw = max(1, editor._view.viewport().width())
-            if sr.width() > 0:
-                factor = vw / sr.width()
-                editor._view.resetTransform()
-                editor._view.scale(factor, factor)
-                editor._zoom_label.setText(f"{int(factor * 100)}%")
-                if hasattr(editor, "_canvas_wrap"):
-                    editor._canvas_wrap.refresh()
+            self._fit_axis(editor, "width")
         elif chosen is fit_h_act:
-            # Fit the full canvas height into the view. Mirror of Fit
-            # Width for wide artwork.
-            sr = editor._scene.sceneRect()
-            vh = max(1, editor._view.viewport().height())
-            if sr.height() > 0:
-                factor = vh / sr.height()
-                editor._view.resetTransform()
-                editor._view.scale(factor, factor)
-                editor._zoom_label.setText(f"{int(factor * 100)}%")
-                if hasattr(editor, "_canvas_wrap"):
-                    editor._canvas_wrap.refresh()
+            self._fit_axis(editor, "height")
         elif chosen is tog_grid_act:
             editor.chk_grid.setChecked(not editor.chk_grid.isChecked())
         elif chosen is tog_thirds_act:
@@ -1433,6 +1412,26 @@ class StudioScene(QGraphicsScene):
         QApplication.clipboard().setImage(img)
         editor.info_label.setText(
             f"Copied crop '{getattr(target, 'label', '')}' to clipboard")
+
+    def _fit_axis(self, editor, axis: str):
+        """Fit the scene's full width or height into the view, keeping
+        the current center on the perpendicular axis. Used by the
+        canvas right-click 'Fit Width' / 'Fit Height' entries."""
+        sr = editor._scene.sceneRect()
+        if axis == "width":
+            view_size = max(1, editor._view.viewport().width())
+            scene_size = sr.width()
+        else:
+            view_size = max(1, editor._view.viewport().height())
+            scene_size = sr.height()
+        if scene_size <= 0:
+            return
+        factor = view_size / scene_size
+        editor._view.resetTransform()
+        editor._view.scale(factor, factor)
+        editor._zoom_label.setText(f"{int(factor * 100)}%")
+        if hasattr(editor, "_canvas_wrap"):
+            editor._canvas_wrap.refresh()
 
     def _set_crop_rotation(self, editor, target):
         """Prompt for a rotation angle (degrees, clockwise) and persist
