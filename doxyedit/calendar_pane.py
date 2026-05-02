@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QPushButton, QFrame, QSizePolicy,
 )
 from PySide6.QtCore import Signal, Qt, QTimer
-from doxyedit.themes import ui_font_size
+from doxyedit.themes import ui_font_size, ui_metrics
 
 from doxyedit.models import Project
 from doxyedit.panel_mixin import LazyRefreshMixin
@@ -26,14 +26,12 @@ class _DayCell(QFrame):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        _f = ui_font_size()
+        _f, _pad, _, _ = ui_metrics()
         self._f = _f
         self.setObjectName("calendar_day_cell")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumHeight(int(_f * 3.5))
-
-        _pad = max(4, _f // 3)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(max(2, _pad // 2), max(1, _pad // 4), max(2, _pad // 2), max(1, _pad // 4))
         layout.setSpacing(max(1, _pad // 4))
@@ -155,11 +153,7 @@ class CalendarPane(LazyRefreshMixin, QWidget):
     # ---- UI construction ----
 
     def _build_ui(self) -> None:
-        _f = ui_font_size()
-        _cb = max(14, _f + 2)
-
-        _pad = max(4, _f // 3)
-        _pad_lg = max(6, _f // 2)
+        _f, _pad, _pad_lg, _cb = ui_metrics()
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
