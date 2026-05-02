@@ -64,7 +64,7 @@ from doxyedit.models import Asset, Project, CensorRegion, CanvasOverlay, CropReg
 from doxyedit.exporter import apply_censors, apply_overlays
 from doxyedit.imaging import pil_to_qimage, qimage_to_pil
 from doxyedit.preview import NoteRectItem, ResizableCropItem, HoverPreview
-from doxyedit.themes import THEMES, DEFAULT_THEME
+from doxyedit.themes import THEMES, DEFAULT_THEME, ui_font_size
 
 # ---------------------------------------------------------------------------
 # Scene
@@ -13515,12 +13515,16 @@ class StudioEditor(QWidget):
             return
         dlg = QDialog(self)
         self._shortcuts_dlg = dlg
+        dlg.setObjectName("studio_shortcuts_dlg")
         dlg.setWindowTitle("Studio Shortcuts")
-        dlg.resize(640, 640)
+        _f = ui_font_size()
+        _side = int(_f * 53)  # ~640px at font_size=12
+        dlg.resize(_side, _side)
         layout = QVBoxLayout(dlg)
         view = QTextBrowser(dlg)
+        view.setObjectName("studio_shortcuts_browser")
         view.setOpenExternalLinks(False)
-        view.setStyleSheet("QTextBrowser { padding: 12px; }")
+        view.setViewportMargins(_f, _f, _f, _f)
         view.setHtml(
             "<h2>Studio Keyboard Shortcuts</h2>"
             "<p><i>Press Esc in most popups to close. F1 or Ctrl+/ "

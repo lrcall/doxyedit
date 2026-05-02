@@ -6499,18 +6499,29 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
 
         # Dialog
         dlg = QDialog(self)
-        dlg.setWindowTitle(f"Similar Images — {len(similar_groups)} group(s)")
-        dlg.resize(600, 450)
+        dlg.setObjectName("similar_images_dialog")
+        dlg.setWindowTitle(f"Similar Images - {len(similar_groups)} group(s)")
+        dlg.resize(int(self._font_size * self.DIALOG_WIDE_MIN_WIDTH_RATIO),
+                   int(self._font_size * self.DIALOG_WIDE_MIN_WIDTH_RATIO * 0.75))
         layout = QVBoxLayout(dlg)
 
-        summary = QLabel(f"{len(similar_groups)} group(s) · {total_variants} variant(s) · {len(hashmap)} hashed")
-        summary.setStyleSheet(f"font-weight: bold; padding: {self._ui_padding}px;")
+        summary = QLabel(f"{len(similar_groups)} group(s) | {total_variants} variant(s) | {len(hashmap)} hashed")
+        summary.setObjectName("similar_images_summary")
+        _f_summary = summary.font()
+        _f_summary.setBold(True)
+        summary.setFont(_f_summary)
         layout.addWidget(summary)
 
         text = QTextEdit()
         text.setReadOnly(True)
+        text.setObjectName("similar_images_listing")
         text.setPlainText("\n".join(lines))
-        text.setStyleSheet(f"font-family: Consolas, monospace; font-size: {self._font_size - 1}px;")
+        # Monospace font + theme-driven sizing — no inline setStyleSheet so
+        # the global stylesheet still cascades chrome (border, scrollbar).
+        _f_mono = text.font()
+        _f_mono.setFamily("Consolas")
+        _f_mono.setPointSize(max(1, self._font_size - 1))
+        text.setFont(_f_mono)
         layout.addWidget(text)
 
         btn_row = QHBoxLayout()
