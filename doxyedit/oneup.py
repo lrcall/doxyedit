@@ -37,9 +37,9 @@ def mcp_init_session(api_key: str, timeout: int = 15) -> tuple[str, dict]:
     }
     req = Request(mcp_url, data=json.dumps(init).encode(),
                   headers={"Content-Type": "application/json"})
-    resp = urlopen(req, timeout=timeout)
-    resp.read()
-    sid = resp.headers.get("MCP-Session-Id", "")
+    with urlopen(req, timeout=timeout) as resp:
+        resp.read()
+        sid = resp.headers.get("MCP-Session-Id", "")
     headers = {"Content-Type": "application/json"}
     if sid:
         headers["MCP-Session-Id"] = sid
@@ -54,8 +54,8 @@ def mcp_tool_call(mcp_url: str, headers: dict, tool: str, arguments: dict,
         "params": {"name": tool, "arguments": arguments},
     }
     req = Request(mcp_url, data=json.dumps(call).encode(), headers=headers)
-    resp = urlopen(req, timeout=timeout)
-    data = json.loads(resp.read().decode())
+    with urlopen(req, timeout=timeout) as resp:
+        data = json.loads(resp.read().decode())
     return data.get("result", {}).get("content", [{}])[0].get("text", "")
 
 
