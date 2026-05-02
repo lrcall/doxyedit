@@ -1070,6 +1070,15 @@ class Project:
         proj.default_overlays = raw.get("default_overlays", [])
         proj.release_templates = raw.get("release_templates", [])
         proj.identities = raw.get("identities", {})
+        # Fold the user's machine-shared identities into the project,
+        # filling in only names the project doesn't already have so
+        # local edits are never overwritten silently. Failure is non-
+        # fatal — a corrupt shared file should never block project load.
+        try:
+            from doxyedit.shared_identities import merge_into_project
+            proj.identities = merge_into_project(proj.identities)
+        except Exception:
+            pass
         proj.blackout_periods = raw.get("blackout_periods", [])
         for c in raw.get("campaigns", []):
             proj.campaigns.append(Campaign.from_dict(c))

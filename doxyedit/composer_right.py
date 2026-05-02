@@ -1657,6 +1657,47 @@ RULES:
                 json.dump(data, fh, ensure_ascii=False, indent=2)
         export_btn.clicked.connect(_export_identity)
         btn_row.addWidget(export_btn)
+
+        publish_btn = QPushButton("Publish Shared...")
+        publish_btn.setObjectName("identity_publish_btn")
+        publish_btn.setToolTip(
+            "Save this identity to ~/.doxyedit/identities.json so it's "
+            "available to all projects on this machine.")
+
+        def _publish_shared():
+            from doxyedit.shared_identities import publish_one, shared_path
+            export_name = name_edit.text().strip() or current
+            if not export_name:
+                return
+            data = dict(identity)
+            data["name"] = export_name
+            for key, e in edits.items():
+                val = e.text().strip()
+                if val:
+                    data[key] = val
+            ht = [t.strip()
+                  for t in hashtags_edit.text().split(",") if t.strip()]
+            if ht:
+                data["hashtags"] = ht
+            ht_ja = [t.strip()
+                     for t in hashtags_ja_edit.text().split(",") if t.strip()]
+            if ht_ja:
+                data["hashtags_ja"] = ht_ja
+            ok = publish_one(export_name, data)
+            from PySide6.QtWidgets import QMessageBox
+            if ok:
+                QMessageBox.information(
+                    dlg, "Identity Published",
+                    f"'{export_name}' saved to:\n{shared_path()}\n\n"
+                    "Other projects on this machine will pick it up "
+                    "for any identity name that's missing locally.")
+            else:
+                QMessageBox.warning(
+                    dlg, "Publish Failed",
+                    f"Could not write to {shared_path()}.")
+
+        publish_btn.clicked.connect(_publish_shared)
+        btn_row.addWidget(publish_btn)
         btn_row.addStretch()
 
         buttons = QDialogButtonBox(
