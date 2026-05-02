@@ -12,16 +12,17 @@ construction. The methods here depend on MainWindow providing:
 - `self._collect_open_project_paths()` — returns list of open project paths
 - `self._last_collection_projects: list | None` — last-written collection list
 
-Interactive paths (`_save_project`, `_save_project_as`, `_open_project`,
-`_reload_project`, etc.) remain on MainWindow because they own dialog
-flow + rebind logic. This module is just the non-interactive glue.
+Interactive paths (`_save_project_as`, `_open_project`, `_reload_project`,
+etc.) remain on MainWindow because they own dialog flow + rebind logic.
+`_save_project` lives here since it has no dialog flow — only UI-state
+sync + file write. This module is the save/load glue.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from PySide6.QtCore import QThread, QMutex, QMutexLocker, QWaitCondition, Signal
+from PySide6.QtCore import QThread, QMutex, QMutexLocker, QWaitCondition, Signal, QTimer
 
 from doxyedit.models import Project
 from doxyedit.perf import perf_time
@@ -194,6 +195,31 @@ class SaveLoadMixin:
         self._dirty = False
         self.status.showMessage("Auto-saving…", 1500)
         self._autosave_collection()
+
+    def _save_project(self):
+        """Interactive save — syncs UI state, writes to current path, and
+        flashes the status bar. Falls back to _save_project_as if no path
+        is set yet. MainWindow provides browser/tag_panel/work_tray/theme/
+        _add_recent_project; the file IO is delegated to
+        _save_project_silently."""
+        if self._project_path:
+            # Sync all UI state to project before saving
+            self.project.sort_mode = self.browser.sort_combo.currentText()
+            self.project.eye_hidden_tags = list(self.browser._eye_hidden_tags)
+            self.project.hidden_tags = list(self.tag_panel._hidden_tags)
+            self.project.tray_items = self.work_tray.save_state()
+            self._save_project_silently(self._project_path)
+            self._dirty = False
+            self._settings.setValue("last_project", self._project_path)
+            self._add_recent_project(self._project_path)
+            self.status.showMessage(f"Saved {Path(self._project_path).name}")
+            self.status.setStyleSheet(
+                f"QStatusBar {{ background: {self._theme.accent}; "
+                f"color: {self._theme.text_on_accent}; }}")
+            QTimer.singleShot(800, lambda: self.status.setStyleSheet(""))
+            self._autosave_collection()
+        else:
+            self._save_project_as()
 
     def _autosave_collection(self):
         """Silently overwrite the last-saved collection file if the project

@@ -7586,26 +7586,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if path:
             self._load_project_from(path)
 
-    def _save_project(self):
-        if self._project_path:
-            # Sync all UI state to project before saving
-            self.project.sort_mode = self.browser.sort_combo.currentText()
-            self.project.eye_hidden_tags = list(self.browser._eye_hidden_tags)
-            self.project.hidden_tags = list(self.tag_panel._hidden_tags)
-            self.project.tray_items = self.work_tray.save_state()
-            self._save_project_silently(self._project_path)
-            self._dirty = False
-            self._settings.setValue("last_project", self._project_path)
-            self._add_recent_project(self._project_path)
-            self.status.showMessage(f"Saved {Path(self._project_path).name}")
-            # Brief green flash on status bar
-            self.status.setStyleSheet(
-                f"QStatusBar {{ background: {self._theme.accent}; color: {self._theme.text_on_accent}; }}")
-            QTimer.singleShot(800, lambda: self.status.setStyleSheet(""))
-            self._autosave_collection()
-        else:
-            self._save_project_as()
-
     def _save_project_as(self):
         hint = self._project_path or (
             str(Path(self._dialog_dir()) / "project.doxy")
