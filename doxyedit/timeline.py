@@ -354,6 +354,11 @@ class PostCard(QFrame):
         dup_action = menu.addAction("Duplicate Post")
         dup_action.triggered.connect(
             lambda: self.duplicate_requested.emit(self._post_id))
+        # View posting history (only when there's any to show)
+        log = list(getattr(self._post, "posting_log", []) or [])
+        if log:
+            log_action = menu.addAction(f"View Posting Log ({len(log)})...")
+            log_action.triggered.connect(self._show_posting_log)
         menu.addSeparator()
         # Copy raw ID to clipboard - useful when wiring CLI / debugging
         copy_id = menu.addAction("Copy Post ID")
@@ -364,6 +369,54 @@ class PostCard(QFrame):
         del_action = menu.addAction("Delete Post")
         del_action.triggered.connect(self._confirm_and_delete)
         menu.exec(event.globalPos())
+
+    def _show_posting_log(self):
+        """Read-only viewer for SocialPost.posting_log. One row per
+        event, columns: time / platform / action / detail / url. URL
+        column is selectable so the user can click-copy.
+
+        Theme + size scale via the existing dialog token helpers."""
+        if not self._post or not getattr(self._post, "posting_log", None):
+            return
+        from PySide6.QtWidgets import (
+            QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem,
+            QHeaderView, QDialogButtonBox, QLabel,
+        )
+        from doxyedit.themes import themed_dialog_size
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Posting Log")
+        dlg.setObjectName("posting_log_dlg")
+        w, h = themed_dialog_size(58.33, 33.33)
+        dlg.resize(w, h)
+        lay = QVBoxLayout(dlg)
+        header = QLabel(
+            f"Post {self._post_id[:8]} - {len(self._post.posting_log)} event(s)")
+        lay.addWidget(header)
+        tbl = QTableWidget(len(self._post.posting_log), 5, dlg)
+        tbl.setHorizontalHeaderLabels([
+            "Time", "Platform", "Action", "Detail", "URL"])
+        tbl.verticalHeader().setVisible(False)
+        tbl.setEditTriggers(tbl.EditTrigger.NoEditTriggers)
+        tbl.setSelectionBehavior(tbl.SelectionBehavior.SelectRows)
+        for row, ev in enumerate(self._post.posting_log):
+            tbl.setItem(row, 0, QTableWidgetItem(str(ev.get("ts", ""))))
+            tbl.setItem(row, 1, QTableWidgetItem(str(ev.get("platform", ""))))
+            tbl.setItem(row, 2, QTableWidgetItem(str(ev.get("action", ""))))
+            tbl.setItem(row, 3, QTableWidgetItem(str(ev.get("detail", ""))))
+            tbl.setItem(row, 4, QTableWidgetItem(str(ev.get("url", ""))))
+        tbl.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.ResizeToContents)
+        tbl.horizontalHeader().setStretchLastSection(True)
+        lay.addWidget(tbl, 1)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dlg.reject)
+        buttons.accepted.connect(dlg.accept)
+        # Close button maps to "rejected" by default; wire the click too
+        # so a single Esc / Close click both work.
+        for btn in buttons.buttons():
+            btn.clicked.connect(dlg.accept)
+        lay.addWidget(buttons)
+        dlg.exec()
 
     def _confirm_and_delete(self):
         from PySide6.QtWidgets import QMessageBox
