@@ -448,6 +448,7 @@ class TagPanel(QWidget):
         super().__init__(parent)
         self.setObjectName("doxyedit_tagpanel")
         self._assets: list[Asset] = []
+        self._project = None  # bound in refresh_discovered_tags()
         self._img_dims: dict[str, tuple[int, int]] = {}
         self._rows: dict[str, TagRow] = {}
         self._tag_sections: dict[str, str] = {}  # tag_id → section name
@@ -642,6 +643,10 @@ class TagPanel(QWidget):
 
     def refresh_discovered_tags(self, assets: list, project=None):
         """Add rows for tags found in assets and custom_tags, sorted into sections."""
+        if project is not None:
+            # Keep a live project reference so rename / parent-change
+            # actions can sync project-level tag structures directly.
+            self._project = project
         existing_ids = set(self._rows.keys())
         # Un-hide any previously deleted rows whose tag has reappeared in assets.
         # Prefer the inverted index when we have a project — O(tags) vs O(assets).
@@ -1039,21 +1044,44 @@ class TagPanel(QWidget):
         self._btn_show_all.setVisible(len(self._hidden_tags) > 0)
 
     def _rename_tag(self, old_id: str, new_label: str):
-        """Rename a tag — updates the label in the row and the checkbox."""
+        """Rename a tag - Project.rename_tag() owns the data sync
+        (assets, tag_definitions, custom_tags, aliases, shortcuts,
+        hidden lists, filter presets); this method keeps the panel's
+        widget bookkeeping and emits tag_renamed for the window layer
+        (global shortcut table, refresh, dirty flag)."""
         new_id = new_label.lower().replace(" ", "_").replace("/", "_")
-        # Update all assets
-        for asset in self._assets:
-            if old_id in asset.tags:
-                asset.tags.remove(old_id)
-                if new_id not in asset.tags:
-                    asset.tags.append(new_id)
-        # Update the row widget
+        project = getattr(self, "_project", None)
+        if project is not None and hasattr(project, "rename_tag"):
+            project.rename_tag(old_id, new_id, new_label)
+        else:
+            # Legacy fallback: no project bound - update the selected
+            # assets locally; the window's tag_renamed handler still
+            # sweeps the rest of the project.
+            for asset in self._assets:
+                if old_id in asset.tags:
+                    asset.tags.remove(old_id)
+                    if new_id not in asset.tags:
+                        asset.tags.append(new_id)
+        # Panel-local bookkeeping: everything keyed by tag id.
         if old_id in self._rows:
             row = self._rows.pop(old_id)
             row.tag = TagPreset(id=new_id, label=new_label, color=row.tag.color,
                                 width=row.tag.width, height=row.tag.height, ratio=row.tag.ratio)
             row.checkbox.setText(new_label)
             self._rows[new_id] = row
+        if old_id in self._tag_sections:
+            self._tag_sections[new_id] = self._tag_sections.pop(old_id)
+        if old_id in self._hidden_tags:
+            self._hidden_tags.discard(old_id)
+            self._hidden_tags.add(new_id)
+        if old_id in self._eye_hidden:
+            self._eye_hidden.discard(old_id)
+            self._eye_hidden.add(new_id)
+        if old_id in self._custom_shortcuts:
+            self._custom_shortcuts[new_id] = self._custom_shortcuts.pop(old_id)
+        if old_id in self._selected_tag_rows:
+            self._selected_tag_rows.discard(old_id)
+            self._selected_tag_rows.add(new_id)
         self.tag_renamed.emit(old_id, new_id, new_label)
         self.tags_changed.emit()
 

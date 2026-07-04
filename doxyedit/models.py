@@ -1007,6 +1007,161 @@ class Project:
             cur = parent
         return out
 
+    def rename_tag(self, old_id: str, new_id: str, new_label: str = "") -> bool:
+        """Rename a tag project-wide, keeping every id-bearing structure
+        in sync:
+
+        - asset.tags (in-place replace, dedupe on collision)
+        - tag_definitions (key move + label; on collision the renamed
+          definition takes over the target key - matches the historic
+          window._on_tag_renamed behavior)
+        - custom_tags (id + label; on collision the pre-existing target
+          entry is dropped so ids stay unique and mirror tag_definitions)
+        - parent_id links in tag_definitions and custom_tags
+        - tag_aliases: adds old_id -> new_id, re-points existing alias
+          VALUES that targeted old_id (load resolution is single-hop),
+          and removes a stale alias KEY equal to new_id (the id is live
+          again, it must not be remapped away on next load)
+        - custom_shortcuts values
+        - hidden_tags / eye_hidden_tags membership (position preserved,
+          no duplicates)
+        - filter_presets state["tag_filters"] lists
+
+        old_id == new_id is treated as a label-only change (no alias).
+        Returns False without touching anything when either id is empty
+        or old_id is unknown to the project; True otherwise.
+        """
+        if not old_id or not new_id:
+            return False
+        label = new_label or ""
+
+        def _set_label(entry: dict):
+            if label and isinstance(entry, dict):
+                entry["label"] = label
+
+        # Label-only change: same id, new display label.
+        if old_id == new_id:
+            changed = False
+            if label:
+                defn = self.tag_definitions.get(old_id)
+                if isinstance(defn, dict) and defn.get("label") != label:
+                    defn["label"] = label
+                    changed = True
+                for ct in self.custom_tags:
+                    if isinstance(ct, dict) and ct.get("id") == old_id \
+                            and ct.get("label") != label:
+                        ct["label"] = label
+                        changed = True
+            return changed
+
+        known = (
+            old_id in self.tag_definitions
+            or any(isinstance(ct, dict) and ct.get("id") == old_id
+                   for ct in self.custom_tags)
+            or old_id in self.hidden_tags
+            or old_id in self.eye_hidden_tags
+            or old_id in self.custom_shortcuts.values()
+            or old_id in self.tag_aliases.values()
+            or any(old_id in a.tags for a in self.assets)
+        )
+        if not known:
+            return False
+
+        # Assets: replace in place (keeps tag order); dedupe when the
+        # asset already carries the target id.
+        for asset in self.assets:
+            if old_id not in asset.tags:
+                continue
+            if new_id in asset.tags:
+                asset.tags[:] = [t for t in asset.tags if t != old_id]
+            else:
+                asset.tags[:] = [new_id if t == old_id else t
+                                 for t in asset.tags]
+
+        # tag_definitions: move the key; renamed definition wins a
+        # collision. Update label either way.
+        defn = self.tag_definitions.pop(old_id, None)
+        if defn is not None:
+            _set_label(defn)
+            self.tag_definitions[new_id] = defn
+        elif new_id in self.tag_definitions:
+            _set_label(self.tag_definitions[new_id])
+        # parent_id links pointing at the old id
+        for d in self.tag_definitions.values():
+            if isinstance(d, dict) and d.get("parent_id") == old_id:
+                d["parent_id"] = new_id
+
+        # custom_tags: rename the first old entry in place, drop any
+        # pre-existing target entries and extra old duplicates so the
+        # array never holds two entries with the same id.
+        had_old_ct = any(isinstance(ct, dict) and ct.get("id") == old_id
+                         for ct in self.custom_tags)
+        if had_old_ct:
+            kept = []
+            renamed = False
+            for ct in self.custom_tags:
+                if isinstance(ct, dict):
+                    cid = ct.get("id")
+                    if cid == new_id:
+                        continue  # superseded by the renamed entry
+                    if cid == old_id:
+                        if renamed:
+                            continue
+                        ct["id"] = new_id
+                        _set_label(ct)
+                        renamed = True
+                kept.append(ct)
+            self.custom_tags[:] = kept
+        else:
+            for ct in self.custom_tags:
+                if isinstance(ct, dict) and ct.get("id") == new_id:
+                    _set_label(ct)
+        for ct in self.custom_tags:
+            if isinstance(ct, dict) and ct.get("parent_id") == old_id:
+                ct["parent_id"] = new_id
+
+        # Aliases: re-point chains first (single-hop resolution), then
+        # record the rename, then clear a stale alias shadowing the
+        # now-live target id.
+        for k, v in list(self.tag_aliases.items()):
+            if v == old_id:
+                self.tag_aliases[k] = new_id
+        self.tag_aliases[old_id] = new_id
+        self.tag_aliases.pop(new_id, None)
+
+        # Keyboard shortcuts (key -> tag_id)
+        for k, v in list(self.custom_shortcuts.items()):
+            if v == old_id:
+                self.custom_shortcuts[k] = new_id
+
+        # Hidden lists: membership swap, position preserved, no dupes.
+        for lst in (self.hidden_tags, self.eye_hidden_tags):
+            if old_id in lst:
+                if new_id in lst:
+                    lst[:] = [t for t in lst if t != old_id]
+                else:
+                    lst[:] = [new_id if t == old_id else t for t in lst]
+
+        # Smart folders: rewrite persisted tag filter lists.
+        for preset in self.filter_presets:
+            if not isinstance(preset, dict):
+                continue
+            state = preset.get("state")
+            if not isinstance(state, dict):
+                continue
+            filters = state.get("tag_filters")
+            if not isinstance(filters, list) or old_id not in filters:
+                continue
+            if new_id in filters:
+                state["tag_filters"] = [t for t in filters if t != old_id]
+            else:
+                state["tag_filters"] = [new_id if t == old_id else t
+                                        for t in filters]
+
+        # asset.tags changed - invalidate tag_users / filter caches.
+        self.mark_mutated()
+        return True
+
     @staticmethod
     def _to_rel(abs_path: str, base: Path) -> str:
         """Convert absolute path to POSIX-relative. Falls back to absolute on different drive."""
