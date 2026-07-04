@@ -39,7 +39,9 @@ jobs:
       - name: Test suite (pytest + coverage)
         env:
           QT_QPA_PLATFORM: offscreen
-        run: python -m pytest tests -q --cov=doxyedit --cov-report=xml --cov-report=term
+        # --timeout: a hung Qt event loop must fail as a NAMED test with thread
+        # stacks after 3 minutes instead of eating the 20-minute job timeout.
+        run: python -m pytest tests -q --timeout=180 --timeout-method=thread --cov=doxyedit --cov-report=xml --cov-report=term
       - name: Design manifest (offscreen screenshots)
         continue-on-error: true
         env:
