@@ -222,10 +222,14 @@ class _OneUpFetchThread(QThread):
 
     Runs sync_accounts_from_mcp + three mcp_tool_call requests sequentially,
     returning the raw state needed for reconciliation. No Qt widget mutation
-    inside — only data.
+    inside - only data.
 
     Emits `fetched(synced_accounts, oneup_state, oneup_counts, label)` on
-    success or `failed(str)` on any error.
+    success or `failed(str)` on any error. oneup_state maps remote OneUp
+    post id -> status ("scheduled" | "published" | "failed"); local posts
+    are matched by stored oneup_post_id ONLY (D2 semantics). oneup_counts
+    stays caption-fingerprint keyed - it only feeds the duplicate-content
+    warning dialog.
     """
     fetched = Signal(object, object, object, str)
     failed = Signal(str)
@@ -261,8 +265,11 @@ class _OneUpFetchThread(QThread):
                     try:
                         posts_list = _json.loads(txt).get("posts", []) if txt else []
                         for p in posts_list:
+                            rid = str(p.get("id")
+                                      or p.get("post_id") or "").strip()
+                            if rid:
+                                oneup_state[rid] = status_label
                             fp = (p.get("content") or "")[:40].strip()
-                            oneup_state[fp] = status_label
                             oneup_counts[fp] = oneup_counts.get(fp, 0) + 1
                     except Exception:
                         pass
@@ -4449,9 +4456,9 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
     def _on_sync_oneup(self):
         """Sync accounts, categories, and post statuses from OneUp.
 
-        Fetches network state on a worker thread; reconciliation + pushes
-        run on the UI thread once fetch completes (they include modal
-        dialogs and interleave with existing UI-touching push methods).
+        Fetches network state on a worker thread; reconciliation runs
+        on the UI thread once fetch completes (it includes modal
+        dialogs and mutates project data).
         """
         from doxyedit.oneup import get_client_from_config
         project_dir = str(Path(self._project_path).parent) if hasattr(self, '_project_path') else "."
@@ -4482,11 +4489,15 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         """Continue OneUp sync on the UI thread with the fetched state.
 
         Applies duplicate-warning dialog, reconciles local posts against
-        OneUp state, triggers pushes for unpushed local QUEUED posts, and
-        runs the direct-post phase. Everything that can mutate project data
-        or show dialogs stays on the UI thread.
+        OneUp state (D2 semantics: matched by stored oneup_post_id only,
+        via the pure doxyedit.oneup_sync.decide_sync_actions), and runs
+        the direct-post phase. Sync never pushes and never resets posts
+        that are missing from the remote listing. Everything that can
+        mutate project data or show dialogs stays on the UI thread.
         """
         from doxyedit.models import SocialPostStatus
+        from doxyedit.oneup_sync import (
+            ACTION_SET_FAILED, ACTION_SET_POSTED, decide_sync_actions)
 
         acct_msg = f"{len(synced_accounts)} accounts" if synced_accounts else "accounts sync failed"
         logging.info(f"[OneUp Sync] {acct_msg}")
@@ -4496,8 +4507,6 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
             self._timeline.set_oneup_label(label)
 
         updated = 0
-        pushed_count = 0
-        cleaned_count = 0
         direct_count = 0
 
         if had_api_key:
@@ -4514,21 +4523,21 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 )
                 logging.warning(f"[Sync] WARNING: {len(dupes)} duplicate(s) on OneUp")
 
-            # Pass 1: reconcile + collect posts that need to be pushed.
-            # The actual push runs after the loop so it can move to a
-            # thread without entangling with the dialog timing above.
-            to_push: list = []
-            for post in self.project.posts:
-                if post.status not in (SocialPostStatus.QUEUED, "queued"):
+            # Reconcile: pure decision (doxyedit.oneup_sync), applied
+            # here. Matching is by stored oneup_post_id ONLY - posts
+            # missing from the remote listing and posts never pushed
+            # are left untouched (D2 semantics).
+            actions = decide_sync_actions(self.project.posts, oneup_state)
+            posts_by_id = {p.id: p for p in self.project.posts}
+            for act in actions:
+                post = posts_by_id.get(act.post_id)
+                if post is None:
                     continue
-                fp = (post.caption_default or "")[:40].strip()
-                remote = oneup_state.get(fp)
-
-                if remote == "published":
+                if act.action == ACTION_SET_POSTED:
                     post.status = SocialPostStatus.POSTED
                     updated += 1
                     logging.info(f"[Sync] {post.id[:8]} -> POSTED")
-                    if not post.engagement_checks:
+                    if act.needs_engagement:
                         try:
                             from doxyedit.reminders import generate_engagement_windows
                             from doxyedit.oneup import get_connected_platforms as _gcp
@@ -4538,96 +4547,56 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                             logging.info(f"[Sync] Generated {len(_windows)} engagement windows")
                         except Exception as _e:
                             logging.error(f"[Sync] Engagement gen error: {_e}")
-                elif remote == "failed":
+                elif act.action == ACTION_SET_FAILED:
                     post.status = SocialPostStatus.FAILED
                     updated += 1
                     logging.error(f"[Sync] {post.id[:8]} -> FAILED")
-                elif remote == "scheduled":
-                    if not post.oneup_post_id:
-                        post.oneup_post_id = "synced"
-                    logging.info(f"[Sync] {post.id[:8]} = scheduled (no action)")
-                elif not post.oneup_post_id:
-                    to_push.append(post)
-                else:
-                    # CLEAN: was pushed but gone from OneUp -> back to draft
-                    post.status = SocialPostStatus.DRAFT
-                    post.oneup_post_id = ""
-                    cleaned_count += 1
-                    logging.info(f"[Sync] {post.id[:8]} -> DRAFT (gone from OneUp)")
-
-            # Pass 2: kick off pushes off the UI thread. Direct-post
-            # phase + final summary run on push completion (or
-            # immediately if there's nothing to push) so the UI doesn't
-            # freeze waiting for 30+ HTTP calls.
-            for post in to_push:
-                # _export_post_assets stays on UI thread - file IO
-                # + project mutation, fast enough to keep here.
-                self._export_post_assets(post)
         else:
             logging.info("[Sync] No API key")
-            to_push = []
 
-        def _finalize(thread_pushed: int = 0):
-            """Direct-post phase + summary. Runs after the OneUp push
-            thread finishes (or immediately if no push was needed)."""
-            nonlocal pushed_count, direct_count
-            pushed_count += thread_pushed
-            try:
-                from doxyedit.directpost import push_to_direct
-                for post in self.project.posts:
-                    if post.status not in (SocialPostStatus.QUEUED, "queued"):
-                        continue
-                    results = push_to_direct(post, self.project, project_dir)
-                    now_str = datetime.now().isoformat()
-                    for r in results:
-                        if r.success:
-                            post.sub_platform_status[r.platform] = {
-                                "status": "posted", "posted_at": now_str}
-                            direct_count += 1
-                            _url = ""
-                            if isinstance(r.data, dict):
-                                _url = str(r.data.get("url", ""))
-                            post.log_event(
-                                platform=r.platform, action="posted",
-                                url=_url, detail="direct API")
-                        else:
-                            post.sub_platform_status[r.platform] = {
-                                "status": "failed", "error": r.error}
-                            post.log_event(
-                                platform=r.platform, action="failed",
-                                detail=(r.error or "")[:120])
-                    QApplication.processEvents()
-            except Exception as e:
-                logging.error(f"[Sync] Direct-post error: {e}")
+        # Direct-post phase + summary. Sync no longer pushes to OneUp;
+        # unpushed queued posts are pushed only via the explicit push /
+        # auto-post flows.
+        try:
+            from doxyedit.directpost import push_to_direct
+            for post in self.project.posts:
+                if post.status not in (SocialPostStatus.QUEUED, "queued"):
+                    continue
+                results = push_to_direct(post, self.project, project_dir)
+                now_str = datetime.now().isoformat()
+                for r in results:
+                    if r.success:
+                        post.sub_platform_status[r.platform] = {
+                            "status": "posted", "posted_at": now_str}
+                        direct_count += 1
+                        _url = ""
+                        if isinstance(r.data, dict):
+                            _url = str(r.data.get("url", ""))
+                        post.log_event(
+                            platform=r.platform, action="posted",
+                            url=_url, detail="direct API")
+                    else:
+                        post.sub_platform_status[r.platform] = {
+                            "status": "failed",
+                            "error": str(r.error or "")}
+                        post.log_event(
+                            platform=r.platform, action="failed",
+                            detail=(r.error or "")[:120])
+                QApplication.processEvents()
+        except Exception as e:
+            logging.error(f"[Sync] Direct-post error: {e}")
 
-            if updated or pushed_count or cleaned_count or direct_count:
-                self._dirty = True
-            self._refresh_social_panels()
-            parts = [acct_msg]
-            if pushed_count:
-                parts.append(f"{pushed_count} pushed")
-            if updated:
-                parts.append(f"{updated} updated")
-            if cleaned_count:
-                parts.append(f"{cleaned_count} -> draft")
-            if direct_count:
-                parts.append(f"{direct_count} direct")
-            msg = f"Synced: {', '.join(parts)}"
-            logging.info(f"[Sync] {msg}")
-            self.statusBar().showMessage(msg, 5000)
-
-        if to_push:
-            thread = _OneUpPushThread(self, to_push, self)
-            self._sync_push_thread = thread
-            thread.status_msg.connect(
-                lambda m, t: self.statusBar().showMessage(m, t))
-            thread.finished_all.connect(
-                lambda pushed_total, _failed: _finalize(pushed_total))
-            self.statusBar().showMessage(
-                f"Pushing {len(to_push)} post(s) to OneUp...", 0)
-            thread.start()
-        else:
-            _finalize()
+        if updated or direct_count:
+            self._dirty = True
+        self._refresh_social_panels()
+        parts = [acct_msg]
+        if updated:
+            parts.append(f"{updated} updated")
+        if direct_count:
+            parts.append(f"{direct_count} direct")
+        msg = f"Synced: {', '.join(parts)}"
+        logging.info(f"[Sync] {msg}")
+        self.statusBar().showMessage(msg, 5000)
 
     def _on_engagement_changed(self):
         """Engagement check was done/snoozed — mark dirty and save."""
