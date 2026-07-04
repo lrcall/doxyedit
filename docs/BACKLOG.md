@@ -1,5 +1,10 @@
 # DoxyEdit Backlog
 
+> **SUPERSEDED 2026-07-04:** this file was fully swept, code-verified, and folded into
+> `docs/superpowers/plans/2026-07-04-master-improvement-plan.md` (11 batches, decisions,
+> drop list, verified inventory). Work from that plan. This file stays as history until
+> the Batch 4 doc refresh strikes the shipped entries.
+
 Snapshot of deferred work after the v2.4 session. The historical v1.1
 feature-parity list lives at `docs/archive/TODO.md` (every item shipped);
 this file is scoped to what's been planned but not yet shipped.
