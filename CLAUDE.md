@@ -139,6 +139,13 @@ When writing to claudelog via `/focus claudenote` or `/focus update claudelog`:
 - Do NOT log 0m start/stop pairs — merge into one line
 - Each session: one `## YYYY-MM-DD` header with commit count + total duration
 
+## PSD Thumbnail Rule (PERMANENT — do not regress)
+- PSD/PSB thumbnails come from the **Windows shell thumbnail cache ONLY** (`imaging.get_shell_thumbnail` / `imaging.get_psd_thumb_pil`).
+- **NEVER** add `psd_tools` reads (`PSDImage.open`, `load_psd`, `load_psd_thumb`) to ANY thumbnail path. Opening thousands of multi-GB PSDs to thumbnail them takes hours. This has regressed multiple times — treat any new `load_psd*` call in thumbnail code as a bug.
+- The ONLY allowed psd_tools thumbnail fallback is behind `imaging.psd_source_thumbs_enabled()` (QSettings key `psd_source_thumbs`, default **OFF**, checkbox at Tools > Cache > "Read PSD Files for Thumbnails (slow)"). Never flip the default, never bypass the gate.
+- Shell fails + gate off → placeholder. That is correct behavior, not a bug to "fix" by reading the PSD.
+- Full composites (`load_psd`, `load_image_for_export`) are for export / Studio canvas / full-size preview only — never for grid/strip/timeline/composer thumbnails.
+
 ## Rules
 - The project file is binary-safe JSON — always use `ensure_ascii=False` when writing
 - Never sort or reorder assets — order is meaningful (affects display)

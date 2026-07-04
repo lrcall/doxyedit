@@ -36,6 +36,19 @@ The `content_index.db` stores a mapping from content hashes to PNG paths at the 
 
 ---
 
+## PSD Thumbnails (Windows Shell Cache Only)
+
+PSD/PSB thumbnails are pulled from the **Windows shell thumbnail cache** via `IShellItemImageFactory` - the same thumbnails Explorer shows. This is instant because Windows already generated them; the PSD file itself is never opened.
+
+Opening PSDs with psd_tools to build thumbnails is **disabled by default** and gated behind **Tools > Cache > Read PSD Files for Thumbnails (slow)**. Reading multi-GB PSD files for thousands of assets takes hours; only enable this if some PSDs show placeholders because Windows has no cached thumbnail for them (and consider turning it back off afterwards).
+
+When the shell cache has no thumbnail and the checkbox is off, the asset shows a placeholder tile. That is expected behavior.
+
+> [!warning] For developers
+> Never add `load_psd` / `load_psd_thumb` calls to any thumbnail path. All PSD thumbnail loading must go through `imaging.get_psd_thumb_pil()` (shell-first, opt-in psd_tools fallback). See the PSD Thumbnail Rule in CLAUDE.md.
+
+---
+
 ## Cross-Project Cache Sharing
 
 When you open a new project that contains files already cached by another project, the thumbnails are reused instantly — no re-generation needed.

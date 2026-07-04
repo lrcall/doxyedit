@@ -635,10 +635,11 @@ class ImagePreviewPanel(QWidget):
         ext = src.suffix.lower()
         if ext in (".psd", ".psb"):
             try:
-                from doxyedit.imaging import load_psd_thumb, pil_to_qpixmap
-                result = load_psd_thumb(str(src), min_size=0)
-                if result:
-                    return pil_to_qpixmap(result[0])
+                # Shell thumbnail cache only - never open the PSD itself here
+                from doxyedit.imaging import get_psd_thumb_pil, pil_to_qpixmap
+                img = get_psd_thumb_pil(str(src))
+                if img:
+                    return pil_to_qpixmap(img)
             except Exception:
                 pass
             return None

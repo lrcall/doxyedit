@@ -15,7 +15,7 @@ from doxyedit.themes import ui_font_size
 from doxyedit.models import SocialPost, SocialPostStatus, EngagementWindow
 from doxyedit.panel_mixin import LazyRefreshMixin
 from doxyedit.preview import HoverPreview
-from doxyedit.imaging import load_psd_thumb, pil_to_qpixmap
+from doxyedit.imaging import get_psd_thumb_pil, pil_to_qpixmap
 
 ICON_WIDTH_RATIO = 1.67
 
@@ -317,9 +317,10 @@ class PostCard(QFrame):
         try:
             ext = src.suffix.lower()
             if ext in (".psd", ".psb"):
-                result = load_psd_thumb(str(src), min_size=0)
-                if result:
-                    return pil_to_qpixmap(result[0])
+                # Shell thumbnail cache only - never open the PSD itself here
+                img = get_psd_thumb_pil(str(src))
+                if img:
+                    return pil_to_qpixmap(img)
                 return None
             pm = QPixmap(str(src))
             if pm.isNull():

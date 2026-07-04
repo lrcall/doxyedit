@@ -2294,6 +2294,15 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self._fast_cache_action.setToolTip(
             "Store thumbnails as uncompressed BMP for faster reads at the cost of disk space")
         self._fast_cache_action.toggled.connect(self._on_fast_cache_toggled)
+        self._psd_source_action = cache_menu.addAction("Read PSD Files for Thumbnails (slow)")
+        self._psd_source_action.setCheckable(True)
+        self._psd_source_action.setChecked(
+            bool(self._settings.value("psd_source_thumbs", 0, type=int)))
+        self._psd_source_action.setToolTip(
+            "Fallback when Windows has no cached thumbnail for a PSD: open the file itself "
+            "with psd_tools. Very slow on large files - leave off unless thumbnails are missing")
+        self._psd_source_action.toggled.connect(
+            lambda on: self._settings.setValue("psd_source_thumbs", int(on)))
         # Memory cache size
         mem_menu = cache_menu.addMenu("Memory Cache Size")
         from doxyedit.thumbcache import _LRU_MAX

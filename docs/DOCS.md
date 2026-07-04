@@ -669,6 +669,8 @@ Thumbnails are cached to `~/.doxyedit/thumbcache/` as PNGs and reused across ses
 
 **Fast Cache Mode** (Tools menu): stores thumbnails as uncompressed BMP files instead of PNG for faster reads, at the cost of more disk space. Useful for very large projects on slow drives.
 
+**PSD thumbnails** come from the Windows shell thumbnail cache only - the PSD file is never opened. Opening PSDs with psd-tools for thumbnails is opt-in via Tools > Cache > "Read PSD Files for Thumbnails (slow)" (default off; reading thousands of huge PSDs takes hours). Shell miss + checkbox off shows a placeholder, which is expected. Developers: see the PSD Thumbnail Rule in CLAUDE.md.
+
 See [Tools Menu](#tools-menu) for all cache-related commands.
 
 ---
@@ -687,6 +689,7 @@ Accessible via **Tools > Remove Missing Files** or the Remove Missing button in 
 |------|-------------|
 | Cache All | Pre-generate all thumbnails for the current project |
 | Fast Cache Mode | Toggle BMP vs PNG thumbnail storage |
+| Read PSD Files for Thumbnails (slow) | Opt-in fallback: open PSDs with psd-tools when Windows has no cached thumbnail. Default off |
 | Clear Cache | Delete all cached thumbnails for the current project |
 | Set Cache Location | Move cache to a custom directory |
 | Open Cache | Open cache folder in Explorer |
@@ -702,7 +705,7 @@ Accessible via **Tools > Remove Missing Files** or the Remove Missing button in 
 |--------|-----------|---------|-------|
 | PNG, JPG, BMP, GIF, WebP, TIFF, TGA | Full | Full | Native PIL |
 | SVG | Full | Full | Via Qt |
-| PSD, PSB | Full | Full | Via psd-tools (composite) |
+| PSD, PSB | Shell thumb | Full | Thumbnails from Windows shell cache ONLY (never psd-tools); preview composites via psd-tools |
 | SAI, SAI2 | Shell thumb | Shell thumb | Requires SaiThumbs installed |
 | CLIP, CSP, KRA, XCF | Shell/Placeholder | Shell/Placeholder | Shell extension dependent |
 | ICO, DDS, EXR, HDR | Varies | Varies | PIL support varies |

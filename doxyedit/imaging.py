@@ -47,12 +47,47 @@ def load_psd(path: str) -> tuple[PILImage.Image, int, int]:
 
 
 def load_psd_thumb(path: str, min_size: int = 0) -> tuple[PILImage.Image, int, int] | None:
-    """Try to get the embedded PSD thumbnail. Returns None if too small or missing."""
+    """Try to get the embedded PSD thumbnail. Returns None if too small or missing.
+
+    WARNING: this OPENS THE PSD FILE with psd_tools, which parses the whole
+    document structure - seconds to minutes on multi-GB files. Thumbnail code
+    must never call this directly; go through get_psd_thumb_pil() so the
+    psd_source_thumbs_enabled() opt-in gate applies."""
     from psd_tools import PSDImage
     psd = PSDImage.open(path)
     thumb = psd.thumbnail()
     if thumb and max(thumb.size) >= min_size:
         return thumb, psd.width, psd.height
+    return None
+
+
+def psd_source_thumbs_enabled() -> bool:
+    """Opt-in gate for opening PSD/PSB source files to make thumbnails.
+
+    Default OFF. PSD thumbnails MUST come from the Windows shell thumbnail
+    cache (get_shell_thumbnail) - opening thousands of multi-GB PSDs with
+    psd_tools just to thumbnail them takes forever. Toggled via
+    Tools > Cache > "Read PSD Files for Thumbnails" (QSettings key
+    "psd_source_thumbs")."""
+    from PySide6.QtCore import QSettings
+    return bool(QSettings("DoxyEdit", "DoxyEdit").value("psd_source_thumbs", 0, type=int))
+
+
+def get_psd_thumb_pil(path: str, size: int = 256) -> PILImage.Image | None:
+    """Thumbnail a PSD/PSB without touching the file contents: Windows shell
+    thumbnail cache first; the psd_tools embedded thumb only if the user
+    opted in via psd_source_thumbs_enabled(). All PSD thumbnail paths must
+    use this (or get_shell_thumbnail directly) - never load_psd/load_psd_thumb."""
+    shell_img = get_shell_thumbnail(path, size)
+    if shell_img:
+        return shell_img
+    if psd_source_thumbs_enabled():
+        try:
+            result = load_psd_thumb(path, min_size=0)
+            if result:
+                return result[0]
+        except Exception:
+            pass
     return None
 
 
@@ -270,18 +305,19 @@ def open_for_thumb(path: str, target_size: int = 160) -> tuple[PILImage.Image, i
     (instant) over psd_tools composite (slow)."""
     ext = Path(path).suffix.lower()
 
-    # PSD/PSB: use Shell thumbnail first (instant), fall back to embedded thumb
+    # PSD/PSB: use Shell thumbnail first (instant). Opening the PSD itself
+    # is opt-in only (psd_source_thumbs_enabled) - never do it by default.
     if ext in PSD_EXTS:
         shell_img = get_shell_thumbnail(path, max(target_size, 256))
         if shell_img:
             return shell_img, shell_img.width, shell_img.height
-        # Shell failed — try psd_tools embedded thumbnail
-        try:
-            result = load_psd_thumb(path, min_size=0)
-            if result:
-                return result
-        except Exception:
-            pass
+        if psd_source_thumbs_enabled():
+            try:
+                result = load_psd_thumb(path, min_size=0)
+                if result:
+                    return result
+            except Exception:
+                pass
         return _make_placeholder(path)
 
     # SAI, CLIP, KRA etc — Windows shell thumbnail

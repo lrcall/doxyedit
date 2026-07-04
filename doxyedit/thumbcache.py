@@ -12,6 +12,7 @@ from PySide6.QtGui import QPixmap, QImage
 from doxyedit.imaging import (
     open_for_thumb, pil_to_qimage, get_shell_thumbnail,
     PSD_EXTS, SHELL_THUMB_EXTS, _make_placeholder, load_psd_thumb,
+    psd_source_thumbs_enabled,
 )
 
 THUMB_SIZE = 160
@@ -369,6 +370,10 @@ class ThumbWorker(QThread):
         img, orig_w, orig_h = None, 0, 0
 
         if ext in PSD_EXTS:
+            # Opt-in only: opening the PSD itself (even for the embedded
+            # thumb) parses the whole file - forbidden by default.
+            if not psd_source_thumbs_enabled():
+                return
             try:
                 result = load_psd_thumb(path, min_size=0)
                 if result:
