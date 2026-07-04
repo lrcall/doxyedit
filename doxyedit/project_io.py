@@ -38,10 +38,28 @@ class BackgroundSaver(QThread):
     """One-shot save worker thread.
 
     Coalesces saves: only the most recent payload per path is kept.
-    UI thread builds the dict (cheap, ~ms) and submits via `submit()`;
-    worker serializes JSON + writes atomically (~hundreds of ms on big
-    projects) without blocking the UI. `flush()` waits for the queue
-    to drain - call from closeEvent.
+    `submit()` takes a pre-built dict; `submit_project()` takes a live
+    Project and the worker calls `build_save_dict` itself, moving the
+    expensive asdict-per-asset step off the UI thread. `flush()` waits
+    for the queue to drain - call from closeEvent.
+
+    Threading contract:
+    - `submit*()` may only be called from the UI thread. For
+      `submit_project`, the caller must run `_migrate_custom_tags()`
+      on the UI thread first (the worker never mutates the Project,
+      it only reads).
+    - The worker reads the LIVE Project. Concurrent UI edits during
+      `build_save_dict` are racey but not corrupting: a torn asset
+      snapshot self-heals on the next autosave, and a mid-iteration
+      RuntimeError (list mutated) surfaces as `failed` rather than a
+      corrupt file (the write is atomic tmp + os.replace).
+    - `saved(path)` / `failed(path, err)` are emitted from the worker
+      thread; default (queued) connections deliver on the UI thread.
+      One signal fires per drained payload, and a failure never kills
+      the worker - the next submit is processed normally.
+    - Callers that optimistically clear their dirty flag at submit
+      time MUST re-mark it on `failed`, or the change is silently
+      never re-saved (see SaveLoadMixin._on_bg_save_failed).
     """
 
     saved = Signal(str)   # emitted with path on successful write
@@ -175,6 +193,16 @@ class SaveLoadMixin:
             pass
 
     def _on_bg_save_failed(self, path: str, err: str):
+        # Durability: _autosave optimistically cleared _dirty when it
+        # enqueued this save. The write failed, so the change exists
+        # only in memory - re-mark dirty so the next autosave tick
+        # retries and closeEvent's sync save (gated on _dirty) fires.
+        # Only for the current project path; a stale failure for a
+        # previously-open file must not re-dirty the new project. A
+        # redundant re-save (if a newer coalesced snapshot already
+        # succeeded) is harmless; silently staying clean is not.
+        if path and path == getattr(self, "_project_path", None):
+            self._dirty = True
         try:
             self.status.showMessage(f"Save failed: {err[:80]}", 8000)
         except Exception:
@@ -413,45 +441,84 @@ class SaveLoadMixin:
         recent-click don't freeze the window. Applies the loaded
         project and rebinds panels on the ProjectLoader.loaded signal.
         MainWindow provides _rebind_project, _add_recent_project,
-        _rename_proj_tab, _project_slots, _current_slot, _apply_theme."""
+        _rename_proj_tab, _project_slots, _current_slot, _apply_theme.
+
+        Backup contract: `path + ".bak"` is refreshed only AFTER a
+        successful parse, so a corrupt main file can never clobber the
+        last good backup. If the main file fails to parse, we fall back
+        to loading the .bak (see _apply_loaded_project / the failed
+        handler below)."""
         bak = path + ".bak"
-        try:
-            shutil.copy2(path, bak)
-        except Exception:
-            pass
         self.status.showMessage(f"Opening {Path(path).name}...", 0)
 
         loader = ProjectLoader(path, self)
         self._open_loader = loader  # keep reference
 
         def _on_loaded(project, loaded_path):
-            self.project = project
-            self._rebind_project(clear_folder_state=True)
-            self._project_path = loaded_path
-            self._watch_project()
-            self._settings.setValue("last_project", loaded_path)
-            self._add_recent_project(loaded_path)
-            label = Path(loaded_path).stem
-            self.setWindowTitle(f"DoxyEdit - {Path(loaded_path).name}")
-            self._rename_proj_tab(self._current_slot, label)
-            if 0 <= self._current_slot < len(self._project_slots):
-                self._project_slots[self._current_slot]["project"] = self.project
-                self._project_slots[self._current_slot]["path"] = loaded_path
-            if self.project.theme_id and self.project.theme_id in THEMES:
-                self._apply_theme(self.project.theme_id)
-            self.status.showMessage(f"Opened {Path(loaded_path).name}", 3000)
+            # Refresh the backup now that we KNOW the file parses.
+            # Copying before the parse (old behavior) destroyed the
+            # pre-corruption backup exactly when it was needed.
             try:
-                from doxyedit import plugins as _dp
-                _dp.emit("project_loaded", project, loaded_path)
+                shutil.copy2(loaded_path, bak)
             except Exception:
                 pass
+            self._apply_loaded_project(project, loaded_path)
+            self.status.showMessage(f"Opened {Path(loaded_path).name}", 3000)
 
         def _on_failed(_path, err):
+            if self._recover_project_from_bak(path, bak, err):
+                return
             self.status.showMessage(f"Open failed: {err}", 5000)
 
         loader.loaded.connect(_on_loaded)
         loader.failed.connect(_on_failed)
         loader.start()
+
+    def _apply_loaded_project(self, project, loaded_path: str):
+        """Bind a freshly loaded Project to this window: rebind panels,
+        watcher, recents, title/tab/slot bookkeeping, theme. Shared by
+        the normal open path and the .bak recovery path."""
+        self.project = project
+        self._rebind_project(clear_folder_state=True)
+        self._project_path = loaded_path
+        self._watch_project()
+        self._settings.setValue("last_project", loaded_path)
+        self._add_recent_project(loaded_path)
+        label = Path(loaded_path).stem
+        self.setWindowTitle(f"DoxyEdit - {Path(loaded_path).name}")
+        self._rename_proj_tab(self._current_slot, label)
+        if 0 <= self._current_slot < len(self._project_slots):
+            self._project_slots[self._current_slot]["project"] = self.project
+            self._project_slots[self._current_slot]["path"] = loaded_path
+        if self.project.theme_id and self.project.theme_id in THEMES:
+            self._apply_theme(self.project.theme_id)
+        try:
+            from doxyedit import plugins as _dp
+            _dp.emit("project_loaded", project, loaded_path)
+        except Exception:
+            pass
+
+    def _recover_project_from_bak(self, path: str, bak: str, err: str) -> bool:
+        """The main file failed to parse - try the last good backup.
+
+        Loads synchronously (this is a rare error path; the .bak is the
+        same size as the project file). On success the window is bound
+        to the ORIGINAL path, not the .bak, so the next save repairs
+        the corrupt file - and `_dirty` is set so autosave writes the
+        recovered data back out. The .bak itself is left untouched.
+        Returns True if recovery succeeded."""
+        if not Path(bak).exists():
+            return False
+        try:
+            project = Project.load(bak)
+        except Exception:
+            return False
+        self._apply_loaded_project(project, path)
+        self._dirty = True
+        self.status.showMessage(
+            f"Open failed ({err[:60]}) - recovered from backup "
+            f"{Path(bak).name}. Save to repair the project file.", 0)
+        return True
 
     def _open_project(self):
         """Open dialog → delegate to _load_project_from on MainWindow."""
