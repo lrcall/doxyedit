@@ -5,3 +5,8 @@ anthropic>=0.40
 markdown>=3.5
 pywin32>=305
 pyyaml>=6.0
+
+# --- dev / test (CI uses requirements-ci.lock when present) ---
+pytest>=9.0
+pytest-qt>=4.5
+pytest-cov>=7.0
