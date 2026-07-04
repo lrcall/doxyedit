@@ -7,7 +7,13 @@ We redirect both streams into ~/.doxyedit/last_run.log before importing
 the GUI so any traceback during startup or runtime ends up there.
 
 When launched via console Python (py / python), stdout already goes to
-the terminal and we leave it alone."""
+the terminal and we leave it alone.
+
+Flags (handled in doxyedit.main.main):
+  --new    boot with a blank project (skip autoload)
+  --smoke  deterministic boot check: skip autoload, auto-quit ~2.5s
+           after the window shows, exit 0 only on a clean boot
+           (used by tests/test_launch_smoke.py and CI)"""
 from __future__ import annotations
 
 import os

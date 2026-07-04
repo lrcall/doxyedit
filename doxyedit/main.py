@@ -17,6 +17,11 @@ _FAULT_PATH = Path.home() / ".doxyedit" / "faulthandler.log"
 _RUNNING_LOCK = Path.home() / ".doxyedit" / "running.lock"
 _AUTOLOAD_HARD_TIMEOUT_S = 60.0
 
+# Count of exceptions seen by the global exception hook. Normal runs only
+# log them (the app keeps going); --smoke mode uses the count to exit
+# nonzero so a broken boot can't masquerade as a clean launch.
+_HOOK_ERROR_COUNT = 0
+
 
 class _WindowMemoryFilter(QObject):
     """App-wide geometry persistence for every top-level window.
@@ -202,6 +207,8 @@ def _install_exception_hook():
     """Catch unhandled exceptions: log to file + show in status bar."""
     _orig = sys.excepthook
     def _hook(exc_type, exc_value, exc_tb):
+        global _HOOK_ERROR_COUNT
+        _HOOK_ERROR_COUNT += 1
         msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
         logging.error("Unhandled exception:\n%s", msg)
         # Show short message in status bar if window exists
@@ -365,6 +372,14 @@ class _Splash(QWidget):
 
 
 def main():
+    # --smoke: deterministic out-of-process boot check (used by
+    # tests/test_launch_smoke.py and CI). Boots the app the normal way
+    # EXCEPT it never restores the user's last collection/project, never
+    # arms the crash sentinel, and auto-quits shortly after the window
+    # shows. Exits 0 on a clean boot, nonzero if anything raised.
+    smoke_mode = "--smoke" in sys.argv
+    if smoke_mode:
+        sys.argv = [a for a in sys.argv if a != "--smoke"]
     _setup_logging()
     _install_exception_hook()
     _apply_config()
@@ -402,14 +417,21 @@ def main():
     # disk, that launch never reached closeEvent (killed, OOM, segfault).
     # Default to skip-autoload so we don't loop into the same hang. The
     # user can still hit any of the splash buttons to load manually.
-    crashed_last_time = _previous_launch_crashed()
-    _arm_running_lock()
-    # Always clear the sentinel on Python exit, even on crashes that
-    # bypass closeEvent. atexit fires before interpreter teardown.
-    import atexit as _atexit
-    _atexit.register(_release_running_lock)
+    if smoke_mode:
+        # Don't arm the running.lock: a timeout-killed smoke subprocess
+        # would make the user's next real launch falsely detect a crash.
+        # Don't read the sentinel either, so a smoke run never consumes
+        # or masks a real crash record.
+        crashed_last_time = False
+    else:
+        crashed_last_time = _previous_launch_crashed()
+        _arm_running_lock()
+        # Always clear the sentinel on Python exit, even on crashes that
+        # bypass closeEvent. atexit fires before interpreter teardown.
+        import atexit as _atexit
+        _atexit.register(_release_running_lock)
 
-    skip_autoload = ("--new" in sys.argv) or crashed_last_time
+    skip_autoload = smoke_mode or ("--new" in sys.argv) or crashed_last_time
     if crashed_last_time:
         splash.set_status("Previous session ended uncleanly - skipping autoload")
 
@@ -502,6 +524,27 @@ def main():
         splash.close()
 
     QTimer.singleShot(50, _finish_startup)
+
+    if smoke_mode:
+        # Window is already shown; give the event loop time to run
+        # _finish_startup and any deferred boot timers, then self-quit.
+        QTimer.singleShot(2500, app.quit)
+        rc = app.exec()
+        from doxyedit import plugins as _dp
+        failed_plugins = _dp.failed()
+        if failed_plugins:
+            print("SMOKE_FAIL: plugin failure(s): "
+                  f"{', '.join(failed_plugins)} "
+                  f"(see {_dp.plugins_log_path()})",
+                  file=sys.stderr, flush=True)
+        if _HOOK_ERROR_COUNT:
+            print(f"SMOKE_FAIL: {_HOOK_ERROR_COUNT} unhandled exception(s) "
+                  f"during boot (tracebacks on stderr and in {_LOG_PATH})",
+                  file=sys.stderr, flush=True)
+        if rc != 0 or failed_plugins or _HOOK_ERROR_COUNT:
+            sys.exit(rc or 1)
+        print("SMOKE_OK", flush=True)
+        sys.exit(0)
 
     sys.exit(app.exec())
 
