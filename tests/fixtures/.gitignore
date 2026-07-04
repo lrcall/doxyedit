@@ -1,0 +1,4 @@
+# The repo-root .gitignore excludes *.doxyproj.json (the user's real
+# project file). The golden fixture IS meant to be checked in - it is
+# the round-trip contract for tests/test_golden_fixture.py.
+!golden_full.doxyproj.json
