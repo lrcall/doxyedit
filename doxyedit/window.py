@@ -7564,6 +7564,11 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         Persists 'onboarding_seen' in QSettings so first launch can
         auto-open via _maybe_show_onboarding_on_start (called from
         __init__ when no last_project is restored)."""
+        from PySide6.QtGui import QGuiApplication
+        if QGuiApplication.platformName() == "offscreen":
+            # Headless (tests, CI, --smoke): a modal dialog can never be
+            # dismissed with no user attached - it hangs the event loop.
+            return
         from PySide6.QtWidgets import (
             QDialog, QVBoxLayout, QLabel, QDialogButtonBox, QCheckBox,
             QTextBrowser,
