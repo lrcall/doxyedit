@@ -66,7 +66,8 @@ persistence seam under test. Tests first, then the (mostly tiny) fixes.
 - [ ] **CRITICAL** OneUp sync matches by caption[:40] fingerprint and can reset pushed
       posts to DRAFT = double-post vector (window.py:4520-4630): extract pure
       sync-decision function into pipeline.py/oneup.py, table-test collision / gone /
-      published / failed / scheduled / no-key cases. NEEDS DECISION D2 before shipping.
+      published / failed / scheduled / no-key cases. APPROVED (D2): match by stored
+      oneup_post_id, no auto-reset to DRAFT; deleted remote posts need manual re-queue.
 - [ ] Direct-post double-send guard untested (directpost.py:497-508): unit-test
       push_to_direct with fake clients; fix sub_platform_status dict-vs-string shape
       mismatch (writers window.py:4584-4595 vs reader browser.py:2095)
@@ -199,7 +200,7 @@ methods) - the single biggest drag on agentic work. Solidify, not features.
       data-driven interpolations); triage ~8 new ACCEPTABLE entries - FIRST, so the
       rest of the batch is machine-checked
 - [ ] Fix the 3 real semantic-color violations: FITNESS_COLORS (tagpanel.py:19-23) to
-      theme success/warning/error (DECISION D10), stats.py:174 platform bars to theme
+      theme success/warning/error (APPROVED D10), stats.py:174 platform bars to theme
       error/accent, studio.py:3863 #333 border to theme.border
 - [ ] Bare-px/rgba sweep in dynamic inline styles: browser.py:1183/1801,
       infopanel.py:44/220, tagpanel.py:310, window.py:4778 (use themes.py:1091 helper),
@@ -212,22 +213,23 @@ methods) - the single biggest drag on agentic work. Solidify, not features.
 
 ---
 
-## Batch 8 - User-Verified Bugs & 70k Validation  [P2, 1 day + user keyboard time]
+## Batch 8 - User-Verified Bugs & Validation  [P2, ~1 day]
 
-**Goal:** resolve the bugs blocked on real-world data; run the H6 pass on the real 70k
-project AFTER the perf batch so results mean something.
+**Goal:** resolve the bugs blocked on real-world data; validate perf work via telemetry.
 
-- [ ] Social tab crash: needs traceback from ~/.doxyedit/last_run.log or repro steps
-      (DECISION D1) - do not speculate without data
+- [x] ~~Social tab crash~~ PARKED (D1: not seen lately). Reopen with
+      ~/.doxyedit/last_run.log on next sighting; do not speculate without data
 - [ ] Gantt empty bars: user runs the shipped diagnostic (gantt.py:360-372) on a real
       scheduled project, then fix the identified bucket
 - [ ] P0 user-verification queue: walk the 6 shipped-but-unconfirmed fixes, check off
-- [ ] H6 interactive verification pass on the 70k-asset project (slim the checklist to
-      current UI first; TEST_CHECKLIST.md is superseded - see drop list)
+      (lightweight, can happen in normal conversation)
+- [x] ~~H6 interactive 70k pass~~ PARKED (D9: no keyboard session). Perf wins get
+      verified via before/after perf.log entries + the Batch 1 perf gate instead
 - [ ] Asset groups end-to-end tests: variant_set / duplicate_group / dissolve currently
       have zero test hits
 
-**Hard dependency:** after Batch 3 and Batch 1.
+**Hard dependency:** after Batch 1 (fixtures); no longer gated on Batch 3 now that H6
+is parked.
 
 ---
 
@@ -243,9 +245,11 @@ between P1 sessions; each lands with tests per the new-code rule.
 - [ ] Platforms tab campaign & launch planning dashboard: finish remaining views
 - [ ] Cross-project schedule conflict detection: surface in scheduling UI
 - [ ] Tag hierarchy: wire parent inheritance into filtering (models + walkers shipped)
-- [ ] Notes as write-while-you-work facility (tab removal pending DECISION D5)
-- [ ] Browser toolbar right-sizing: + Folder/+ Files consolidation (DECISION D6),
-      checkboxes to overflow, muted unselected thumbnails, Eagle grid polish remainder
+- [ ] Notes polish only - BOTH surfaces stay per D5 (tab + collapsible panel);
+      no tab removal
+- [ ] Browser toolbar right-sizing: + Folder/+ Files become ONE + split-button
+      (APPROVED D6: click = add files, dropdown = folder/files), checkboxes to
+      overflow, muted unselected thumbnails, Eagle grid polish remainder
 
 ---
 
@@ -265,8 +269,9 @@ and .bak recovery test (Batch 2). Owns whole sessions; never start mid-session.
 
 ## Batch 11 - P3 Opportunistic Backlog  [P3, hours each, filler only]
 
-- [ ] imagehost.py: delete or wire into posting pipeline (DECISION D3)
-- [ ] canvas_skia.py: keep-as-experimental / archive / delete (DECISION D4)
+- [ ] imagehost.py: DELETE module + its 2 test files (APPROVED D3; git keeps history)
+- [ ] canvas_skia.py: KEEP, mark experimental (D4) - header comment + docs note that
+      it is an unsupported experimental backend; debug shortcut stays
 - [ ] Split __main__.py into subpackage + file locking (registry refactor in Batch 4
       already captured most of the value)
 - [ ] File browser: finish drag-folder-to-grid drop handler
@@ -276,7 +281,7 @@ and .bak recovery test (Batch 2). Owns whole sessions; never start mid-session.
 - [ ] Dialog-singleton helper (replace copy-pasted guards)
 - [ ] Unify the four social-post composition paths (WAIT for Batch 2 tests - same seams)
 - [ ] SocialPost/Project generic to_dict/from_dict migration
-- [ ] itch.io release prep (moves to P2 per DECISION D8)
+- [ ] itch.io release prep (stays P3 per D8: someday, not near-term)
 
 ---
 
@@ -284,35 +289,33 @@ and .bak recovery test (Batch 2). Owns whole sessions; never start mid-session.
 
 ```
 Batch 1 (harness) ──┬─> Batch 2 (integrity) ──┐
-                    ├─> Batch 3 (perf) ───────┼─> Batch 8 (user bugs + H6)
-                    │        │                │
-Batch 4 (agentic) ──┘        └─> Batch 5 (window.py) ─┐
-  (anytime, early)               Batch 6 (studio.py) ─┼─> Batch 9 (completions)
+                    ├─> Batch 3 (perf) ───────┤
+                    ├─> Batch 8 (bugs/tests)  │
+Batch 4 (agentic) ──┘        │                │
+  (anytime, early)           └─> Batch 5 (window.py) ─┐
+                                 Batch 6 (studio.py) ─┼─> Batch 9 (completions)
                                   (5 ∥ 6 parallel-ok) │
 Batch 7 (tokens): anytime                             └─> Batch 10 (SQLite, gated D7)
 ```
 
 ---
 
-## Decisions Needed (user)
+## Decisions - RESOLVED 2026-07-04
 
-- **D1 - Social tab crash:** unfixable without data. Send ~/.doxyedit/last_run.log after
-  the next occurrence, or repro steps.
-- **D2 - OneUp sync redesign:** replace caption[:40] matching with stable oneup_post_id
-  matching and STOP auto-resetting unlisted pushed posts to DRAFT. Safer against
-  double-posts; tradeoff: a genuinely deleted remote post needs manual re-queue.
-- **D3 - imagehost.py:** delete (plus 2 test files) or wire in as public-URL upload step?
-- **D4 - canvas_skia.py** (2,461 lines, debug-shortcut only): keep documented as
-  experimental, archive, or delete? Also settles the "Skia editable preview" drop.
-- **D5 - Notes tab:** remove the main tab now that the collapsible synced panel exists?
-- **D6 - Browser top bar:** + Folder/+ Files into File menu only, or one + split-button?
-- **D7 - SQLite go/no-go:** checkpoint after Batch 3. If the 70k project feels fine,
-  the week+ migration defers.
-- **D8 - itch.io release:** still near-term? If yes, release prep moves P3 -> P2.
-- **D9 - H6 session:** commit ~1 hour at the keyboard on the real 70k project after
-  Batch 3 (agent cannot do this part alone).
-- **D10 - FITNESS_COLORS:** fitness dots shift from fixed hex to per-theme
-  success/warning/error tones. Confirm the visual change is acceptable.
+All 10 answered by the user; batches above already reflect them.
+
+| # | Decision | Answer |
+|---|---|---|
+| D1 | Social tab crash | Not seen lately - PARKED; reopen with last_run.log on next sighting |
+| D2 | OneUp sync redesign | APPROVED: oneup_post_id matching, no auto-reset to DRAFT |
+| D3 | imagehost.py | DELETE (module + 2 test files; git keeps history) |
+| D4 | canvas_skia.py | KEEP, mark experimental (header + docs note) |
+| D5 | Notes tab | KEEP BOTH surfaces (tab + collapsible panel) |
+| D6 | Browser top bar | Single + split-button (click = files, dropdown = folder/files) |
+| D7 | SQLite Phase 2 | Checkpoint after Batch 3; go only if still slow in normal use |
+| D8 | itch.io release | Someday, not near-term - release prep stays P3 |
+| D9 | H6 70k keyboard session | NO - verify perf via perf.log + Batch 1 perf gate instead |
+| D10 | FITNESS_COLORS | APPROVED theme-driven success/warning/error tones |
 
 ---
 
