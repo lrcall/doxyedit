@@ -35,20 +35,29 @@ flagged items start.
 **Goal:** the verification infrastructure every later batch leans on. Highest
 leverage-per-hour in the plan. No dependencies, zero user-facing risk.
 
-- [ ] `tests/conftest.py` with session QApplication + offscreen env; switch CI from
-      unittest discover to pytest; add pytest-qt
-- [ ] Project fixture factory: temp dir, tiny Pillow PNGs, populated Project with
-      assets/tags/posts/crops/censors
-- [ ] Golden fixture `tests/fixtures/golden_full.doxyproj.json` covering EVERY schema
-      section + save/reload deep-compare round-trip + forward-compat unknown-keys test
-- [ ] Perf regression gate `tests/test_perf_budget.py`: 10k-asset in-memory budget
-      (from_dict/to_dict/save/load/summary) with CI-safe thresholds
-- [ ] Out-of-process launch smoke: `run.py --smoke` flag + subprocess test
-      (covers pythonw redirect, plugin boot, clean teardown)
-- [ ] CI hardening: timeout-minutes, pip cache, concurrency cancel, failure artifact
-      upload (~/.doxyedit/*.log), requirements-ci.lock
-- [ ] coverage.py in CI
-- [ ] CLI-to-GUI post round-trip test (falls out of fixture factory + golden fixture)
+- [x] `tests/conftest.py` with session QApplication + offscreen env; switch CI from
+      unittest discover to pytest; add pytest-qt  (a7f8b78)
+- [x] Project fixture factory: temp dir, tiny Pillow PNGs, populated Project with
+      assets/tags/posts/crops/censors  (6fcb6b2, tests/factory.py)
+- [x] Golden fixture `tests/fixtures/golden_full.doxyproj.json` covering EVERY schema
+      section (all 31 save-dict keys, deterministic generator) + gen2-vs-gen3 deep
+      round-trip + forward-compat unknown-keys + schema-coverage guard  (6fcb6b2)
+- [x] Perf regression gate `tests/test_perf_budget.py`: 10k assets - build 0.05s,
+      save_dict 0.41s, save 0.78s, load 0.29s, summary 0.005s vs generous CI budgets
+      (3420c7b). Note: real load path is Project.load, there is no from_dict.
+- [x] Out-of-process launch smoke: `run.py --smoke` + subprocess test; exits nonzero
+      on swallowed exceptions or plugin boot failures, never touches the crash
+      sentinel or running.lock  (cb211b8)
+- [x] CI hardening: timeout-minutes 20, pip cache, concurrency cancel, failure log +
+      coverage artifacts, requirements-ci.lock  (a7f8b78)
+- [x] coverage.py in CI (non-blocking, xml + term report)  (a7f8b78)
+- [x] CLI-to-GUI post round-trip test  (6fcb6b2)
+- [x] BONUS from Batch 4 landed early: design_manifest.py screenshot artifact step in
+      CI (continue-on-error)  (a7f8b78)
+
+**DONE 2026-07-04.** Suite went 670 -> 682 tests. Known facts recorded by the sweep:
+variant_exports/guides are save-only fields dropped by Project.load (pinned by test);
+unknown keys survive load but are dropped on next save except inside asset.specs.
 
 **Sequencing:** first, before everything. Fixture factory + golden fixture are hard
 prerequisites for Batches 2, 6, 8 and the safety net for 3, 5, 10.
