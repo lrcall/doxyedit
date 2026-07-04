@@ -69,30 +69,30 @@ prerequisites for Batches 2, 6, 8 and the safety net for 3, 5, 10.
 **Goal:** close the two critical data-loss / double-post vectors and put every untested
 persistence seam under test. Tests first, then the (mostly tiny) fixes.
 
-- [ ] **CRITICAL** BackgroundSaver races the UI thread and silently drops failed autosaves
-      (project_io.py:68-118, window.py:8401-8413): snapshot build_save_dict on the UI
-      thread or re-mark dirty on failure; unit tests for submit/flush/stop/failure
-- [ ] **CRITICAL** OneUp sync matches by caption[:40] fingerprint and can reset pushed
-      posts to DRAFT = double-post vector (window.py:4520-4630): extract pure
-      sync-decision function into pipeline.py/oneup.py, table-test collision / gone /
-      published / failed / scheduled / no-key cases. APPROVED (D2): match by stored
-      oneup_post_id, no auto-reset to DRAFT; deleted remote posts need manual re-queue.
-- [ ] Direct-post double-send guard untested (directpost.py:497-508): unit-test
-      push_to_direct with fake clients; fix sub_platform_status dict-vs-string shape
-      mismatch (writers window.py:4584-4595 vs reader browser.py:2095)
-- [ ] Composer `_save` field-parity test vs SocialPost dataclass fields; then refactor
-      _save to dict-merge (kills the hand-copy regression class CLAUDE.md warns about)
-- [ ] Tag rename integrity: extract rename from tagpanel.py:1041 to a pure Project
-      method; test definitions/custom_tags/asset.tags/aliases/shortcuts/hidden-lists sync
-- [ ] Tray save_state/restore roundtrip test + corrupt .doxy with valid .bak
-      recovery-path test (project_io.py:411-455)
-- [ ] Injectable fake transport for directpost + OneUp: simulate restarts, assert zero
-      double-sends
-- [ ] platforms/ package (bluesky/mastodon, 1,719 lines, zero tests): mirror the
-      existing mocked-urlopen client test pattern
+- [x] **CRITICAL** BackgroundSaver silent autosave loss: failed autosave now re-marks
+      _dirty so closeEvent sync save fires; .bak copy moved AFTER successful parse so
+      a corrupt file can't clobber the last good backup; corrupt open recovers from
+      .bak (binds original path, marks dirty). 18 tests, TDD.  (0b24b89)
+- [x] **CRITICAL** OneUp sync redesign per D2: pure decide_sync_actions() in new
+      doxyedit/oneup_sync.py, id-only matching (multi-id aware), missing-from-remote
+      keeps status+id, no-id posts untouched, sync no longer auto-pushes. Fetch thread
+      keys remote state by post id. 19 table tests.  (820a76b)
+      OPEN FOLLOW-UPS: verify remote id key ("id"/"post_id") against a live OneUp
+      listing; window._export_post_assets now uncalled - remove in Batch 5.
+- [x] Direct-post double-send guard: 7 tests incl. restart simulation; reader hardened
+      against legacy string/None sub_platform_status; canonical dict shape written by
+      both writers.  (3f1c852)
+- [x] Composer _save dict-merge with parity-checked 31-field partition; rides along:
+      category_id + censor_mode edits were being silently dropped, now saved.  (c966a69)
+- [x] Tag rename extracted to Project.rename_tag (full sync incl. alias re-pointing,
+      parent_id links, filter presets); tagpanel delegates.  (a3a9524)
+- [x] Tray roundtrip + corrupt-.doxy-with-.bak recovery tests  (0b24b89)
+- [x] Fake transport / restart double-send simulation (in directpost guard tests)
+- [x] platforms/ bluesky + mastodon: 72 mocked-HTTP tests  (ade0e1d)
 
-**Sequencing:** after Batch 1 (fixture factory, fake transport). Parallel-safe with
-Batch 3 (different files).
+**DONE 2026-07-04.** Suite 682 -> 838 tests. Also fixed en route: first pytest CI run
+exposed the modal onboarding dialog hanging headless runs (guard + hermetic test
+QSettings, c3eb2dc; pytest-timeout added so future hangs fail named in 3min, 1676214).
 
 ---
 
