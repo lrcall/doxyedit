@@ -34,6 +34,92 @@ SOCIAL_PLATFORMS = [
 ]
 
 
+# ----------------------------------------------------------------------
+# SocialPost field ownership.
+#
+# _save() no longer hand-copies each field one by one. It builds a
+# widget-state dict (ContentPanel.get_post_data() plus a few direct
+# widget values) and merges it into the post with apply_post_data(),
+# a to_dict()/from_dict() round-trip that mutates the live post in
+# place. Any SocialPost field returned by get_post_data() therefore
+# flows through automatically - a new field can never silently revert
+# on save again.
+#
+# When adding a field to SocialPost, classify it in exactly ONE of the
+# three sets below (and, for UI fields, return it from get_post_data()
+# in composer_right.py). tests/test_composer_save_parity.py fails
+# until every dataclass field is classified.
+# ----------------------------------------------------------------------
+
+# Fields sourced from ContentPanel.get_post_data() (composer_right.py).
+COMPOSER_UI_FIELDS = frozenset({
+    "platforms", "caption_default", "captions", "links",
+    "scheduled_time", "reply_templates", "strategy_notes",
+    "release_chain", "collection", "identity_name",
+    "category_id", "censor_mode",
+})
+
+# Fields _save() writes directly from its own widgets / arguments,
+# outside get_post_data().
+COMPOSER_DIRECT_FIELDS = frozenset({
+    "asset_ids", "status", "nsfw_platforms", "sfw_asset_ids",
+    "updated_at",
+})
+
+# Pipeline-owned fields the composer must NEVER write: identity fields
+# set once at creation (id, created_at) plus state maintained by the
+# posting pipeline. apply_post_data() refuses to merge these even if a
+# data dict names them, so a composer save preserves them verbatim.
+COMPOSER_PRESERVED_FIELDS = frozenset({
+    "id", "created_at", "notes", "platform_status", "oneup_post_id",
+    "tier_assets", "sub_platform_status", "published_urls",
+    "engagement_checks", "platform_censor", "platform_metrics",
+    "posting_log",
+    # campaign_id is assigned from the campaign side (not the composer
+    # UI); get_post_data() does not return it. Move it to
+    # COMPOSER_UI_FIELDS if the composer ever grows a campaign picker.
+    "campaign_id",
+})
+
+
+def apply_post_data(post: SocialPost, data: dict) -> SocialPost:
+    """Merge a widget-state dict into an existing SocialPost IN PLACE.
+
+    Dict-merge mechanism: round-trips through SocialPost.to_dict() /
+    from_dict() so nested values (e.g. release_chain step dicts) are
+    coerced by the model's own deserializer, then copies the merged
+    values back onto the original object so live references held by
+    the timeline / window stay valid.
+
+    Merge rules:
+      - keys that are not SocialPost dataclass fields are ignored
+      - keys in COMPOSER_PRESERVED_FIELDS are ignored (pipeline-owned)
+      - keys whose value is None are ignored (absent widget, e.g.
+        identity_name on older composers)
+
+    Returns the same post object for convenience.
+    """
+    merge_keys = [
+        k for k, v in data.items()
+        if k in SocialPost.__dataclass_fields__
+        and k not in COMPOSER_PRESERVED_FIELDS
+        and v is not None
+    ]
+    base = post.to_dict()
+    for k in merge_keys:
+        v = data[k]
+        if k == "release_chain":
+            # from_dict expects raw step dicts; tolerate ReleaseStep
+            # instances handed in by callers.
+            v = [s.to_dict() if isinstance(s, ReleaseStep) else s
+                 for s in v]
+        base[k] = v
+    merged = SocialPost.from_dict(base)
+    for k in merge_keys:
+        setattr(post, k, getattr(merged, k))
+    return post
+
+
 class AssetDropLineEdit(QLineEdit):
     """QLineEdit that accepts file drops and resolves to asset IDs."""
 
@@ -373,56 +459,30 @@ class PostComposerWidget(QWidget):
         now = datetime.now().isoformat()
 
         asset_ids = [s.strip() for s in self._images_edit.text().split(",") if s.strip()]
+
+        # Dict-merge save: everything ContentPanel.get_post_data()
+        # returns flows into the post via apply_post_data() - there is
+        # no hand-copied field list to forget. Direct widget values are
+        # folded into the same dict. See the COMPOSER_*_FIELDS
+        # constants at module top for field ownership.
         data = self._right_panel.get_post_data()
-        nsfw_platforms = self._left_panel.get_nsfw_platforms()
-        # sfw_asset_ids not yet wired — placeholder
-        sfw_asset_ids = getattr(self._editing, 'sfw_asset_ids', []) if self._editing else []
+        data["asset_ids"] = asset_ids
+        data["status"] = status
+        data["nsfw_platforms"] = self._left_panel.get_nsfw_platforms()
+        # sfw_asset_ids not yet wired - keep whatever the post has
+        data["sfw_asset_ids"] = (
+            getattr(self._editing, 'sfw_asset_ids', [])
+            if self._editing else [])
+        data["updated_at"] = now
 
         if self._editing is not None:
-            p = self._editing
-            p.asset_ids = asset_ids
-            p.platforms = data["platforms"]
-            p.caption_default = data["caption_default"]
-            p.captions = data["captions"]
-            p.links = data["links"]
-            p.scheduled_time = data["scheduled_time"]
-            p.status = status
-            p.reply_templates = data["reply_templates"]
-            p.strategy_notes = data["strategy_notes"]
-            p.nsfw_platforms = nsfw_platforms
-            p.sfw_asset_ids = sfw_asset_ids
-            p.collection = data.get("collection", "")
-            p.release_chain = [ReleaseStep.from_dict(s) for s in data.get("release_chain", [])]
-            p.campaign_id = data.get("campaign_id", getattr(p, "campaign_id", ""))
-            # Preserve identity_name across save - the dropdown lives in
-            # the right panel and may not be present in older composers.
-            ident = data.get("identity_name")
-            if ident is not None:
-                p.identity_name = ident
-            # Preserve fields not yet in the UI
-            p.updated_at = now
-            result_post = p
+            # Mutates the live post in place - timeline/window hold
+            # references to it. Pipeline-owned fields (id, created_at,
+            # oneup_post_id, posting_log, ...) are preserved verbatim.
+            result_post = apply_post_data(self._editing, data)
         else:
-            result_post = SocialPost(
-                id=str(uuid.uuid4()),
-                asset_ids=asset_ids,
-                platforms=data["platforms"],
-                caption_default=data["caption_default"],
-                captions=data["captions"],
-                links=data["links"],
-                scheduled_time=data["scheduled_time"],
-                status=status,
-                reply_templates=data["reply_templates"],
-                strategy_notes=data["strategy_notes"],
-                nsfw_platforms=nsfw_platforms,
-                sfw_asset_ids=sfw_asset_ids,
-                collection=data.get("collection", ""),
-                release_chain=[ReleaseStep.from_dict(s) for s in data.get("release_chain", [])],
-                campaign_id=data.get("campaign_id", ""),
-                identity_name=data.get("identity_name", ""),
-                created_at=now,
-                updated_at=now,
-            )
+            result_post = apply_post_data(
+                SocialPost(id=str(uuid.uuid4()), created_at=now), data)
 
         # Advisory readiness check
         if status == SocialPostStatus.QUEUED and asset_ids:
