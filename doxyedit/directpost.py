@@ -448,6 +448,21 @@ def _export_assets(post, project, max_images: int = 4, cache=None) -> list[str]:
     return paths
 
 
+def _sub_status(status_map: dict, platform_id: str) -> str:
+    """Read a platform's status from sub_platform_status without assuming
+    shape. Canonical shape is {platform_id: {"status": str, ...}} (see
+    window.py writers and the golden fixture), but a hand-edited or legacy
+    file may hold a bare string or None - coerce instead of crashing the
+    double-send guard.
+    """
+    entry = (status_map or {}).get(platform_id)
+    if isinstance(entry, dict):
+        return str(entry.get("status", "") or "")
+    if entry is None:
+        return ""
+    return str(entry)
+
+
 def push_to_direct(
     post,
     project,
@@ -494,11 +509,11 @@ def push_to_direct(
 
     results: list[DirectPostResult] = []
 
-    # Skip platforms already posted
+    # Skip platforms already posted (double-send guard)
     already = getattr(post, "sub_platform_status", {}) or {}
-    tg_done = already.get("telegram", {}).get("status") == "posted"
-    dc_done = already.get("discord", {}).get("status") == "posted"
-    bs_done = already.get("bluesky", {}).get("status") == "posted"
+    tg_done = _sub_status(already, "telegram") == "posted"
+    dc_done = _sub_status(already, "discord") == "posted"
+    bs_done = _sub_status(already, "bluesky") == "posted"
 
     has_tg = clients["telegram"] and not tg_done
     has_dc = clients["discord"] and not dc_done
