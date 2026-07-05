@@ -45,21 +45,42 @@ def _cache_key(path: str, size: int) -> str:
     return hashlib.md5(raw.encode()).hexdigest()
 
 
+# GlobalCacheIndex row budget. Rows are ~100 bytes; 500k ≈ 50 MB of db,
+# far beyond any real project set (70k assets x a few sizes), so this is
+# a runaway-growth backstop, not a working-set limit.
+_GCI_MAX_ROWS = 500_000
+_GCI_KEEP_ROWS = 400_000
+_GCI_EVICT_CHECK_EVERY = 50  # save() calls between COUNT(*) checks
+
+
 class GlobalCacheIndex:
     """Cross-project index: maps cache_key → absolute path of cached PNG.
 
     Stored as an SQLite DB at <base_cache_dir>/content_index.db for O(1)
-    keyed lookups without loading the whole file into memory.
+    keyed lookups without loading the whole file into memory. Bounded:
+    oldest-registered rows are evicted once the table crosses
+    max_rows (checked periodically from the worker thread's save()).
     """
 
-    def __init__(self, base_dir: Path):
+    def __init__(self, base_dir: Path, max_rows: int = _GCI_MAX_ROWS,
+                 keep_rows: int = _GCI_KEEP_ROWS):
         db_path = base_dir / "content_index.db"
+        self._max_rows = max_rows
+        self._keep_rows = keep_rows
+        self._save_calls = 0
         self._con = sqlite3.connect(str(db_path), check_same_thread=False, timeout=5)
         self._con.execute(
             "CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, path TEXT) WITHOUT ROWID")
         self._con.execute("PRAGMA journal_mode=WAL")
         self._con.execute("PRAGMA synchronous=NORMAL")
         self._con.execute("PRAGMA busy_timeout=3000")
+        try:
+            # Registration-order stamp for eviction; legacy rows keep
+            # ts=0 and are evicted first.
+            self._con.execute(
+                "ALTER TABLE cache ADD COLUMN ts INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         self._con.commit()
         self._pending = 0
 
@@ -84,9 +105,25 @@ class GlobalCacheIndex:
         """Record that this key was cached at png_path."""
         try:
             self._con.execute(
-                "INSERT OR REPLACE INTO cache (key, path) VALUES (?,?)", (key, str(png_path)))
+                "INSERT OR REPLACE INTO cache (key, path, ts) VALUES (?,?,?)",
+                (key, str(png_path), int(time.time())))
             self._pending += 1
         except sqlite3.OperationalError:
+            pass
+
+    def evict_if_needed(self):
+        """Drop oldest-registered rows once the table crosses the row
+        budget. Runs on the worker thread via save()."""
+        try:
+            n = self._con.execute("SELECT COUNT(*) FROM cache").fetchone()[0]
+            if n <= self._max_rows:
+                return
+            self._con.execute(
+                "DELETE FROM cache WHERE key IN"
+                " (SELECT key FROM cache ORDER BY ts LIMIT ?)",
+                (n - self._keep_rows,))
+            self._con.commit()
+        except Exception:
             pass
 
     def save(self):
@@ -97,6 +134,9 @@ class GlobalCacheIndex:
             self._con.commit()
         except Exception:
             pass
+        self._save_calls += 1
+        if self._save_calls % _GCI_EVICT_CHECK_EVERY == 0:
+            self.evict_if_needed()
 
 
 # Module-level singleton; set by ThumbCache after base_dir is known
