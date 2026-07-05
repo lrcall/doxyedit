@@ -7808,7 +7808,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.browser._bar_tag_filters.clear()
         self.browser._clear_filter_btn.setVisible(False)
         self.browser._temp_hidden_ids.clear()
-        self.browser._stat_cache.clear()
+        # _stat_cache is deliberately NOT cleared: it maps source_path ->
+        # (mtime, size), which is file-keyed and project-independent.
+        # Clearing it here forced a 67k-file GUI-thread re-stat storm on
+        # the next Newest/Oldest/Largest/Smallest sort after every rebind.
         self.browser._filter_cache = None
         if clear_folder_state:
             self.browser._collapsed_folders.clear()
