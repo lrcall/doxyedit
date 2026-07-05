@@ -2601,6 +2601,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if not assets:
             return
         added = toggle_tags(assets, tag_id)
+        self.project.mark_mutated()
         self.tag_panel.set_assets(assets)
         self._on_data_changed()
         if tag_id in self.browser._eye_hidden_tags:
@@ -6850,6 +6851,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                             asset.specs["duplicate_keep"] = True
                         else:
                             asset.specs.pop("duplicate_keep", None)
+                self.project.mark_mutated()
                 self._dirty = True
                 self.browser.refresh()
                 self.status.showMessage(f"Linked {len(dupe_groups)} duplicate group(s)", 3000)
@@ -7006,6 +7008,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 set_id = "vs_" + uuid.uuid4().hex[:8]
                 for asset in group:
                     asset.specs["variant_set"] = set_id
+            self.project.mark_mutated()
             self._dirty = True
             self.browser.refresh()
             self.status.showMessage(f"Created {len(similar_groups)} variant set(s)", 3000)
@@ -7092,6 +7095,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 set_id = "vs_" + uuid.uuid4().hex[:8]
                 for a in assets:
                     a.specs["variant_set"] = set_id
+            self.project.mark_mutated()
             self._dirty = True
             self.browser.refresh()
             self.status.showMessage(

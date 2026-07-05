@@ -1301,6 +1301,8 @@ class WorkTray(QWidget):
         asset = self._project.get_asset(asset_id)
         if asset:
             toggle_tags([asset], tag_id)
+            if hasattr(self._project, "mark_mutated"):
+                self._project.mark_mutated()
             self.tags_modified.emit()
             self._list.viewport().update()
 
@@ -1311,6 +1313,8 @@ class WorkTray(QWidget):
         asset = self._project.get_asset(asset_id)
         if asset and tag_id in asset.tags:
             asset.tags.remove(tag_id)
+            if hasattr(self._project, "mark_mutated"):
+                self._project.mark_mutated()
             self.tags_modified.emit()
             self._list.viewport().update()
 

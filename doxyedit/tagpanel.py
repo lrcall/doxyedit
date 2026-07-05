@@ -1062,6 +1062,7 @@ class TagPanel(QWidget):
                     asset.tags.remove(old_id)
                     if new_id not in asset.tags:
                         asset.tags.append(new_id)
+            self._mark_project_mutated()
         # Panel-local bookkeeping: everything keyed by tag id.
         if old_id in self._rows:
             row = self._rows.pop(old_id)
@@ -1090,6 +1091,7 @@ class TagPanel(QWidget):
         for asset in self._assets:
             if tag_id in asset.tags:
                 asset.tags.remove(tag_id)
+        self._mark_project_mutated()
         self._hidden_tags.add(tag_id)
         if tag_id in self._rows:
             self._rows[tag_id].setVisible(False)
@@ -1110,12 +1112,20 @@ class TagPanel(QWidget):
             self._selected_tag_rows.discard(tag_id)
         self._btn_show_all.setVisible(len(self._hidden_tags) > 0)
 
+    def _mark_project_mutated(self):
+        """Bump the project mutation version after direct asset.tags
+        edits so version-keyed caches (filter cache, browser scan
+        cache) recompute."""
+        if self._project is not None and hasattr(self._project, "mark_mutated"):
+            self._project.mark_mutated()
+
     def _set_tag(self, tag_id: str, checked: bool):
         for asset in self._assets:
             if checked and tag_id not in asset.tags:
                 asset.tags.append(tag_id)
             elif not checked and tag_id in asset.tags:
                 asset.tags.remove(tag_id)
+        self._mark_project_mutated()
 
     def _on_tag_toggled(self, tag_id: str, checked: bool):
         self._set_tag(tag_id, checked)
@@ -1129,6 +1139,7 @@ class TagPanel(QWidget):
     def _clear_all_tags(self):
         for asset in self._assets:
             asset.tags.clear()
+        self._mark_project_mutated()
         for row in self._rows.values():
             row.set_checked(False)
         self.tags_changed.emit()

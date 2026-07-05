@@ -1264,6 +1264,8 @@ class AssetBrowser(QWidget):
         self._link_highlight_variants: set[str] = set()
         self._duplicate_groups: dict[str, list[str]] = {}
         self._variant_sets: dict[str, list[str]] = {}
+        self._asset_scan_sig: tuple | None = None  # _refresh_grid scan cache key
+        self._star_tag_counts: tuple[int, int] = (0, 0)
         self._thumb_cache = ThumbCache()
         self._thumb_cache.connect_ready(self._on_thumb_ready)
         self._thumb_cache.connect_visual_tags(self._on_visual_tags)
@@ -2074,6 +2076,7 @@ class AssetBrowser(QWidget):
         set_id = existing_set or ("vs_" + uuid.uuid4().hex[:8])
         for a in assets:
             a.specs["variant_set"] = set_id
+        self.project.mark_mutated()
         self._refresh_grid()
         self._mark_dirty()
 
@@ -2095,12 +2098,14 @@ class AssetBrowser(QWidget):
             if a.specs.get("duplicate_group") == dg:
                 a.specs.pop("duplicate_keep", None)
         asset.specs["duplicate_keep"] = True
+        self.project.mark_mutated()
         self._refresh_grid()
         self._mark_dirty()
 
     def _unlink_duplicate(self, asset):
         asset.specs.pop("duplicate_group", None)
         asset.specs.pop("duplicate_keep", None)
+        self.project.mark_mutated()
         self._refresh_grid()
         self._mark_dirty()
 
@@ -2109,11 +2114,13 @@ class AssetBrowser(QWidget):
             if a.specs.get("duplicate_group") == group_id:
                 a.specs.pop("duplicate_group", None)
                 a.specs.pop("duplicate_keep", None)
+        self.project.mark_mutated()
         self._refresh_grid()
         self._mark_dirty()
 
     def _unlink_variant(self, asset):
         asset.specs.pop("variant_set", None)
+        self.project.mark_mutated()
         self._refresh_grid()
         self._mark_dirty()
 
@@ -2121,6 +2128,7 @@ class AssetBrowser(QWidget):
         for a in self.project.assets:
             if a.specs.get("variant_set") == set_id:
                 a.specs.pop("variant_set", None)
+        self.project.mark_mutated()
         self._refresh_grid()
         self._mark_dirty()
 
@@ -2607,11 +2615,36 @@ class AssetBrowser(QWidget):
 
             QTimer.singleShot(50, self._request_visible_thumbs)
 
-        # Update counts
+        # Update counts. The full-asset scans (star/tag counts + the
+        # group/variant/used-tag indexes below) are cached by project
+        # mutation signature - refresh() fires far more often than the
+        # assets actually change, and each scan is O(all assets), not
+        # O(filtered). Every asset/tag/star/specs mutation path calls
+        # project.mark_mutated(), which bumps the version this keys on.
         total = len(self.project.assets)
         shown = len(self._filtered_assets)
-        starred = sum(1 for a in self.project.assets if a.starred > 0)
-        tagged = sum(1 for a in self.project.assets if a.tags)
+        scan_sig = (id(self.project), getattr(self.project, "version", 0))
+        if getattr(self, "_asset_scan_sig", None) != scan_sig:
+            starred = tagged = 0
+            self._duplicate_groups.clear()
+            self._variant_sets.clear()
+            used_tags: set[str] = set()
+            for a in self.project.assets:
+                if a.starred > 0:
+                    starred += 1
+                if a.tags:
+                    tagged += 1
+                used_tags.update(a.tags)
+                dg = a.specs.get("duplicate_group")
+                if dg:
+                    self._duplicate_groups.setdefault(dg, []).append(a.id)
+                vs = a.specs.get("variant_set")
+                if vs:
+                    self._variant_sets.setdefault(vs, []).append(a.id)
+            self._used_tag_ids = used_tags
+            self._star_tag_counts = (starred, tagged)
+            self._asset_scan_sig = scan_sig
+        starred, tagged = self._star_tag_counts
         any_filter = (self._bar_tag_filters or self.search_box.text().strip()
                       or self.filter_starred.isChecked() or self.filter_untagged.isChecked()
                       or self.filter_tagged.isChecked() or self.filter_assigned.isChecked()
@@ -2620,20 +2653,6 @@ class AssetBrowser(QWidget):
         filtered_marker = "  ⬡ FILTERED" if (any_filter and shown < total) else ""
         self.count_label.setText(f"{shown}/{total} shown, {starred}★, {tagged} tagged{filtered_marker}")
         self.page_label.setText(f"{shown} images")
-
-        # Rebuild group/variant lookup indexes + used tag cache
-        self._duplicate_groups.clear()
-        self._variant_sets.clear()
-        used_tags: set[str] = set()
-        for a in self.project.assets:
-            used_tags.update(a.tags)
-            dg = a.specs.get("duplicate_group")
-            if dg:
-                self._duplicate_groups.setdefault(dg, []).append(a.id)
-            vs = a.specs.get("variant_set")
-            if vs:
-                self._variant_sets.setdefault(vs, []).append(a.id)
-        self._used_tag_ids = used_tags
 
     @perf_time("rebuild_folder_sections")
     def _rebuild_folder_sections(self, saved_ids=None):
@@ -3776,14 +3795,17 @@ class AssetBrowser(QWidget):
 
     def _toggle_star(self, asset):
         asset.cycle_star()
+        self.project.mark_mutated()
         self._refresh_grid()
 
     def _unstar(self, asset):
         asset.starred = 0
+        self.project.mark_mutated()
         self._refresh_grid()
 
     def _toggle_tag(self, asset, tag_id):
         toggle_tags([asset], tag_id)
+        self.project.mark_mutated()
         self._refresh_grid()
         self.selection_changed.emit(list(self._selected_ids))
 
@@ -3793,6 +3815,7 @@ class AssetBrowser(QWidget):
         for a in assets:
             if tag_id in a.tags:
                 a.tags.remove(tag_id)
+        self.project.mark_mutated()
         self._refresh_grid()
         self.selection_changed.emit(list(self._selected_ids))
         self.tags_modified.emit()
@@ -3801,6 +3824,7 @@ class AssetBrowser(QWidget):
         """Toggle tag on all selected assets (or just the clicked one)."""
         assets = self.get_selected_assets() or [asset]
         toggle_tags(assets, tag_id)
+        self.project.mark_mutated()
         self._refresh_grid()
         self.selection_changed.emit(list(self._selected_ids))
         self.tags_modified.emit()
@@ -3809,12 +3833,14 @@ class AssetBrowser(QWidget):
         for a in self.project.assets:
             if a.id in self._selected_ids:
                 a.starred = 1
+        self.project.mark_mutated()
         self._refresh_grid()
 
     def _unstar_all_selected(self):
         for a in self.project.assets:
             if a.id in self._selected_ids:
                 a.starred = 0
+        self.project.mark_mutated()
         self._refresh_grid()
 
     def _remove_asset(self, asset):
@@ -3993,6 +4019,7 @@ class AssetBrowser(QWidget):
                         asset = model.get_asset(index)
                         if asset:
                             asset.cycle_star()
+                            self.project.mark_mutated()
                             model.dataChanged.emit(index, index)
                         return True
 
