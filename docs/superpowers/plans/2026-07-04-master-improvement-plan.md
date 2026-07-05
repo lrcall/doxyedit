@@ -102,29 +102,42 @@ QSettings, c3eb2dc; pytest-timeout added so future hangs fail named in 3min, 167
 storms, 8.4s file-browser stalls, GUI-thread SQLite commits. Verify every item with
 before/after perf.log entries.
 
-- [ ] Collection restore N+1 full rebinds (tab_manager.py:33-74, window.py:1344-1369):
-      add tabs with switch=False, keep single _switch_to_slot(0), drop redundant second
-      _apply_theme
-- [ ] Stop clearing browser._stat_cache in _rebind_project (window.py:7829) - it is
-      path-keyed and project-independent; optional off-thread stat warmup on first launch
-- [ ] FolderBrowser._auto_expand GUI stall up to 8.4s (filebrowser.py:325-355): memoize
-      by (project sig, target), defer via QTimer.singleShot, consider directoryLoaded
-      incremental expand + DontWatchForChanges
-- [ ] ThumbCache.set_project sync SQLite commits on GUI thread (thumbcache.py:513-531):
-      pending-writes counter to skip no-op save_index; flush via worker-queue sentinel;
-      lazy DiskCache construction on folder switch
-- [ ] apply_theme 0.4-1.2s: mostly fixed by the N+1 fix; optional stylesheet cache per
-      (theme_id, accent, font_size); defer accent-out-of-global-sheet refactor unless
-      tab switching still feels slow after
-- [ ] _refresh_grid tail (browser.py:2610-2636): cache starred/tagged counts +
-      dup-group/variant/used-tag rebuild by (id(project), project.version) sig
+- [x] Collection restore N+1 full rebinds: worse than scoped - EVERY _add_project_tab
+      (and _close/_detach) ran TWO rebinds because the unblocked setCurrentIndex fired
+      _on_proj_tab_changed before the explicit _switch_to_slot. Restore now costs ONE
+      rebind for N projects (switch=False adds, finalize skips re-switch, seed keyed on
+      loaded_count so a corrupt first path can't leave the blank project bound); both
+      restore paths dropped the redundant second _apply_theme. 5 rebind-count tests.
+      (0067509)
+- [x] browser._stat_cache survives rebinds; tests pin survival + that stat sorts reuse
+      cached entries. Off-thread warmup skipped: with the cache persistent, the storm
+      only ever happens once per session per path.  (67a36ed)
+- [x] FolderBrowser._auto_expand: expand target memoized, expand deferred via
+      QTimer.singleShot(0), DontWatchForChanges on the QFileSystemModel (folder counts
+      were already sig-memoized).  (ad217f0)
+- [x] ThumbCache rebind path: DiskCache connects lazily (worker-side first use),
+      save_index no-ops when clean, shared-cache rebind delegates flush to the worker
+      via request_flush sentinel.  (af3ec45)
+- [x] apply_theme 0.4-1.2s: the rebind-count fixes remove the repeated applies (1 per
+      restore instead of 2N+3). Stylesheet cache deferred per plan - reopen only if
+      perf.log still shows tab-switch pain.
+- [x] _refresh_grid tail cached by (id(project), project.version) in one combined pass.
+      Rode along: star/tag/tray/tagpanel/dup-variant mutation paths never called
+      mark_mutated, so the version-keyed _filter_cache could already serve stale
+      results - all sites now bump the version (tested).  (25e6a1b)
 - [ ] Remaining GUI-thread I/O: health panel scan, PSD/image loads in timeline/composer
-      previews/platforms auto-fill
-- [ ] GlobalCacheIndex eviction (last of the 4 unbounded caches)
+      previews/platforms auto-fill  (OPEN - only unfinished Batch 3 item; each site is
+      an independent module, fine as filler)
+- [x] GlobalCacheIndex eviction: ts-stamped rows, oldest evicted past 500k (to 400k),
+      checked every 50th worker-side save; legacy schema migrates.  (a631f11)
 
 **Sequencing:** land Batch 1 perf gate first so wins are measured. RISK: rebind ordering
 is subtle - manual regression test tab switching + collection restore. Batch 8's H6 pass
 runs AFTER this ships.
+
+**DONE 2026-07-05** (except the GUI-thread I/O sweep item, kept open above). Verify in
+real use: startup with a collection, tab switch, By Folder + Newest sort on the 70k
+project - perf.log should show rebind_project/apply_theme/refresh_grid drops.
 
 ---
 

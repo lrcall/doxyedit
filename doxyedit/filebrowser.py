@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QMenu, QFileSystemModel, QAbstractItemView, QApplication,
     QStyledItemDelegate, QStyleOptionViewItem, QLineEdit,
 )
-from PySide6.QtCore import Qt, Signal, QDir, QSettings, QModelIndex, QRect, QSize, QMimeData, QUrl
+from PySide6.QtCore import Qt, Signal, QDir, QSettings, QModelIndex, QRect, QSize, QMimeData, QUrl, QTimer
 from PySide6.QtGui import QPainter, QColor, QDrag
 from doxyedit.themes import ui_font_size, THEMES, DEFAULT_THEME
 
@@ -115,6 +115,7 @@ class FileBrowserPanel(QWidget):
         self._settings = QSettings("DoxyEdit", "DoxyEdit")
         self._load_pinned()
         self._active_folder: str | None = None  # currently filtering on this folder
+        self._last_expand_target: str | None = None  # _auto_expand memo
         self._build()
 
     def _load_pinned(self):
@@ -169,6 +170,11 @@ class FileBrowserPanel(QWidget):
         # Tree view
         self._model = QFileSystemModel()
         self._model.setReadOnly(True)
+        # No filesystem watchers: watching every expanded folder across
+        # all drives costs GUI-thread stalls on Dropbox/network paths.
+        # The tree refreshes on restart / re-navigation, which is enough.
+        self._model.setOption(
+            QFileSystemModel.Option.DontWatchForChanges, True)
         self._model.setFilter(QDir.Filter.AllDirs | QDir.Filter.NoDotAndDotDot)
         # Show only directories — files are shown as counts, not listed
         self._model.setNameFilterDisables(False)
@@ -343,16 +349,29 @@ class FileBrowserPanel(QWidget):
             # Pick the folder with the most assets
             target = max(self._folder_counts, key=self._folder_counts.get)
 
-        if target:
-            idx = self._model.index(target)
-            if idx.isValid():
-                self._tree.setCurrentIndex(idx)
-                self._tree.scrollTo(idx)
-                # Expand this folder and its parent chain
-                parent = idx
-                while parent.isValid():
-                    self._tree.expand(parent)
-                    parent = parent.parent()
+        if not target:
+            return
+        # Memoize: set_project runs on every rebind, and re-expanding the
+        # same target re-walks the QFileSystemModel path chain (GUI-thread
+        # directory scans - measured up to 8.4s on Dropbox). Only expand
+        # when the target actually changed, and defer past the current
+        # rebind so the window paints first.
+        if target == self._last_expand_target:
+            return
+        self._last_expand_target = target
+        QTimer.singleShot(0, lambda: self._expand_to(target))
+
+    def _expand_to(self, target: str):
+        idx = self._model.index(target)
+        if not idx.isValid():
+            return
+        self._tree.setCurrentIndex(idx)
+        self._tree.scrollTo(idx)
+        # Expand this folder and its parent chain
+        parent = idx
+        while parent.isValid():
+            self._tree.expand(parent)
+            parent = parent.parent()
 
     def _update_folder_counts(self):
         """Recompute folder → direct count + recursive totals.

@@ -1250,8 +1250,7 @@ class MainWindow(SaveLoadMixin, TabManagerMixin, QMainWindow):
                 self._rebind_project()
                 self._restore_folder_state()
                 self.setWindowTitle(f"DoxyEdit - {Path(path).name}")
-                if self.project.theme_id and self.project.theme_id in THEMES:
-                    self._apply_theme(self.project.theme_id)
+                # _rebind_project already applied the project theme.
                 self.status.showMessage(f"Restored: {Path(path).name}")
             except Exception:
                 import logging
@@ -1306,8 +1305,12 @@ class MainWindow(SaveLoadMixin, TabManagerMixin, QMainWindow):
         def _finalize():
             # Called on the UI thread after all projects processed (or abort).
             if state["loaded_count"] > 0:
-                self._proj_tab_bar.setCurrentIndex(0)
-                self._switch_to_slot(0)
+                # Slot 0 is normally still bound (tabs were added with
+                # switch=False) - switching again would redo the full
+                # rebind the seed already paid for.
+                if self._current_slot != 0:
+                    self._proj_tab_bar.setCurrentIndex(0)
+                    self._switch_to_slot(0)
                 self._restore_folder_state()
                 msg = f"Restored collection: {state['loaded_count']} project(s)"
                 if state["missing"]:
@@ -1355,18 +1358,23 @@ class MainWindow(SaveLoadMixin, TabManagerMixin, QMainWindow):
                     _finalize()
                     return
                 try:
-                    if state["index"] == 0:
-                        # First project: seed the initial slot
+                    if state["loaded_count"] == 0:
+                        # First SUCCESSFUL project seeds slot 0 (keyed on
+                        # loaded_count, not index, so a corrupt first path
+                        # doesn't leave the blank startup project bound).
+                        # _rebind_project applies the project theme itself -
+                        # no second _apply_theme here.
                         self.project = project
                         self._project_path = p
                         self._register_initial_slot(p, Path(p).stem)
                         self._rebind_project(clear_folder_state=True)
                         self.setWindowTitle(f"DoxyEdit - {Path(p).name}")
-                        if self.project.theme_id and self.project.theme_id in THEMES:
-                            self._apply_theme(self.project.theme_id)
                     else:
-                        # Subsequent projects: add as tabs (without switching visible UI)
-                        self._add_project_tab(project, p, Path(p).stem)
+                        # Subsequent projects: append tab + slot only.
+                        # switch=False keeps slot 0 bound - restoring N
+                        # projects costs ONE rebind total, not 2N+1.
+                        self._add_project_tab(project, p, Path(p).stem,
+                                              switch=False)
                     state["loaded_count"] += 1
                 except Exception:
                     import logging
@@ -2593,6 +2601,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         if not assets:
             return
         added = toggle_tags(assets, tag_id)
+        self.project.mark_mutated()
         self.tag_panel.set_assets(assets)
         self._on_data_changed()
         if tag_id in self.browser._eye_hidden_tags:
@@ -6842,6 +6851,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                             asset.specs["duplicate_keep"] = True
                         else:
                             asset.specs.pop("duplicate_keep", None)
+                self.project.mark_mutated()
                 self._dirty = True
                 self.browser.refresh()
                 self.status.showMessage(f"Linked {len(dupe_groups)} duplicate group(s)", 3000)
@@ -6998,6 +7008,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 set_id = "vs_" + uuid.uuid4().hex[:8]
                 for asset in group:
                     asset.specs["variant_set"] = set_id
+            self.project.mark_mutated()
             self._dirty = True
             self.browser.refresh()
             self.status.showMessage(f"Created {len(similar_groups)} variant set(s)", 3000)
@@ -7084,6 +7095,7 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
                 set_id = "vs_" + uuid.uuid4().hex[:8]
                 for a in assets:
                     a.specs["variant_set"] = set_id
+            self.project.mark_mutated()
             self._dirty = True
             self.browser.refresh()
             self.status.showMessage(
@@ -7800,7 +7812,10 @@ Return ONLY the replacement text. No explanation, no markdown fences, no preambl
         self.browser._bar_tag_filters.clear()
         self.browser._clear_filter_btn.setVisible(False)
         self.browser._temp_hidden_ids.clear()
-        self.browser._stat_cache.clear()
+        # _stat_cache is deliberately NOT cleared: it maps source_path ->
+        # (mtime, size), which is file-keyed and project-independent.
+        # Clearing it here forced a 67k-file GUI-thread re-stat storm on
+        # the next Newest/Oldest/Largest/Smallest sort after every rebind.
         self.browser._filter_cache = None
         if clear_folder_state:
             self.browser._collapsed_folders.clear()

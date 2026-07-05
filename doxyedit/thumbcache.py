@@ -4,6 +4,8 @@ import json
 import os
 import re
 import sqlite3
+import threading
+import time
 from collections import deque, OrderedDict
 from pathlib import Path
 from PySide6.QtCore import QThread, Signal, QMutex, QMutexLocker, QSettings
@@ -43,22 +45,44 @@ def _cache_key(path: str, size: int) -> str:
     return hashlib.md5(raw.encode()).hexdigest()
 
 
+# GlobalCacheIndex row budget. Rows are ~100 bytes; 500k ≈ 50 MB of db,
+# far beyond any real project set (70k assets x a few sizes), so this is
+# a runaway-growth backstop, not a working-set limit.
+_GCI_MAX_ROWS = 500_000
+_GCI_KEEP_ROWS = 400_000
+_GCI_EVICT_CHECK_EVERY = 50  # save() calls between COUNT(*) checks
+
+
 class GlobalCacheIndex:
     """Cross-project index: maps cache_key → absolute path of cached PNG.
 
     Stored as an SQLite DB at <base_cache_dir>/content_index.db for O(1)
-    keyed lookups without loading the whole file into memory.
+    keyed lookups without loading the whole file into memory. Bounded:
+    oldest-registered rows are evicted once the table crosses
+    max_rows (checked periodically from the worker thread's save()).
     """
 
-    def __init__(self, base_dir: Path):
+    def __init__(self, base_dir: Path, max_rows: int = _GCI_MAX_ROWS,
+                 keep_rows: int = _GCI_KEEP_ROWS):
         db_path = base_dir / "content_index.db"
+        self._max_rows = max_rows
+        self._keep_rows = keep_rows
+        self._save_calls = 0
         self._con = sqlite3.connect(str(db_path), check_same_thread=False, timeout=5)
         self._con.execute(
             "CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, path TEXT) WITHOUT ROWID")
         self._con.execute("PRAGMA journal_mode=WAL")
         self._con.execute("PRAGMA synchronous=NORMAL")
         self._con.execute("PRAGMA busy_timeout=3000")
+        try:
+            # Registration-order stamp for eviction; legacy rows keep
+            # ts=0 and are evicted first.
+            self._con.execute(
+                "ALTER TABLE cache ADD COLUMN ts INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         self._con.commit()
+        self._pending = 0
 
     def lookup(self, key: str) -> Path | None:
         """Return path to cached PNG if another project has it, else None."""
@@ -81,15 +105,38 @@ class GlobalCacheIndex:
         """Record that this key was cached at png_path."""
         try:
             self._con.execute(
-                "INSERT OR REPLACE INTO cache (key, path) VALUES (?,?)", (key, str(png_path)))
+                "INSERT OR REPLACE INTO cache (key, path, ts) VALUES (?,?,?)",
+                (key, str(png_path), int(time.time())))
+            self._pending += 1
         except sqlite3.OperationalError:
             pass
 
-    def save(self):
+    def evict_if_needed(self):
+        """Drop oldest-registered rows once the table crosses the row
+        budget. Runs on the worker thread via save()."""
         try:
+            n = self._con.execute("SELECT COUNT(*) FROM cache").fetchone()[0]
+            if n <= self._max_rows:
+                return
+            self._con.execute(
+                "DELETE FROM cache WHERE key IN"
+                " (SELECT key FROM cache ORDER BY ts LIMIT ?)",
+                (n - self._keep_rows,))
             self._con.commit()
         except Exception:
             pass
+
+    def save(self):
+        if not self._pending:
+            return
+        try:
+            self._pending = 0
+            self._con.commit()
+        except Exception:
+            pass
+        self._save_calls += 1
+        if self._save_calls % _GCI_EVICT_CHECK_EVERY == 0:
+            self.evict_if_needed()
 
 
 # Module-level singleton; set by ThumbCache after base_dir is known
@@ -110,28 +157,47 @@ class DiskCache:
             self._dir = Path.home() / ".doxyedit" / "thumbcache"
         self._dir.mkdir(parents=True, exist_ok=True)
         self._fmt, self._ext = _cache_fmt()  # read once in main thread; update via set_fast_cache()
-        self._con = sqlite3.connect(str(self._dir / "cache.db"), check_same_thread=False,
-                                     timeout=5)
-        self._con.execute(
-            "CREATE TABLE IF NOT EXISTS dims (key TEXT PRIMARY KEY, w INTEGER, h INTEGER)"
-            " WITHOUT ROWID")
-        self._con.execute("PRAGMA journal_mode=WAL")
-        self._con.execute("PRAGMA synchronous=NORMAL")
-        self._con.execute("PRAGMA busy_timeout=3000")
-        self._con.commit()
-        self._migrate_json_index()
+        # Lazy sqlite connection: DiskCache is constructed on the GUI
+        # thread during rebind / folder switch, but only the worker
+        # thread reads or writes dims. Deferring connect+schema+WAL to
+        # first use keeps that cost off the rebind path entirely.
+        self._con_obj: sqlite3.Connection | None = None
+        self._con_lock = threading.Lock()
+        self._pending_writes = 0
 
-    def _migrate_json_index(self):
+    @property
+    def _con(self) -> sqlite3.Connection:
+        con = self._con_obj
+        if con is not None:
+            return con
+        with self._con_lock:
+            if self._con_obj is None:
+                con = sqlite3.connect(
+                    str(self._dir / "cache.db"), check_same_thread=False,
+                    timeout=5)
+                con.execute(
+                    "CREATE TABLE IF NOT EXISTS dims"
+                    " (key TEXT PRIMARY KEY, w INTEGER, h INTEGER)"
+                    " WITHOUT ROWID")
+                con.execute("PRAGMA journal_mode=WAL")
+                con.execute("PRAGMA synchronous=NORMAL")
+                con.execute("PRAGMA busy_timeout=3000")
+                con.commit()
+                self._migrate_json_index(con)
+                self._con_obj = con
+            return self._con_obj
+
+    def _migrate_json_index(self, con: sqlite3.Connection):
         """One-time migration: import any existing index.json into cache.db."""
         old = self._dir / "index.json"
         if not old.exists():
             return
         try:
             data = json.loads(old.read_text())
-            self._con.executemany(
+            con.executemany(
                 "INSERT OR IGNORE INTO dims (key, w, h) VALUES (?,?,?)",
                 ((k, v.get("w", 0), v.get("h", 0)) for k, v in data.items()))
-            self._con.commit()
+            con.commit()
             old.rename(self._dir / "index.json.bak")
         except Exception:
             pass
@@ -185,15 +251,19 @@ class DiskCache:
         try:
             self._con.execute(
                 "INSERT OR REPLACE INTO dims (key, w, h) VALUES (?,?,?)", (key, orig_w, orig_h))
+            self._pending_writes += 1
         except sqlite3.OperationalError:
             pass
         if _global_index:
             _global_index.register(key, cached_file)
 
     def save_index(self):
-        """Flush pending writes."""
+        """Flush pending writes. No-op when nothing was written - the
+        old unconditional commit was a per-rebind GUI-thread stall."""
         try:
-            self._con.commit()
+            if self._con_obj is not None and self._pending_writes:
+                self._pending_writes = 0
+                self._con_obj.commit()
             if _global_index:
                 _global_index.save()
         except Exception:
@@ -214,6 +284,7 @@ class ThumbWorker(QThread):
         self._mutex = QMutex()
         self._stop = False
         self._save_counter = 0
+        self._flush_requested = False
         self._force_regen: set[str] = set()  # asset IDs that must bypass disk cache
         self._autotag = False  # set True to compute visual tags during generation
         self._upgrade_queue: deque = deque()  # (asset_id, path, size, pil_img, w, h)
@@ -256,8 +327,17 @@ class ThumbWorker(QThread):
     def stop(self):
         self._stop = True
 
+    def request_flush(self):
+        """Ask the worker thread to commit pending disk-cache writes on
+        its next loop pass - keeps sqlite commits off the GUI thread."""
+        self._flush_requested = True
+
     def run(self):
         while not self._stop:
+            if self._flush_requested:
+                self._flush_requested = False
+                self._disk_cache.save_index()
+
             # Priority 1: fast previews from main queue
             item = None
             with QMutexLocker(self._mutex):
@@ -514,21 +594,28 @@ class ThumbCache:
         """Switch disk cache to a per-project subfolder.
         Keeps in-memory cache when the disk folder doesn't change (shared cache)."""
         subfolder = self._base_cache_dir / _safe_name(project_name)
+        if subfolder == self._disk_cache._dir:
+            # Shared-cache rebind (the common path): nothing to swap.
+            # Drop stale queued work, then let the WORKER commit any
+            # pending dim writes - the old GUI-thread save_index() here
+            # was a measured per-rebind stall.
+            self._worker.clear_queue()
+            self._worker.request_flush()
+            return
         subfolder.mkdir(parents=True, exist_ok=True)
-        same_folder = (subfolder == self._disk_cache._dir)
         # Drain the worker queue before swapping disk cache
         self._worker.clear_queue()
-        self._disk_cache.save_index()
-        if not same_folder:
-            new_disk = DiskCache(cache_dir=str(subfolder))
-            self._worker._disk_cache = new_disk
-            self._disk_cache = new_disk
-            # Different folder — clear in-memory cache to avoid stale thumbnails
-            self._pixmaps.clear()
-            self._pixmap_bytes.clear()
-            self._bytes_used = 0
-            self._gen_sizes.clear()
-            self._dims.clear()
+        self._disk_cache.save_index()  # no-op unless writes are pending
+        # DiskCache connects lazily - no sqlite work on this thread here.
+        new_disk = DiskCache(cache_dir=str(subfolder))
+        self._worker._disk_cache = new_disk
+        self._disk_cache = new_disk
+        # Different folder — clear in-memory cache to avoid stale thumbnails
+        self._pixmaps.clear()
+        self._pixmap_bytes.clear()
+        self._bytes_used = 0
+        self._gen_sizes.clear()
+        self._dims.clear()
 
     def get(self, asset_id: str) -> QPixmap | None:
         return self._pixmaps.get(asset_id)
