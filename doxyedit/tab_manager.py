@@ -30,16 +30,26 @@ from PySide6.QtWidgets import QMenu, QMessageBox
 class TabManagerMixin:
     """Project tab slot management. Mixed into MainWindow."""
 
-    def _add_project_tab(self, project, path: str | None, label: str):
-        self._save_current_slot()
+    def _add_project_tab(self, project, path: str | None, label: str,
+                         switch: bool = True):
+        """Append a project slot + tab. switch=False (collection restore)
+        adds the tab without touching the bound project - no rebind.
+
+        setCurrentIndex stays inside the blockSignals window: unblocked it
+        fires _on_proj_tab_changed -> _switch_to_slot, and the explicit
+        _switch_to_slot below would then rebind a SECOND time."""
+        if switch:
+            self._save_current_slot()
         slot = {"project": project, "path": path, "label": label}
         self._project_slots.append(slot)
         idx = len(self._project_slots) - 1
         self._proj_tab_bar.blockSignals(True)
         self._proj_tab_bar.addTab(label)
+        if switch:
+            self._proj_tab_bar.setCurrentIndex(idx)
         self._proj_tab_bar.blockSignals(False)
-        self._proj_tab_bar.setCurrentIndex(idx)
-        self._switch_to_slot(idx)
+        if switch:
+            self._switch_to_slot(idx)
 
     def _save_current_slot(self):
         if 0 <= self._current_slot < len(self._project_slots):
@@ -92,10 +102,10 @@ class TabManagerMixin:
         self._project_slots.pop(idx)
         self._proj_tab_bar.blockSignals(True)
         self._proj_tab_bar.removeTab(idx)
-        self._proj_tab_bar.blockSignals(False)
         new_idx = min(idx, len(self._project_slots) - 1)
         self._current_slot = -1
         self._proj_tab_bar.setCurrentIndex(new_idx)
+        self._proj_tab_bar.blockSignals(False)
         self._switch_to_slot(new_idx)
 
     def _on_proj_tab_moved(self, from_idx: int, to_idx: int):
@@ -164,14 +174,16 @@ class TabManagerMixin:
             self._project_slots.pop(idx)
             self._proj_tab_bar.blockSignals(True)
             self._proj_tab_bar.removeTab(idx)
-            self._proj_tab_bar.blockSignals(False)
             new_idx = min(idx, len(self._project_slots) - 1)
-            if self._current_slot == idx:
+            switch_needed = self._current_slot == idx
+            if switch_needed:
                 self._current_slot = -1
                 self._proj_tab_bar.setCurrentIndex(new_idx)
-                self._switch_to_slot(new_idx)
             elif self._current_slot > idx:
                 self._current_slot -= 1
+            self._proj_tab_bar.blockSignals(False)
+            if switch_needed:
+                self._switch_to_slot(new_idx)
 
     def _rename_proj_tab(self, idx: int, label: str):
         if 0 <= idx < len(self._project_slots):
